@@ -11,15 +11,21 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smo
 try {
 	const banner = [];
 	printBanner((line) => banner.push(line));
-	assert.deepEqual(banner.slice(0, ASCII_WORDMARK.length), ASCII_WORDMARK,
-		"the supplied updated wordmark is emitted exactly");
-	const bannerWidth = Math.max(...ASCII_WORDMARK.map((line) => line.length));
+	const creditSourceRows = renderPeggaText("INDEPENDENT PROJECT BY KASTRICK");
+	const disclaimerSourceRows = renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL");
+	const bannerWidth = Math.max(
+		...ASCII_WORDMARK.map((line) => line.length),
+		...creditSourceRows.map((line) => line.length),
+		...disclaimerSourceRows.map((line) => line.length),
+	);
 	const centerBannerLine = (line) => {
 		const left = Math.max(0, Math.floor((bannerWidth - line.length) / 2));
 		return " ".repeat(left) + line + " ".repeat(Math.max(0, bannerWidth - left - line.length));
 	};
-	const creditRows = renderPeggaText("INDEPENDENT PROJECT BY KASTRICK").map(centerBannerLine);
-	const disclaimerRows = renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL").map(centerBannerLine);
+	assert.deepEqual(banner.slice(0, ASCII_WORDMARK.length), ASCII_WORDMARK.map(centerBannerLine),
+		"the supplied updated wordmark is centered and emitted exactly");
+	const creditRows = creditSourceRows.map(centerBannerLine);
+	const disclaimerRows = disclaimerSourceRows.map(centerBannerLine);
 	assert.deepEqual(banner.slice(ASCII_WORDMARK.length, ASCII_WORDMARK.length + creditRows.length), creditRows,
 		"the project credit uses the matching Pegga-style pixel font");
 	assert.deepEqual(banner.slice(ASCII_WORDMARK.length + creditRows.length,
