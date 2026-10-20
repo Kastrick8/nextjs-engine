@@ -25,7 +25,7 @@ try {
 	assert.deepEqual(banner.slice(ASCII_WORDMARK.length + creditRows.length,
 		ASCII_WORDMARK.length + creditRows.length + disclaimerRows.length), disclaimerRows,
 		"the combined Next.js and Vercel disclaimer uses the Pegga-style pixel font");
-	assert.ok(!banner.some((line) => /x\\s+next\\.js/i.test(line)), "the old x next.js subtitle is removed");
+	assert.ok(!banner.some((line) => /x\s+next\.js/i.test(line)), "the old x next.js subtitle is removed");
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");
 	fs.mkdirSync(pageDirectory, { recursive: true });
 	fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "engine-build-fixture", version: "1.0.0" }));
