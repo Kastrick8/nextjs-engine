@@ -484,16 +484,62 @@ function resolveDistDir(projectRoot) {
 	}
 	return ".next";
 }
-function emitArtifacts(projectRoot, inputPath, distDir) {
+function summarizeNextOutputs(context = {}) {
+	const outputs = context && context.outputs && typeof context.outputs === "object" ? context.outputs : null;
+	if (!outputs) return undefined;
+	const kinds = [
+		["appPages", "appRouterEntries"],
+		["pages", "pagesRouterEntries"],
+		["pagesApi", "apiRoutes"],
+		["prerenders", "prerenders"],
+		["staticFiles", "staticFiles"],
+	];
+	const counts = {};
+	const paths = {};
+	for (const [outputKey, manifestKey] of kinds) {
+		const entries = outputs[outputKey];
+		if (!Array.isArray(entries)) continue;
+		counts[manifestKey] = entries.length;
+		paths[manifestKey] = entries
+			.map((entry) => entry && typeof entry.pathname === "string" ? entry.pathname : undefined)
+			.filter(Boolean)
+			.sort();
+	}
+	return {
+		nextVersion: typeof context.nextVersion === "string" ? context.nextVersion : null,
+		buildId: typeof context.buildId === "string" ? context.buildId : null,
+		counts,
+		paths,
+	};
+}
+function emitArtifacts(projectRoot, inputPath, distDir, buildContext = {}) {
 	const root = path.resolve(projectRoot);
 	const manifest = JSON.parse(fs.readFileSync(inputPath, "utf8"));
+	const nextBuild = summarizeNextOutputs(buildContext);
+	if (nextBuild) {
+		manifest.nextBuild = nextBuild;
+		manifest.summary = manifest.summary || {};
+		manifest.summary.nextOutputCounts = nextBuild.counts;
+	}
 	const outputRoot = path.resolve(root, distDir || resolveDistDir(root));
 	if (!isWithin(root, outputRoot) || outputRoot === root) throw new Error("Refusing to emit compiler artifacts outside the project build directory.");
 	const outputDir = path.join(outputRoot, "nextjs-engine");
 	if (!isWithin(outputRoot, outputDir)) throw new Error("Unsafe Next.js Engine output directory.");
 	const outputFile = path.join(outputDir, "compiler-manifest.json");
 	atomicWriteJson(outputFile, manifest);
-	console.log("nextjs-engine | Emitted " + displayPath(root, outputFile) + " after Next.js build succeeded");
+	console.log("nextjs-engine | ✓ Emitted " + displayPath(root, outputFile) + " after Next.js build succeeded");
+	if (nextBuild) {
+		const labels = [
+			["appRouterEntries", "App Router entries"],
+			["pagesRouterEntries", "Pages Router entries"],
+			["apiRoutes", "API routes"],
+			["prerenders", "prerenders"],
+		];
+		const parts = labels
+			.filter(([key]) => Number.isInteger(nextBuild.counts[key]))
+			.map(([key, label]) => nextBuild.counts[key] + " " + label);
+		if (parts.length) console.log("nextjs-engine | ✓ Indexed Next.js build outputs — " + parts.join(", "));
+	}
 	return outputFile;
 }
 function parseArgs(argv) {
