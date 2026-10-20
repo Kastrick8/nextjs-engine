@@ -211,6 +211,43 @@ function logEvent(event, logger = console.log) {
 			+ s.clientIslands + " client islands, " + s.assetCount + " assets");
 	}
 }
+const ASCII_GLYPHS = Object.freeze({
+	N: ["#...#", "##..#", "#.#.#", "#..##", "#...#"],
+	E: ["#####", "#....", "####.", "#....", "#####"],
+	X: ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
+	T: ["#####", "..#..", "..#..", "..#..", "..#.."],
+	J: ["..###", "....#", "....#", "#...#", ".###."],
+	S: [".####", "#....", ".###.", "....#", "####."],
+	G: [".####", "#....", "#.###", "#...#", ".###."],
+	I: ["#####", "..#..", "..#..", "..#..", "#####"],
+});
+
+function renderBannerLines() {
+	const renderWord = (word, row) => [...word].map((letter) => ASCII_GLYPHS[letter][row]).join(" ");
+	const wordmark = Array.from({ length: 5 }, (_, row) => renderWord("NEXTJS", row) + "   " + renderWord("ENGINE", row));
+	const contentWidth = 75;
+	const center = (value) => {
+		const text = String(value);
+		const left = Math.max(0, Math.floor((contentWidth - text.length) / 2));
+		return " ".repeat(left) + text + " ".repeat(Math.max(0, contentWidth - left - text.length));
+	};
+	const frame = (value) => "| " + center(value) + " |";
+	const border = "+" + "-".repeat(contentWidth + 2) + "+";
+
+	return [
+		border,
+		...wordmark.map(frame),
+		frame("x  next.js"),
+		frame("INDEPENDENT PROJECT BY KASTRICK"),
+		frame("NOT AFFILIATED WITH NEXT.JS"),
+		border,
+	];
+}
+
+function printBanner(logger = console.log) {
+	for (const line of renderBannerLines()) logger(line);
+}
+
 function installTypeScriptRequireHook() {
 	if (require.extensions[".ts"] && require.extensions[".ts"].__engineBuildHook) return;
 	const handler = function engineTypeScriptBuildHook(module, filename) {
@@ -380,6 +417,7 @@ function runCLI(argv = process.argv.slice(2)) {
 		const root = path.resolve(args.projectRoot || process.cwd());
 		if (args.mode === "scan") {
 			if (!args.output) throw new Error("--scan requires --output <temporary-json-path>");
+			printBanner();
 			console.log("nextjs-engine | Starting Generation 3 compiler pass alongside Next.js");
 			const manifest = compileProject(root);
 			atomicWriteJson(path.resolve(args.output), manifest);
@@ -401,6 +439,7 @@ module.exports = {
 	compileProject,
 	emitArtifacts,
 	logEvent,
+	printBanner,
 	resolveDistDir,
 	routePathForFile,
 	runCLI,
