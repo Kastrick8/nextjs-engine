@@ -10,7 +10,7 @@ Use the normal project build command:
 npm run build
 ```
 
-When the combined `withEngine()` plugin is configured, it wires `adapterPath` to the Engine adapter. This is part of the normal Next.js build lifecycle; a separate build coordinator is not required. The coordinator runs the schema scan in a separate Node worker while Next.js owns bundling, route compilation, rendering, and output generation.
+When the combined `withEngine()` plugin is configured, it wires `adapterPath` to the Engine adapter. This is part of the normal Next.js build lifecycle; a separate build coordinator is not required. The adapter starts the schema scan in a separate Node worker while Next.js owns bundling, route compilation, rendering, and output generation.
 
 The adapter:
 1. starts the Generation 3 compiler from Next.js's production-build configuration phase;
