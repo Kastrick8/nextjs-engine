@@ -236,7 +236,7 @@ function compileProject(projectRoot, options = {}) {
 	}
 	const registered = registeredCustomTypes(files);
 	installTypeScriptRequireHook();
-	const compilePage = require(path.join(projectRoot, "src", "engine", "compiler", "EngineCompiler.ts")).compilePage;
+	const compilePage = require(path.join(__dirname, "../compiler/EngineCompiler.ts")).compilePage;
 	const pages = [];
 	const skipped = [];
 	let candidateCount = 0;
