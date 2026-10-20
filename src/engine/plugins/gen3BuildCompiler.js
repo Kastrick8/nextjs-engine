@@ -363,7 +363,7 @@ function compileProject(projectRoot, options = {}) {
 		const source = sourceByPath.get(file);
 		const candidates = candidatesByFile.get(file) || [];
 		if (candidates.length === 0) {
-			if (/(^|\\/)(page|index)\\.(tsx?|jsx?)$/.test(relative) && fs.readFileSync(file, "utf8").includes("createPage")) {
+			if (/(^|\/)(page|index)\.(tsx?|jsx?)$/.test(relative) && fs.readFileSync(file, "utf8").includes("createPage")) {
 				skipped.push({
 					sourcePath: relative,
 					pageId: routePathForFile(projectRoot, file),
