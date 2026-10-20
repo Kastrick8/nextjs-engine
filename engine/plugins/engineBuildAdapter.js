@@ -27,6 +27,7 @@ async function loadDelegateAdapter() {
 }
 function removeState(state) {
 	if (getState() === state) delete globalThis[BUILD_STATE_KEY];
+	if (state.bannerOwner && state.compiler) state.compiler.releaseBanner(state.projectDir);
 	try { fs.rmSync(state.tempDirectory, { recursive: true, force: true }); } catch { /* Build cleanup must not hide the original outcome. */ }
 }
 function startCompiler(projectDir) {
@@ -37,25 +38,36 @@ function startCompiler(projectDir) {
 	const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-"));
 	const manifestFile = path.join(tempDirectory, "compiler-manifest.json");
 	const compilerScript = path.join(__dirname, "gen3BuildCompiler.js");
-	console.log("nextjs-engine | Starting Generation 3 compiler pass alongside Next.js");
+	const compiler = require("./gen3BuildCompiler");
+	const bannerOwner = compiler.printBannerOnce(resolvedProjectDir);
+	if (bannerOwner) console.log("nextjs-engine | Starting Generation 3 compiler pass alongside Next.js");
 
-	const child = spawn(process.execPath, [
-		compilerScript,
-		"--scan",
-		"--project-root", resolvedProjectDir,
-		"--output", manifestFile,
-	], {
-		cwd: resolvedProjectDir,
-		env: process.env,
-		stdio: "inherit",
-		windowsHide: true,
-	});
+	let child;
+	try {
+		child = spawn(process.execPath, [
+			compilerScript,
+			"--scan",
+			"--adapter-worker",
+			"--project-root", resolvedProjectDir,
+			"--output", manifestFile,
+		], {
+			cwd: resolvedProjectDir,
+			env: process.env,
+			stdio: "inherit",
+			windowsHide: true,
+		});
+	} catch (error) {
+		if (bannerOwner) compiler.releaseBanner(resolvedProjectDir);
+		throw error;
+	}
 
 	const state = {
 		projectDir: resolvedProjectDir,
 		tempDirectory,
 		manifestFile,
 		child,
+		compiler,
+		bannerOwner,
 		completion: null,
 	};
 	state.completion = new Promise((resolve, reject) => {
