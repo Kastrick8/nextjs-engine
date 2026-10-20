@@ -23,7 +23,7 @@ The Engine does not replace Next.js's Turbopack/Webpack compiler. It uses the ex
 
 ## Progress logs
 
-The compiler worker prints a compact ASCII wordmark at the start of each scan. It labels the integration as `NEXTJS ENGINE x next.js` and includes both `INDEPENDENT PROJECT BY KASTRICK` and `NOT AFFILIATED WITH NEXT.JS` directly beneath it. The banner uses plain ASCII and has no additional package dependency.
+The compiler worker prints the project's block-style `NEXTJS ENGINE` wordmark at the start of each scan. Beneath it are the bold captions `INDEPENDENT PROJECT BY KASTRICK` and `NOT AFFILIATED WITH NEXT.JS NOR VERCEL`. The old `x next.js` subtitle is omitted. Footer captions use ANSI bold when terminal/CI color output is supported, while remaining readable when color is disabled.
 
 Typical output from the Engine pass looks like:
 
