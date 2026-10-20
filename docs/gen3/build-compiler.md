@@ -23,6 +23,8 @@ The Engine does not replace Next.js's Turbopack/Webpack compiler. It uses the ex
 
 ## Progress logs
 
+The compiler worker prints the updated block-style wordmark. Both the project credit and the combined `NOT AFFILIATED WITH NEXT.JS NOR VERCEL` disclaimer use a matching three-row Pegga-style pixel font. The former `x next.js` subtitle is removed.
+
 Typical output from the Engine pass looks like:
 
 ```text
