@@ -67,6 +67,8 @@ export interface EngineCompiledNode {
 	capabilities: EngineCapability[];
 	heavy: boolean;
 	interactive: boolean;
+	/** True when this node is supplied by an application component rather than an Engine built-in. */
+	customComponent?: boolean;
 	children: EngineCompiledNode[];
 	assets: EngineCompiledAsset[];
 	source: SchemaNode;
@@ -154,6 +156,16 @@ export interface EngineCompilerSummary {
 	assetCount: number;
 }
 
+export interface EngineCompilerProgressEvent {
+	phase: "page-start" | "node" | "page-cache-hit" | "page-complete";
+	pageId: string;
+	sourcePath?: string;
+	nodePath?: string;
+	nodeType?: NodeType;
+	customComponent?: boolean;
+	summary?: EngineCompilerSummary;
+}
+
 export interface EngineCompiledPage {
 	generation: 3;
 	id: string;
@@ -174,4 +186,10 @@ export interface EngineCompileOptions {
 	strict?: boolean;
 	/** Serious security diagnostics fail compilation by default. */
 	security?: "enforce" | "report" | "off";
+	/** Source file label used by build-time compiler progress reporting. */
+	sourcePath?: string;
+	/** Custom schema node types discovered by the application build scanner. */
+	customComponentTypes?: readonly string[];
+	/** Optional progress observer. Runtime rendering stays silent unless a caller opts in. */
+	onProgress?: (event: EngineCompilerProgressEvent) => void;
 }
