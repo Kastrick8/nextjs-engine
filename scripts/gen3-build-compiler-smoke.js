@@ -5,10 +5,33 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { compileProject, emitArtifacts } = require("./gen3-build-compiler");
+const { ASCII_WORDMARK, compileProject, emitArtifacts, printBanner, renderPeggaText } = require("./gen3-build-compiler");
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
 try {
+	const banner = [];
+	printBanner((line) => banner.push(line));
+	const creditSourceRows = renderPeggaText("INDEPENDENT PROJECT BY KASTRICK");
+	const disclaimerSourceRows = renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL");
+	const bannerWidth = Math.max(
+		...ASCII_WORDMARK.map((line) => line.length),
+		...creditSourceRows.map((line) => line.length),
+		...disclaimerSourceRows.map((line) => line.length),
+	);
+	const centerBannerLine = (line) => {
+		const left = Math.max(0, Math.floor((bannerWidth - line.length) / 2));
+		return " ".repeat(left) + line + " ".repeat(Math.max(0, bannerWidth - left - line.length));
+	};
+	assert.deepEqual(banner.slice(0, ASCII_WORDMARK.length), ASCII_WORDMARK.map(centerBannerLine),
+		"the supplied updated wordmark is centered and emitted exactly");
+	const creditRows = creditSourceRows.map(centerBannerLine);
+	const disclaimerRows = disclaimerSourceRows.map(centerBannerLine);
+	assert.deepEqual(banner.slice(ASCII_WORDMARK.length, ASCII_WORDMARK.length + creditRows.length), creditRows,
+		"the project credit uses the matching Pegga-style pixel font");
+	assert.deepEqual(banner.slice(ASCII_WORDMARK.length + creditRows.length,
+		ASCII_WORDMARK.length + creditRows.length + disclaimerRows.length), disclaimerRows,
+		"the combined Next.js and Vercel disclaimer uses the Pegga-style pixel font");
+	assert.ok(!banner.some((line) => /x\s+next\.js/i.test(line)), "the old x next.js subtitle is removed");
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");
 	fs.mkdirSync(pageDirectory, { recursive: true });
 	fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "engine-build-fixture", version: "1.0.0" }));

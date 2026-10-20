@@ -211,6 +211,77 @@ function logEvent(event, logger = console.log) {
 			+ s.clientIslands + " client islands, " + s.assetCount + " assets");
 	}
 }
+const ASCII_WORDMARK = Object.freeze([
+	" ██████   █████ ██████████ █████ █████ ███████████       █████  █████████     ██████████ ██████   █████   █████████  █████ ██████   █████ ██████████",
+	"▒▒██████ ▒▒███ ▒▒███▒▒▒▒▒█▒▒███ ▒▒███ ▒█▒▒▒███▒▒▒█      ▒▒███  ███▒▒▒▒▒███   ▒▒███▒▒▒▒▒█▒▒██████ ▒▒███   ███▒▒▒▒▒███▒▒███ ▒▒██████ ▒▒███ ▒▒███▒▒▒▒▒█",
+	" ▒███▒███ ▒███  ▒███  █ ▒  ▒▒███ ███  ▒   ▒███  ▒        ▒███ ▒███    ▒▒▒     ▒███  █ ▒  ▒███▒███ ▒███  ███     ▒▒▒  ▒███  ▒███▒███ ▒███  ▒███  █ ▒ ",
+	" ▒███▒▒███▒███  ▒██████     ▒▒█████       ▒███           ▒███ ▒▒█████████     ▒██████    ▒███▒▒███▒███ ▒███          ▒███  ▒███▒▒███▒███  ▒██████   ",
+	" ▒███ ▒▒██████  ▒███▒▒█      ███▒███      ▒███           ▒███  ▒▒▒▒▒▒▒▒███    ▒███▒▒█    ▒███ ▒▒██████ ▒███    █████ ▒███  ▒███ ▒▒██████  ▒███▒▒█   ",
+	" ▒███  ▒▒█████  ▒███ ▒   █  ███ ▒▒███     ▒███     ███   ▒███  ███    ▒███    ▒███ ▒   █ ▒███  ▒▒█████ ▒▒███  ▒▒███  ▒███  ▒███  ▒▒█████  ▒███ ▒   █",
+	" █████  ▒▒█████ ██████████ █████ █████    █████   ▒▒████████  ▒▒█████████     ██████████ █████  ▒▒█████ ▒▒█████████  █████ █████  ▒▒█████ ██████████",
+	"▒▒▒▒▒    ▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒     ▒▒▒▒▒▒▒▒    ▒▒▒▒▒▒▒▒▒     ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒   ▒▒▒▒▒▒▒▒▒  ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒ ",
+	"",
+	"",
+	"",
+]);
+
+const PEGGA_GLYPHS = Object.freeze({
+	A: ["█▀█", "█▀█", "█░█"],
+	B: ["█▀█", "█▀█", "▀▀▀"],
+	C: ["█▀▀", "█░░", "▀▀▀"],
+	D: ["█▀█", "█░█", "▀▀▀"],
+	E: ["█▀▀", "█▀▀", "▀▀▀"],
+	F: ["█▀▀", "█▀▀", "█░░"],
+	G: ["█▀▀", "█░▀", "▀▀█"],
+	H: ["█░█", "█▀█", "█░█"],
+	I: ["▀█▀", "░█░", "░▀░"],
+	J: ["░▀█", "░░█", "█▀█"],
+	K: ["█░█", "█▀▄", "█░█"],
+	L: ["█░░", "█░░", "▀▀▀"],
+	M: ["█▄█", "█▀█", "█░█"],
+	N: ["█▄█", "█▀█", "█░█"],
+	O: ["█▀█", "█░█", "▀▀▀"],
+	P: ["█▀█", "█▀█", "█░░"],
+	Q: ["█▀█", "█░█", "▀▀▄"],
+	R: ["█▀█", "█▀█", "█░▀"],
+	S: ["█▀▀", "▀▀█", "▀▀▀"],
+	T: ["▀█▀", "░█░", "░█░"],
+	U: ["█░█", "█░█", "▀▀▀"],
+	V: ["█░█", "█░█", "░▀░"],
+	W: ["█░█", "█▀█", "█▄█"],
+	X: ["█░█", "░▀░", "█░█"],
+	Y: ["█░█", "░▀█", "░█░"],
+	Z: ["▀▀█", "░█░", "█▀▀"],
+	".": ["░░░", "░░░", "░░▀"],
+});
+
+function renderPeggaText(text) {
+	const words = String(text).toUpperCase().split(" ");
+	return Array.from({ length: 3 }, (_, row) => words
+		.map((word) => [...word].map((letter) => "░" + (PEGGA_GLYPHS[letter] || PEGGA_GLYPHS["."])[row]).join(""))
+		.join("░░░"));
+}
+
+function renderBannerLines() {
+	const footerSourceRows = [
+		...renderPeggaText("INDEPENDENT PROJECT BY KASTRICK"),
+		...renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL"),
+	];
+	const contentWidth = Math.max(
+		...ASCII_WORDMARK.map((line) => line.length),
+		...footerSourceRows.map((line) => line.length),
+	);
+	const center = (line) => {
+		const left = Math.max(0, Math.floor((contentWidth - line.length) / 2));
+		return " ".repeat(left) + line + " ".repeat(Math.max(0, contentWidth - left - line.length));
+	};
+	return [...ASCII_WORDMARK.map(center), ...footerSourceRows.map(center)];
+}
+
+function printBanner(logger = console.log) {
+	for (const line of renderBannerLines()) logger(line);
+}
+
 function installTypeScriptRequireHook() {
 	if (require.extensions[".ts"] && require.extensions[".ts"].__engineBuildHook) return;
 	const handler = function engineTypeScriptBuildHook(module, filename) {
@@ -380,6 +451,7 @@ function runCLI(argv = process.argv.slice(2)) {
 		const root = path.resolve(args.projectRoot || process.cwd());
 		if (args.mode === "scan") {
 			if (!args.output) throw new Error("--scan requires --output <temporary-json-path>");
+			printBanner();
 			console.log("nextjs-engine | Starting Generation 3 compiler pass alongside Next.js");
 			const manifest = compileProject(root);
 			atomicWriteJson(path.resolve(args.output), manifest);
@@ -401,6 +473,10 @@ module.exports = {
 	compileProject,
 	emitArtifacts,
 	logEvent,
+	ASCII_WORDMARK,
+	PEGGA_GLYPHS,
+	printBanner,
+	renderPeggaText,
 	resolveDistDir,
 	routePathForFile,
 	runCLI,
