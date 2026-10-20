@@ -72,8 +72,10 @@ try {
 	assert.equal(manifest.pages[0].id, "/about", "App Router route groups do not leak into route identifiers");
 	assert.ok(manifest.pages[0].customComponents.includes("notice"), "custom schema nodes appear in the page manifest");
 	assert.ok(manifest.pages[0].compiledNodes.some((node) => node.type === "notice" && node.customComponent), "the emitted compiler graph includes custom-component classification");
-	assert.ok(logs.some((line) => line.includes("nextjs-engine | Compiling app/(marketing)/about/page.tsx")),
-		"page compilation reports a source path");
+	assert.ok(logs.some((line) => line.includes("COMPILING PAGE : app/(marketing)/about/page.tsx")),
+		"route analysis reports the source path in Next.js-style progress output");
+	assert.ok(logs.some((line) => line.includes("COMPILED ENGINE SCHEMA : app/(marketing)/about/page.tsx")),
+		"the static schema pass separately reports successful Engine schema compilation");
 	assert.ok(logs.some((line) => line.includes("nextjs-engine | Compiling Custom Component notice")),
 		"custom components get a dedicated progress line");
 
