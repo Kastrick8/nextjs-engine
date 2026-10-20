@@ -241,12 +241,12 @@ function normalizeModuleName(name, sourcePath) {
 }
 function routePathForFile(projectRoot, file, router) {
 	const relative = displayPath(projectRoot, file);
-	const match = relative.match(/^(?:src\\/)?(app|pages)\\/(.*)$/);
-	if (!match) return "/" + relative.replace(/\\.(tsx?|jsx?|mts|cts)$/, "");
+	const match = relative.match(/^(?:src\/)?(app|pages)\/(.*)$/);
+	if (!match) return "/" + relative.replace(/\.(tsx?|jsx?|mts|cts)$/, "");
 	const routeKind = router || match[1];
 	const parts = match[2].split("/");
 	const filename = parts[parts.length - 1] || "";
-	const base = filename.replace(/\\.(tsx?|jsx?|mts|cts)$/, "");
+	const base = filename.replace(/\.(tsx?|jsx?|mts|cts)$/, "");
 	let route;
 	if (routeKind === "pages") {
 		route = parts.slice();
@@ -259,8 +259,8 @@ function routePathForFile(projectRoot, file, router) {
 	} else {
 		route = parts.slice(0, -1).concat(base);
 	}
-	route = route.filter((part) => part && !/^\\(.+\\)$/.test(part) && !part.startsWith("@"));
-	return ("/" + route.join("/")).replace(/\\/+/g, "/").replace(/\\/$/, "") || "/";
+	route = route.filter((part) => part && !/^\(.+\)$/.test(part) && !part.startsWith("@"));
+	return ("/" + route.join("/")).replace(/\/+/g, "/").replace(/\/$/, "") || "/";
 }
 function routeEntryFromFile(projectRoot, file) {
 	const relative = displayPath(projectRoot, file);
