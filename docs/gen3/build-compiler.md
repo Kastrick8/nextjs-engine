@@ -23,6 +23,8 @@ The Engine does not replace Next.js's Turbopack/Webpack compiler. It uses the ex
 
 ## Progress logs
 
+The compiler worker prints a compact ASCII wordmark at the start of each scan. It labels the integration as `NEXTJS ENGINE x next.js` and includes both `INDEPENDENT PROJECT BY KASTRICK` and `NOT AFFILIATED WITH NEXT.JS` directly beneath it. The banner uses plain ASCII and has no additional package dependency.
+
 Typical output from the Engine pass looks like:
 
 ```text
