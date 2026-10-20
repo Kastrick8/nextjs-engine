@@ -13,12 +13,19 @@ try {
 	printBanner((line) => banner.push(line));
 	assert.deepEqual(banner.slice(0, ASCII_WORDMARK.length), ASCII_WORDMARK,
 		"the supplied updated wordmark is emitted exactly");
-	assert.deepEqual(banner.slice(ASCII_WORDMARK.length, ASCII_WORDMARK.length + 3),
-		renderPeggaText("INDEPENDENT PROJECT BY KASTRICK").map((line) => line.padStart(line.length, " ")),
-		"the project credit uses the Pegga-style pixel font");
-	assert.ok(renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL").every((line) => banner.includes(line.padStart(Math.max(0, (Math.max(...ASCII_WORDMARK.map((row) => row.length)) - line.length) / 2) + line.length, " ").slice(0))),
-		"the combined Next.js and Vercel disclaimer is rendered in the Pegga-style pixel font");
-	assert.ok(!banner.some((line) => /x\s+next\.js/i.test(line)), "the old x next.js subtitle is removed");
+	const bannerWidth = Math.max(...ASCII_WORDMARK.map((line) => line.length));
+	const centerBannerLine = (line) => {
+		const left = Math.max(0, Math.floor((bannerWidth - line.length) / 2));
+		return " ".repeat(left) + line + " ".repeat(Math.max(0, bannerWidth - left - line.length));
+	};
+	const creditRows = renderPeggaText("INDEPENDENT PROJECT BY KASTRICK").map(centerBannerLine);
+	const disclaimerRows = renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL").map(centerBannerLine);
+	assert.deepEqual(banner.slice(ASCII_WORDMARK.length, ASCII_WORDMARK.length + creditRows.length), creditRows,
+		"the project credit uses the matching Pegga-style pixel font");
+	assert.deepEqual(banner.slice(ASCII_WORDMARK.length + creditRows.length,
+		ASCII_WORDMARK.length + creditRows.length + disclaimerRows.length), disclaimerRows,
+		"the combined Next.js and Vercel disclaimer uses the Pegga-style pixel font");
+	assert.ok(!banner.some((line) => /x\\s+next\\.js/i.test(line)), "the old x next.js subtitle is removed");
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");
 	fs.mkdirSync(pageDirectory, { recursive: true });
 	fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "engine-build-fixture", version: "1.0.0" }));
