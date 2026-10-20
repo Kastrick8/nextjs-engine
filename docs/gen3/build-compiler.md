@@ -44,7 +44,7 @@ Dynamic schemas that require imported/runtime-generated values, object spreads, 
 
 ## Emitted manifest
 
-The manifest contains source/route paths, compiler summaries, custom component names, asset metadata without original asset URLs, used capabilities, fallback-strategy summaries, and diagnostics. It excludes complete schemas, arbitrary component props, request data, and prop contents.
+The manifest contains source/route paths, compiler summaries, an analyzed node graph (type/runtime/work class/capabilities/child IDs), custom component names, asset metadata without original asset URLs, used capabilities, fallback-strategy summaries, and diagnostics. It excludes complete schemas, arbitrary component props, request data, and prop contents.
 
 It is metadata for Engine build/runtime tooling, not a replacement for Next.js chunks, route manifests, server bundles, or the Next.js build compiler. The emitter creates an Engine-owned subdirectory after Next.js succeeds and refuses output paths outside the configured build directory.
 
