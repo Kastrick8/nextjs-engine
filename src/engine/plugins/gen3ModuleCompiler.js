@@ -239,6 +239,29 @@ function normalizeModuleName(name, sourcePath) {
 	if (/^engine[a-z]/i.test(base)) return "Engine" + base.slice(6, 7).toUpperCase() + base.slice(7);
 	return base || "Module";
 }
+function routePathForFile(projectRoot, file, router) {
+	const relative = displayPath(projectRoot, file);
+	const match = relative.match(/^(?:src\\/)?(app|pages)\\/(.*)$/);
+	if (!match) return "/" + relative.replace(/\\.(tsx?|jsx?|mts|cts)$/, "");
+	const routeKind = router || match[1];
+	const parts = match[2].split("/");
+	const filename = parts[parts.length - 1] || "";
+	const base = filename.replace(/\\.(tsx?|jsx?|mts|cts)$/, "");
+	let route;
+	if (routeKind === "pages") {
+		route = parts.slice();
+		route[route.length - 1] = base;
+		if (base === "index") route = route.slice(0, -1);
+	} else if (base === "page" || base === "route") {
+		route = parts.slice(0, -1);
+	} else if (base === "not-found") {
+		return "/_not-found";
+	} else {
+		route = parts.slice(0, -1).concat(base);
+	}
+	route = route.filter((part) => part && !/^\\(.+\\)$/.test(part) && !part.startsWith("@"));
+	return ("/" + route.join("/")).replace(/\\/+/g, "/").replace(/\\/$/, "") || "/";
+}
 function routeEntryFromFile(projectRoot, file) {
 	const relative = displayPath(projectRoot, file);
 	const match = relative.match(/^(?:src\/)?(app|pages)\/(.+)$/);
@@ -266,7 +289,7 @@ function routeEntryFromFile(projectRoot, file) {
 	}
 	if (!routePath) {
 		if (router === "app" && (kind === "app-page" || kind === "app-route-handler")) {
-			routePath = routePathForFile(projectRoot, file);
+			routePath = routePathForFile(projectRoot, file, router);
 		} else {
 			routePath = routePathForFile(projectRoot, file);
 		}
@@ -290,6 +313,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 	const routeRecords = [];
 	const routeVisited = new Set();
 	const fileImports = new Map();
+	const recordById = new Map();
 	let spinnerIndex = 0;
 	let moduleOrder = 0;
 
@@ -346,8 +370,14 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 		}
 		return undefined;
 	}
-	function addUsage(record, routePath) {
-		if (routePath && !record.usedBy.includes(routePath)) record.usedBy.push(routePath);
+	function addUsage(record, routePath, visited = new Set()) {
+		if (!routePath || !record || visited.has(record.id)) return;
+		visited.add(record.id);
+		if (!record.usedBy.includes(routePath)) record.usedBy.push(routePath);
+		for (const dependencyId of record.dependencies) {
+			const dependency = recordById.get(dependencyId);
+			if (dependency) addUsage(dependency, routePath, visited);
+		}
 	}
 	function recordFor(file, logicalName, specifier, routePath, resolution) {
 		const actualPath = file && isEngineSourcePath(root, file) ? path.resolve(file) : undefined;
@@ -367,6 +397,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 				dependencies: [],
 			};
 			moduleRecords.set(key, record);
+			recordById.set(record.id, record);
 			const display = record.sourcePath || fallbackEngineName(specifier, inferredName);
 			log("nextjs-engine | " + SPINNER_FRAMES[spinnerIndex++ % SPINNER_FRAMES.length]
 				+ " COMPILING " + record.abbreviation + " : " + display);
