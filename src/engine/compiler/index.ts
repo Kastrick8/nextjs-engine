@@ -47,6 +47,7 @@ export type {
 	EngineCompiledNode,
 	EngineCompiledPage,
 	EngineCompilerDiagnostic,
+	EngineCompilerProgressEvent,
 	EngineCompilerSummary,
 	EngineDeviceTarget,
 	EngineCompiledFeatureFallback,
