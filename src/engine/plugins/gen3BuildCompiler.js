@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const ts = require("typescript");
+const { analyzeProjectModules, SCHEMA_ENGINE_SYMBOLS } = require("./gen3ModuleCompiler");
 
 const BUILTIN_NODE_TYPES = new Set([
 	"box", "stack", "grid", "text", "heading", "markdown", "image", "video",
@@ -201,14 +202,15 @@ function walkNodes(node, visit) {
 }
 function logEvent(event, logger = console.log) {
 	const prefix = "nextjs-engine |";
-	if (event.phase === "page-start") logger(prefix + " Compiling " + (event.sourcePath || event.pageId));
-	else if (event.phase === "node" && event.customComponent) {
-		logger(prefix + " Compiling Custom Component " + event.nodeType + " (" + (event.sourcePath || event.pageId) + ":" + (event.nodePath || "root") + ")");
-	} else if (event.phase === "page-cache-hit") logger(prefix + " Reusing cached compiler plan for " + (event.sourcePath || event.pageId));
-	else if (event.phase === "page-complete" && event.summary) {
+	if (event.phase === "node" && event.customComponent) {
+		logger(prefix + " ⠋ COMPILING CUSTOM COMPONENT : " + event.nodeType + " (" + (event.sourcePath || event.pageId)
+			+ ":" + (event.nodePath || "root") + ")");
+	} else if (event.phase === "page-cache-hit") {
+		logger(prefix + " ↳ REUSING CACHED ENGINE SCHEMA : " + (event.sourcePath || event.pageId));
+	} else if (event.phase === "page-complete" && event.summary) {
 		const s = event.summary;
-		logger(prefix + " Compiled " + (event.sourcePath || event.pageId) + " — " + s.totalNodes + " nodes, "
-			+ s.clientIslands + " client islands, " + s.assetCount + " assets");
+		logger(prefix + " ✓ COMPILED ENGINE SCHEMA : " + (event.sourcePath || event.pageId) + " — " + s.totalNodes
+			+ " nodes, " + s.clientIslands + " client islands, " + s.assetCount + " assets");
 	}
 }
 const ASCII_WORDMARK = Object.freeze([
@@ -309,31 +311,70 @@ function readVersion(root) {
 	catch { return "unknown"; }
 }
 function compileProject(projectRoot, options = {}) {
+	const passStartedAt = Date.now();
 	const files = listSourceFiles(projectRoot);
 	const sourceByPath = new Map();
-	for (const file of files) {
-		sourceByPath.set(file, ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true,
-			(file.endsWith(".tsx") || file.endsWith(".jsx")) ? ts.ScriptKind.TSX : ts.ScriptKind.TS));
+	const candidatesByFile = new Map();
+	const schemaSymbolsByFile = new Map();
+	const schemaCandidateCountsByFile = new Map();
+
+	function collectSchemaModules(node, symbols) {
+		if (!node || typeof node !== "object") return;
+		if (typeof node.type === "string" && SCHEMA_ENGINE_SYMBOLS[node.type]) {
+			symbols.add(SCHEMA_ENGINE_SYMBOLS[node.type]);
+		}
+		if (Array.isArray(node.children)) for (const child of node.children) collectSchemaModules(child, symbols);
+		if (node.type === "slot" && node.props && node.props.fallback && typeof node.props.fallback === "object") {
+			collectSchemaModules(node.props.fallback, symbols);
+		}
 	}
+
+	for (const file of files) {
+		const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true,
+			(file.endsWith(".tsx") || file.endsWith(".jsx")) ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+		sourceByPath.set(file, source);
+		const candidates = schemaCandidates(source, collectVariables(source));
+		candidatesByFile.set(file, candidates);
+		if (candidates.length > 0) {
+			const symbols = new Set();
+			for (const candidate of candidates) collectSchemaModules(candidate.result.value.root, symbols);
+			schemaSymbolsByFile.set(file, symbols);
+			schemaCandidateCountsByFile.set(file, candidates.length);
+		}
+	}
+
+	const log = options.log || ((line) => console.log(line));
+	const moduleAnalysis = analyzeProjectModules(projectRoot, {
+		files,
+		sourceByPath,
+		log,
+		schemaSymbolsByFile,
+		schemaCandidateCountsByFile,
+	});
 	const registered = registeredCustomTypes(files);
 	installTypeScriptRequireHook();
 	const compilePage = require(path.join(__dirname, "../compiler/EngineCompiler.ts")).compilePage;
 	const pages = [];
 	const skipped = [];
 	let candidateCount = 0;
-	const log = options.log || ((line) => console.log(line));
+
 	for (const file of files) {
 		const relative = displayPath(projectRoot, file);
 		const source = sourceByPath.get(file);
-		const candidates = schemaCandidates(source, collectVariables(source));
+		const candidates = candidatesByFile.get(file) || [];
 		if (candidates.length === 0) {
-			if (/(^|\/)(page|index)\.(tsx?|jsx?)$/.test(relative) && fs.readFileSync(file, "utf8").includes("createPage")) {
-				skipped.push({ sourcePath: relative, pageId: routePathForFile(projectRoot, file),
-					reason: "No statically resolvable schema found. Runtime-generated values and cross-file imports remain under Next.js runtime rendering." });
-				log("nextjs-engine | Skipping static compilation for " + relative + " (schema is dynamic; Next.js still owns runtime rendering)");
+			if (/(^|\\/)(page|index)\\.(tsx?|jsx?)$/.test(relative) && fs.readFileSync(file, "utf8").includes("createPage")) {
+				skipped.push({
+					sourcePath: relative,
+					pageId: routePathForFile(projectRoot, file),
+					reason: "No statically resolvable Engine schema was found. Next.js retains normal runtime rendering for this route.",
+				});
+				log("nextjs-engine | NOTE : Static schema planning skipped for " + relative
+					+ " — Next.js still compiles and renders the route normally");
 			}
 			continue;
 		}
+
 		const routeId = routePathForFile(projectRoot, file);
 		for (let index = 0; index < candidates.length; index++) {
 			candidateCount += 1;
@@ -381,25 +422,39 @@ function compileProject(projectRoot, options = {}) {
 					level, code, message, ...(nodePath ? { path: nodePath } : {}),
 				})),
 			});
-
 		}
 	}
+
+	const summary = {
+		scannedSourceFileCount: files.length,
+		routeEntryCount: moduleAnalysis.summary.routeEntryCount,
+		analyzedRouteCount: moduleAnalysis.summary.analyzedRouteCount,
+		engineModuleCount: moduleAnalysis.summary.engineModuleCount,
+		localEngineModuleCount: moduleAnalysis.summary.localEngineModuleCount,
+		externalEngineModuleCount: moduleAnalysis.summary.externalEngineModuleCount,
+		modulePassTimeMs: moduleAnalysis.summary.modulePassTimeMs,
+		schemaCandidateCount: candidateCount,
+		compiledPageCount: pages.length,
+		compiledSchemaPageCount: pages.length,
+		skippedPageCount: skipped.length,
+		customComponentTypeCount: new Set(registered.concat(...pages.map((page) => page.customComponents))).size,
+		compilerPassTimeMs: Date.now() - passStartedAt,
+	};
+	log("nextjs-engine | ✓ Compiler pass completed — " + summary.analyzedRouteCount + " route entries analyzed, "
+		+ summary.compiledSchemaPageCount + " Engine schema plans, " + summary.engineModuleCount + " Engine modules");
+
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		generation: 3,
 		compiler: "nextjs-engine",
 		compilerVersion: readVersion(projectRoot),
 		scannedSourceFiles: files.map((file) => displayPath(projectRoot, file)),
+		routes: moduleAnalysis.routes,
+		modules: moduleAnalysis.modules,
 		registeredCustomComponents: registered,
 		pages,
 		skipped,
-		summary: {
-			scannedSourceFileCount: files.length,
-			schemaCandidateCount: candidateCount,
-			compiledPageCount: pages.length,
-			skippedPageCount: skipped.length,
-			customComponentTypeCount: new Set(registered.concat(...pages.map((page) => page.customComponents))).size,
-		},
+		summary,
 	};
 }
 function atomicWriteJson(target, value) {
