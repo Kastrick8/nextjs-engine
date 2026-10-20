@@ -7,7 +7,7 @@ import { compileEngineUsedFeatureManifest } from "./EngineCompatibilityManifest"
 import { compileEngineFallbackPlan } from "./EngineFallbackCompiler";
 import { compileEngineArtifact } from "./EngineArtifactGraph";
 import { assertEngineSecurityDiagnostics, compileEngineSecurityDiagnostics } from "./EngineSecurityCompiler";
-import { getEngineRuntimeProfile, getEngineRuntimeRegistryRevision, resolveNodeRuntime } from "./runtimeRegistry";
+import { getEngineRuntimeProfile, getEngineRuntimeRegistryRevision, hasEngineRuntimeProfile, resolveNodeRuntime } from "./runtimeRegistry";
 import type {
 	EngineCapability,
 	EngineCompileOptions,
@@ -15,6 +15,7 @@ import type {
 	EngineCompiledNode,
 	EngineCompiledPage,
 	EngineCompilerDiagnostic,
+	EngineCompilerProgressEvent,
 	EngineCompilerSummary,
 	EngineWorkClass,
 } from "./types";
@@ -185,6 +186,9 @@ function collectNodeCapabilities(
 
 interface CompileState {
 	pageId: string;
+	sourcePath?: string;
+	onProgress?: (event: EngineCompilerProgressEvent) => void;
+	customComponentTypes: ReadonlySet<string>;
 	diagnostics: EngineCompilerDiagnostic[];
 	assets: Map<string, EngineCompiledAsset>;
 	summary: EngineCompilerSummary;
@@ -222,6 +226,17 @@ function compileNode(
 	const assets = collectNodeAssets(node, nodeId, workClass);
 	const heavy = runtimeResolution.profile.heavy === true;
 	const interactive = runtimeResolution.runtime === "client";
+	const customComponent = state.customComponentTypes.has(String(node.type))
+		|| !hasEngineRuntimeProfile(node.type);
+
+	state.onProgress?.({
+		phase: "node",
+		pageId: state.pageId,
+		sourcePath: state.sourcePath,
+		nodePath: path,
+		nodeType: node.type,
+		customComponent,
+	});
 
 	for (const asset of assets) recordAsset(state, asset);
 
@@ -273,6 +288,7 @@ function compileNode(
 		capabilities,
 		heavy,
 		interactive,
+		customComponent,
 		children,
 		assets,
 		source: node,
@@ -286,6 +302,9 @@ function compilePageFresh(
 	const pageId = resolvePageId(schema, options.pageId);
 	const state: CompileState = {
 		pageId,
+		sourcePath: options.sourcePath,
+		onProgress: options.onProgress,
+		customComponentTypes: new Set((options.customComponentTypes ?? []).map(String)),
 		diagnostics: [],
 		assets: new Map(),
 		summary: {
@@ -341,16 +360,27 @@ export function compilePage(
 	schema: PageSchema,
 	options: EngineCompileOptions = {},
 ): EngineCompiledPage {
-	const pageId = resolvePageId(schema, options.pageId);
-	return compileEngineArtifact({
+	const { onProgress, sourcePath, ...cacheOptions } = options;
+	const customComponentTypes = [...new Set(cacheOptions.customComponentTypes ?? [])].map(String).sort();
+	const compileOptions: EngineCompileOptions = { ...cacheOptions, customComponentTypes };
+	const pageId = resolvePageId(schema, compileOptions.pageId);
+
+	onProgress?.({ phase: "page-start", pageId, sourcePath });
+	const result = compileEngineArtifact({
 		kind: "schema",
 		id: `page:${pageId}`,
 		input: {
 			schema,
-			options,
+			options: compileOptions,
 			runtimeRegistryRevision: getEngineRuntimeRegistryRevision(),
 		},
-	}, () => compilePageFresh(schema, options)).value;
+	}, () => compilePageFresh(schema, { ...compileOptions, sourcePath, onProgress }));
+
+	if (result.cacheHit) {
+		onProgress?.({ phase: "page-cache-hit", pageId, sourcePath });
+	}
+	onProgress?.({ phase: "page-complete", pageId, sourcePath, summary: result.value.summary });
+	return result.value;
 }
 
 export function findCompiledNode(
