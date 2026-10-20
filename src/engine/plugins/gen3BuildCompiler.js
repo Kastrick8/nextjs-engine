@@ -212,32 +212,66 @@ function logEvent(event, logger = console.log) {
 	}
 }
 const ASCII_WORDMARK = Object.freeze([
-	"░███    ░██                          ░██      ░██               ░██████████                       ░██",
-	"░████   ░██                          ░██                        ░██",
-	"░██░██  ░██  ░███████  ░██    ░██ ░████████   ░██  ░███████     ░██         ░████████   ░████████ ░██░████████   ░███████",
-	"░██ ░██ ░██ ░██    ░██  ░██  ░██     ░██      ░██ ░██           ░█████████  ░██    ░██ ░██    ░██ ░██░██    ░██ ░██    ░██",
-	"░██  ░██░██ ░█████████   ░█████      ░██      ░██  ░███████     ░██         ░██    ░██ ░██    ░██ ░██░██    ░██ ░█████████",
-	"░██   ░████ ░██         ░██  ░██     ░██      ░██        ░██    ░██         ░██    ░██ ░██   ░███ ░██░██    ░██ ░██",
-	"░██    ░███  ░███████  ░██    ░██     ░████   ░██  ░███████     ░██████████ ░██    ░██  ░█████░██ ░██░██    ░██  ░███████",
-	"                                              ░██                                             ░██",
-	"                                            ░███                                        ░███████",
+	" ██████   █████ ██████████ █████ █████ ███████████       █████  █████████     ██████████ ██████   █████   █████████  █████ ██████   █████ ██████████",
+	"▒▒██████ ▒▒███ ▒▒███▒▒▒▒▒█▒▒███ ▒▒███ ▒█▒▒▒███▒▒▒█      ▒▒███  ███▒▒▒▒▒███   ▒▒███▒▒▒▒▒█▒▒██████ ▒▒███   ███▒▒▒▒▒███▒▒███ ▒▒██████ ▒▒███ ▒▒███▒▒▒▒▒█",
+	" ▒███▒███ ▒███  ▒███  █ ▒  ▒▒███ ███  ▒   ▒███  ▒        ▒███ ▒███    ▒▒▒     ▒███  █ ▒  ▒███▒███ ▒███  ███     ▒▒▒  ▒███  ▒███▒███ ▒███  ▒███  █ ▒ ",
+	" ▒███▒▒███▒███  ▒██████     ▒▒█████       ▒███           ▒███ ▒▒█████████     ▒██████    ▒███▒▒███▒███ ▒███          ▒███  ▒███▒▒███▒███  ▒██████   ",
+	" ▒███ ▒▒██████  ▒███▒▒█      ███▒███      ▒███           ▒███  ▒▒▒▒▒▒▒▒███    ▒███▒▒█    ▒███ ▒▒██████ ▒███    █████ ▒███  ▒███ ▒▒██████  ▒███▒▒█   ",
+	" ▒███  ▒▒█████  ▒███ ▒   █  ███ ▒▒███     ▒███     ███   ▒███  ███    ▒███    ▒███ ▒   █ ▒███  ▒▒█████ ▒▒███  ▒▒███  ▒███  ▒███  ▒▒█████  ▒███ ▒   █",
+	" █████  ▒▒█████ ██████████ █████ █████    █████   ▒▒████████  ▒▒█████████     ██████████ █████  ▒▒█████ ▒▒█████████  █████ █████  ▒▒█████ ██████████",
+	"▒▒▒▒▒    ▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒     ▒▒▒▒▒▒▒▒    ▒▒▒▒▒▒▒▒▒     ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒   ▒▒▒▒▒▒▒▒▒  ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒ ",
+	"",
+	"",
 	"",
 ]);
 
+const PEGGA_GLYPHS = Object.freeze({
+	A: ["█▀█", "█▀█", "█░█"],
+	B: ["█▀█", "█▀█", "▀▀▀"],
+	C: ["█▀▀", "█░░", "▀▀▀"],
+	D: ["█▀█", "█░█", "▀▀▀"],
+	E: ["█▀▀", "█▀▀", "▀▀▀"],
+	F: ["█▀▀", "█▀▀", "█░░"],
+	G: ["█▀▀", "█░▀", "▀▀█"],
+	H: ["█░█", "█▀█", "█░█"],
+	I: ["▀█▀", "░█░", "░▀░"],
+	J: ["░▀█", "░░█", "█▀█"],
+	K: ["█░█", "█▀▄", "█░█"],
+	L: ["█░░", "█░░", "▀▀▀"],
+	M: ["█▄█", "█▀█", "█░█"],
+	N: ["█▄█", "█▀█", "█░█"],
+	O: ["█▀█", "█░█", "▀▀▀"],
+	P: ["█▀█", "█▀█", "█░░"],
+	Q: ["█▀█", "█░█", "▀▀▄"],
+	R: ["█▀█", "█▀█", "█░▀"],
+	S: ["█▀▀", "▀▀█", "▀▀▀"],
+	T: ["▀█▀", "░█░", "░█░"],
+	U: ["█░█", "█░█", "▀▀▀"],
+	V: ["█░█", "█░█", "░▀░"],
+	W: ["█░█", "█▀█", "█▄█"],
+	X: ["█░█", "░▀░", "█░█"],
+	Y: ["█░█", "░▀█", "░█░"],
+	Z: ["▀▀█", "░█░", "█▀▀"],
+	".": ["░░░", "░░░", "░░▀"],
+});
+
+function renderPeggaText(text) {
+	const words = String(text).toUpperCase().split(" ");
+	return Array.from({ length: 3 }, (_, row) => words
+		.map((word) => [...word].map((letter) => "░" + (PEGGA_GLYPHS[letter] || PEGGA_GLYPHS["."])[row]).join(""))
+		.join("░░░"));
+}
+
 function renderBannerLines() {
 	const contentWidth = Math.max(...ASCII_WORDMARK.map((line) => line.length));
-	const supportsBold = !process.env.NO_COLOR
-		&& Boolean(process.stdout.isTTY || process.env.CI || process.env.FORCE_COLOR);
-	const bold = (text) => supportsBold ? "\x1b[1m" + text + "\x1b[0m" : text;
-	const center = (text) => {
-		const left = Math.max(0, Math.floor((contentWidth - text.length) / 2));
-		return " ".repeat(left) + bold(text) + " ".repeat(Math.max(0, contentWidth - left - text.length));
+	const center = (line) => {
+		const left = Math.max(0, Math.floor((contentWidth - line.length) / 2));
+		return " ".repeat(left) + line + " ".repeat(Math.max(0, contentWidth - left - line.length));
 	};
-
 	return [
 		...ASCII_WORDMARK,
-		center("INDEPENDENT PROJECT BY KASTRICK"),
-		center("NOT AFFILIATED WITH NEXT.JS NOR VERCEL"),
+		...renderPeggaText("INDEPENDENT PROJECT BY KASTRICK").map(center),
+		...renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL").map(center),
 	];
 }
 
@@ -437,7 +471,9 @@ module.exports = {
 	emitArtifacts,
 	logEvent,
 	ASCII_WORDMARK,
+	PEGGA_GLYPHS,
 	printBanner,
+	renderPeggaText,
 	resolveDistDir,
 	routePathForFile,
 	runCLI,
