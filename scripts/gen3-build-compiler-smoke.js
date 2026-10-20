@@ -5,33 +5,46 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { ASCII_WORDMARK, compileProject, emitArtifacts, printBanner, renderPeggaText } = require("./gen3-build-compiler");
+const {
+	ASCII_WORDMARK,
+	BOTTOM_TEXT,
+	compileProject,
+	emitArtifacts,
+	printBanner,
+	printBannerOnce,
+	releaseBanner,
+	renderBannerLines,
+} = require("./gen3-build-compiler");
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
 try {
 	const banner = [];
 	printBanner((line) => banner.push(line));
-	const creditSourceRows = renderPeggaText("INDEPENDENT PROJECT BY KASTRICK");
-	const disclaimerSourceRows = renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL");
-	const bannerWidth = Math.max(
-		...ASCII_WORDMARK.map((line) => line.length),
-		...creditSourceRows.map((line) => line.length),
-		...disclaimerSourceRows.map((line) => line.length),
-	);
-	const centerBannerLine = (line) => {
-		const left = Math.max(0, Math.floor((bannerWidth - line.length) / 2));
-		return " ".repeat(left) + line + " ".repeat(Math.max(0, bannerWidth - left - line.length));
-	};
-	assert.deepEqual(banner.slice(0, ASCII_WORDMARK.length), ASCII_WORDMARK.map(centerBannerLine),
-		"the supplied updated wordmark is centered and emitted exactly");
-	const creditRows = creditSourceRows.map(centerBannerLine);
-	const disclaimerRows = disclaimerSourceRows.map(centerBannerLine);
-	assert.deepEqual(banner.slice(ASCII_WORDMARK.length, ASCII_WORDMARK.length + creditRows.length), creditRows,
-		"the project credit uses the matching Pegga-style pixel font");
-	assert.deepEqual(banner.slice(ASCII_WORDMARK.length + creditRows.length,
-		ASCII_WORDMARK.length + creditRows.length + disclaimerRows.length), disclaimerRows,
-		"the combined Next.js and Vercel disclaimer uses the Pegga-style pixel font");
-	assert.ok(!banner.some((line) => /x\s+next\.js/i.test(line)), "the old x next.js subtitle is removed");
+	assert.deepEqual(banner, renderBannerLines(), "the output is exactly the shared framed banner render");
+	assert.equal(ASCII_WORDMARK.length, 6, "the compact supplied wordmark has six rows");
+	assert.equal(BOTTOM_TEXT.length, 9, "the supplied footer keeps its two four-row messages");
+	assert.equal(BOTTOM_TEXT.filter((line) => line === "").length, 1, "the two footer messages have one blank row between them");
+	assert.equal(banner.length, 18, "the banner has a top and bottom border plus its spaced content rows");
+	assert.ok(banner[0].startsWith("╭") && banner[banner.length - 1].startsWith("╰"), "the banner has a light frame");
+	assert.equal(new Set(banner.map((line) => line.length)).size, 1, "all frame and content rows align to one width");
+	const framedBlankRows = banner.filter((line) => line.startsWith("│") && line.slice(1, -1).trim() === "");
+	assert.equal(framedBlankRows.length, 2, "the wordmark and footer are separated, and the footer messages do not overlap");
+	assert.ok(banner.some((line) => line.includes("███████╗███╗   ██╗ ██████╗")), "the compact supplied wordmark is rendered");
+	assert.ok(banner.some((line) => line.includes(" __  _  __ _____")), "the updated bottom-text artwork is rendered");
+	assert.ok(!banner.some((line) => line.includes("██████   █████ ██████████")), "the oversized previous wordmark is removed");
+
+	const bannerProject = path.join(root, "banner-once-fixture");
+	const firstBanner = [];
+	const duplicateBanner = [];
+	assert.equal(printBannerOnce(bannerProject, (line) => firstBanner.push(line)), true,
+		"the first adapter instance claims and prints the banner");
+	assert.equal(printBannerOnce(bannerProject, (line) => duplicateBanner.push(line)), false,
+		"a duplicate adapter instance in the same build does not print the banner again");
+	assert.deepEqual(firstBanner, renderBannerLines(), "the first claim emits the complete banner");
+	assert.equal(duplicateBanner.length, 0, "a duplicate claim emits no banner rows");
+	releaseBanner(bannerProject);
+	assert.equal(printBannerOnce(bannerProject, () => {}), true, "the next build can print after the marker is released");
+	releaseBanner(bannerProject);
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");
 	fs.mkdirSync(pageDirectory, { recursive: true });
 	fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "engine-build-fixture", version: "1.0.0" }));
