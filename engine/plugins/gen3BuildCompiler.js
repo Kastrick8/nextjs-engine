@@ -263,16 +263,19 @@ function renderPeggaText(text) {
 }
 
 function renderBannerLines() {
-	const contentWidth = Math.max(...ASCII_WORDMARK.map((line) => line.length));
+	const footerSourceRows = [
+		...renderPeggaText("INDEPENDENT PROJECT BY KASTRICK"),
+		...renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL"),
+	];
+	const contentWidth = Math.max(
+		...ASCII_WORDMARK.map((line) => line.length),
+		...footerSourceRows.map((line) => line.length),
+	);
 	const center = (line) => {
 		const left = Math.max(0, Math.floor((contentWidth - line.length) / 2));
 		return " ".repeat(left) + line + " ".repeat(Math.max(0, contentWidth - left - line.length));
 	};
-	return [
-		...ASCII_WORDMARK,
-		...renderPeggaText("INDEPENDENT PROJECT BY KASTRICK").map(center),
-		...renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL").map(center),
-	];
+	return [...ASCII_WORDMARK.map(center), ...footerSourceRows.map(center)];
 }
 
 function printBanner(logger = console.log) {
