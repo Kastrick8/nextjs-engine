@@ -140,6 +140,11 @@ export function getEngineRuntimeProfile(type: NodeType): EngineRuntimeProfile {
 	return profiles.get(type) ?? DEFAULT_PROFILE;
 }
 
+/** Returns whether a node type has an explicit Engine or application runtime profile. */
+export function hasEngineRuntimeProfile(type: NodeType): boolean {
+	return profiles.has(type);
+}
+
 function hasClientBehavior(node: SchemaNode): boolean {
 	const props = node.props ?? {};
 	if (Object.values(props).some((value) => typeof value === "function")) return true;

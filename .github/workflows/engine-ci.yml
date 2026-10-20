@@ -57,6 +57,8 @@ jobs:
         run: |
           node scripts/gen3-phase-ab-smoke.js
           node scripts/gen3-compiler-runtime-smoke.js
+          node scripts/gen3-build-compiler-smoke.js
+          node scripts/gen3-build-adapter-smoke.js
           node scripts/gen3-adaptive-runtime-smoke.js
           node scripts/gen3-server-first-parity-smoke.js
       - name: Test Generation 3 phase C contracts
@@ -90,8 +92,12 @@ jobs:
           node scripts/gen3-engine-seo-provider-sitemap-smoke.js
       - name: Type-check engine
         run: npm run type-check
-      - name: Build Next.js integration app
+      - name: Build Next.js integration app (Generation 2)
+        if: github.ref_name == 'main-2' || github.base_ref == 'main-2'
         run: npx next build
+      - name: Build Next.js integration app (Generation 3)
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: npm run build
       - name: Prove EngineDebug is absent from production
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: node scripts/gen3-engine-debug-production-smoke.js

@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("node:path");
+
 const withEngineAPI = require("./engineApiPlugin");
 const withEngineDebug = require("./engineDebugPlugin");
 const withEngineSEO = require("./engineSEOPlugin");
@@ -27,6 +29,36 @@ function withEngineImageConfig(nextConfig = {}) {
 	};
 }
 
+function resolveConfiguredAdapterPath(value) {
+	if (typeof value !== "string" || !value.trim()) return undefined;
+	const candidate = value.trim();
+	if (path.isAbsolute(candidate)) return candidate;
+	try {
+		return require.resolve(candidate, { paths: [process.cwd()] });
+	} catch {
+		return path.resolve(process.cwd(), candidate);
+	}
+}
+
+function withEngineBuildAdapter(config, originalConfig = {}) {
+	const configuredAdapter = originalConfig.adapterPath
+		|| originalConfig.experimental?.adapterPath
+		|| process.env.NEXT_ADAPTER_PATH;
+	const delegatePath = resolveConfiguredAdapterPath(configuredAdapter);
+	const engineAdapterPath = require.resolve("./engineBuildAdapter");
+
+	if (delegatePath && delegatePath !== engineAdapterPath) {
+		process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER = delegatePath;
+	} else {
+		delete process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER;
+	}
+
+	return {
+		...config,
+		adapterPath: engineAdapterPath,
+	};
+}
+
 function withEngine(nextConfig = {}, pluginOptions = {}) {
 	const imageConfig = withEngineImageConfig(nextConfig);
 	const apiOptions = pluginOptions.api || pluginOptions;
@@ -35,10 +67,11 @@ function withEngine(nextConfig = {}, pluginOptions = {}) {
 	const nencConfig = pluginOptions.nenc ? withEngineNENC(apiConfig, pluginOptions.nenc) : apiConfig;
 	const debugConfig = withEngineDebug(nencConfig, pluginOptions.debug || {});
 	const seoConfig = withEngineSEO(debugConfig, pluginOptions.seo);
-	return withEngineShader(
+	const shaderConfig = withEngineShader(
 		seoConfig,
 		shaderOptions,
 	);
+	return withEngineBuildAdapter(shaderConfig, nextConfig);
 }
 
 module.exports = withEngine;
@@ -49,5 +82,6 @@ module.exports.withEngineSEO = withEngineSEO;
 module.exports.withEngineShader = withEngineShader;
 module.exports.withEngineNENC = withEngineNENC;
 module.exports.withEngineImageConfig = withEngineImageConfig;
+module.exports.withEngineBuildAdapter = withEngineBuildAdapter;
 module.exports.clearPluginArtifactCache = clearPluginArtifactCache;
 module.exports.inspectPluginArtifactCache = inspectPluginArtifactCache;
