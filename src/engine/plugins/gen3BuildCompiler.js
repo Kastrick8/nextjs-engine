@@ -264,8 +264,41 @@ function compileProject(projectRoot, options = {}) {
 				onProgress: (event) => logEvent(event, log),
 			});
 			const custom = new Set();
+			const compiledNodes = [];
 			walkNodes(plan.root, (node) => {
 				if (node.customComponent || !BUILTIN_NODE_TYPES.has(String(node.type))) custom.add(String(node.type));
+				compiledNodes.push({
+					id: node.id,
+					path: node.path,
+					type: String(node.type),
+					...(node.name ? { name: node.name } : {}),
+					depth: node.depth,
+					runtime: node.runtime,
+					runtimeReason: node.runtimeReason,
+					workClass: node.workClass,
+					workReason: node.workReason,
+					capabilities: [...node.capabilities],
+					heavy: node.heavy,
+					interactive: node.interactive,
+					customComponent: Boolean(node.customComponent),
+					children: node.children.map((child) => child.id),
+					assets: node.assets.map(({ kind, workClass, priority }) => ({ kind, workClass, priority })),
+				});
+			});
+			pages.push({
+				id: plan.id,
+				sourcePath: relative,
+				summary: plan.summary,
+				compiledNodes,
+				customComponents: [...custom].sort(),
+				assets: plan.assets.map(({ kind, workClass, priority }) => ({ kind, workClass, priority })),
+				capabilities: [...plan.capabilities].sort(),
+				fallbackFeatures: plan.fallbackPlan.features.map(({ feature, importance, strategies }) => ({
+					feature, importance, strategies: strategies.map(({ id, kind, fidelity }) => ({ id, kind, fidelity })),
+				})),
+				diagnostics: plan.diagnostics.map(({ level, code, message, path: nodePath }) => ({
+					level, code, message, ...(nodePath ? { path: nodePath } : {}),
+				})),
 			});
 			pages.push({
 				id: plan.id,
