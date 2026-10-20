@@ -547,7 +547,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 				kind: route.kind,
 				engineModules: moduleNames,
 				engineModuleCount: moduleNames.length,
-				schemaCandidateCount: Number(schemaSymbolsByFile.has(route.file)),
+				schemaCandidateCount: Number(options.schemaCandidateCountsByFile?.get(route.file) || 0),
 				analyzedInMilliseconds: Date.now() - started,
 			});
 			log("nextjs-engine | ✓ COMPILED PAGE : " + route.sourcePath
@@ -566,6 +566,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 }
 
 function analyzeProjectModules(projectRoot, options = {}) {
+	const startedAt = Date.now();
 	const root = path.resolve(projectRoot);
 	const files = options.files || [];
 	const sourceByPath = options.sourceByPath || new Map();
@@ -582,6 +583,7 @@ function analyzeProjectModules(projectRoot, options = {}) {
 			engineModuleCount: result.modules.length,
 			localEngineModuleCount: result.modules.filter((module) => module.resolution === "local").length,
 			externalEngineModuleCount: result.modules.filter((module) => module.resolution !== "local").length,
+			modulePassTimeMs: Date.now() - startedAt,
 		},
 	};
 }
