@@ -211,36 +211,33 @@ function logEvent(event, logger = console.log) {
 			+ s.clientIslands + " client islands, " + s.assetCount + " assets");
 	}
 }
-const ASCII_GLYPHS = Object.freeze({
-	N: ["#...#", "##..#", "#.#.#", "#..##", "#...#"],
-	E: ["#####", "#....", "####.", "#....", "#####"],
-	X: ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
-	T: ["#####", "..#..", "..#..", "..#..", "..#.."],
-	J: ["..###", "....#", "....#", "#...#", ".###."],
-	S: [".####", "#....", ".###.", "....#", "####."],
-	G: [".####", "#....", "#.###", "#...#", ".###."],
-	I: ["#####", "..#..", "..#..", "..#..", "#####"],
-});
+const ASCII_WORDMARK = Object.freeze([
+	"░███    ░██                          ░██      ░██               ░██████████                       ░██",
+	"░████   ░██                          ░██                        ░██",
+	"░██░██  ░██  ░███████  ░██    ░██ ░████████   ░██  ░███████     ░██         ░████████   ░████████ ░██░████████   ░███████",
+	"░██ ░██ ░██ ░██    ░██  ░██  ░██     ░██      ░██ ░██           ░█████████  ░██    ░██ ░██    ░██ ░██░██    ░██ ░██    ░██",
+	"░██  ░██░██ ░█████████   ░█████      ░██      ░██  ░███████     ░██         ░██    ░██ ░██    ░██ ░██░██    ░██ ░█████████",
+	"░██   ░████ ░██         ░██  ░██     ░██      ░██        ░██    ░██         ░██    ░██ ░██   ░███ ░██░██    ░██ ░██",
+	"░██    ░███  ░███████  ░██    ░██     ░████   ░██  ░███████     ░██████████ ░██    ░██  ░█████░██ ░██░██    ░██  ░███████",
+	"                                              ░██                                             ░██",
+	"                                            ░███                                        ░███████",
+	"",
+]);
 
 function renderBannerLines() {
-	const renderWord = (word, row) => [...word].map((letter) => ASCII_GLYPHS[letter][row]).join(" ");
-	const wordmark = Array.from({ length: 5 }, (_, row) => renderWord("NEXTJS", row) + "   " + renderWord("ENGINE", row));
-	const contentWidth = 75;
-	const center = (value) => {
-		const text = String(value);
+	const contentWidth = Math.max(...ASCII_WORDMARK.map((line) => line.length));
+	const supportsBold = !process.env.NO_COLOR
+		&& Boolean(process.stdout.isTTY || process.env.CI || process.env.FORCE_COLOR);
+	const bold = (text) => supportsBold ? "\x1b[1m" + text + "\x1b[0m" : text;
+	const center = (text) => {
 		const left = Math.max(0, Math.floor((contentWidth - text.length) / 2));
-		return " ".repeat(left) + text + " ".repeat(Math.max(0, contentWidth - left - text.length));
+		return " ".repeat(left) + bold(text) + " ".repeat(Math.max(0, contentWidth - left - text.length));
 	};
-	const frame = (value) => "| " + center(value) + " |";
-	const border = "+" + "-".repeat(contentWidth + 2) + "+";
 
 	return [
-		border,
-		...wordmark.map(frame),
-		frame("x  next.js"),
-		frame("INDEPENDENT PROJECT BY KASTRICK"),
-		frame("NOT AFFILIATED WITH NEXT.JS"),
-		border,
+		...ASCII_WORDMARK,
+		center("INDEPENDENT PROJECT BY KASTRICK"),
+		center("NOT AFFILIATED WITH NEXT.JS NOR VERCEL"),
 	];
 }
 
@@ -439,6 +436,7 @@ module.exports = {
 	compileProject,
 	emitArtifacts,
 	logEvent,
+	ASCII_WORDMARK,
 	printBanner,
 	resolveDistDir,
 	routePathForFile,
