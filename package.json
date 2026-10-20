@@ -3,7 +3,7 @@
 	"version": "3.0.0-alpha.0",
 	"private": false,
 	"scripts": {
-		"build": "npm run prepare:production && npm run type-check && next build",
+		"build": "node scripts/gen3-build-coordinator.js",
 		"prepare:production": "node scripts/gen3-prepare-production.js",
 		"dev": "next dev",
 		"start": "next start",
