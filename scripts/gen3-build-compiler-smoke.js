@@ -5,21 +5,20 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { ASCII_WORDMARK, compileProject, emitArtifacts, printBanner } = require("./gen3-build-compiler");
+const { ASCII_WORDMARK, compileProject, emitArtifacts, printBanner, renderPeggaText } = require("./gen3-build-compiler");
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
 try {
 	const banner = [];
 	printBanner((line) => banner.push(line));
 	assert.deepEqual(banner.slice(0, ASCII_WORDMARK.length), ASCII_WORDMARK,
-		"the supplied block-style wordmark is emitted exactly");
-	assert.ok(banner.some((line) => line.includes("INDEPENDENT PROJECT BY KASTRICK")), "banner credits the independent project");
-	assert.ok(banner.some((line) => line.includes("NOT AFFILIATED WITH NEXT.JS NOR VERCEL")),
-		"banner disclaims affiliation with both Next.js and Vercel");
-	assert.ok(!banner.some((line) => /x\s+next\.js/i.test(line)), "the previous x next.js subtitle is removed");
-	if (!process.env.NO_COLOR && (process.stdout.isTTY || process.env.CI || process.env.FORCE_COLOR)) {
-		assert.ok(banner.some((line) => line.includes("\\x1b[1m")), "footer captions use terminal bold styling when supported");
-	}
+		"the supplied updated wordmark is emitted exactly");
+	assert.deepEqual(banner.slice(ASCII_WORDMARK.length, ASCII_WORDMARK.length + 3),
+		renderPeggaText("INDEPENDENT PROJECT BY KASTRICK").map((line) => line.padStart(line.length, " ")),
+		"the project credit uses the Pegga-style pixel font");
+	assert.ok(renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL").every((line) => banner.includes(line.padStart(Math.max(0, (Math.max(...ASCII_WORDMARK.map((row) => row.length)) - line.length) / 2) + line.length, " ").slice(0))),
+		"the combined Next.js and Vercel disclaimer is rendered in the Pegga-style pixel font");
+	assert.ok(!banner.some((line) => /x\s+next\.js/i.test(line)), "the old x next.js subtitle is removed");
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");
 	fs.mkdirSync(pageDirectory, { recursive: true });
 	fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "engine-build-fixture", version: "1.0.0" }));
