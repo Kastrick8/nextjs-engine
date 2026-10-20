@@ -232,7 +232,7 @@ function compileProject(projectRoot, options = {}) {
 	const sourceByPath = new Map();
 	for (const file of files) {
 		sourceByPath.set(file, ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true,
-			file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS));
+			(file.endsWith(".tsx") || file.endsWith(".jsx")) ? ts.ScriptKind.TSX : ts.ScriptKind.TS));
 	}
 	const registered = registeredCustomTypes(files);
 	installTypeScriptRequireHook();
@@ -257,14 +257,13 @@ function compileProject(projectRoot, options = {}) {
 		for (let index = 0; index < candidates.length; index++) {
 			candidateCount += 1;
 			const pageId = candidates.length === 1 ? routeId : routeId + "#schema-" + (index + 1);
-			log("nextjs-engine | Compiling " + relative);
 			const plan = compilePage(candidates[index].result.value, {
 				pageId,
 				sourcePath: relative,
 				customComponentTypes: registered,
 				onProgress: (event) => logEvent(event, log),
 			});
-			const custom = new Set(registered);
+			const custom = new Set();
 			walkNodes(plan.root, (node) => {
 				if (node.customComponent || !BUILTIN_NODE_TYPES.has(String(node.type))) custom.add(String(node.type));
 			});
