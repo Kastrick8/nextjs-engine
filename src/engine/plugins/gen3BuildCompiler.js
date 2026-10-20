@@ -300,20 +300,7 @@ function compileProject(projectRoot, options = {}) {
 					level, code, message, ...(nodePath ? { path: nodePath } : {}),
 				})),
 			});
-			pages.push({
-				id: plan.id,
-				sourcePath: relative,
-				summary: plan.summary,
-				customComponents: [...custom].sort(),
-				assets: plan.assets.map(({ kind, workClass, priority }) => ({ kind, workClass, priority })),
-				capabilities: [...plan.capabilities].sort(),
-				fallbackFeatures: plan.fallbackPlan.features.map(({ feature, importance, strategies }) => ({
-					feature, importance, strategies: strategies.map(({ id, kind, fidelity }) => ({ id, kind, fidelity })),
-				})),
-				diagnostics: plan.diagnostics.map(({ level, code, message, path: nodePath }) => ({
-					level, code, message, ...(nodePath ? { path: nodePath } : {}),
-				})),
-			});
+
 		}
 	}
 	return {
