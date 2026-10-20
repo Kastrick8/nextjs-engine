@@ -573,7 +573,11 @@ function analyzeProjectModules(projectRoot, options = {}) {
 	const log = typeof options.log === "function" ? options.log : (() => {});
 	const routes = files.map((file) => routeEntryFromFile(root, file)).filter(Boolean)
 		.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath));
-	const analyzer = createModuleAnalyzer(root, { sourceByPath, log });
+	const analyzer = createModuleAnalyzer(root, {
+		sourceByPath,
+		log,
+		schemaCandidateCountsByFile: options.schemaCandidateCountsByFile,
+	});
 	const result = analyzer.analyze(routes, options.schemaSymbolsByFile || new Map());
 	return {
 		...result,
