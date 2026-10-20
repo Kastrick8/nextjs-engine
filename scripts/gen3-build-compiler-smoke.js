@@ -5,17 +5,21 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { compileProject, emitArtifacts, printBanner } = require("./gen3-build-compiler");
+const { ASCII_WORDMARK, compileProject, emitArtifacts, printBanner } = require("./gen3-build-compiler");
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
 try {
 	const banner = [];
 	printBanner((line) => banner.push(line));
-	assert.ok(banner.length >= 10 && banner[0].startsWith("+") && banner[0] === banner[banner.length - 1],
-		"compiler startup banner is framed ASCII art");
-	assert.ok(banner.some((line) => line.includes("x  next.js")), "banner pairs the Engine name with next.js");
+	assert.deepEqual(banner.slice(0, ASCII_WORDMARK.length), ASCII_WORDMARK,
+		"the supplied block-style wordmark is emitted exactly");
 	assert.ok(banner.some((line) => line.includes("INDEPENDENT PROJECT BY KASTRICK")), "banner credits the independent project");
-	assert.ok(banner.some((line) => line.includes("NOT AFFILIATED WITH NEXT.JS")), "banner states the non-affiliation notice");
+	assert.ok(banner.some((line) => line.includes("NOT AFFILIATED WITH NEXT.JS NOR VERCEL")),
+		"banner disclaims affiliation with both Next.js and Vercel");
+	assert.ok(!banner.some((line) => /x\s+next\.js/i.test(line)), "the previous x next.js subtitle is removed");
+	if (!process.env.NO_COLOR && (process.stdout.isTTY || process.env.CI || process.env.FORCE_COLOR)) {
+		assert.ok(banner.some((line) => line.includes("\\x1b[1m")), "footer captions use terminal bold styling when supported");
+	}
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");
 	fs.mkdirSync(pageDirectory, { recursive: true });
 	fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "engine-build-fixture", version: "1.0.0" }));
