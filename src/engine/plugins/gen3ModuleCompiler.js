@@ -557,7 +557,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 		}
 		return output;
 	}
-	function analyze(routes, schemaSymbolsByFile = new Map()) {
+	function analyze(routes, schemaSymbolsByFile = new Map(), schemaCandidateCountsByFile = new Map(), schemaSources = []) {
 		for (const route of routes) {
 			routeVisited.clear();
 			const started = Date.now();
@@ -593,6 +593,41 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 			log("nextjs-engine | ✓ COMPILED PAGE : " + route.sourcePath
 				+ " — " + moduleNames.length + " Engine modules indexed; Next.js retains JS/TSX emission");
 		}
+		for (const source of schemaSources) {
+			routeVisited.clear();
+			const usageKey = "schema-source:" + source.sourcePath;
+			log("nextjs-engine | " + SPINNER_FRAMES[spinnerIndex++ % SPINNER_FRAMES.length]
+				+ " COMPILING ENGINE SCHEMA SOURCE : " + source.sourcePath);
+			scanProjectFile(source.file, usageKey);
+			for (const symbol of schemaSymbolsByFile.get(source.file) || []) {
+				const barrel = path.join(root, "src", "engine", "index.ts");
+				const packageBarrel = path.join(root, "engine", "index.ts");
+				const entry = fs.existsSync(barrel) ? barrel : (fs.existsSync(packageBarrel) ? packageBarrel : undefined);
+				if (entry) {
+					const targets = resolveSymbolTargets(entry, symbol);
+					if (targets.length) {
+						for (const target of targets) recordFor(target.sourcePath, target.name || symbol, entry, usageKey, "local");
+						continue;
+					}
+				}
+				recordFor(undefined, symbol, "@engine/" + symbol, usageKey, "package");
+			}
+			const moduleNames = [...moduleRecords.values()]
+				.filter((record) => record.usedBy.includes(usageKey))
+				.map((record) => record.importName)
+				.sort();
+			routeRecords.push({
+				sourcePath: source.sourcePath,
+				routePath: null,
+				kind: "engine-schema-source",
+				engineModules: moduleNames,
+				engineModuleCount: moduleNames.length,
+				schemaCandidateCount: schemaCandidateCountsByFile.get(source.file) || 0,
+				analyzedInMilliseconds: 0,
+			});
+			log("nextjs-engine | ✓ COMPILED ENGINE SCHEMA SOURCE : " + source.sourcePath
+				+ " — " + moduleNames.length + " Engine modules indexed");
+		}
 		return {
 			routes: routeRecords,
 			modules: [...moduleRecords.values()].map((record) => ({
@@ -613,17 +648,27 @@ function analyzeProjectModules(projectRoot, options = {}) {
 	const log = typeof options.log === "function" ? options.log : (() => {});
 	const routes = files.map((file) => routeEntryFromFile(root, file)).filter(Boolean)
 		.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath));
+	const schemaSymbolsByFile = options.schemaSymbolsByFile || new Map();
+	const schemaCandidateCountsByFile = options.schemaCandidateCountsByFile || new Map();
+	const routeFiles = new Set(routes.map((route) => route.file));
+	const schemaSources = [...schemaCandidateCountsByFile.keys()]
+		.filter((file) => !routeFiles.has(path.resolve(file)))
+		.map((file) => ({
+			file: path.resolve(file),
+			sourcePath: displayPath(root, file),
+		}));
 	const analyzer = createModuleAnalyzer(root, {
 		sourceByPath,
 		log,
-		schemaCandidateCountsByFile: options.schemaCandidateCountsByFile,
+		schemaCandidateCountsByFile,
 	});
-	const result = analyzer.analyze(routes, options.schemaSymbolsByFile || new Map());
+	const result = analyzer.analyze(routes, schemaSymbolsByFile, schemaCandidateCountsByFile, schemaSources);
 	return {
 		...result,
 		summary: {
 			routeEntryCount: routes.length,
-			analyzedRouteCount: result.routes.length,
+			analyzedRouteCount: routes.length,
+			schemaSourceEntryCount: schemaSources.length,
 			engineModuleCount: result.modules.length,
 			localEngineModuleCount: result.modules.filter((module) => module.resolution === "local").length,
 			externalEngineModuleCount: result.modules.filter((module) => module.resolution !== "local").length,
