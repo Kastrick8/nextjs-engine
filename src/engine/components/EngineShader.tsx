@@ -338,7 +338,8 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		};
 
 		const requestEventDraw = () => {
-			if (eventFrame !== 0) return;
+			if (eventFrame !== 0 || disposed || contextLost || offscreen
+				|| ((config.pauseWhenHidden ?? true) && document.hidden)) return;
 			eventFrame = requestAnimationFrame((timestamp) => {
 				eventFrame = 0;
 				draw(timestamp);
