@@ -53,11 +53,9 @@ export function classifyEngineDebugDiagnostic(source: EngineDebugSource, message
 	const combined = (message + "\n" + detail).toLowerCase();
 	const hydration = /hydration|hydrating|server html|did not match|text content does not match|hydration failed/.test(combined);
 	const ssr = /server.?side render|server render|server component|error occurred prerender|failed to render on the server|ssr error/.test(combined);
-	const severity: EngineDebugSeverity = source === "console" && /warn(?:ing)?/.test(combined) && !/error|failed|mismatch/.test(combined)
-		? "warning"
-		: /warning|deprecated|will be removed/.test(combined) && !/uncaught|unhandled|fatal|error:/.test(combined)
-			? "warning"
-			: "error";
+	const explicitFailure = /uncaught|unhandled|fatal|error:|mismatch|hydration|did not match|failed|exception|server error/.test(combined);
+	const isWarning = /\\bwarn(?:ing)?\\b|deprecated|will be removed/.test(combined);
+	const severity: EngineDebugSeverity = source === "console" && isWarning && !explicitFailure ? "warning" : "error";
 	const category: EngineDebugDiagnostic["category"] = hydration ? "Hydration" : ssr ? "SSR" : source === "console" ? "Console" : "Runtime";
 	let ownerHint: EngineDebugDiagnostic["ownerHint"] = "Unknown";
 	if (/src\/engine\/|\/engine\/debug\/|\[engine(?:canvas|shader|manim|provider|style|scroll|transitions)?\]|nextjs-engine\/(?:src\/)?engine/i.test(combined)) {
