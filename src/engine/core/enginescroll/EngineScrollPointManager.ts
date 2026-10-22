@@ -134,6 +134,12 @@ export class EngineScrollPointManager {
 		}
 	}
 
+	private static releaseObserverIfUnused(): void {
+		if (this.points.size > 0 || this.observedElementRefs.size > 0 || !this.resizeObserver) return;
+		this.resizeObserver.disconnect();
+		this.resizeObserver = null;
+	}
+
 	private static observeElement(element: HTMLElement): void {
 		this.ensureObserver();
 		const count = this.observedElementRefs.get(element) ?? 0;
@@ -146,9 +152,10 @@ export class EngineScrollPointManager {
 		if (count <= 1) {
 			this.observedElementRefs.delete(element);
 			this.resizeObserver?.unobserve(element);
-			return;
+		} else {
+			this.observedElementRefs.set(element, count - 1);
 		}
-		this.observedElementRefs.set(element, count - 1);
+		this.releaseObserverIfUnused();
 	}
 
 	private static measure(
@@ -429,10 +436,12 @@ export class EngineScrollPointManager {
 	}
 
 	public static clear(): void {
-		for (const point of this.points.values()) this.unobserveElement(point.element);
+		const points = [...this.points.values()];
 		this.points.clear();
+		for (const point of points) this.unobserveElement(point.element);
 		this.geometryDirty = false;
 		this.invalidateOrder();
+		this.releaseObserverIfUnused();
 	}
 
 	public static recalculate(): void {

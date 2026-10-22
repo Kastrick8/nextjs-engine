@@ -28,7 +28,9 @@ a second time.
 - callback mode does not schedule RAF when `onDraw` is absent;
 - callback mode stops RAF when `onDraw` returns `false` and only wakes for a changed callback or backing-store redraw;
 - pauses while offscreen and/or while the document is hidden;
-- adaptive DPR adjustments are rate-limited to at most one decision per 750ms;
+- pauses a WebGL frame loop on context loss and rebuilds runtime resources when the browser restores the context;
+- acquires the shared frame-pressure monitor only while callback/graphics work is actively animating;
+- backing-store density is stable under frame pressure; explicit `dpr`/`maxDpr` set the quality budget, and DPR is rechecked on browser resize;
 - built-in graphics engines are imported only when selected;
 - 2D retains compiled topology and `Path2D` geometry for unchanged meshes;
 - 3D and SVG graphics backends retain output objects rather than rebuilding the complete scene/tree every frame;
@@ -49,7 +51,7 @@ the shared scheduler while the remaining shaders still receive the same frame
 and continue scheduling future frames. This prevents one broken shader from
 freezing every animated EngineShader or throwing again on every RAF indefinitely.
 
-The shared RAF is cancelled when the final callback leaves the scheduler.
+The shared RAF is cancelled when the final callback leaves the scheduler. Animated shaders acquire the shared frame-pressure monitor only while their animation subscription is active; static/event shaders do not keep that monitor spinning.
 
 Manifest publication is ordered per shader base path. Forced refreshes and cache
 clears invalidate the publication rights of older in-flight manifest requests,
@@ -79,7 +81,7 @@ empty/background-only frame.
 
 Manim3D static scenes are demand-rendered rather than continuously redrawn.
 Animated Manim3D scenes cancel RAF while offscreen or while the document is
-hidden, and model/renderer resources are disposed on teardown.
+hidden, and model/renderer resources are disposed on teardown. EngineManim3D refreshes renderer pixel ratio on resize and falls back to a coalesced geometry check where IntersectionObserver is unavailable. Its bone-track hot path reuses camera scratch state and avoids temporary arrays.
 
 ## EngineScroll
 

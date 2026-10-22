@@ -94,11 +94,89 @@ const canvasFacade = read("src/engine/components/EngineCanvas.tsx");
 check(canvasFacade.includes("adaptiveProp ?? false"), "Gen 3 Canvas keeps the compatibility adaptive default explicit");
 check(canvasFacade.includes("handlers.adaptive ?? false"), "Gen 3 low-level Canvas hook keeps the compatibility default explicit");
 check(canvasFacade.includes("useCoreEngineCanvas"), "Gen 3 low-level hook wraps the compatible v2 core instead of changing patch behavior");
-check(canvasFacade.includes("acquireFrameMonitor"), "Canvas/Shader activity feeds the shared frame-pressure monitor without changing resolution");
 const canvasCore = read("src/engine/core/enginecanvas/EngineCanvas.tsx");
 const shaderRuntime = read("src/engine/components/EngineShader.tsx");
-check(!canvasCore.includes("resolveAdaptiveDpr") && !canvasCore.includes("nextDpr"), "Canvas never lowers backing resolution under frame pressure");
-check(!shaderRuntime.includes("nextDpr") && !shaderRuntime.includes("adaptiveWindowStart"), "Shader never lowers backing resolution under frame pressure");
+check(!canvasFacade.includes("useEffect(() => EngineScheduler.acquireFrameMonitor(), [])"),
+	"the Canvas facade does not keep a frame-pressure RAF alive for static or offscreen components");
+check(canvasCore.includes("releaseFrameMonitor ??= EngineScheduler.acquireFrameMonitor()")
+	&& canvasCore.includes("releaseFrameMonitor?.();"),
+	"Canvas frame-pressure monitoring follows the active draw-loop lifecycle");
+check(shaderRuntime.includes("animationMonitorCleanup = EngineScheduler.acquireFrameMonitor()")
+	&& shaderRuntime.includes("animationMonitorCleanup?.();"),
+	"Shader frame-pressure monitoring follows the active animated-shader lifecycle");
+check(!canvasCore.includes("isUnderFramePressure()") && !canvasCore.includes("underFramePressure"),
+	"Canvas does not reduce backing resolution from the shared pressure signal");
+check(!shaderRuntime.includes("isUnderFramePressure()") && !shaderRuntime.includes("underFramePressure"),
+	"Shader does not reduce backing resolution from the shared pressure signal");
+check(shaderRuntime.includes("window.addEventListener(\"resize\", handleWindowResize")
+	&& shaderRuntime.includes("currentDpr = nextDpr"),
+	"Shader refreshes its backing-store density after DPR/display changes");
+check(canvasCore.includes("window.addEventListener(\"resize\", handleWindowResize")
+	&& canvasCore.includes("const nextPixelRatio = getTargetDpr(dprProp, maxDpr)"),
+	"Canvas refreshes its backing-store density after DPR/display changes");
+check(canvasCore.includes("Number.isFinite(deviceDpr)")
+	&& canvasCore.includes("Number.isFinite(maxDpr)"),
+	"Canvas normalizes invalid DPR inputs before sizing the backing store");
+check(canvasCore.includes('canvas.addEventListener("webglcontextlost", handleContextLost)')
+	&& canvasCore.includes("setContextVersion((version) => version + 1)"),
+	"Canvas pauses on WebGL context loss and rebuilds runtime resources after restoration");
+check(canvasCore.includes("const onSetupRef = useRef(resolvedOnSetup)")
+	&& !canvasCore.includes("\n\t\tresolvedOnSetup,\n\t]);"),
+	"Canvas does not rebuild the renderer only because an inline onSetup callback identity changed");
+check(shaderRuntime.includes("Number.isFinite(configuredMaxDpr)")
+	&& shaderRuntime.includes("Number.isFinite(deviceDpr)"),
+	"Shader normalizes invalid DPR inputs before sizing the backing store");
+check(shaderRuntime.includes('canvas.addEventListener("webglcontextlost", onContextLost)')
+	&& shaderRuntime.includes("contextLost = false;\n\t\t\tsetContextVersion((version) => version + 1)"),
+	"Shader stops animation on context loss and recreates GL resources after restoration");
+check(shaderRuntime.includes("if (eventFrame !== 0 || disposed || contextLost || offscreen")
+	&& shaderRuntime.includes("animationMonitorCleanup?.();"),
+	"Shader avoids scheduling paused/context-lost event draws and releases active monitoring");
+check(shaderRuntime.includes("frameIntervalRef.current")
+	&& !shaderRuntime.includes("\n\t\tconfig?.fps,"),
+	"changing the shader FPS cap does not rebuild/link the WebGL program");
+check(shaderRuntime.includes("}, [variableSignatureKey]);")
+	&& !shaderRuntime.includes("}, [props.variables, props.shader]);"),
+	"event shaders avoid redundant GPU redraws when an inline config object has unchanged values");
+const drawStart = shaderRuntime.indexOf("const draw = (timestamp: number) => {");
+const drawEnd = shaderRuntime.indexOf("const requestEventDraw", drawStart);
+const shaderDrawBody = shaderRuntime.slice(drawStart, drawEnd);
+check(drawStart >= 0 && drawEnd > drawStart
+	&& !shaderDrawBody.includes("gl.useProgram(program)")
+	&& !shaderDrawBody.includes("gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)")
+	&& !shaderDrawBody.includes("gl.vertexAttribPointer(position"),
+	"Shader avoids repeating invariant GL program/buffer setup on every frame");
+
+const manim3D = read("src/engine/components/EngineManim/EngineManim3D.tsx");
+check(manim3D.includes('typeof ResizeObserver !== "undefined"')
+	&& manim3D.includes('typeof IntersectionObserver !== "undefined"'),
+	"Manim3D tolerates older WebViews without ResizeObserver or IntersectionObserver");
+check(manim3D.includes("fallbackViewportCheck = checkViewportFallback")
+	&& manim3D.includes("window.removeEventListener(\"scroll\", fallbackViewportCheck)"),
+	"Manim3D has a coalesced visibility fallback and tears down its listeners");
+check(manim3D.includes("releaseFrameMonitor ??= EngineScheduler.acquireFrameMonitor()")
+	&& manim3D.includes("releaseFrameMonitor?.();"),
+	"Manim3D frame-pressure monitoring follows its active animation loop");
+check(manim3D.includes("const lookWorldPosition = lookTarget ? new THREE.Vector3() : null")
+	&& !manim3D.includes("const worldPosition = new THREE.Vector3()"),
+	"Manim3D reuses its camera target vector instead of allocating one each frame");
+check(manim3D.includes('canvas.addEventListener("webglcontextlost", handleContextLost)')
+	&& manim3D.includes("if (contextLost || !nearViewport || !documentVisible)"),
+	"Manim3D pauses GPU work during WebGL context loss and resumes after restoration");
+check(!manim3D.includes("sampled.rotate.map(toRad)")
+	&& !manim3D.includes("const origin = mixer ? [target.position.x"),
+	"Manim3D bone tracks avoid short-lived arrays in the animation hot path");
+check(manim3D.includes("Number.isFinite(configuredFps)"),
+	"Manim3D normalizes invalid FPS input before animation timing arithmetic");
+check(manim3D.includes("const cfgKey = JSON.stringify(cfg);")
+	&& manim3D.includes("[cfgKey, width, height]"),
+	"identical inline Manim3D config objects do not reload models or recreate the WebGL renderer");
+
+const scrollPoints = read("src/engine/core/enginescroll/EngineScrollPointManager.ts");
+check(scrollPoints.includes("private static releaseObserverIfUnused()")
+	&& scrollPoints.includes("this.resizeObserver.disconnect()")
+	&& scrollPoints.includes("this.resizeObserver = null"),
+	"EngineScroll releases its shared ResizeObserver after the last registered point");
 
 const model = read("src/engine/core/EngineModel.ts");
 for (const api of ["get<", "set<", "update<", "computed<", "action<", "watch<", "subscribe("]) {

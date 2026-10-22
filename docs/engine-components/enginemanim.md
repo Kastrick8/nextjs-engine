@@ -133,9 +133,7 @@ Animated scenes use RAF only while both conditions are true:
 - the canvas is within a 200px viewport margin;
 - the document/tab is visible.
 
-Leaving the viewport or hiding the tab cancels the active RAF. Resuming restarts
-the Three clock so a long hidden period does not become one huge animation
-`delta`.
+Leaving the viewport or hiding the tab cancels the active RAF and releases the shared frame-pressure monitor. Resuming restarts the Three clock so a long hidden period does not become one huge animation `delta`. WebGL context loss also pauses rendering; Three.js handles its own renderer restoration before EngineManim3D resumes. When IntersectionObserver is not available, a coalesced scroll/resize check provides a visibility fallback instead of failing initialization.
 
 ### Size behavior
 
