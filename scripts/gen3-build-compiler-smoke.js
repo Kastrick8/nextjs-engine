@@ -25,6 +25,7 @@ try {
 	assert.equal(ASCII_WORDMARK.length, 6, "the compact supplied wordmark has six rows");
 	assert.equal(BOTTOM_TEXT.length, 9, "the supplied footer keeps its two four-row messages");
 	assert.equal(BOTTOM_TEXT.filter((line) => line === "").length, 1, "the two footer messages have one blank row between them");
+	assert.equal(BOTTOM_TEXT[8], "|_|\\__|___/_/ \\_\\ |_\\//___/|___/|_|\\__|\\__/|_|_\\   \\_/  |___|_|\\__/___|___|", "the final footer row matches the supplied updated artwork");
 	assert.equal(banner.length, 18, "the banner has a top and bottom border plus its spaced content rows");
 	assert.ok(banner[0].startsWith("╭") && banner[banner.length - 1].startsWith("╰"), "the banner has a light frame");
 	assert.equal(new Set(banner.map((line) => line.length)).size, 1, "all frame and content rows align to one width");
