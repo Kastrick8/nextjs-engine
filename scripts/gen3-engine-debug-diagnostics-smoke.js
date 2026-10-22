@@ -54,11 +54,11 @@ try {
 	const crossRealmError = redactEngineDebugText({
 		name: "TypeError",
 		message: "Cross-realm error is preserved",
-		stack: "TypeError: Cross-realm error is preserved\\n    at render (app/page.tsx:8)",
+	\tstack: "TypeError: Cross-realm error is preserved\n    at render (app/page.tsx:8)",
 	});
 	assert.match(crossRealmError, /Cross-realm error is preserved/,
 		"Error objects from the iframe realm retain their message and stack");
-	assert.match(crossRealmError, /app\\/page\\.tsx/,
+	assert.match(crossRealmError, /app\/page\.tsx/,
 		"cross-realm stack locations remain useful for owner classification");
 
 	const ssrError = createEngineDebugDiagnostic({
