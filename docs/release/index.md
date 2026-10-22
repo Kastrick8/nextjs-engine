@@ -6,6 +6,7 @@ Release documents describe the Engine **as it existed at that release**. For cur
 
 | Version | Status | Release notes | Main theme |
 |---|---|---|---|
+| **v3.0.0-alpha.1** | Alpha candidate — not published | [`NE-v3-0-0-alpha-1.md`](./NE-v3-0-0-alpha-1.md) | Compiler-first, server-first Generation 3 architecture and development diagnostics |
 | **v2.6.2** | Prepared bug-fix patch | [`NE-v2-6-2.md`](./NE-v2-6-2.md) | Cross-browser Transitions+, React hydration, Overlay/Nav compatibility, EngineScroll correctness |
 | **v2.6.1** | Prepared stability patch | [`NE-v2-6-1.md`](./NE-v2-6-1.md) | React 19 hydration, Next.js App Router, routing/style stability |
 | **v2.6.0** | Prepared for publication | [`NE-v2-6-0.md`](./NE-v2-6-0.md) | EngineShader, Transitions+, advanced EngineScroll, EngineOverlay |
