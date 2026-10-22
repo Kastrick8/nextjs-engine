@@ -404,44 +404,119 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		<main className="ed-shell">
 			<style>{PAGE_CSS}</style>
 			<header className="ed-head">
-				<h1>Next.js Engine Debug</h1>
-				<span className="ed-badge">DEV ONLY</span>
-				<span className="ed-count">/_engine/debug · D.5–D.10</span>
+				<span className="ed-brand-mark" aria-hidden="true">NE</span>
+				<h1>Engine Debug</h1>
+				<span className="ed-badge">DEV</span>
+				<span className="ed-count">{diagnostics.filter((item) => item.severity === "error").length} errors · {diagnostics.filter((item) => item.severity === "warning").length} warnings · /_engine/debug</span>
 			</header>
 			<div className="ed-body">
+				<nav className="ed-activity" aria-label="Debug views">
+					<button type="button" className="ed-activity-button" aria-label="Explorer" title="Explorer" aria-pressed={tab === "Node"} onClick={() => setTab("Node")}><span className="ed-activity-glyph">⌕</span></button>
+					<button type="button" className="ed-activity-button" aria-label="Problems" title="Problems" aria-pressed={tab === "Errors"} onClick={() => setTab("Errors")}><span className="ed-activity-glyph">!</span></button>
+					<button type="button" className="ed-activity-button" aria-label="Scheduler" title="Scheduler" aria-pressed={tab === "Scheduler"} onClick={() => setTab("Scheduler")}><span className="ed-activity-glyph">◷</span></button>
+					<button type="button" className="ed-activity-button" aria-label="Device" title="Device simulation" aria-pressed={tab === "Device"} onClick={() => setTab("Device")}><span className="ed-activity-glyph">▦</span></button>
+				</nav>
 				<nav className="ed-sidebar" aria-label="Application pages">
-					<h2 className="ed-section-title">Page explorer</h2>
+					<h2 className="ed-section-title">Explorer</h2>
+					<div className="ed-sidebar-subtitle">APPLICATION ROUTES</div>
 					{pages.map((route) => (
 						<button key={route} type="button" className="ed-route" data-route={route} aria-current={selectedPage === route ? "page" : undefined} onClick={() => { setSelectedPage(route); setSelectedNode(null); }}>
-							{route}
+							{route === "/" ? "/ (home)" : route}
 						</button>
 					))}
 				</nav>
 				<section className="ed-stage" aria-label="Live page preview">
 					<div className="ed-tools">
 						<button type="button" className="ed-button" aria-pressed={picker} onClick={() => setPicker((value) => !value)}>Pick node</button>
-						<button type="button" className="ed-button" aria-pressed={overlay} onClick={() => setOverlay((value) => !value)}>Runtime boundaries</button>
+						<button type="button" className="ed-button" aria-pressed={overlay} onClick={() => setOverlay((value) => !value)}>Boundaries</button>
 						<span className="ed-spacer" />
 						<span className="ed-fps">{device.width}×{device.height} · DPR {device.dpr} · {fps.toFixed(1)} FPS</span>
 					</div>
 					<div className="ed-viewport-scroll">
 						<div className="ed-frame-shell" style={{ width: device.width, height: device.height }}>
-							<iframe ref={iframeRef} className="ed-frame" title={`Live preview: ${selectedPage}`} src={frameSource} />
+							<iframe ref={iframeRef} className="ed-frame" title={"Live preview: " + selectedPage} src={frameSource} />
 						</div>
 					</div>
 				</section>
 				<aside className="ed-inspector">
 					<div className="ed-tabs" role="tablist" aria-label="Debug inspectors">
-						{(["Node", "Scheduler", "Device"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} className="ed-button" aria-pressed={tab === name} onClick={() => setTab(name)}>{name}</button>)}
+						{(["Node", "Errors", "Scheduler", "Device"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} className="ed-button" aria-pressed={tab === name} onClick={() => setTab(name)}>{name}{name === "Errors" && diagnostics.length > 0 ? " " + diagnostics.length : ""}</button>)}
 					</div>
 					{tab === "Node" && (
-						selectedNode ? <NodeInspector node={selectedNode} task={selectedTask} fps={fps} refresh={device.refresh} layouts={layoutByDevice} /> : <div className="ed-empty">Enable “Pick node,” then click an Engine element in the preview.</div>
+						selectedNode ? <NodeInspector node={selectedNode} task={selectedTask} fps={fps} refresh={device.refresh} layouts={layoutByDevice} /> : <div className="ed-empty">Pick node, then select an Engine element in the preview.</div>
+					)}
+					{tab === "Errors" && (
+						<ErrorInspector
+							diagnostics={diagnostics}
+							selectedId={selectedDiagnosticId}
+							filter={diagnosticFilter}
+							onFilter={setDiagnosticFilter}
+							onSelect={setSelectedDiagnosticId}
+							onClear={() => { setDiagnostics([]); setSelectedDiagnosticId(null); }}
+						/>
 					)}
 					{tab === "Scheduler" && <SchedulerInspector snapshot={scheduler} transitions={transitions} />}
 					{tab === "Device" && <DeviceInspector device={device} layouts={layoutByDevice} selectedNode={selectedNode} changeMode={changeMode} updateDevice={updateDevice} />}
 				</aside>
 			</div>
 		</main>
+	);
+}
+
+
+function ErrorInspector({
+	diagnostics,
+	selectedId,
+	filter,
+	onFilter,
+	onSelect,
+	onClear,
+}: {
+	diagnostics: EngineDebugDiagnostic[];
+	selectedId: string | null;
+	filter: "all" | "error" | "warning";
+	onFilter: (value: "all" | "error" | "warning") => void;
+	onSelect: (id: string) => void;
+	onClear: () => void;
+}) {
+	const visible = diagnostics.filter((item) => filter === "all" || item.severity === filter).slice().reverse();
+	const selected = diagnostics.find((item) => item.id === selectedId);
+	const errorCount = diagnostics.filter((item) => item.severity === "error").length;
+	const warningCount = diagnostics.length - errorCount;
+	const copySelected = () => {
+		if (!selected || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+		void navigator.clipboard.writeText(formatEngineDebugDiagnostic(selected)).catch(() => undefined);
+	};
+	return (
+		<>
+			<div className="ed-severity-summary"><span><strong>{errorCount}</strong> errors</span><span><strong className="warn">{warningCount}</strong> warnings</span><span>{diagnostics.length}/200 captured</span></div>
+			<div className="ed-problem-toolbar">
+				{(["all", "error", "warning"] as const).map((value) => <button key={value} type="button" className="ed-filter" aria-pressed={filter === value} onClick={() => onFilter(value)}>{value === "all" ? "All" : value === "error" ? "Errors" : "Warnings"}</button>)}
+				<span className="ed-problem-count">{visible.length} shown</span>
+				<button type="button" className="ed-filter" onClick={onClear} disabled={diagnostics.length === 0}>Clear</button>
+			</div>
+			<div className="ed-diagnostic-list" aria-label="Captured problems">
+				{visible.length === 0 ? <div className="ed-empty">No captured problems. Run or reload the preview to collect console, runtime, rejection, and visible Next.js overlay errors.</div> : visible.map((item) => (
+					<button key={item.id} type="button" className="ed-diagnostic" aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
+						<span className={"ed-problem-glyph " + item.severity}>{item.severity === "error" ? "●" : "▲"}</span>
+						<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span><span>{new Date(item.at).toLocaleTimeString()}</span></span></span>
+					</button>
+				))}
+			</div>
+			{selected && (
+				<section className="ed-card" aria-label="Selected diagnostic details">
+					<h3>{selected.category} diagnostic</h3>
+					<DebugRow name="Severity" value={selected.severity.toUpperCase()} />
+					<DebugRow name="Likely owner" value={selected.ownerHint} />
+					<DebugRow name="Captured from" value={selected.source} />
+					{selected.location && <DebugRow name="Location" value={selected.location} />}
+					<p className="ed-explain">Owner is a heuristic from the message and stack, not proof. Verify the source before changing NE or application code.</p>
+					<pre className="ed-detail-text">{[selected.message, selected.detail].filter(Boolean).join("\n\n")}</pre>
+					<button type="button" className="ed-button" onClick={copySelected}>Copy details</button>
+				</section>
+			)}
+			<p className="ed-explain"><span className="ed-warning">Capture boundary:</span> browser errors, unhandled rejections, console errors, and visible Next.js error overlays are collected from the same-origin preview in memory. Server errors emitted before a page reaches the browser may still appear only in the Next.js overlay or dev-server terminal.</p>
+		</>
 	);
 }
 
