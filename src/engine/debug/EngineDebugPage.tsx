@@ -45,7 +45,6 @@ interface DebugNode {
 
 interface DebugSchedulerWindow extends Window {
 	console: Console;
-	__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__?: boolean;
 	__NEXT_ENGINE_SCHEDULER_DEBUG__?: { snapshot: () => EngineSchedulerDebugSnapshot };
 	__NEXT_ENGINE_DEVICE_DEBUG__?: { profile: DeviceProfile };
 	__NEXT_ENGINE_ORIGINAL_MATCH_MEDIA__?: typeof window.matchMedia;
@@ -337,10 +336,6 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					// Keep the window error/rejection listeners active if console cannot be wrapped.
 				}
 			}
-			if (consolePatched) {
-				frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__ = true;
-				frameDocument.documentElement.dataset.engineDebugConsoleCapture = "ready";
-			}
 			frameWindow.addEventListener("error", handleRuntimeError);
 			frameWindow.addEventListener("unhandledrejection", handleUnhandledRejection);
 			const scanNextOverlay = () => {
@@ -422,8 +417,6 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				frameWindow.removeEventListener("error", handleRuntimeError);
 				frameWindow.removeEventListener("unhandledrejection", handleUnhandledRejection);
 				if (consolePatched) {
-					delete frameDocument.documentElement.dataset.engineDebugConsoleCapture;
-					delete frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__;
 					try {
 						Object.defineProperty(frameWindow.console, "error", {
 							configurable: true,
