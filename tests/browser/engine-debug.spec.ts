@@ -54,3 +54,19 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 	await expect(page.getByText(/ENGINE_DEBUG_CAPTURE_SMOKE/)).toBeVisible();
 	await expect(page.getByText("Hydration", { exact: true })).toBeVisible();
 });
+
+test("EngineDebug shows a waiting state while the preview response is pending", async ({ page }) => {
+	let continuePreview!: () => void;
+	const previewGate = new Promise<void>((resolve) => {
+		continuePreview = resolve;
+	});
+	await page.route(/__engine_debug=1/, async (route) => {
+		await previewGate;
+		await route.continue();
+	});
+
+	await page.goto("/_engine/debug");
+	await expect(page.getByText("Waiting for Next.js…", { exact: true })).toBeVisible();
+	continuePreview();
+	await expect(page.locator(".ed-preview-status.ready")).toHaveText("READY");
+});
