@@ -114,6 +114,26 @@ check(shaderRuntime.includes("window.addEventListener(\"resize\", handleWindowRe
 check(canvasCore.includes("window.addEventListener(\"resize\", handleWindowResize")
 	&& canvasCore.includes("const nextPixelRatio = getTargetDpr(dprProp, maxDpr)"),
 	"Canvas refreshes its backing-store density after DPR/display changes");
+check(canvasCore.includes("Number.isFinite(deviceDpr)")
+	&& canvasCore.includes("Number.isFinite(maxDpr)"),
+	"Canvas normalizes invalid DPR inputs before sizing the backing store");
+check(canvasCore.includes("const onSetupRef = useRef(resolvedOnSetup)")
+	&& !canvasCore.includes("\n\t\tresolvedOnSetup,\n\t]);"),
+	"Canvas does not rebuild the renderer only because an inline onSetup callback identity changed");
+check(shaderRuntime.includes("Number.isFinite(configuredMaxDpr)")
+	&& shaderRuntime.includes("Number.isFinite(deviceDpr)"),
+	"Shader normalizes invalid DPR inputs before sizing the backing store");
+check(shaderRuntime.includes("if (eventFrame !== 0 || disposed || contextLost || offscreen")
+	&& shaderRuntime.includes("animationMonitorCleanup?.();"),
+	"Shader avoids scheduling paused/context-lost event draws and releases active monitoring");
+const drawStart = shaderRuntime.indexOf("const draw = (timestamp: number) => {");
+const drawEnd = shaderRuntime.indexOf("const requestEventDraw", drawStart);
+const shaderDrawBody = shaderRuntime.slice(drawStart, drawEnd);
+check(drawStart >= 0 && drawEnd > drawStart
+	&& !shaderDrawBody.includes("gl.useProgram(program)")
+	&& !shaderDrawBody.includes("gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)")
+	&& !shaderDrawBody.includes("gl.vertexAttribPointer(position"),
+	"Shader avoids repeating invariant GL program/buffer setup on every frame");
 
 const manim3D = read("src/engine/components/EngineManim/EngineManim3D.tsx");
 check(manim3D.includes('typeof ResizeObserver !== "undefined"')
