@@ -6,7 +6,7 @@
 // never reduce Canvas or Shader backing resolution.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { memo, useCallback, useEffect, type CSSProperties } from "react";
+import React, { memo, useCallback, type CSSProperties } from "react";
 import {
 	EngineCanvas as CoreEngineCanvas,
 	useEngineCanvas as useCoreEngineCanvas,
@@ -35,8 +35,6 @@ export const EngineCanvas = memo(function EngineCanvas({
 	...props
 }: EngineCanvasProps) {
 	const adaptive = adaptiveProp ?? false;
-
-	useEffect(() => EngineScheduler.acquireFrameMonitor(), []);
 
 	if (!shader) return <CoreEngineCanvas {...props} adaptive={adaptive} />;
 
