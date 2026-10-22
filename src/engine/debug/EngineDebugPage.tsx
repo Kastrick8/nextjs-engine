@@ -44,6 +44,7 @@ interface DebugNode {
 }
 
 interface DebugSchedulerWindow extends Window {
+	console: Console;
 	__NEXT_ENGINE_SCHEDULER_DEBUG__?: { snapshot: () => EngineSchedulerDebugSnapshot };
 	__NEXT_ENGINE_DEVICE_DEBUG__?: { profile: DeviceProfile };
 	__NEXT_ENGINE_ORIGINAL_MATCH_MEDIA__?: typeof window.matchMedia;
