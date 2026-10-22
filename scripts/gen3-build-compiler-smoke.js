@@ -14,6 +14,7 @@ const {
 	printBannerOnce,
 	releaseBanner,
 	renderBannerLines,
+	summarizeNextOutputs,
 } = require("./gen3-build-compiler");
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
@@ -32,6 +33,28 @@ try {
 	assert.ok(banner.some((line) => line.includes("███████╗███╗   ██╗ ██████╗")), "the compact supplied wordmark is rendered");
 	assert.ok(banner.some((line) => line.includes(" __  _  __ _____")), "the updated bottom-text artwork is rendered");
 	assert.ok(!banner.some((line) => line.includes("██████   █████ ██████████")), "the oversized previous wordmark is removed");
+
+	const adapterSummary = summarizeNextOutputs({
+		nextVersion: "16.4.2",
+		buildId: "adapter-fixture",
+		outputs: {
+			appPages: [{ pathname: "/" }, { pathname: "/about" }],
+			appRoutes: [{ pathname: "/api/search" }],
+			pages: [{ pathname: "/legacy" }],
+			pagesApi: [{ pathname: "/api/legacy" }],
+			prerenders: [{ pathname: "/" }, { pathname: "/about" }],
+			staticFiles: [{ pathname: "/robots.txt" }, { pathname: "/favicon.ico" }],
+		},
+	});
+	assert.equal(adapterSummary.nextVersion, "16.4.2", "the Next.js version is preserved");
+	assert.equal(adapterSummary.counts.appPages, 2, "App Router pages come from the real adapter output field");
+	assert.equal(adapterSummary.counts.appRoutes, 1, "App Router handlers and metadata outputs are counted");
+	assert.equal(adapterSummary.counts.pages, 1, "Pages Router output is counted separately");
+	assert.equal(adapterSummary.counts.pagesApi, 1, "Pages API output is counted separately");
+	assert.equal(adapterSummary.counts.prerenders, 2, "prerender output entries are counted");
+	assert.equal(adapterSummary.counts.staticFiles, 2, "static files are counted without bloating the manifest with every asset path");
+	assert.deepEqual(adapterSummary.paths.appPages, ["/", "/about"], "route paths from Next.js are captured and sorted");
+	assert.equal(adapterSummary.paths.staticFiles, undefined, "static asset path lists are omitted from the summary");
 
 	const bannerProject = path.join(root, "banner-once-fixture");
 	const firstBanner = [];
@@ -81,9 +104,25 @@ try {
 
 	const inputPath = path.join(root, "worker-manifest.json");
 	fs.writeFileSync(inputPath, JSON.stringify(manifest));
-	const emitted = emitArtifacts(root, inputPath, "dist");
+	const nextBuildContext = {
+		nextVersion: "16.4.2",
+		buildId: "completed-build-fixture",
+		outputs: {
+			appPages: [{ pathname: "/" }, { pathname: "/about" }],
+			appRoutes: [{ pathname: "/api/search" }],
+			pages: [],
+			pagesApi: [],
+			prerenders: [{ pathname: "/" }, { pathname: "/about" }],
+			staticFiles: [{ pathname: "/robots.txt" }],
+		},
+	};
+	const emitted = emitArtifacts(root, inputPath, "dist", nextBuildContext);
 	assert.equal(emitted, path.join(root, "dist", "nextjs-engine", "compiler-manifest.json"));
 	assert.ok(fs.existsSync(emitted), "post-build metadata is emitted under the configured Next.js output directory");
+	const parsedOutput = JSON.parse(fs.readFileSync(emitted, "utf8"));
+	assert.equal(parsedOutput.nextBuild.nextVersion, "16.4.2", "the manifest records Next.js build metadata");
+	assert.equal(parsedOutput.summary.nextOutputCounts.appPages, 2, "the manifest records the real Next.js page count");
+	assert.deepEqual(parsedOutput.nextBuild.paths.appPages, ["/", "/about"], "the manifest includes route paths from the Next adapter");
 	const output = fs.readFileSync(emitted, "utf8");
 	assert.ok(!output.includes("DO_NOT_EMIT_SCHEMA_CONTENT"), "compiler manifest contains summaries, not the source schema or arbitrary prop values");
 
