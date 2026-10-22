@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const ts = require("typescript");
+const { analyzeProjectModules, SCHEMA_ENGINE_SYMBOLS } = require("./gen3ModuleCompiler");
 
 const BUILTIN_NODE_TYPES = new Set([
 	"box", "stack", "grid", "text", "heading", "markdown", "image", "video",
@@ -179,10 +180,11 @@ function schemaCandidates(sourceFile, vars) {
 	return candidates.filter(({ result }) => result.ok && result.value && typeof result.value === "object"
 		&& result.value.root && typeof result.value.root.type === "string");
 }
-function registeredCustomTypes(sourceFiles) {
+function registeredCustomTypes(sourceFiles, sourceByPath = new Map()) {
 	const types = new Set();
 	for (const file of sourceFiles) {
-		const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+		const source = sourceByPath.get(path.resolve(file))
+			|| ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
 		function visit(node) {
 			if (ts.isCallExpression(node) && callName(node) === "registerComponent" && node.arguments.length) {
 				const first = unwrap(node.arguments[0]);
@@ -201,36 +203,35 @@ function walkNodes(node, visit) {
 }
 function logEvent(event, logger = console.log) {
 	const prefix = "nextjs-engine |";
-	if (event.phase === "page-start") logger(prefix + " Compiling " + (event.sourcePath || event.pageId));
-	else if (event.phase === "node" && event.customComponent) {
-		logger(prefix + " Compiling Custom Component " + event.nodeType + " (" + (event.sourcePath || event.pageId) + ":" + (event.nodePath || "root") + ")");
-	} else if (event.phase === "page-cache-hit") logger(prefix + " Reusing cached compiler plan for " + (event.sourcePath || event.pageId));
-	else if (event.phase === "page-complete" && event.summary) {
+	if (event.phase === "node" && event.customComponent) {
+		logger(prefix + " ⠋ COMPILING CUSTOM COMPONENT : " + event.nodeType + " (" + (event.sourcePath || event.pageId)
+			+ ":" + (event.nodePath || "root") + ")");
+	} else if (event.phase === "page-cache-hit") {
+		logger(prefix + " ↳ REUSING CACHED ENGINE SCHEMA : " + (event.sourcePath || event.pageId));
+	} else if (event.phase === "page-complete" && event.summary) {
 		const s = event.summary;
-		logger(prefix + " Compiled " + (event.sourcePath || event.pageId) + " — " + s.totalNodes + " nodes, "
-			+ s.clientIslands + " client islands, " + s.assetCount + " assets");
+		logger(prefix + " ✓ COMPILED ENGINE SCHEMA : " + (event.sourcePath || event.pageId) + " — " + s.totalNodes
+			+ " nodes, " + s.clientIslands + " client islands, " + s.assetCount + " assets");
 	}
 }
-const ASCII_WORDMARK = Object.freeze([
-	"    ███╗   ██╗███████╗██╗  ██╗████████╗  ██╗███████╗    ███████╗███╗   ██╗ ██████╗ ██╗███╗   ██╗███████╗",
-	"    ████╗  ██║██╔════╝╚██╗██╔╝╚══██╔══╝  ██║██╔════╝    ██╔════╝████╗  ██║██╔════╝ ██║████╗  ██║██╔════╝",
-	"    ██╔██╗ ██║█████╗   ╚███╔╝    ██║     ██║███████╗    █████╗  ██╔██╗ ██║██║  ███╗██║██╔██╗ ██║█████╗",
-	"    ██║╚██╗██║██╔══╝   ██╔██╗    ██║██   ██║╚════██║    ██╔══╝  ██║╚██╗██║██║   ██║██║██║╚██╗██║██╔══╝",
-	"    ██║ ╚████║███████╗██╔╝ ██╗   ██║╚█████╔╝███████║    ███████╗██║ ╚████║╚██████╔╝██║██║ ╚████║███████╗",
-	"    ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝   ╚═╝ ╚════╝ ╚══════╝    ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚══════╝"
-]);
+function readBannerAsset(fileName) {
+	const assetPath = path.join(__dirname, "banner", fileName);
+	let sourceText;
+	try {
+		sourceText = fs.readFileSync(assetPath, "utf8");
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		throw new Error("Could not load Generation 3 banner asset "
+			+ path.relative(__dirname, assetPath).split(path.sep).join("/") + ": " + reason);
+	}
+	sourceText = sourceText.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+	if (sourceText.endsWith("\n")) sourceText = sourceText.slice(0, -1);
+	return sourceText ? sourceText.split("\n") : [];
+}
 
-const BOTTOM_TEXT = Object.freeze([
-	" __  _  __ _____    __  ___ _ _   _ _____ __ _____ ___ __    _   _  _ _____ _  _",
-	"|  \\| |/__\\_   _|  /  \\| __| | | | |_   _/  \\_   _| __| _\\  | | | || |_   _| || |",
-	"| | ' | \\/ || |   | /\\ | _|| | |_| | | || /\\ || | | _|| v | | 'V' || | | | | >< |",
-	"|_|\\__|\\__/ |_|   |_||_|_| |_|___|_| |_||_||_||_| |___|__/  !_/ \\_!|_| |_| |_||_|",
-	"",
-	" __  _ _____   _______ __    __   __  _  __  ___   _   _  ___ ___  ______ _",
-	"|  \\| | __\\ \\_/ /_   _|_ \\ /' _/ |  \\| |/__\\| _ \\ | \\ / || __| _ \\/ _/ __| |",
-	"| | ' | _| > , <  | |_ _\\ |`._`. | | ' | \\/ | v / `\\ V /'| _|| v / \\_| _|| |_",
-	"|_|\\__|___/_/ \\_\\ |_\\//___/|___/|_|\\__|\\__/|_|_\\   \\_/  |___|_|\\__/___|___|"
-]);
+// Keep the established exports while treating the text files as the source of truth.
+const ASCII_WORDMARK = Object.freeze(readBannerAsset("wordmark.txt"));
+const BOTTOM_TEXT = Object.freeze(readBannerAsset("bottom-text.txt"));
 
 function bannerMarkerPath(projectRoot) {
 	const resolvedRoot = path.resolve(projectRoot);
@@ -238,12 +239,16 @@ function bannerMarkerPath(projectRoot) {
 	return path.join(require("node:os").tmpdir(), "nextjs-engine-gen3-banner-" + key + ".lock");
 }
 
-function renderBannerLines() {
-	const sourceLines = [...ASCII_WORDMARK, "", ...BOTTOM_TEXT];
-	const contentWidth = Math.max(...sourceLines.map((line) => line.length));
+function renderBannerLines(wordmark = ASCII_WORDMARK, bottomText = BOTTOM_TEXT) {
+	const sourceLines = [
+		...wordmark,
+		...(wordmark.length > 0 && bottomText.length > 0 ? [""] : []),
+		...bottomText,
+	];
+	const contentWidth = sourceLines.reduce((width, line) => Math.max(width, line.length), 0);
 	const center = (line) => {
-		const left = Math.max(0, Math.floor((contentWidth - line.length) / 2));
-		return " ".repeat(left) + line + " ".repeat(Math.max(0, contentWidth - left - line.length));
+		const left = Math.floor((contentWidth - line.length) / 2);
+		return " ".repeat(left) + line + " ".repeat(contentWidth - left - line.length);
 	};
 	const innerWidth = contentWidth + 4;
 	return [
@@ -309,31 +314,70 @@ function readVersion(root) {
 	catch { return "unknown"; }
 }
 function compileProject(projectRoot, options = {}) {
+	const passStartedAt = Date.now();
 	const files = listSourceFiles(projectRoot);
 	const sourceByPath = new Map();
-	for (const file of files) {
-		sourceByPath.set(file, ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true,
-			(file.endsWith(".tsx") || file.endsWith(".jsx")) ? ts.ScriptKind.TSX : ts.ScriptKind.TS));
+	const candidatesByFile = new Map();
+	const schemaSymbolsByFile = new Map();
+	const schemaCandidateCountsByFile = new Map();
+
+	function collectSchemaModules(node, symbols) {
+		if (!node || typeof node !== "object") return;
+		if (typeof node.type === "string" && SCHEMA_ENGINE_SYMBOLS[node.type]) {
+			symbols.add(SCHEMA_ENGINE_SYMBOLS[node.type]);
+		}
+		if (Array.isArray(node.children)) for (const child of node.children) collectSchemaModules(child, symbols);
+		if (node.type === "slot" && node.props && node.props.fallback && typeof node.props.fallback === "object") {
+			collectSchemaModules(node.props.fallback, symbols);
+		}
 	}
-	const registered = registeredCustomTypes(files);
+
+	for (const file of files) {
+		const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true,
+			(file.endsWith(".tsx") || file.endsWith(".jsx")) ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+		sourceByPath.set(file, source);
+		const candidates = schemaCandidates(source, collectVariables(source));
+		candidatesByFile.set(file, candidates);
+		if (candidates.length > 0) {
+			const symbols = new Set();
+			for (const candidate of candidates) collectSchemaModules(candidate.result.value.root, symbols);
+			schemaSymbolsByFile.set(file, symbols);
+			schemaCandidateCountsByFile.set(file, candidates.length);
+		}
+	}
+
+	const log = options.log || ((line) => console.log(line));
+	const moduleAnalysis = analyzeProjectModules(projectRoot, {
+		files,
+		sourceByPath,
+		log,
+		schemaSymbolsByFile,
+		schemaCandidateCountsByFile,
+	});
+	const registered = registeredCustomTypes(files, sourceByPath);
 	installTypeScriptRequireHook();
 	const compilePage = require(path.join(__dirname, "../compiler/EngineCompiler.ts")).compilePage;
 	const pages = [];
 	const skipped = [];
 	let candidateCount = 0;
-	const log = options.log || ((line) => console.log(line));
+
 	for (const file of files) {
 		const relative = displayPath(projectRoot, file);
 		const source = sourceByPath.get(file);
-		const candidates = schemaCandidates(source, collectVariables(source));
+		const candidates = candidatesByFile.get(file) || [];
 		if (candidates.length === 0) {
 			if (/(^|\/)(page|index)\.(tsx?|jsx?)$/.test(relative) && fs.readFileSync(file, "utf8").includes("createPage")) {
-				skipped.push({ sourcePath: relative, pageId: routePathForFile(projectRoot, file),
-					reason: "No statically resolvable schema found. Runtime-generated values and cross-file imports remain under Next.js runtime rendering." });
-				log("nextjs-engine | Skipping static compilation for " + relative + " (schema is dynamic; Next.js still owns runtime rendering)");
+				skipped.push({
+					sourcePath: relative,
+					pageId: routePathForFile(projectRoot, file),
+					reason: "No statically resolvable Engine schema was found. Next.js retains normal runtime rendering for this route.",
+				});
+				log("nextjs-engine | NOTE : Static schema planning skipped for " + relative
+					+ " — Next.js still compiles and renders the route normally");
 			}
 			continue;
 		}
+
 		const routeId = routePathForFile(projectRoot, file);
 		for (let index = 0; index < candidates.length; index++) {
 			candidateCount += 1;
@@ -381,25 +425,41 @@ function compileProject(projectRoot, options = {}) {
 					level, code, message, ...(nodePath ? { path: nodePath } : {}),
 				})),
 			});
-
 		}
 	}
+
+	const summary = {
+		scannedSourceFileCount: files.length,
+		routeEntryCount: moduleAnalysis.summary.routeEntryCount,
+		analyzedRouteCount: moduleAnalysis.summary.analyzedRouteCount,
+		engineModuleCount: moduleAnalysis.summary.engineModuleCount,
+		localEngineModuleCount: moduleAnalysis.summary.localEngineModuleCount,
+		externalEngineModuleCount: moduleAnalysis.summary.externalEngineModuleCount,
+		schemaSourceEntryCount: moduleAnalysis.summary.schemaSourceEntryCount,
+		modulePassTimeMs: moduleAnalysis.summary.modulePassTimeMs,
+		schemaCandidateCount: candidateCount,
+		compiledPageCount: pages.length,
+		compiledSchemaPageCount: pages.length,
+		skippedPageCount: skipped.length,
+		customComponentTypeCount: new Set(registered.concat(...pages.map((page) => page.customComponents))).size,
+		compilerPassTimeMs: Date.now() - passStartedAt,
+	};
+	log("nextjs-engine | ✓ Compiler pass completed — " + summary.analyzedRouteCount + " route entries analyzed, "
+		+ summary.compiledSchemaPageCount + " Engine schema plans, " + summary.engineModuleCount + " Engine modules");
+
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		generation: 3,
 		compiler: "nextjs-engine",
 		compilerVersion: readVersion(projectRoot),
 		scannedSourceFiles: files.map((file) => displayPath(projectRoot, file)),
+		routes: moduleAnalysis.routes,
+		schemaSources: moduleAnalysis.schemaSources,
+		modules: moduleAnalysis.modules,
 		registeredCustomComponents: registered,
 		pages,
 		skipped,
-		summary: {
-			scannedSourceFileCount: files.length,
-			schemaCandidateCount: candidateCount,
-			compiledPageCount: pages.length,
-			skippedPageCount: skipped.length,
-			customComponentTypeCount: new Set(registered.concat(...pages.map((page) => page.customComponents))).size,
-		},
+		summary,
 	};
 }
 function atomicWriteJson(target, value) {
@@ -429,16 +489,75 @@ function resolveDistDir(projectRoot) {
 	}
 	return ".next";
 }
-function emitArtifacts(projectRoot, inputPath, distDir) {
+function summarizeNextOutputs(context = {}) {
+	const outputs = context && context.outputs && typeof context.outputs === "object" ? context.outputs : null;
+	if (!outputs) return undefined;
+	const outputKinds = [
+		"appPages",
+		"appRoutes",
+		"pages",
+		"pagesApi",
+		"prerenders",
+		"staticFiles",
+	];
+	const counts = {};
+	const paths = {};
+	const routePathnames = new Set();
+	for (const kind of outputKinds) {
+		const entries = outputs[kind];
+		if (!Array.isArray(entries)) continue;
+		counts[kind] = entries.length;
+		if (kind === "staticFiles") continue;
+		const pathnames = entries
+			.map((entry) => entry && typeof entry.pathname === "string" ? entry.pathname : undefined)
+			.filter(Boolean)
+			.sort();
+		paths[kind] = pathnames;
+		if (["appPages", "appRoutes", "pages", "pagesApi"].includes(kind)) {
+			for (const pathname of pathnames) routePathnames.add(pathname.replace(/\.rsc$/, ""));
+		}
+	}
+	const normalizedRoutePaths = [...routePathnames].sort();
+	return {
+		nextVersion: typeof context.nextVersion === "string" ? context.nextVersion : null,
+		buildId: typeof context.buildId === "string" ? context.buildId : null,
+		counts,
+		paths,
+		routeOutputCount: normalizedRoutePaths.length,
+		routePaths: normalizedRoutePaths,
+	};
+}
+function emitArtifacts(projectRoot, inputPath, distDir, buildContext = {}) {
 	const root = path.resolve(projectRoot);
 	const manifest = JSON.parse(fs.readFileSync(inputPath, "utf8"));
+	const nextBuild = summarizeNextOutputs(buildContext);
+	if (nextBuild) {
+		manifest.nextBuild = nextBuild;
+		manifest.summary = manifest.summary || {};
+		manifest.summary.nextOutputCounts = nextBuild.counts;
+	}
 	const outputRoot = path.resolve(root, distDir || resolveDistDir(root));
 	if (!isWithin(root, outputRoot) || outputRoot === root) throw new Error("Refusing to emit compiler artifacts outside the project build directory.");
 	const outputDir = path.join(outputRoot, "nextjs-engine");
 	if (!isWithin(outputRoot, outputDir)) throw new Error("Unsafe Next.js Engine output directory.");
 	const outputFile = path.join(outputDir, "compiler-manifest.json");
 	atomicWriteJson(outputFile, manifest);
-	console.log("nextjs-engine | Emitted " + displayPath(root, outputFile) + " after Next.js build succeeded");
+	console.log("nextjs-engine | ✓ Emitted " + displayPath(root, outputFile) + " after Next.js build succeeded");
+	if (nextBuild) {
+		const labels = [
+			["appPages", "App pages"],
+			["appRoutes", "App route handlers / metadata"],
+			["pages", "Pages Router pages"],
+			["pagesApi", "Pages API routes"],
+			["prerenders", "prerenders"],
+			["staticFiles", "static files"],
+		];
+		const parts = labels
+			.filter(([key]) => Number.isInteger(nextBuild.counts[key]))
+			.map(([key, label]) => nextBuild.counts[key] + " " + label);
+		if (parts.length) console.log("nextjs-engine | ✓ Indexed Next.js build outputs — "
+			+ nextBuild.routeOutputCount + " unique route paths; " + parts.join(", "));
+	}
 	return outputFile;
 }
 function parseArgs(argv) {
@@ -493,6 +612,7 @@ module.exports = {
 	logEvent,
 	ASCII_WORDMARK,
 	BOTTOM_TEXT,
+	summarizeNextOutputs,
 	bannerMarkerPath,
 	printBanner,
 	printBannerOnce,

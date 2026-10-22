@@ -2,14 +2,14 @@
 
 **Next.js Engine (NE)** is a schema-driven rendering/runtime layer for React 19 and Next.js 16.
 
-This is the **distributable `main-empty` package branch**. The development workspace and Engine source of truth live on [`main`](https://github.com/Kate-alt-69/nextjs-engine/tree/main) under `src/engine/`.
+This branch is the distributable `main-3-package` snapshot. The canonical Generation 3 development source is [`main-3`](https://github.com/Kate-alt-69/nextjs-engine/tree/main-3); package snapshots are synced and validated separately.
 
-**Current development / release target:** **NE v2.6.1**  
-**Latest stability notes:** [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md)  
-**Latest major feature notes:** [`docs/release/NE-v2-6-0.md`](./docs/release/NE-v2-6-0.md)  
-**Latest published GitHub release:** [NE v2.5.0](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.5.0)
+**Current development track:** **NE v3.0.0-alpha.1 (Generation 3, prerelease candidate)**  
+**Generation 3 release notes:** [`docs/release/NE-v3-0-0-alpha-1.md`](./docs/release/NE-v3-0-0-alpha-1.md)  
+**Latest published stable release:** [NE v2.6.2](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.6.2)  
+**Current Gen 3 branch:** [`main-3`](https://github.com/Kate-alt-69/nextjs-engine/tree/main-3)
 
-> v2.6.x is the Shader + Motion + Scroll + Overlay generation of NE. v2.6.1 focuses on React 19 hydration, App Router stability, primitive style correctness, routing consistency, and regression coverage.
+> Generation 3 is a substantial compiler-first and server-first architectural update from Generation 2. It remains an alpha track, not the stable 2.x contract. Validate existing schemas, custom components, plugins, and build integration before migrating a production app.
 
 ---
 

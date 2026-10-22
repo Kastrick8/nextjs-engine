@@ -1,6 +1,6 @@
 {
 	"name": "nextjs-engine",
-	"version": "3.0.0-alpha.0",
+	"version": "3.0.0-alpha.1",
 	"description": "Next.js Engine Generation 3 prerelease package with compiler-first, server-first, and adaptive runtime architecture.",
 	"private": false,
 	"sideEffects": false,
@@ -42,6 +42,15 @@
 		"./nenc-plugin": {
 			"require": "./engine/plugins/nencPlugin.js",
 			"default": "./engine/plugins/nencPlugin.js"
+		},
+		"./seo": {
+			"types": "./engine/seo.ts",
+			"import": "./engine/seo.ts",
+			"default": "./engine/seo.ts"
+		},
+		"./seo-plugin": {
+			"require": "./engine/plugins/engineSEOPlugin.js",
+			"default": "./engine/plugins/engineSEOPlugin.js"
 		}
 	},
 	"types": "./index.ts",
@@ -50,7 +59,7 @@
 		"pack:check": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"next": "^16.2.9",
+		"next": "^16.3.3",
 		"next-view-transitions": "^0.3.5",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
@@ -77,6 +86,9 @@
 	},
 	"homepage": "https://github.com/Kate-alt-69/nextjs-engine#readme",
 	"dependencies": {
+		"react-markdown": "^10.1.0",
+		"remark-gfm": "^4.0.1",
+		"two.js": "^0.8.23",
 		"typescript": "^5.9.3"
 	}
 }
