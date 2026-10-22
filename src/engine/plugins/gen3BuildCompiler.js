@@ -214,26 +214,24 @@ function logEvent(event, logger = console.log) {
 			+ " nodes, " + s.clientIslands + " client islands, " + s.assetCount + " assets");
 	}
 }
-const ASCII_WORDMARK = Object.freeze([
-	"    ███╗   ██╗███████╗██╗  ██╗████████╗  ██╗███████╗    ███████╗███╗   ██╗ ██████╗ ██╗███╗   ██╗███████╗",
-	"    ████╗  ██║██╔════╝╚██╗██╔╝╚══██╔══╝  ██║██╔════╝    ██╔════╝████╗  ██║██╔════╝ ██║████╗  ██║██╔════╝",
-	"    ██╔██╗ ██║█████╗   ╚███╔╝    ██║     ██║███████╗    █████╗  ██╔██╗ ██║██║  ███╗██║██╔██╗ ██║█████╗",
-	"    ██║╚██╗██║██╔══╝   ██╔██╗    ██║██   ██║╚════██║    ██╔══╝  ██║╚██╗██║██║   ██║██║██║╚██╗██║██╔══╝",
-	"    ██║ ╚████║███████╗██╔╝ ██╗   ██║╚█████╔╝███████║    ███████╗██║ ╚████║╚██████╔╝██║██║ ╚████║███████╗",
-	"    ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝   ╚═╝ ╚════╝ ╚══════╝    ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚══════╝"
-]);
+function readBannerAsset(fileName) {
+	const assetPath = path.join(__dirname, "banner", fileName);
+	let sourceText;
+	try {
+		sourceText = fs.readFileSync(assetPath, "utf8");
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		throw new Error("Could not load Generation 3 banner asset "
+			+ path.relative(__dirname, assetPath).split(path.sep).join("/") + ": " + reason);
+	}
+	sourceText = sourceText.replace(/^\\uFEFF/, "").replace(/\\r\\n?/g, "\\n");
+	if (sourceText.endsWith("\\n")) sourceText = sourceText.slice(0, -1);
+	return sourceText ? sourceText.split("\\n") : [];
+}
 
-const BOTTOM_TEXT = Object.freeze([
-	" __  _  __ _____    __  ___ _ _   _ _____ __ _____ ___ __    _   _  _ _____ _  _",
-	"|  \\| |/__\\_   _|  /  \\| __| | | | |_   _/  \\_   _| __| _\\  | | | || |_   _| || |",
-	"| | ' | \\/ || |   | /\\ | _|| | |_| | | || /\\ || | | _|| v | | 'V' || | | | | >< |",
-	"|_|\\__|\\__/ |_|   |_||_|_| |_|___|_| |_||_||_||_| |___|__/  !_/ \\_!|_| |_| |_||_|",
-	"",
-	" __  _ _____   _______ __    __   __  _  __  ___   _   _  ___ ___  ______ _",
-	"|  \\| | __\\ \\_/ /_   _|_ \\ /' _/ |  \\| |/__\\| _ \\ | \\ / || __| _ \\/ _/ __| |",
-	"| | ' | _| > , <  | |_ _\\ |`._`. | | ' | \\/ | v / `\\ V /'| _|| v / \\_| _|| |_",
-	"|_|\\__|___/_/ \\_\\ |_\\//___/|___/|_|\\__|\\__/|_|_\\   \\_/  |___|_|\\__/___|___|"
-]);
+// Keep the established exports while treating the text files as the source of truth.
+const ASCII_WORDMARK = Object.freeze(readBannerAsset("wordmark.txt"));
+const BOTTOM_TEXT = Object.freeze(readBannerAsset("bottom-text.txt"));
 
 function bannerMarkerPath(projectRoot) {
 	const resolvedRoot = path.resolve(projectRoot);
@@ -241,12 +239,16 @@ function bannerMarkerPath(projectRoot) {
 	return path.join(require("node:os").tmpdir(), "nextjs-engine-gen3-banner-" + key + ".lock");
 }
 
-function renderBannerLines() {
-	const sourceLines = [...ASCII_WORDMARK, "", ...BOTTOM_TEXT];
-	const contentWidth = Math.max(...sourceLines.map((line) => line.length));
+function renderBannerLines(wordmark = ASCII_WORDMARK, bottomText = BOTTOM_TEXT) {
+	const sourceLines = [
+		...wordmark,
+		...(wordmark.length > 0 && bottomText.length > 0 ? [""] : []),
+		...bottomText,
+	];
+	const contentWidth = sourceLines.reduce((width, line) => Math.max(width, line.length), 0);
 	const center = (line) => {
-		const left = Math.max(0, Math.floor((contentWidth - line.length) / 2));
-		return " ".repeat(left) + line + " ".repeat(Math.max(0, contentWidth - left - line.length));
+		const left = Math.floor((contentWidth - line.length) / 2);
+		return " ".repeat(left) + line + " ".repeat(contentWidth - left - line.length);
 	};
 	const innerWidth = contentWidth + 4;
 	return [
