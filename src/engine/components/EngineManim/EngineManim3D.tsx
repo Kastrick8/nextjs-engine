@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { Manim3DConfig } from "./manimTypes";
 import { routeAnimation, sampleBoneTrack } from "./manimAnimationRouter";
+import { EngineScheduler } from "../../core/enginescheduler/EngineScheduler";
 
 type ThreeModule = typeof import("three");
 type ThreeObject = InstanceType<ThreeModule["Object3D"]>;
@@ -117,7 +118,10 @@ export const EngineManim3D = memo(function EngineManim3D({
 				alpha: true,
 				powerPreference: "high-performance",
 			});
-			renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+			let currentPixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+			let currentWidth = initialWidth;
+			let currentHeight = initialHeight;
+			renderer.setPixelRatio(currentPixelRatio);
 			renderer.shadowMap.enabled = cfg.settings?.shadows ?? false;
 			renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 			renderer.setSize(initialWidth, initialHeight, false);
@@ -245,9 +249,14 @@ export const EngineManim3D = memo(function EngineManim3D({
 			scene.add(modelRoot);
 
 			let raf = 0;
-			let nearViewport = true;
+			let visibilityCheckRaf = 0;
+			let resizeObserver: ResizeObserver | undefined;
+			let intersectionObserver: IntersectionObserver | undefined;
+			let fallbackViewportCheck: (() => void) | null = null;
+			let nearViewport = false;
 			let documentVisible = !document.hidden;
 			let running = false;
+			let releaseFrameMonitor: (() => void) | null = null;
 			const clock = new THREE.Clock(false);
 			const fpsInterval = 1 / Math.max(1, cfg.settings?.fps ?? 60);
 			let fpsAccumulator = 0;
@@ -302,11 +311,54 @@ export const EngineManim3D = memo(function EngineManim3D({
 				renderer.render(scene, camera);
 			};
 
+			const resizeRenderer = (): void => {
+				if (disposed) return;
+				const nextWidth = Math.max(1, (width ?? canvas.clientWidth) || initialWidth);
+				const nextHeight = Math.max(1, (height ?? canvas.clientHeight) || initialHeight);
+				const nextPixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+				const sizeChanged = nextWidth !== currentWidth || nextHeight !== currentHeight;
+				const pixelRatioChanged = nextPixelRatio !== currentPixelRatio;
+				if (!sizeChanged && !pixelRatioChanged) return;
+
+				currentWidth = nextWidth;
+				currentHeight = nextHeight;
+				if (pixelRatioChanged) {
+					currentPixelRatio = nextPixelRatio;
+					renderer.setPixelRatio(currentPixelRatio);
+				}
+				if (sizeChanged) {
+					camera.aspect = nextWidth / nextHeight;
+					camera.updateProjectionMatrix();
+				}
+				renderer.setSize(nextWidth, nextHeight, false);
+				if (!continuous) renderOnce();
+			};
+
+			const checkViewportFallback = (): void => {
+				if (visibilityCheckRaf !== 0 || disposed) return;
+				visibilityCheckRaf = window.requestAnimationFrame(() => {
+					visibilityCheckRaf = 0;
+					if (disposed) return;
+					const rect = canvas.getBoundingClientRect();
+					const nextNear = rect.bottom > -200
+						&& rect.top < window.innerHeight + 200
+						&& rect.right > -200
+						&& rect.left < window.innerWidth + 200;
+					if (nextNear === nearViewport) return;
+					nearViewport = nextNear;
+					if (nearViewport) startLoop();
+					else stopLoop();
+				});
+			};
+
 			const tick = (): void => {
 				if (disposed || !running) return;
 				if (!nearViewport || !documentVisible) {
 					running = false;
+					raf = 0;
 					clock.stop();
+					releaseFrameMonitor?.();
+					releaseFrameMonitor = null;
 					return;
 				}
 
@@ -336,35 +388,42 @@ export const EngineManim3D = memo(function EngineManim3D({
 				}
 				if (running || disposed || !nearViewport || !documentVisible) return;
 				running = true;
+				releaseFrameMonitor ??= EngineScheduler.acquireFrameMonitor();
 				fpsAccumulator = 0;
 				clock.start();
 				raf = requestAnimationFrame(tick);
 			};
 
 			const stopLoop = (): void => {
-				if (!running && raf === 0) return;
-				running = false;
-				cancelAnimationFrame(raf);
-				raf = 0;
-				clock.stop();
+				if (running || raf !== 0) {
+					running = false;
+					if (raf !== 0) cancelAnimationFrame(raf);
+					raf = 0;
+					clock.stop();
+				}
+				releaseFrameMonitor?.();
+				releaseFrameMonitor = null;
 			};
 
-			const resizeObserver = new ResizeObserver(() => {
-				const nextWidth = Math.max(1, (width ?? canvas.clientWidth) || initialWidth);
-				const nextHeight = Math.max(1, (height ?? canvas.clientHeight) || initialHeight);
-				camera.aspect = nextWidth / nextHeight;
-				camera.updateProjectionMatrix();
-				renderer.setSize(nextWidth, nextHeight, false);
-				if (!continuous) renderOnce();
-			});
-			resizeObserver.observe(canvas.parentElement ?? canvas);
+			window.addEventListener("resize", resizeRenderer, { passive: true });
+			if (typeof ResizeObserver !== "undefined") {
+				resizeObserver = new ResizeObserver(resizeRenderer);
+				resizeObserver.observe(canvas.parentElement ?? canvas);
+			}
 
-			const intersectionObserver = new IntersectionObserver(([entry]) => {
-				nearViewport = entry.isIntersecting;
-				if (nearViewport) startLoop();
-				else stopLoop();
-			}, { rootMargin: "200px 0px", threshold: 0.01 });
-			intersectionObserver.observe(canvas);
+			if (typeof IntersectionObserver !== "undefined") {
+				intersectionObserver = new IntersectionObserver(([entry]) => {
+					nearViewport = Boolean(entry?.isIntersecting);
+					if (nearViewport) startLoop();
+					else stopLoop();
+				}, { rootMargin: "200px 0px", threshold: 0.01 });
+				intersectionObserver.observe(canvas);
+			} else {
+				fallbackViewportCheck = checkViewportFallback;
+				window.addEventListener("scroll", checkViewportFallback, { passive: true });
+				window.addEventListener("resize", checkViewportFallback, { passive: true });
+				checkViewportFallback();
+			}
 
 			const onVisibilityChange = (): void => {
 				documentVisible = !document.hidden;
@@ -376,8 +435,14 @@ export const EngineManim3D = memo(function EngineManim3D({
 
 			return () => {
 				stopLoop();
-				resizeObserver.disconnect();
-				intersectionObserver.disconnect();
+				resizeObserver?.disconnect();
+				intersectionObserver?.disconnect();
+				window.removeEventListener("resize", resizeRenderer);
+				if (fallbackViewportCheck) {
+					window.removeEventListener("scroll", fallbackViewportCheck);
+					window.removeEventListener("resize", fallbackViewportCheck);
+				}
+				if (visibilityCheckRaf !== 0) window.cancelAnimationFrame(visibilityCheckRaf);
 				document.removeEventListener("visibilitychange", onVisibilityChange);
 				mixer?.stopAllAction();
 				if (mixer && modelRoot) mixer.uncacheRoot(modelRoot);
