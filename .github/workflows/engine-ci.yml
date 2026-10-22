@@ -38,6 +38,9 @@ jobs:
           node scripts/engine-transitions-smoke.js
           node scripts/engine-transitions-compat-smoke.js
           node scripts/engine-view-transition-coordinator-smoke.js
+      - name: Test Generation 3 banner artwork and frame sizing
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: node scripts/gen3-build-compiler-smoke.js
       - name: Test EngineScroll core and mobile stability
         run: |
           node scripts/engine-scroll-smoke.js
@@ -57,7 +60,6 @@ jobs:
         run: |
           node scripts/gen3-phase-ab-smoke.js
           node scripts/gen3-compiler-runtime-smoke.js
-          node scripts/gen3-build-compiler-smoke.js
           node scripts/gen3-module-compiler-smoke.js
           node scripts/gen3-build-adapter-smoke.js
           node scripts/gen3-adaptive-runtime-smoke.js

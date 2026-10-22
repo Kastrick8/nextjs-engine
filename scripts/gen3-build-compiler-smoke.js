@@ -22,6 +22,23 @@ try {
 	const banner = [];
 	printBanner((line) => banner.push(line));
 	assert.deepEqual(banner, renderBannerLines(), "the output is exactly the shared framed banner render");
+	const bannerAssetDirectory = path.join(__dirname, "..", "src/engine/plugins/banner");
+	const readBannerAsset = (name) => fs.readFileSync(path.join(bannerAssetDirectory, name), "utf8")
+		.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").replace(/\n$/, "").split("\n");
+	assert.deepEqual(ASCII_WORDMARK, readBannerAsset("wordmark.txt"),
+		"the main wordmark is loaded directly from its committed TXT asset");
+	assert.deepEqual(BOTTOM_TEXT, readBannerAsset("bottom-text.txt"),
+		"the footer art is loaded directly from its committed TXT asset");
+	const customWordmark = ["X", "a substantially wider wordmark"];
+	const customFooter = ["editable footer"];
+	const customFrame = renderBannerLines(customWordmark, customFooter);
+	const customArtWidth = Math.max(...[...customWordmark, ...customFooter].map((line) => line.length));
+	assert.equal(customFrame[0].length, customArtWidth + 6,
+		"the outer frame grows to fit the widest supplied art line");
+	assert.equal(new Set(customFrame.map((line) => line.length)).size, 1,
+		"custom art keeps every border and content row aligned");
+	assert.ok(customFrame.some((line) => line.includes("a substantially wider wordmark")),
+		"custom art content is preserved by the frame renderer");
 	assert.equal(ASCII_WORDMARK.length, 6, "the compact supplied wordmark has six rows");
 	assert.equal(BOTTOM_TEXT.length, 9, "the supplied footer keeps its two four-row messages");
 	assert.equal(BOTTOM_TEXT.filter((line) => line === "").length, 1, "the two footer messages have one blank row between them");
