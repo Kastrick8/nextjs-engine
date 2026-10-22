@@ -26,6 +26,7 @@ import {
 	type ECFrameTiming,
 } from "./ECFrameClock";
 import { useHandler } from "../../providers/EngineProvider";
+import { EngineScheduler } from "../enginescheduler/EngineScheduler";
 
 type Mode = "2d" | "webgl" | "webgl2" | "auto";
 type Ctx2D = CanvasRenderingContext2D;
@@ -230,6 +231,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 		let disposed = false;
 		let raf = 0;
 		let running = false;
+		let releaseFrameMonitor: (() => void) | null = null;
 		let drawCompleted = false;
 		let frame = 0;
 		let currentDpr = getTargetDpr(dprProp, maxDpr);
@@ -275,16 +277,19 @@ export const EngineCanvas = memo(function EngineCanvas({
 		const shouldPause = (): boolean => offscreenPaused || hiddenPaused;
 
 		const stopLoop = (): void => {
-			if (!running) return;
-			running = false;
-			cancelAnimationFrame(raf);
-			frameClock.discontinuity();
+			if (running) {
+				running = false;
+				if (raf !== 0) cancelAnimationFrame(raf);
+				raf = 0;
+				frameClock.discontinuity();
+			}
+			releaseFrameMonitor?.();
+			releaseFrameMonitor = null;
 		};
 
 		const tick = (now: number): void => {
 			if (disposed || shouldPause()) {
-				running = false;
-				frameClock.discontinuity();
+				stopLoop();
 				return;
 			}
 
@@ -297,12 +302,12 @@ export const EngineCanvas = memo(function EngineCanvas({
 			} else {
 				const draw = onDrawRef.current;
 				if (!draw) {
-					running = false;
+					stopLoop();
 					return;
 				}
 				if (draw(context, canvas, delta, frame++, timing) === false) {
 					drawCompleted = true;
-					running = false;
+					stopLoop();
 					return;
 				}
 			}
@@ -314,6 +319,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 			if (running || disposed || shouldPause()) return;
 			if (!graphicsRef.current && (drawCompleted || !onDrawRef.current)) return;
 			running = true;
+			releaseFrameMonitor ??= EngineScheduler.acquireFrameMonitor();
 			frameClock.discontinuity();
 			raf = requestAnimationFrame(tick);
 		};
