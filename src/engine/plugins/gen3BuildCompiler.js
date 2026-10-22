@@ -224,9 +224,9 @@ function readBannerAsset(fileName) {
 		throw new Error("Could not load Generation 3 banner asset "
 			+ path.relative(__dirname, assetPath).split(path.sep).join("/") + ": " + reason);
 	}
-	sourceText = sourceText.replace(/^\\uFEFF/, "").replace(/\\r\\n?/g, "\\n");
-	if (sourceText.endsWith("\\n")) sourceText = sourceText.slice(0, -1);
-	return sourceText ? sourceText.split("\\n") : [];
+	sourceText = sourceText.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+	if (sourceText.endsWith("\n")) sourceText = sourceText.slice(0, -1);
+	return sourceText ? sourceText.split("\n") : [];
 }
 
 // Keep the established exports while treating the text files as the source of truth.
