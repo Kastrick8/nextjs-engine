@@ -40,6 +40,8 @@ try {
 	].join("\n"));
 	const packagePage = write("app/about/page.tsx", [
 		'import { EngineCanvas } from "nextjs-engine";',
+		'import CanvasDefault from "@engine/EngineCanvas";',
+		'void CanvasDefault;',
 		'export default function About() { return null; }',
 		"",
 	].join("\n"));
@@ -113,6 +115,8 @@ try {
 	assert.ok(result.modules.some((module) => module.importName === "@engine/EngineCanvas"
 		&& module.sourcePath === null && module.resolution === "package"),
 		"package-only Engine imports fall back to the stable @engine import name");
+	assert.ok(logs.some((line) => line.includes("COMPILING EC : @engine/EngineCanvas")),
+		"default package imports resolve to the stable Engine import name as well");
 	assert.ok(logs.some((line) => line.includes("COMPILING EC : src/engine/components/EngineCanvas.tsx")),
 		"the module log uses the EC abbreviation and resolved source path");
 	assert.ok(logs.some((line) => line.includes("COMPILING EC : @engine/EngineCanvas")),
