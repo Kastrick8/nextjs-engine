@@ -279,6 +279,40 @@ function normalizeModuleName(name, sourcePath) {
 	if (/^engine[a-z]/i.test(base)) return "Engine" + base.slice(6, 7).toUpperCase() + base.slice(7);
 	return base || "Module";
 }
+function frameworkFilesForRoute(projectRoot, file, router) {
+	const root = path.resolve(projectRoot);
+	const relative = displayPath(root, file);
+	const appMatch = relative.match(/^(src\/app|app)\//);
+	const pagesMatch = relative.match(/^(src\/pages|pages)\//);
+	const extensions = [".tsx", ".ts", ".jsx", ".js", ".mts", ".cts"];
+	const found = [];
+	const addStem = (directory, stem) => {
+		for (const extension of extensions) {
+			const candidate = path.join(directory, stem + extension);
+			if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+				if (path.resolve(candidate) !== path.resolve(file)) found.push(path.resolve(candidate));
+				return;
+			}
+		}
+	};
+	if (router === "app" && appMatch) {
+		const appRoot = path.join(root, appMatch[1]);
+		let directory = path.dirname(path.resolve(file));
+		const shellStems = ["layout", "template", "loading", "error", "global-error", "not-found", "default"];
+		while (isWithin(appRoot, directory)) {
+			for (const stem of shellStems) addStem(directory, stem);
+			if (path.resolve(directory) === path.resolve(appRoot)) break;
+			const parent = path.dirname(directory);
+			if (parent === directory) break;
+			directory = parent;
+		}
+	} else if (router === "pages" && pagesMatch && !relative.startsWith((pagesMatch[1] + "/api/"))) {
+		const pagesRoot = path.join(root, pagesMatch[1]);
+		addStem(pagesRoot, "_app");
+		addStem(pagesRoot, "_document");
+	}
+	return [...new Set(found)].sort();
+}
 function routePathForFile(projectRoot, file, router) {
 	const relative = displayPath(projectRoot, file);
 	const match = relative.match(/^(?:src\/)?(app|pages)\/(.*)$/);
@@ -334,7 +368,13 @@ function routeEntryFromFile(projectRoot, file) {
 			routePath = routePathForFile(projectRoot, file);
 		}
 	}
-	return { sourcePath: relative, routePath, kind, file: path.resolve(file) };
+	return {
+		sourcePath: relative,
+		routePath,
+		kind,
+		file: path.resolve(file),
+		frameworkFiles: frameworkFilesForRoute(projectRoot, file, router),
+	};
 }
 function isEngineLikeSpecifier(specifier) {
 	const lower = String(specifier || "").toLowerCase();
@@ -565,6 +605,9 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 			log("nextjs-engine | " + SPINNER_FRAMES[spinnerIndex++ % SPINNER_FRAMES.length]
 				+ " COMPILING PAGE : " + route.sourcePath);
 			scanProjectFile(route.file, route.routePath);
+			for (const frameworkFile of route.frameworkFiles || []) {
+				scanProjectFile(frameworkFile, route.routePath);
+			}
 			for (const symbol of schemaSymbolsByFile.get(route.file) || []) {
 				const barrel = path.join(root, "src", "engine", "index.ts");
 				const packageBarrel = path.join(root, "engine", "index.ts");
@@ -586,6 +629,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 				sourcePath: route.sourcePath,
 				routePath: route.routePath,
 				kind: route.kind,
+				frameworkFiles: (route.frameworkFiles || []).map((file) => displayPath(root, file)),
 				engineModules: moduleNames,
 				engineModuleCount: moduleNames.length,
 				schemaCandidateCount: Number(options.schemaCandidateCountsByFile?.get(route.file) || 0),
