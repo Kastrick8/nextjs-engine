@@ -1,57 +1,41 @@
-# Generation 3 build compiler and progress output
+# Generation 3 build compiler
 
-Generation 3 uses the Next.js build adapter lifecycle to run the Engine's static schema compiler alongside Next.js and to write Engine-owned build metadata after Next.js completes successfully.
+The Generation 3 build adapter runs a small Engine-owned analysis pass alongside Next.js. It does not replace, patch, or reconstruct the Next.js/Turbopack compiler. Next.js remains responsible for TypeScript/TSX transformation, React Server Component boundaries, bundling, chunk splitting, route rendering, and final JavaScript/CSS output.
 
-## Build
+## Performance-first route and module pass
 
-Use the normal project build command:
+The pre-build pass discovers App Router and Pages Router entry files (including route handlers and supported metadata routes), then follows their reachable local imports. Type-only imports, dependency directories, hidden build output, and unrelated Engine modules are not treated as runtime compile jobs. AST reads and module resolution are cached within the pass, and each reached Engine module is indexed once even if many routes import it.
 
-```sh
-npm run build
-```
-
-When the combined `withEngine()` plugin is configured, it wires `adapterPath` to the Engine adapter. This is part of the normal Next.js build lifecycle; a separate build coordinator is not required. The adapter starts the schema scan in a separate Node worker while Next.js owns bundling, route compilation, rendering, and output generation.
-
-The adapter:
-1. starts the Generation 3 compiler from Next.js's production-build configuration phase;
-2. logs source paths and custom schema components while the compiler pass runs alongside Next.js;
-3. awaits the compiler manifest after Next.js reports a completed build;
-4. writes `<distDir>/nextjs-engine/compiler-manifest.json` using the exact output directory passed by Next.js;
-5. chains any adapter that was already configured by the application.
-
-The Engine does not replace Next.js's Turbopack/Webpack compiler. It uses the existing Generation 3 `compilePage()` compiler for statically resolvable schemas, and emits separate Engine metadata into its own subdirectory after the Next.js build finishes.
-
-## Progress logs
-
-The compiler worker prints the updated block-style wordmark. Both the project credit and the combined `NOT AFFILIATED WITH NEXT.JS NOR VERCEL` disclaimer use a matching three-row Pegga-style pixel font. The former `x next.js` subtitle is removed.
-
-Typical output from the Engine pass looks like:
+Progress rows intentionally resemble Next.js build output:
 
 ```text
-nextjs-engine | Compiling app/(marketing)/about/page.tsx
-nextjs-engine | Compiling Custom Component notice (app/(marketing)/about/page.tsx:root.0)
-nextjs-engine | Compiled app/(marketing)/about/page.tsx — 4 nodes, 1 client islands, 2 assets
-nextjs-engine | Emitted dist/nextjs-engine/compiler-manifest.json after Next.js build succeeded
+nextjs-engine | ⠋ COMPILING PAGE : app/page.tsx
+nextjs-engine | ⠙ COMPILING EC : src/engine/components/EngineCanvas.tsx
+nextjs-engine | ✓ COMPILED EC : src/engine/components/EngineCanvas.tsx — Engine dependency metadata prepared
+nextjs-engine | ✓ COMPILED PAGE : app/page.tsx — 3 Engine modules indexed; Next.js retains JS/TSX emission
 ```
 
-The worker reports original source paths, schema-node paths, custom component names, cache reuse, and page summaries. The prefix keeps Engine output distinct from Next.js output even when both write to the terminal concurrently.
+A resolved Engine import logs its source path. An Engine symbol coming from an installed package or an unresolved source alias uses a stable import name such as `@engine/EngineCanvas`. Module completion means Engine's dependency/usage metadata is ready; it does **not** mean Engine emits a replacement JS chunk. The imported code continues through Next.js as usual.
 
-The compiler progress callback is opt-in in the compiler API. Normal application rendering stays quiet unless the caller supplies `onProgress`; the build worker opts into detailed progress events.
+## Schema plans remain conservative
 
-## What is compiled
+For statically resolvable `createPage({ schema })` schemas and `defineSchema({...})` wrappers, the pass also invokes the existing Generation 3 page compiler. It produces the normal runtime classification, custom-node classification, assets, feature manifests, fallback plans, and diagnostics.
 
-The pass statically resolves local `createPage({ schema: ... })` schemas and `defineSchema({...})` wrappers that can be represented as literals and local constants. It invokes the existing Generation 3 compiler, so runtime classification, custom-node classification, assets, feature manifests, fallback plans, and diagnostics are produced by the same compiler implementation.
+If a page's schema depends on runtime values, imports, object spreads, computed properties, or arbitrary function execution, Engine skips only static **schema planning** for that page. It still analyzes that route's import graph, and Next.js continues to compile and render the route normally. This is why route-entry count and static-schema-plan count are separate numbers.
 
-Dynamic schemas that require imported/runtime-generated values, object spreads, computed keys, or arbitrary function execution are reported as skipped for static compilation. The build worker does not evaluate arbitrary application code; Next.js continues to own their normal bundling and runtime rendering. The pass is intentionally conservative.
+## Manifest
 
-## Emitted manifest
+After Next.js succeeds, the adapter emits `nextjs-engine/compiler-manifest.json` under the configured build output directory. The manifest includes:
 
-The manifest contains source/route paths, compiler summaries, an analyzed node graph (type/runtime/work class/capabilities/child IDs), custom component names, asset metadata without original asset URLs, used capabilities, fallback-strategy summaries, and diagnostics. It excludes complete schemas, arbitrary component props, request data, and prop contents.
+- discovered route entry metadata and the Engine modules reachable from each route;
+- deduplicated module records, source paths or package fallback import names, usage paths, and module dependency IDs;
+- static Engine page-schema plans, summary counts, diagnostics, and compile timings;
+- actual Next.js adapter output counts and pathnames when Next.js supplies them in `onBuildComplete`.
 
-It is metadata for Engine build/runtime tooling, not a replacement for Next.js chunks, route manifests, server bundles, or the Next.js build compiler. The emitter creates an Engine-owned subdirectory after Next.js succeeds and refuses output paths outside the configured build directory.
+The manifest excludes full source files, complete source schemas, arbitrary component props, request data, and prop contents. Output paths are validated to remain inside the project build directory.
 
 ## Existing adapters and CI
 
 If an application already configured a Next.js adapter, `withEngine()` chains its `modifyConfig` and `onBuildComplete` callbacks through the Engine adapter.
 
-The Generation 3 CI lane runs `scripts/gen3-build-compiler-smoke.js` and uses `npm run build` for the integration build. The smoke test verifies source-path logging, custom-component logging, route-group normalization, output placement, path safety, and that arbitrary schema prop content is not copied into the emitted manifest.
+The Generation 3 CI lane runs the phase A/B contracts, the build-compiler and module-compiler smoke tests, type-checking, and the Next.js production build.

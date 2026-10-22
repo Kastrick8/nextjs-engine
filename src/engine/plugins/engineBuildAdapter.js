@@ -121,7 +121,7 @@ const adapter = {
 					throw new Error("[nextjs-engine] Generation 3 compiler completed without writing its manifest.");
 				}
 				const compiler = require("./gen3BuildCompiler");
-				compiler.emitArtifacts(context.projectDir || state.projectDir, state.manifestFile, context.distDir);
+				compiler.emitArtifacts(context.projectDir || state.projectDir, state.manifestFile, context.distDir, context);
 			}
 		} finally {
 			if (state) {

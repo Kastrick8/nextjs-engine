@@ -14,6 +14,7 @@ const {
 	printBannerOnce,
 	releaseBanner,
 	renderBannerLines,
+	summarizeNextOutputs,
 } = require("./gen3-build-compiler");
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
@@ -24,6 +25,7 @@ try {
 	assert.equal(ASCII_WORDMARK.length, 6, "the compact supplied wordmark has six rows");
 	assert.equal(BOTTOM_TEXT.length, 9, "the supplied footer keeps its two four-row messages");
 	assert.equal(BOTTOM_TEXT.filter((line) => line === "").length, 1, "the two footer messages have one blank row between them");
+	assert.equal(BOTTOM_TEXT[8], "|_|\\__|___/_/ \\_\\ |_\\//___/|___/|_|\\__|\\__/|_|_\\   \\_/  |___|_|\\__/___|___|", "the final footer row matches the supplied updated artwork");
 	assert.equal(banner.length, 18, "the banner has a top and bottom border plus its spaced content rows");
 	assert.ok(banner[0].startsWith("╭") && banner[banner.length - 1].startsWith("╰"), "the banner has a light frame");
 	assert.equal(new Set(banner.map((line) => line.length)).size, 1, "all frame and content rows align to one width");
@@ -32,6 +34,31 @@ try {
 	assert.ok(banner.some((line) => line.includes("███████╗███╗   ██╗ ██████╗")), "the compact supplied wordmark is rendered");
 	assert.ok(banner.some((line) => line.includes(" __  _  __ _____")), "the updated bottom-text artwork is rendered");
 	assert.ok(!banner.some((line) => line.includes("██████   █████ ██████████")), "the oversized previous wordmark is removed");
+
+	const adapterSummary = summarizeNextOutputs({
+		nextVersion: "16.4.2",
+		buildId: "adapter-fixture",
+		outputs: {
+			appPages: [{ pathname: "/" }, { pathname: "/about" }, { pathname: "/about.rsc" }],
+			appRoutes: [{ pathname: "/api/search" }],
+			pages: [{ pathname: "/legacy" }],
+			pagesApi: [{ pathname: "/api/legacy" }],
+			prerenders: [{ pathname: "/" }, { pathname: "/about" }],
+			staticFiles: [{ pathname: "/robots.txt" }, { pathname: "/favicon.ico" }],
+		},
+	});
+	assert.equal(adapterSummary.nextVersion, "16.4.2", "the Next.js version is preserved");
+	assert.equal(adapterSummary.counts.appPages, 3, "App Router pages come from the real adapter output field");
+	assert.equal(adapterSummary.counts.appRoutes, 1, "App Router handlers and metadata outputs are counted");
+	assert.equal(adapterSummary.counts.pages, 1, "Pages Router output is counted separately");
+	assert.equal(adapterSummary.counts.pagesApi, 1, "Pages API output is counted separately");
+	assert.equal(adapterSummary.counts.prerenders, 2, "prerender output entries are counted");
+	assert.equal(adapterSummary.counts.staticFiles, 2, "static files are counted without bloating the manifest with every asset path");
+	assert.deepEqual(adapterSummary.paths.appPages, ["/", "/about", "/about.rsc"], "route paths from Next.js are captured and sorted");
+	assert.equal(adapterSummary.routeOutputCount, 5, "the canonical route count deduplicates RSC output variants");
+	assert.deepEqual(adapterSummary.routePaths, ["/", "/about", "/api/legacy", "/api/search", "/legacy"],
+		"canonical route paths are included without .rsc output variants");
+	assert.equal(adapterSummary.paths.staticFiles, undefined, "static asset path lists are omitted from the summary");
 
 	const bannerProject = path.join(root, "banner-once-fixture");
 	const firstBanner = [];
@@ -72,16 +99,34 @@ try {
 	assert.equal(manifest.pages[0].id, "/about", "App Router route groups do not leak into route identifiers");
 	assert.ok(manifest.pages[0].customComponents.includes("notice"), "custom schema nodes appear in the page manifest");
 	assert.ok(manifest.pages[0].compiledNodes.some((node) => node.type === "notice" && node.customComponent), "the emitted compiler graph includes custom-component classification");
-	assert.ok(logs.some((line) => line.includes("nextjs-engine | Compiling app/(marketing)/about/page.tsx")),
-		"page compilation reports a source path");
-	assert.ok(logs.some((line) => line.includes("nextjs-engine | Compiling Custom Component notice")),
-		"custom components get a dedicated progress line");
+	assert.ok(logs.some((line) => line.includes("COMPILING PAGE : app/(marketing)/about/page.tsx")),
+		"route analysis reports the source path in Next.js-style progress output");
+	assert.ok(logs.some((line) => line.includes("COMPILED ENGINE SCHEMA : app/(marketing)/about/page.tsx")),
+		"the static schema pass separately reports successful Engine schema compilation");
+	assert.ok(logs.some((line) => line.includes("COMPILING CUSTOM COMPONENT : notice")),
+		"custom components get a dedicated Next.js-style progress line");
 
 	const inputPath = path.join(root, "worker-manifest.json");
 	fs.writeFileSync(inputPath, JSON.stringify(manifest));
-	const emitted = emitArtifacts(root, inputPath, "dist");
+	const nextBuildContext = {
+		nextVersion: "16.4.2",
+		buildId: "completed-build-fixture",
+		outputs: {
+			appPages: [{ pathname: "/" }, { pathname: "/about" }],
+			appRoutes: [{ pathname: "/api/search" }],
+			pages: [],
+			pagesApi: [],
+			prerenders: [{ pathname: "/" }, { pathname: "/about" }],
+			staticFiles: [{ pathname: "/robots.txt" }],
+		},
+	};
+	const emitted = emitArtifacts(root, inputPath, "dist", nextBuildContext);
 	assert.equal(emitted, path.join(root, "dist", "nextjs-engine", "compiler-manifest.json"));
 	assert.ok(fs.existsSync(emitted), "post-build metadata is emitted under the configured Next.js output directory");
+	const parsedOutput = JSON.parse(fs.readFileSync(emitted, "utf8"));
+	assert.equal(parsedOutput.nextBuild.nextVersion, "16.4.2", "the manifest records Next.js build metadata");
+	assert.equal(parsedOutput.summary.nextOutputCounts.appPages, 2, "the manifest records the real Next.js page count");
+	assert.deepEqual(parsedOutput.nextBuild.paths.appPages, ["/", "/about"], "the manifest includes route paths from the Next adapter");
 	const output = fs.readFileSync(emitted, "utf8");
 	assert.ok(!output.includes("DO_NOT_EMIT_SCHEMA_CONTENT"), "compiler manifest contains summaries, not the source schema or arbitrary prop values");
 
