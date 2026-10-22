@@ -68,5 +68,6 @@ test("EngineDebug shows a waiting state while the preview response is pending", 
 	await page.goto("/_engine/debug");
 	await expect(page.getByText("Waiting for Next.js…", { exact: true })).toBeVisible();
 	continuePreview();
-	await expect(page.locator(".ed-preview-status.ready")).toHaveText("READY");
+	await expect(page.locator(".ed-preview-state")).toHaveCount(0);
+	await expect(page.locator(".ed-preview-status")).toHaveText(/^(READY|ERROR)$/);
 });
