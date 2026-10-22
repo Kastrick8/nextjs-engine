@@ -45,6 +45,7 @@ interface DebugNode {
 
 interface DebugSchedulerWindow extends Window {
 	console: Console;
+	__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__?: boolean;
 	__NEXT_ENGINE_SCHEDULER_DEBUG__?: { snapshot: () => EngineSchedulerDebugSnapshot };
 	__NEXT_ENGINE_DEVICE_DEBUG__?: { profile: DeviceProfile };
 	__NEXT_ENGINE_ORIGINAL_MATCH_MEDIA__?: typeof window.matchMedia;
@@ -287,6 +288,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			try {
 				frameWindow.console.error = patchedConsoleError;
 				consolePatched = frameWindow.console.error === patchedConsoleError;
+				if (consolePatched) frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__ = true;
 			} catch {
 				// Keep diagnostic collection alive when a browser exposes a locked console object.
 			}
@@ -372,6 +374,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				frameWindow.removeEventListener("unhandledrejection", handleUnhandledRejection);
 				if (consolePatched && frameWindow.console.error === patchedConsoleError) {
 					frameWindow.console.error = originalConsoleError;
+					delete frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__;
 				}
 				overlayObserver.disconnect();
 				frameWindow.clearInterval(scanTimer);
