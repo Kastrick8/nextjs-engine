@@ -51,6 +51,16 @@ try {
 	const frameworkError = classifyEngineDebugDiagnostic("runtime", "React error", "at react-dom/client");
 	assert.equal(frameworkError.ownerHint, "Likely React / Next.js", "framework stack paths have their own owner hint");
 
+	const crossRealmError = redactEngineDebugText({
+		name: "TypeError",
+		message: "Cross-realm error is preserved",
+		stack: "TypeError: Cross-realm error is preserved\\n    at render (app/page.tsx:8)",
+	});
+	assert.match(crossRealmError, /Cross-realm error is preserved/,
+		"Error objects from the iframe realm retain their message and stack");
+	assert.match(crossRealmError, /app\\/page\\.tsx/,
+		"cross-realm stack locations remain useful for owner classification");
+
 	const ssrError = createEngineDebugDiagnostic({
 		source: "next-overlay",
 		message: "Next.js development error overlay",
