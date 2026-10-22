@@ -28,6 +28,8 @@ a second time.
 - callback mode does not schedule RAF when `onDraw` is absent;
 - callback mode stops RAF when `onDraw` returns `false` and only wakes for a changed callback or backing-store redraw;
 - pauses while offscreen and/or while the document is hidden;
+- pauses a WebGL frame loop on context loss and rebuilds runtime resources when the browser restores the context;
+- acquires the shared frame-pressure monitor only while callback/graphics work is actively animating;
 - backing-store density is stable under frame pressure; explicit `dpr`/`maxDpr` set the quality budget, and DPR is rechecked on browser resize;
 - built-in graphics engines are imported only when selected;
 - 2D retains compiled topology and `Path2D` geometry for unchanged meshes;
