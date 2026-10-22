@@ -572,8 +572,10 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 		for (const route of routes) {
 			routeVisited.clear();
 			const started = Date.now();
+			const routeLabel = route.kind === "app-metadata-route" ? "METADATA"
+				: route.kind === "app-route-handler" || route.kind === "pages-api-route" ? "ROUTE" : "PAGE";
 			log("nextjs-engine | " + SPINNER_FRAMES[spinnerIndex++ % SPINNER_FRAMES.length]
-				+ " COMPILING PAGE : " + route.sourcePath);
+				+ " COMPILING " + routeLabel + " : " + route.sourcePath);
 			scanProjectFile(route.file, route.routePath);
 			for (const frameworkFile of route.frameworkFiles || []) {
 				scanProjectFile(frameworkFile, route.routePath);
@@ -605,7 +607,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 				schemaCandidateCount: Number(options.schemaCandidateCountsByFile?.get(route.file) || 0),
 				analyzedInMilliseconds: Date.now() - started,
 			});
-			log("nextjs-engine | ✓ COMPILED PAGE : " + route.sourcePath
+			log("nextjs-engine | ✓ COMPILED " + routeLabel + " : " + route.sourcePath
 				+ " — " + moduleNames.length + " Engine modules indexed in "
 				+ formatMilliseconds(Date.now() - started) + "; Next.js retains JS/TSX emission");
 		}
