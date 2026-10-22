@@ -187,8 +187,8 @@ Full `.shed` language reference: [`engineshader.md`](./engineshader.md).
 | `responsive` | `boolean` | inferred | defaults true when width and height are omitted |
 | `dpr` | `number \| "auto"` | `"auto"` | target device-pixel ratio |
 | `maxDpr` | `number` | `2` | upper DPR cap |
-| `adaptive` | `boolean` | `true` | enables performance-driven density adjustment |
-| `adaptiveTargetFps` | `number \| "display"` | `"display"` | adaptive DPR target; display mode follows detected RAF cadence |
+| `adaptive` | `boolean` | `true` | V3 compatibility prop; does not lower backing resolution under frame pressure |
+| `adaptiveTargetFps` | `number \| "display"` | `"display"` | V3 compatibility prop; RAF follows browser cadence and timing metadata reports actual cadence |
 | `pauseWhenOffscreen` | `boolean` | `true` | suspends useless offscreen work |
 | `pauseWhenHidden` | `boolean` | `true` | suspends work while the tab is hidden |
 | `alpha` | `boolean` | `false` | alpha buffer hint in normal Canvas/WebGL mode |
@@ -201,7 +201,7 @@ Full `.shed` language reference: [`engineshader.md`](./engineshader.md).
 | `graphics` | `{ engine, scene }` | — | retained EC graphics runtime |
 | `className` / `style` | React values | — | apply to the canvas/surface |
 
-Shader mode maps the common `dpr`, `maxDpr`, `adaptive`, `pauseWhenOffscreen`, `pauseWhenHidden`, and `powerPreference` values into EngineShader's runtime configuration.
+Shader mode maps `dpr`, `maxDpr`, `pauseWhenOffscreen`, `pauseWhenHidden`, and `powerPreference` into EngineShader. The legacy `adaptive` flag is accepted for compatibility but does not change V3 backing density.
 
 Responsive shader canvases use the same `100% × 100%` surface idea and keep a `150px` minimum height unless your style supplies something more useful.
 
@@ -296,33 +296,22 @@ const time = frame * delta;
 
 ---
 
-## Adaptive DPR
+## Resolution policy in Generation 3
 
-High DPR can make a canvas dramatically more expensive because fragment/pixel work grows with the backing-store area.
+V3 keeps Canvas backing resolution stable during frame-pressure changes. Automatically resizing a live GPU/canvas surface to recover performance can cause visible quality changes and buffer reallocations, and it may conflict with the renderer's own resource sizing.
 
-EngineCanvas still considers a density change at most once every **750 ms**, but v2.6.2 no longer judges every screen against fixed 60 Hz thresholds. With the default:
+Use explicit \`dpr\` and \`maxDpr\` values to set the device-pixel budget:
 
-```tsx
-<EngineCanvas adaptive adaptiveTargetFps="display" />
-```
+\`\`\`tsx
+<EngineCanvas dpr="auto" maxDpr={1.5} />
+\`\`\`
 
-EC estimates the recent RAF/display cadence and derives performance thresholds relative to that target. For example, a canvas averaging about 60 FPS on a 120 Hz panel is now recognized as substantially below target instead of being treated as perfectly healthy because it exceeded the old `56 FPS` recovery threshold.
+- \`dpr="auto"\` follows the current \`window.devicePixelRatio\`.
+- \`maxDpr\` bounds the resulting backing density.
+- Browser zoom/display-DPR changes are rechecked on resize, and responsive Canvas/Shader surfaces update their backing stores only when the physical pixel dimensions actually change.
+- \`adaptive\` and \`adaptiveTargetFps\` remain accepted as compatibility props in V3. They do not lower backing resolution or override the browser's \`requestAnimationFrame\` cadence.
 
-The observed cadence is matched against common display rates such as 60, 90, 120, 144, 165, 180, 200 and 240 Hz. Occasional dropped frames are tolerated so a 120 Hz stream with intermittent ~16.7 ms intervals does not immediately get classified as 60 Hz.
-
-You can request an explicit target when display cadence is not the desired budget:
-
-```tsx
-<EngineCanvas adaptive adaptiveTargetFps={60} />
-```
-
-The target is clamped to a practical `24..240` FPS range.
-
-The rate limit prevents the backing store from repeatedly resizing every few frames. Graphics engines receive the new DPR with the resize event, so EngineCanvas and Three.js do not fight over pixel dimensions.
-
-EngineShader has its own adaptive density logic when `shader` mode owns the canvas; the facade forwards the relevant configuration instead of running two adaptive systems at once.
-
----
+For a lower workload, select a smaller explicit \`maxDpr\` (or \`dpr\`) for that surface. Canvas callback mode can also use its \`timing\` argument to choose application-level work while preserving the current visual resolution. EngineShader additionally supports an explicit \`fps\` cap and the \`.shed\` \`render.resolution\` value.
 
 ## Canvas 2D synchronization
 
