@@ -499,21 +499,29 @@ function summarizeNextOutputs(context = {}) {
 	];
 	const counts = {};
 	const paths = {};
+	const routePathnames = new Set();
 	for (const kind of outputKinds) {
 		const entries = outputs[kind];
 		if (!Array.isArray(entries)) continue;
 		counts[kind] = entries.length;
 		if (kind === "staticFiles") continue;
-		paths[kind] = entries
+		const pathnames = entries
 			.map((entry) => entry && typeof entry.pathname === "string" ? entry.pathname : undefined)
 			.filter(Boolean)
 			.sort();
+		paths[kind] = pathnames;
+		if (["appPages", "appRoutes", "pages", "pagesApi"].includes(kind)) {
+			for (const pathname of pathnames) routePathnames.add(pathname.replace(/\.rsc$/, ""));
+		}
 	}
+	const normalizedRoutePaths = [...routePathnames].sort();
 	return {
 		nextVersion: typeof context.nextVersion === "string" ? context.nextVersion : null,
 		buildId: typeof context.buildId === "string" ? context.buildId : null,
 		counts,
 		paths,
+		routeOutputCount: normalizedRoutePaths.length,
+		routePaths: normalizedRoutePaths,
 	};
 }
 function emitArtifacts(projectRoot, inputPath, distDir, buildContext = {}) {
@@ -544,7 +552,8 @@ function emitArtifacts(projectRoot, inputPath, distDir, buildContext = {}) {
 		const parts = labels
 			.filter(([key]) => Number.isInteger(nextBuild.counts[key]))
 			.map(([key, label]) => nextBuild.counts[key] + " " + label);
-		if (parts.length) console.log("nextjs-engine | ✓ Indexed Next.js build outputs — " + parts.join(", "));
+		if (parts.length) console.log("nextjs-engine | ✓ Indexed Next.js build outputs — "
+			+ nextBuild.routeOutputCount + " unique route paths; " + parts.join(", "));
 	}
 	return outputFile;
 }
