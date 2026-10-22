@@ -202,6 +202,10 @@ function collectRuntimeImports(sourceFile) {
 		if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword
 			&& node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0])) {
 			add(node.arguments[0].text, ["default"], "dynamic-import");
+		} else if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)
+			&& node.expression.text === "require" && node.arguments.length === 1
+			&& ts.isStringLiteral(node.arguments[0])) {
+			add(node.arguments[0].text, ["default"], "commonjs-require");
 		}
 		ts.forEachChild(node, visit);
 	}
