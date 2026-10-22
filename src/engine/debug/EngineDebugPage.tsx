@@ -337,7 +337,10 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					// Keep the window error/rejection listeners active if console cannot be wrapped.
 				}
 			}
-			if (consolePatched) frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__ = true;
+			if (consolePatched) {
+				frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__ = true;
+				frameDocument.documentElement.dataset.engineDebugConsoleCapture = "ready";
+			}
 			frameWindow.addEventListener("error", handleRuntimeError);
 			frameWindow.addEventListener("unhandledrejection", handleUnhandledRejection);
 			const scanNextOverlay = () => {
@@ -418,7 +421,9 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				frameWindow.removeEventListener("engine:debug:scheduler", updateScheduler);
 				frameWindow.removeEventListener("error", handleRuntimeError);
 				frameWindow.removeEventListener("unhandledrejection", handleUnhandledRejection);
-				if (consolePatched && frameWindow.console.error === patchedConsoleError) {
+				if (consolePatched) {
+					delete frameDocument.documentElement.dataset.engineDebugConsoleCapture;
+					delete frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__;
 					try {
 						Object.defineProperty(frameWindow.console, "error", {
 							configurable: true,
