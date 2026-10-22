@@ -115,6 +115,31 @@ check(canvasCore.includes("window.addEventListener(\"resize\", handleWindowResiz
 	&& canvasCore.includes("const nextDpr = getTargetDpr(dprProp, maxDpr)"),
 	"Canvas refreshes its backing-store density after DPR/display changes");
 
+const manim3D = read("src/engine/components/EngineManim/EngineManim3D.tsx");
+check(manim3D.includes('typeof ResizeObserver !== "undefined"')
+	&& manim3D.includes('typeof IntersectionObserver !== "undefined"'),
+	"Manim3D tolerates older WebViews without ResizeObserver or IntersectionObserver");
+check(manim3D.includes("fallbackViewportCheck = checkViewportFallback")
+	&& manim3D.includes("window.removeEventListener(\"scroll\", fallbackViewportCheck)"),
+	"Manim3D has a coalesced visibility fallback and tears down its listeners");
+check(manim3D.includes("releaseFrameMonitor ??= EngineScheduler.acquireFrameMonitor()")
+	&& manim3D.includes("releaseFrameMonitor?.();"),
+	"Manim3D frame-pressure monitoring follows its active animation loop");
+check(manim3D.includes("const lookWorldPosition = lookTarget ? new THREE.Vector3() : null")
+	&& !manim3D.includes("const worldPosition = new THREE.Vector3()"),
+	"Manim3D reuses its camera target vector instead of allocating one each frame");
+check(!manim3D.includes("sampled.rotate.map(toRad)")
+	&& !manim3D.includes("const origin = mixer ? [target.position.x"),
+	"Manim3D bone tracks avoid short-lived arrays in the animation hot path");
+check(manim3D.includes("Number.isFinite(configuredFps)"),
+	"Manim3D normalizes invalid FPS input before animation timing arithmetic");
+
+const scrollPoints = read("src/engine/core/enginescroll/EngineScrollPointManager.ts");
+check(scrollPoints.includes("private static releaseObserverIfUnused()")
+	&& scrollPoints.includes("this.resizeObserver.disconnect()")
+	&& scrollPoints.includes("this.resizeObserver = null"),
+	"EngineScroll releases its shared ResizeObserver after the last registered point");
+
 const model = read("src/engine/core/EngineModel.ts");
 for (const api of ["get<", "set<", "update<", "computed<", "action<", "watch<", "subscribe("]) {
 	check(model.includes(api), `EngineModel exposes ${api.replace("<", "")}`);
