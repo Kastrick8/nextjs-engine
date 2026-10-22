@@ -43,7 +43,8 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 	await expect(preview.locator("body")).toBeVisible();
 	await page.waitForFunction(() => {
 		const frame = document.querySelector<HTMLIFrameElement>('iframe[title^="Live preview:"]');
-		return frame?.contentWindow?.console.error.name === "patchedConsoleError";
+		const previewWindow = frame?.contentWindow as (Window & { console: Console }) | null | undefined;
+		return previewWindow?.console.error.name === "patchedConsoleError";
 	});
 
 	await preview.locator("body").evaluate(() => {
