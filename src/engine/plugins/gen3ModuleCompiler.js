@@ -466,6 +466,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 		const key = actualPath || "external::" + canonicalImport + "::" + String(specifier || "");
 		let record = moduleRecords.get(key);
 		if (!record) {
+			const moduleStartedAt = Date.now();
 			record = {
 				id: "engine-module-" + (++moduleOrder),
 				name: inferredName,
@@ -484,7 +485,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 			if (actualPath) processEngineFile(actualPath, record, routePath);
 			const resolutionNote = actualPath ? "Engine dependency metadata prepared" : "package/import reference indexed; Next.js owns package emission";
 			log("nextjs-engine | ✓ COMPILED " + record.abbreviation + " : " + display
-				+ " — " + resolutionNote);
+				+ " — " + resolutionNote + " in " + formatMilliseconds(Date.now() - moduleStartedAt));
 		}
 		addUsage(record, routePath);
 		return record;
@@ -501,37 +502,6 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 		if (found) return [found];
 		if (isEngineSourcePath(root, targetPath)) return [{ sourcePath: targetPath, name }];
 		return [];
-	}
-	function includeEngineImport(specifier, importerPath, names, routePath, fromEngineFile) {
-		const targetPath = resolver.resolve(specifier, importerPath);
-		if (targetPath && isEngineSourcePath(root, targetPath)) {
-			const symbols = names.filter((name) => name && name !== "default" && name !== "*");
-			if (symbols.length > 0) {
-				for (const name of symbols) {
-					if (!fromEngineFile && !hasEngineSymbolName(name)) continue;
-					const targets = resolveSymbolTargets(targetPath, name);
-					for (const target of targets) {
-						const record = recordFor(target.sourcePath, target.name || name, specifier, routePath, "local");
-						if (fromEngineFile && record.sourcePath) {
-							const parent = moduleRecords.get(path.resolve(importerPath));
-							if (parent && !parent.dependencies.includes(record.id)) parent.dependencies.push(record.id);
-						}
-					}
-				}
-			} else {
-				const name = normalizeModuleName(undefined, targetPath);
-				const record = recordFor(targetPath, name, specifier, routePath, "local");
-				if (fromEngineFile && !record.dependencies.includes(record.id)) record.dependencies.push(record.id);
-			}
-			return true;
-		}
-		if (!targetPath || hasExcludedSegment(root, targetPath) || !isSourcePath(targetPath)) {
-			if (isEngineLikeSpecifier(specifier)) {
-				for (const name of names.filter(hasEngineSymbolName)) addExternalSymbol(specifier, name, routePath);
-			}
-			return false;
-		}
-		return false;
 	}
 	function processEngineFile(filePath, currentRecord, routePath) {
 		const sourceFile = sourceCache.get(filePath);
@@ -636,7 +606,8 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 				analyzedInMilliseconds: Date.now() - started,
 			});
 			log("nextjs-engine | ✓ COMPILED PAGE : " + route.sourcePath
-				+ " — " + moduleNames.length + " Engine modules indexed; Next.js retains JS/TSX emission");
+				+ " — " + moduleNames.length + " Engine modules indexed in "
+				+ formatMilliseconds(Date.now() - started) + "; Next.js retains JS/TSX emission");
 		}
 		for (const source of schemaSources) {
 			routeVisited.clear();
