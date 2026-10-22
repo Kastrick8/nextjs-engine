@@ -126,7 +126,19 @@ function uploadVariable(
 }
 
 function variableSignature(value: EngineShaderVariableValue): string {
-	return Array.isArray(value) ? value.join(",") : String(value);
+	return Array.isArray(value)
+		? `array:${JSON.stringify(value)}`
+		: `${typeof value}:${String(value)}`;
+}
+
+function variableSetSignature(
+	values: Record<string, EngineShaderVariableValue> | undefined,
+): string {
+	if (!values) return "";
+	return JSON.stringify(Object.keys(values).sort().map((name) => [
+		name,
+		variableSignature(values[name]),
+	]));
 }
 
 function boundedFps(value: number | undefined, layer: boolean): number {
@@ -148,6 +160,9 @@ function desiredDpr(maxDpr: number, resolutionScale: number): number {
 
 export const EngineShader = memo(function EngineShader(props: EngineShaderProps) {
 	const config = normalizeConfig(props);
+	const variableSignatureKey = variableSetSignature(config?.variables);
+	const frameIntervalRef = useRef(1000 / boundedFps(config?.fps, props.layer === true));
+	frameIntervalRef.current = 1000 / boundedFps(config?.fps, props.layer === true);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const variablesRef = useRef<Record<string, EngineShaderVariableValue>>(config?.variables ?? {});
 	const requestDrawRef = useRef<() => void>(() => {});
@@ -190,7 +205,7 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 
 	useEffect(() => {
 		requestDrawRef.current();
-	}, [props.variables, props.shader]);
+	}, [variableSignatureKey]);
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -258,8 +273,7 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 
 		const dependencySet = new Set(plan.dependencies);
 		const layer = props.layer === true;
-		const targetFps = boundedFps(config.fps, layer);
-		const frameInterval = 1000 / targetFps;
+
 		const configuredMaxDpr = config.maxDpr;
 		const maxDpr = typeof configuredMaxDpr === "number" && Number.isFinite(configuredMaxDpr)
 			? Math.max(0.5, configuredMaxDpr)
@@ -351,7 +365,7 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		const animationFrame = (timestamp: number) => {
 			if (lastTimestamp !== 0) {
 				const interval = timestamp - lastTimestamp;
-				if (interval + 0.5 < frameInterval) return;
+				if (interval + 0.5 < frameIntervalRef.current) return;
 			}
 			lastTimestamp = timestamp;
 			draw(timestamp);
@@ -495,7 +509,6 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 	}, [
 		plan,
 		config?.src,
-		config?.fps,
 		config?.maxDpr,
 		config?.pauseWhenOffscreen,
 		config?.pauseWhenHidden,
