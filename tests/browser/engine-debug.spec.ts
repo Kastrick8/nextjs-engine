@@ -47,8 +47,9 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 		console.error("ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch");
 	});
 	await page.getByRole("tab", { name: /Errors/ }).click();
-	await expect(page.getByText(/ENGINE_DEBUG_CAPTURE_SMOKE/)).toBeVisible();
-	await expect(page.getByText("Hydration", { exact: true })).toBeVisible();
+	const capturedDiagnostic = page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_CAPTURE_SMOKE" });
+	await expect(capturedDiagnostic).toBeVisible();
+	await expect(capturedDiagnostic).toContainText("Hydration");
 });
 
 test("EngineDebug shows a waiting state while the preview response is pending", async ({ page }) => {
