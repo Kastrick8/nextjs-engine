@@ -258,10 +258,14 @@ export const EngineManim3D = memo(function EngineManim3D({
 			let running = false;
 			let releaseFrameMonitor: (() => void) | null = null;
 			const clock = new THREE.Clock(false);
-			const fpsInterval = 1 / Math.max(1, cfg.settings?.fps ?? 60);
+			const configuredFps = cfg.settings?.fps;
+			const targetFps = typeof configuredFps === "number" && Number.isFinite(configuredFps)
+				? Math.min(240, Math.max(1, configuredFps))
+				: 60;
+			const fpsInterval = 1 / targetFps;
 			let fpsAccumulator = 0;
 			let sourceAnimationTime = 0;
-			const sourceDuration = 240 / Math.max(1, cfg.settings?.fps ?? 60);
+			const sourceDuration = 240 / targetFps;
 			const continuous = Boolean(mixer || boneTracks.length > 0);
 
 			const applyBoneTracks = (normalTime: number): void => {
@@ -273,33 +277,59 @@ export const EngineManim3D = memo(function EngineManim3D({
 
 					if (sampled.move) {
 						if (track.mode === "additive") {
-							const origin = mixer ? [target.position.x, target.position.y, target.position.z] : (base?.position ?? [0, 0, 0]);
-							target.position.set(origin[0] + sampled.move[0], origin[1] + sampled.move[1], origin[2] + sampled.move[2]);
-						} else target.position.set(...sampled.move);
+							const originX = mixer ? target.position.x : (base?.position[0] ?? 0);
+							const originY = mixer ? target.position.y : (base?.position[1] ?? 0);
+							const originZ = mixer ? target.position.z : (base?.position[2] ?? 0);
+							target.position.set(
+								originX + sampled.move[0],
+								originY + sampled.move[1],
+								originZ + sampled.move[2],
+							);
+						} else {
+							target.position.set(sampled.move[0], sampled.move[1], sampled.move[2]);
+						}
 					}
 
 					if (sampled.rotate) {
-						const rotation = sampled.rotate.map(toRad) as [number, number, number];
+						const rotationX = toRad(sampled.rotate[0]);
+						const rotationY = toRad(sampled.rotate[1]);
+						const rotationZ = toRad(sampled.rotate[2]);
 						if (track.mode === "additive") {
-							const origin = mixer ? [target.rotation.x, target.rotation.y, target.rotation.z] : (base?.rotation ?? [0, 0, 0]);
-							target.rotation.set(origin[0] + rotation[0], origin[1] + rotation[1], origin[2] + rotation[2]);
-						} else target.rotation.set(...rotation);
+							const originX = mixer ? target.rotation.x : (base?.rotation[0] ?? 0);
+							const originY = mixer ? target.rotation.y : (base?.rotation[1] ?? 0);
+							const originZ = mixer ? target.rotation.z : (base?.rotation[2] ?? 0);
+							target.rotation.set(
+								originX + rotationX,
+								originY + rotationY,
+								originZ + rotationZ,
+							);
+						} else {
+							target.rotation.set(rotationX, rotationY, rotationZ);
+						}
 					}
 
 					if (sampled.scale) {
 						if (track.mode === "additive") {
-							const origin = mixer ? [target.scale.x, target.scale.y, target.scale.z] : (base?.scale ?? [1, 1, 1]);
-							target.scale.set(origin[0] * sampled.scale[0], origin[1] * sampled.scale[1], origin[2] * sampled.scale[2]);
-						} else target.scale.set(...sampled.scale);
+							const originX = mixer ? target.scale.x : (base?.scale[0] ?? 1);
+							const originY = mixer ? target.scale.y : (base?.scale[1] ?? 1);
+							const originZ = mixer ? target.scale.z : (base?.scale[2] ?? 1);
+							target.scale.set(
+								originX * sampled.scale[0],
+								originY * sampled.scale[1],
+								originZ * sampled.scale[2],
+							);
+						} else {
+							target.scale.set(sampled.scale[0], sampled.scale[1], sampled.scale[2]);
+						}
 					}
 				}
 			};
 
+			const lookWorldPosition = lookTarget ? new THREE.Vector3() : null;
 			const updateCameraConstraint = (): void => {
-				if (lookTarget) {
-					const worldPosition = new THREE.Vector3();
-					lookTarget.getWorldPosition(worldPosition);
-					camera.lookAt(worldPosition);
+				if (lookTarget && lookWorldPosition) {
+					lookTarget.getWorldPosition(lookWorldPosition);
+					camera.lookAt(lookWorldPosition);
 				} else if (Array.isArray(cfg.camera?.look?.content)) {
 					camera.lookAt(...(cfg.camera!.look!.content as [number, number, number]));
 				}
