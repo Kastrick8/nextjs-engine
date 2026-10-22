@@ -54,7 +54,7 @@ try {
 	const crossRealmError = redactEngineDebugText({
 		name: "TypeError",
 		message: "Cross-realm error is preserved",
-	\tstack: "TypeError: Cross-realm error is preserved\n    at render (app/page.tsx:8)",
+		stack: "TypeError: Cross-realm error is preserved\n    at render (app/page.tsx:8)",
 	});
 	assert.match(crossRealmError, /Cross-realm error is preserved/,
 		"Error objects from the iframe realm retain their message and stack");
