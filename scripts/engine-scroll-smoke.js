@@ -288,6 +288,22 @@ function main() {
 		runtime.subscribe = originalRuntimeSubscribe;
 
 		const previousWindow = global.window;
+		const previousResizeObserver = global.ResizeObserver;
+		const resizeObservers = [];
+		global.ResizeObserver = class TestResizeObserver {
+			constructor(callback) {
+				this.callback = callback;
+				this.observed = new Set();
+				this.disconnected = false;
+				resizeObservers.push(this);
+			}
+			observe(element) { this.observed.add(element); }
+			unobserve(element) { this.observed.delete(element); }
+			disconnect() {
+				this.disconnected = true;
+				this.observed.clear();
+			}
+		};
 		global.window = { scrollY: 0, innerHeight: 100 };
 		state.page.pointSpacing = 1;
 		state.page.totalPoints = 100;
@@ -347,7 +363,14 @@ function main() {
 		pointTracker.dispose();
 
 		EngineScrollPointManager.clear();
+		assert.equal(resizeObservers.length, 1, "point registrations share one ResizeObserver");
+		assert.equal(resizeObservers[0].disconnected, true,
+			"the shared ResizeObserver is disconnected when the final point unregisters");
+		assert.equal(resizeObservers[0].observed.size, 0,
+			"clearing the point registry releases every observed element");
 		global.window = previousWindow;
+		if (previousResizeObserver === undefined) delete global.ResizeObserver;
+		else global.ResizeObserver = previousResizeObserver;
 
 		const originalNearest = EngineScrollPointManager.nearest;
 		const originalResolve = EngineScrollPointManager.resolve;
