@@ -59,3 +59,7 @@ The inspector keeps a bounded, in-memory history (up to 200 items), coalesces ad
 This is a browser-side collector, not a replacement for the Next.js dev overlay or terminal. Server exceptions that happen before the preview sends a usable document, process-level build errors, and diagnostics hidden in a cross-origin or inaccessible frame may only be visible in Next.js' own overlay/terminal output. Captured messages are intentionally bounded and redacted heuristically; treat copied diagnostic details as potentially sensitive before sharing them.
 
 The workbench layout uses a compact, VS Code-inspired dark workspace: activity rail, route explorer, live preview, and an Errors/Node/Scheduler/Device inspector. The editor styling is confined to the development-only workbench and does not change application UI.
+
+## Preview lifecycle feedback
+
+The central preview now shows an accessible waiting overlay while its iframe response is pending, with indeterminate progress rather than a fabricated percentage. It changes to **READY** after the preview document loads, or **ERROR** when captured runtime diagnostics report a problem. The overlay offers **Reload preview** and, on errors, **View Problems**. A persistent status label remains in the preview toolbar. This indicates iframe loading and captured failures; it does not claim to read Next.js compiler progress from the dev server.
