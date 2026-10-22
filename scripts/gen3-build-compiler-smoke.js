@@ -103,8 +103,8 @@ try {
 		"route analysis reports the source path in Next.js-style progress output");
 	assert.ok(logs.some((line) => line.includes("COMPILED ENGINE SCHEMA : app/(marketing)/about/page.tsx")),
 		"the static schema pass separately reports successful Engine schema compilation");
-	assert.ok(logs.some((line) => line.includes("nextjs-engine | Compiling Custom Component notice")),
-		"custom components get a dedicated progress line");
+	assert.ok(logs.some((line) => line.includes("COMPILING CUSTOM COMPONENT : notice")),
+		"custom components get a dedicated Next.js-style progress line");
 
 	const inputPath = path.join(root, "worker-manifest.json");
 	fs.writeFileSync(inputPath, JSON.stringify(manifest));
