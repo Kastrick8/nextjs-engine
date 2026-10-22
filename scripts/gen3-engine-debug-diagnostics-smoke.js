@@ -99,6 +99,18 @@ try {
 	assert.match(formatted, /Failed to render on the server/);
 
 	const pageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugPage.tsx"), "utf8");
+	const pageCompile = ts.transpileModule(pageSource, {
+		reportDiagnostics: true,
+		compilerOptions: {
+			jsx: ts.JsxEmit.ReactJSX,
+			module: ts.ModuleKind.CommonJS,
+			target: ts.ScriptTarget.ES2022,
+			esModuleInterop: true,
+		},
+	});
+	const syntaxErrors = (pageCompile.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
+	assert.equal(syntaxErrors.length, 0,
+		"EngineDebug TSX parses cleanly: " + syntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
 	for (const required of [
 		"unhandledrejection",
 		"frameWindow.addEventListener(\"error\"",
