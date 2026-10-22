@@ -1,6 +1,13 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+	appendEngineDebugDiagnostics,
+	createEngineDebugDiagnostic,
+	formatEngineDebugDiagnostic,
+	redactEngineDebugText,
+} from "./EngineDebugDiagnostics";
+import type { EngineDebugDiagnostic, EngineDebugSource } from "./EngineDebugDiagnostics";
 import type {
 	EngineSchedulerDebugSnapshot,
 	EngineSchedulerDebugTask,
@@ -37,6 +44,7 @@ interface DebugNode {
 }
 
 interface DebugSchedulerWindow extends Window {
+	console: Console;
 	__NEXT_ENGINE_SCHEDULER_DEBUG__?: { snapshot: () => EngineSchedulerDebugSnapshot };
 	__NEXT_ENGINE_DEVICE_DEBUG__?: { profile: DeviceProfile };
 	__NEXT_ENGINE_ORIGINAL_MATCH_MEDIA__?: typeof window.matchMedia;
@@ -78,8 +86,16 @@ html[data-engine-debug-overlay="true"] [data-engine-debug-boundary][style*="disp
 `;
 
 const PAGE_CSS = `
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#070a12;color:#e5e7eb;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
-button,input,select{font:inherit}.ed-shell{height:100vh;display:grid;grid-template-rows:56px minmax(0,1fr);overflow:hidden}.ed-head{display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid #20283a;background:#0b101c}.ed-head h1{font-size:16px;margin:0}.ed-badge{font:700 10px ui-monospace,monospace;color:#86efac;background:#12321f;border:1px solid #1d6c37;border-radius:999px;padding:4px 7px}.ed-body{min-height:0;display:grid;grid-template-columns:220px minmax(0,1fr) 340px}.ed-sidebar,.ed-inspector{min-height:0;overflow:auto;background:#0b101c}.ed-sidebar{border-right:1px solid #20283a;padding:14px}.ed-inspector{border-left:1px solid #20283a;padding:14px}.ed-section-title{margin:0 0 9px;color:#8b9ab5;font-size:11px;text-transform:uppercase;letter-spacing:.12em}.ed-route,.ed-button,.ed-mode{border:1px solid #29344a;background:#111827;color:#dbeafe;border-radius:8px;cursor:pointer}.ed-route{display:block;width:100%;padding:8px 10px;text-align:left;margin:4px 0;font:12px ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis}.ed-route[aria-current="page"],.ed-button[aria-pressed="true"],.ed-mode[aria-pressed="true"]{border-color:#60a5fa;background:#172554;color:#bfdbfe}.ed-stage{min-width:0;min-height:0;display:grid;grid-template-rows:48px minmax(0,1fr);background:#111827}.ed-tools{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #263248}.ed-button,.ed-mode{padding:7px 10px;font-size:12px}.ed-spacer{flex:1}.ed-fps{font:11px ui-monospace,monospace;color:#93c5fd}.ed-viewport-scroll{overflow:auto;padding:18px;display:grid;place-items:start center;background-color:#0f172a;background-image:linear-gradient(45deg,#182338 25%,transparent 25%),linear-gradient(-45deg,#182338 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#182338 75%),linear-gradient(-45deg,transparent 75%,#182338 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}.ed-frame-shell{flex:none;background:white;border-radius:8px;overflow:hidden;box-shadow:0 24px 70px #0008;border:1px solid #334155}.ed-frame{display:block;width:100%;height:100%;border:0;background:white}.ed-tabs{display:flex;gap:6px;margin-bottom:14px;position:sticky;top:-14px;padding:14px 0 8px;background:#0b101c;z-index:2}.ed-card{border:1px solid #253148;background:#0f1626;border-radius:10px;padding:11px;margin-bottom:10px}.ed-card h3{font-size:13px;margin:0 0 8px}.ed-row{display:grid;grid-template-columns:88px 1fr;gap:8px;padding:4px 0;font-size:12px}.ed-key{color:#8190aa}.ed-value{color:#e5e7eb;overflow-wrap:anywhere}.ed-chip{display:inline-block;padding:3px 6px;margin:2px;border-radius:5px;background:#1e293b;color:#cbd5e1;font:700 10px ui-monospace,monospace}.ed-task{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}.ed-task-name{font-size:12px;font-weight:650}.ed-task-state{text-align:right;white-space:nowrap}.ed-transition{font:10px/1.5 ui-monospace,monospace;color:#94a3b8;border-left:2px solid #334155;padding-left:8px;margin:7px 0}.ed-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ed-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.ed-field{display:grid;gap:4px;color:#94a3b8;font-size:11px}.ed-field input,.ed-field select{width:100%;border:1px solid #334155;border-radius:6px;background:#0b1220;color:#e5e7eb;padding:6px}.ed-check{display:flex;gap:7px;align-items:center;font-size:12px;color:#cbd5e1}.ed-empty{padding:20px 8px;color:#71809a;text-align:center;font-size:12px}.ed-explain{font-size:12px;line-height:1.55;color:#cbd5e1}.ed-warning{color:#fbbf24}.ed-count{margin-left:auto;color:#64748b;font:10px ui-monospace,monospace}@media(max-width:1050px){.ed-body{grid-template-columns:180px minmax(0,1fr)}.ed-inspector{position:fixed;right:0;top:56px;bottom:0;width:340px;box-shadow:-20px 0 50px #0008;z-index:3}}
+:root{color-scheme:dark;--ed-bg:#1e1e1e;--ed-panel:#252526;--ed-panel-alt:#181818;--ed-border:#3c3c3c;--ed-muted:#9da0a5;--ed-text:#cccccc;--ed-accent:#007acc;--ed-hover:#2a2d2e;--ed-active:#37373d;--ed-error:#f48771;--ed-warning:#cca700}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--ed-bg);color:var(--ed-text);font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:12px}
+button,input,select{font:inherit;color:inherit}.ed-shell{height:100dvh;display:grid;grid-template-rows:40px minmax(0,1fr);overflow:hidden;background:var(--ed-bg)}
+.ed-head{display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ed-border);background:#181818}.ed-brand-mark{width:18px;height:18px;display:grid;place-items:center;border:1px solid #5da9e9;color:#75beff;font:700 10px ui-monospace,monospace}.ed-head h1{font-size:12px;font-weight:600;margin:0;color:#f1f1f1}.ed-badge{font:600 9px ui-monospace,monospace;color:#89d185;border:1px solid #365d36;border-radius:3px;padding:2px 5px;letter-spacing:.04em}.ed-body{min-height:0;display:grid;grid-template-columns:42px 196px minmax(280px,1fr) 304px}
+.ed-activity{display:flex;align-items:center;flex-direction:column;gap:4px;padding:7px 0;background:var(--ed-panel-alt);border-right:1px solid #242424}.ed-activity-button{width:34px;height:36px;border:0;border-left:2px solid transparent;background:transparent;color:#858585;display:grid;place-items:center;cursor:pointer;font:16px/1 ui-sans-serif,system-ui;border-radius:0}.ed-activity-button:hover{color:#eee;background:#232323}.ed-activity-button[aria-pressed="true"]{color:#fff;border-left-color:#fff;background:#202020}.ed-activity-button .ed-activity-glyph{font-size:16px}
+.ed-sidebar,.ed-inspector{min-height:0;overflow:auto;background:var(--ed-panel)}.ed-sidebar{border-right:1px solid var(--ed-border);padding:0 0 12px}.ed-inspector{border-left:1px solid var(--ed-border);padding:0 10px 14px}.ed-section-title{margin:0;padding:13px 12px 9px;color:#bbbbbb;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}.ed-sidebar-subtitle{padding:3px 12px 10px;color:var(--ed-muted);font:10px ui-monospace,monospace}
+.ed-route,.ed-button,.ed-mode,.ed-filter,.ed-diagnostic{border:1px solid transparent;background:transparent;color:var(--ed-text);border-radius:2px;cursor:pointer}.ed-route{display:block;width:100%;padding:5px 10px 5px 17px;text-align:left;margin:0;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ed-route:hover{background:var(--ed-hover)}.ed-route[aria-current="page"]{background:#37373d;color:#fff}.ed-button,.ed-mode{padding:5px 8px;font-size:11px;border-radius:2px}.ed-button:hover,.ed-mode:hover{background:var(--ed-hover)}.ed-button[aria-pressed="true"],.ed-mode[aria-pressed="true"]{background:#094771;color:#fff}.ed-stage{min-width:0;min-height:0;display:grid;grid-template-rows:36px minmax(0,1fr);background:#1e1e1e}.ed-tools{display:flex;align-items:center;gap:5px;padding:4px 8px;border-bottom:1px solid var(--ed-border);background:#252526}.ed-spacer{flex:1}.ed-fps{font:10px ui-monospace,monospace;color:#9cdcfe;white-space:nowrap}.ed-viewport-scroll{overflow:auto;padding:15px;display:grid;place-items:start center;background-color:#1e1e1e;background-image:radial-gradient(#343434 .6px,transparent .6px);background-size:9px 9px}.ed-frame-shell{flex:none;position:relative;background:white;overflow:hidden;box-shadow:0 8px 22px #0006;border:1px solid #444}.ed-frame{display:block;width:100%;height:100%;border:0;background:white}.ed-preview-state{position:absolute;inset:0;z-index:2;display:grid;place-items:center;padding:18px;background:rgba(24,24,24,.94);color:#d4d4d4}.ed-preview-state[hidden]{display:none}.ed-preview-state-card{width:min(340px,100%);display:grid;justify-items:center;gap:11px;padding:22px 20px;border:1px solid #454545;border-radius:5px;background:#252526;box-shadow:0 12px 42px #0007;text-align:center}.ed-preview-orbit{width:32px;height:32px;border:2px solid #3d3d3d;border-top-color:#75beff;border-right-color:#007acc;border-radius:50%;animation:ed-preview-spin .9s linear infinite}.ed-preview-state.error .ed-preview-orbit{border-color:#f48771;background:transparent;animation:none;position:relative}.ed-preview-state.error .ed-preview-orbit:after{content:"!";position:absolute;inset:0;display:grid;place-items:center;color:#f48771;font-weight:800}.ed-preview-title{font-size:13px;font-weight:650;color:#f1f1f1}.ed-preview-description{max-width:285px;color:#a8a8a8;font-size:11px;line-height:1.55}.ed-preview-progress{width:100%;height:3px;overflow:hidden;border-radius:9px;background:#3a3a3a}.ed-preview-progress:after{content:"";display:block;width:38%;height:100%;background:#007acc;animation:ed-preview-progress 1.35s ease-in-out infinite}.ed-preview-state.error .ed-preview-progress{display:none}.ed-preview-actions{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}.ed-preview-status{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;border:1px solid #3c3c3c;border-radius:3px;padding:3px 6px;font:9px ui-monospace,monospace;color:#aaa}.ed-preview-status:before{content:"";width:5px;height:5px;background:#cca700;border-radius:50%}.ed-preview-status.ready{color:#89d185;border-color:#365d36}.ed-preview-status.ready:before{background:#89d185}.ed-preview-status.error{color:#f48771;border-color:#69413a}.ed-preview-status.error:before{background:#f48771}@keyframes ed-preview-spin{to{transform:rotate(360deg)}}@keyframes ed-preview-progress{0%{transform:translateX(-120%)}100%{transform:translateX(360%)}}@media(prefers-reduced-motion:reduce){.ed-preview-orbit,.ed-preview-progress:after{animation:none}}
+.ed-tabs{display:flex;gap:0;margin:0 -10px 12px;position:sticky;top:0;padding:0 6px;background:var(--ed-panel);border-bottom:1px solid var(--ed-border);z-index:2;overflow-x:auto}.ed-tabs .ed-button{white-space:nowrap;padding:11px 8px 9px;border:0;border-bottom:1px solid transparent;color:#999}.ed-tabs .ed-button[aria-pressed="true"]{border-bottom-color:#007acc;background:transparent;color:#f0f0f0}.ed-tabs .ed-button:hover{background:#2a2d2e}.ed-card{border:1px solid #383838;background:#1f1f1f;border-radius:3px;padding:9px;margin-bottom:8px}.ed-card h3{font-size:12px;font-weight:600;margin:0 0 8px;color:#e7e7e7}.ed-row{display:grid;grid-template-columns:78px minmax(0,1fr);gap:7px;padding:4px 0;font-size:11px;line-height:1.45}.ed-key{color:#9da0a5}.ed-value{color:#d4d4d4;overflow-wrap:anywhere}.ed-chip{display:inline-block;padding:2px 5px;margin:2px;border-radius:2px;background:#333;color:#ccc;font:600 9px ui-monospace,monospace}.ed-task{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}.ed-task-name{font-size:11px;font-weight:500}.ed-task-state{text-align:right;white-space:nowrap}.ed-transition{font:10px/1.5 ui-monospace,monospace;color:#9da0a5;border-left:2px solid #555;padding-left:8px;margin:7px 0}.ed-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}.ed-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.ed-field{display:grid;gap:4px;color:#9da0a5;font-size:10px}.ed-field input,.ed-field select{width:100%;border:1px solid #454545;border-radius:2px;background:#181818;color:#ddd;padding:5px}.ed-check{display:flex;gap:7px;align-items:center;font-size:11px;color:#ccc}.ed-empty{padding:22px 8px;color:#858585;text-align:center;font-size:11px;line-height:1.5}.ed-explain{font-size:11px;line-height:1.55;color:#c7c7c7}.ed-warning{color:#e2c08d}.ed-count{margin-left:auto;color:#999;font:10px ui-monospace,monospace}
+.ed-route-picker{display:flex;align-items:center;gap:5px;min-width:0;color:#999;font-size:10px;white-space:nowrap}.ed-route-picker select{min-width:0;max-width:180px;border:1px solid #454545;border-radius:2px;background:#181818;color:#ddd;padding:4px 5px;font:10px ui-monospace,SFMono-Regular,Consolas,monospace}.ed-problem-toolbar{display:flex;align-items:center;gap:4px;margin:0 0 8px;flex-wrap:wrap}.ed-filter{padding:4px 7px;border-color:#424242;color:#bdbdbd;font-size:10px}.ed-filter[aria-pressed="true"]{background:#37373d;border-color:#666;color:#fff}.ed-problem-count{margin-left:auto;color:#999;font:10px ui-monospace,monospace}.ed-diagnostic-list{display:grid;gap:2px;margin-bottom:12px}.ed-diagnostic{display:grid;grid-template-columns:12px minmax(0,1fr);gap:6px;width:100%;padding:6px 7px;text-align:left;border-radius:2px}.ed-diagnostic:hover{background:#2a2d2e}.ed-diagnostic[aria-pressed="true"]{background:#094771}.ed-problem-glyph{font:700 11px ui-monospace,monospace}.ed-problem-glyph.error{color:var(--ed-error)}.ed-problem-glyph.warning{color:var(--ed-warning)}.ed-diagnostic-message{font-size:11px;line-height:1.4;display:block;overflow-wrap:anywhere;color:#ddd}.ed-diagnostic-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;color:#999;font:9px ui-monospace,monospace}.ed-severity-summary{display:flex;gap:12px;padding:7px 0 9px;border-bottom:1px solid #383838;margin-bottom:8px;color:#bdbdbd;font:10px ui-monospace,monospace}.ed-severity-summary strong{color:#f48771}.ed-severity-summary .warn{color:#cca700}.ed-detail-text{font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#d4d4d4;max-height:230px;overflow:auto;margin:6px 0 10px}
+@media(max-width:1050px){.ed-body{grid-template-columns:40px 166px minmax(250px,1fr)}.ed-inspector{position:fixed;right:0;top:40px;bottom:0;width:min(318px,calc(100vw - 205px));box-shadow:-15px 0 35px #0009;z-index:3}.ed-stage{grid-column:3;grid-row:1}.ed-sidebar{grid-column:2;grid-row:1}}@media(max-width:680px){.ed-body{grid-template-columns:38px minmax(220px,1fr)}.ed-sidebar{display:none}.ed-stage{grid-column:2;grid-row:1}.ed-inspector{width:min(330px,calc(100vw - 42px));}.ed-count{display:none}.ed-fps{font-size:9px}.ed-route-picker select{max-width:90px}.ed-tools{gap:3px;padding:4px}.ed-button{padding:5px 6px}.ed-viewport-scroll{padding:8px}}
 `;
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -208,14 +224,50 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [selectedPage, setSelectedPage] = useState(pages[0] ?? "/");
 	const [picker, setPicker] = useState(false);
 	const [overlay, setOverlay] = useState(false);
-	const [tab, setTab] = useState<"Node" | "Scheduler" | "Device">("Node");
+	const [tab, setTab] = useState<"Node" | "Errors" | "Scheduler" | "Device">("Node");
+	const [diagnostics, setDiagnostics] = useState<EngineDebugDiagnostic[]>([]);
+	const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
+	const [diagnosticFilter, setDiagnosticFilter] = useState<"all" | "error" | "warning">("all");
 	const [selectedNode, setSelectedNode] = useState<DebugNode | null>(null);
 	const [scheduler, setScheduler] = useState<EngineSchedulerDebugSnapshot>(EMPTY_SCHEDULER);
 	const [inferredTransitions, setInferredTransitions] = useState<EngineSchedulerDebugTransition[]>([]);
 	const [device, setDevice] = useState<DeviceProfile>(DEVICE_PROFILES.Desktop);
 	const [fps, setFps] = useState(0);
 	const [layoutByDevice, setLayoutByDevice] = useState<Record<string, number>>({});
+	const [previewStatus, setPreviewStatus] = useState<"waiting" | "ready" | "error">("waiting");
 	const frameSource = useMemo(() => `${selectedPage}${selectedPage.includes("?") ? "&" : "?"}__engine_debug=1`, [selectedPage]);
+
+	useEffect(() => {
+		setPreviewStatus("waiting");
+	}, [frameSource]);
+
+	const handlePreviewLoad = () => {
+		const frame = iframeRef.current;
+		if (!frame) return;
+		const frameDocument = frame.contentDocument;
+		if (!frameDocument?.documentElement) {
+			setPreviewStatus("error");
+			return;
+		}
+		const overlays = frameDocument.querySelectorAll<HTMLElement>(
+			"nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]",
+		);
+		const hasVisibleError = [...overlays].some((element) => {
+			const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
+			return Boolean(text && /(compilation failed|failed to compile|uncaught|hydration|error occurred|module not found|exception)/i.test(text));
+		});
+		setPreviewStatus(hasVisibleError ? "error" : "ready");
+	};
+
+	const reloadPreview = () => {
+		setPreviewStatus("waiting");
+		try {
+			iframeRef.current?.contentWindow?.location.reload();
+		} catch {
+			const frame = iframeRef.current;
+			if (frame) frame.src = frameSource;
+		}
+	};
 
 	useEffect(() => {
 		const frame = iframeRef.current;
@@ -235,6 +287,67 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				overlayStyle.textContent = FRAME_OVERLAY_CSS;
 				frameDocument.head.appendChild(overlayStyle);
 			}
+
+			const reportDiagnostic = (
+				source: EngineDebugSource,
+				message: unknown,
+				detail?: unknown,
+				location?: string,
+			) => {
+				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location });
+				setDiagnostics((current) => appendEngineDebugDiagnostics(current, diagnostic));
+				setSelectedDiagnosticId((current) => current ?? diagnostic.id);
+				if (source !== "console" && diagnostic.severity === "error") setPreviewStatus("error");
+			};
+			const handleRuntimeError = (event: ErrorEvent) => {
+				reportDiagnostic(
+					"runtime",
+					event.message || "Uncaught browser runtime error",
+					event.error,
+					event.filename ? event.filename + (event.lineno ? ":" + event.lineno : "") : frameWindow.location.pathname,
+				);
+			};
+			const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+				reportDiagnostic("unhandled-rejection", "Unhandled promise rejection", event.reason, frameWindow.location.pathname);
+			};
+			const originalConsoleError = frameWindow.console.error;
+			const patchedConsoleError: typeof frameWindow.console.error = (...args) => {
+				const detail = args.map((argument) => redactEngineDebugText(argument, 1_500)).join("\n");
+				const message = typeof args[0] === "string" ? args[0] : detail || "console.error";
+				reportDiagnostic("console", message, detail, frameWindow.location.pathname);
+				originalConsoleError.apply(frameWindow.console, args);
+			};
+			let consolePatched = false;
+			try {
+				frameWindow.console.error = patchedConsoleError;
+				consolePatched = true;
+			} catch {
+				// Some browser realms reject writes to console methods.
+			}
+			if (!consolePatched) {
+				try {
+					Object.defineProperty(frameWindow.console, "error", {
+						configurable: true,
+						writable: true,
+						value: patchedConsoleError,
+					});
+					consolePatched = true;
+				} catch {
+					// Keep the window error/rejection listeners active if console cannot be wrapped.
+				}
+			}
+			frameWindow.addEventListener("error", handleRuntimeError);
+			frameWindow.addEventListener("unhandledrejection", handleUnhandledRejection);
+			const scanNextOverlay = () => {
+				for (const element of frameDocument.querySelectorAll<HTMLElement>("nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]")) {
+					const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
+					if (!text || !/(error|exception|failed|hydration|mismatch|digest)/i.test(text)) continue;
+					reportDiagnostic("next-overlay", "Next.js development error overlay", text, frameWindow.location.pathname);
+				}
+			};
+			const overlayObserver = new MutationObserver(scanNextOverlay);
+			if (frameDocument.body) overlayObserver.observe(frameDocument.body, { childList: true, subtree: true, characterData: true });
+			scanNextOverlay();
 
 			const selectNode = (event: MouseEvent) => {
 				if (!picker) return;
@@ -301,6 +414,20 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			frameCleanup = () => {
 				frameDocument.removeEventListener("click", selectNode, true);
 				frameWindow.removeEventListener("engine:debug:scheduler", updateScheduler);
+				frameWindow.removeEventListener("error", handleRuntimeError);
+				frameWindow.removeEventListener("unhandledrejection", handleUnhandledRejection);
+				if (consolePatched) {
+					try {
+						Object.defineProperty(frameWindow.console, "error", {
+							configurable: true,
+							writable: true,
+							value: originalConsoleError,
+						});
+					} catch {
+						try { frameWindow.console.error = originalConsoleError; } catch { /* Console method is browser-owned. */ }
+					}
+				}
+				overlayObserver.disconnect();
 				frameWindow.clearInterval(scanTimer);
 				frameWindow.cancelAnimationFrame(raf);
 			};
@@ -332,44 +459,142 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		<main className="ed-shell">
 			<style>{PAGE_CSS}</style>
 			<header className="ed-head">
+				<span className="ed-brand-mark" aria-hidden="true">NE</span>
 				<h1>Next.js Engine Debug</h1>
 				<span className="ed-badge">DEV ONLY</span>
-				<span className="ed-count">/_engine/debug · D.5–D.10</span>
+				<span className="ed-count">{diagnostics.filter((item) => item.severity === "error").length} errors · {diagnostics.filter((item) => item.severity === "warning").length} warnings · /_engine/debug</span>
 			</header>
 			<div className="ed-body">
+				<nav className="ed-activity" aria-label="Debug views">
+					<button type="button" className="ed-activity-button" aria-label="Explorer" title="Explorer" aria-pressed={tab === "Node"} onClick={() => setTab("Node")}><span className="ed-activity-glyph">⌕</span></button>
+					<button type="button" className="ed-activity-button" aria-label="Problems" title="Problems" aria-pressed={tab === "Errors"} onClick={() => setTab("Errors")}><span className="ed-activity-glyph">!</span></button>
+					<button type="button" className="ed-activity-button" aria-label="Scheduler" title="Scheduler" aria-pressed={tab === "Scheduler"} onClick={() => setTab("Scheduler")}><span className="ed-activity-glyph">◷</span></button>
+					<button type="button" className="ed-activity-button" aria-label="Device" title="Device simulation" aria-pressed={tab === "Device"} onClick={() => setTab("Device")}><span className="ed-activity-glyph">▦</span></button>
+				</nav>
 				<nav className="ed-sidebar" aria-label="Application pages">
 					<h2 className="ed-section-title">Page explorer</h2>
+					<div className="ed-sidebar-subtitle">APPLICATION ROUTES</div>
 					{pages.map((route) => (
 						<button key={route} type="button" className="ed-route" data-route={route} aria-current={selectedPage === route ? "page" : undefined} onClick={() => { setSelectedPage(route); setSelectedNode(null); }}>
-							{route}
+							{route === "/" ? "/ (home)" : route}
 						</button>
 					))}
 				</nav>
 				<section className="ed-stage" aria-label="Live page preview">
 					<div className="ed-tools">
+						<label className="ed-route-picker">Preview
+							<select aria-label="Preview route" value={selectedPage} onChange={(event) => { setSelectedPage(event.target.value); setSelectedNode(null); }}>
+								{pages.map((route) => <option key={route} value={route}>{route === "/" ? "/ (home)" : route}</option>)}
+							</select>
+						</label>
 						<button type="button" className="ed-button" aria-pressed={picker} onClick={() => setPicker((value) => !value)}>Pick node</button>
 						<button type="button" className="ed-button" aria-pressed={overlay} onClick={() => setOverlay((value) => !value)}>Runtime boundaries</button>
+						<button type="button" className="ed-button" aria-label="Reload preview" title="Reload preview" onClick={reloadPreview}>↻ Reload</button>
+						{previewStatus === "error" && <button type="button" className="ed-button" onClick={() => setTab("Errors")}>View Problems</button>}
 						<span className="ed-spacer" />
+						<span className={`ed-preview-status ${previewStatus === "ready" ? "ready" : previewStatus === "error" ? "error" : ""}`} aria-live="polite">
+							{previewStatus === "ready" ? "READY" : previewStatus === "error" ? "ERROR" : "WAITING"}
+						</span>
 						<span className="ed-fps">{device.width}×{device.height} · DPR {device.dpr} · {fps.toFixed(1)} FPS</span>
 					</div>
 					<div className="ed-viewport-scroll">
-						<div className="ed-frame-shell" style={{ width: device.width, height: device.height }}>
-							<iframe ref={iframeRef} className="ed-frame" title={`Live preview: ${selectedPage}`} src={frameSource} />
+						<div className="ed-frame-shell" style={{ width: device.width, height: device.height }} aria-busy={previewStatus === "waiting"}>
+							<iframe ref={iframeRef} className="ed-frame" title={"Live preview: " + selectedPage} src={frameSource} onLoad={handlePreviewLoad} />
+							{previewStatus === "waiting" && (
+								<div className="ed-preview-state" role="status" aria-live="polite">
+									<div className="ed-preview-state-card">
+										<span className="ed-preview-orbit" aria-hidden="true" />
+										<strong className="ed-preview-title">Waiting for Next.js…</strong>
+										<span className="ed-preview-description">Next.js may be compiling this route or waiting for the dev server. The preview will become interactive when the response arrives.</span>
+										<div className="ed-preview-progress" aria-hidden="true" />
+										<div className="ed-preview-actions">
+											<button type="button" className="ed-button" onClick={reloadPreview}>Reload preview</button>
+										</div>
+									</div>
+								</div>
+							)}
 						</div>
 					</div>
 				</section>
 				<aside className="ed-inspector">
 					<div className="ed-tabs" role="tablist" aria-label="Debug inspectors">
-						{(["Node", "Scheduler", "Device"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} className="ed-button" aria-pressed={tab === name} onClick={() => setTab(name)}>{name}</button>)}
+						{(["Node", "Errors", "Scheduler", "Device"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} className="ed-button" aria-pressed={tab === name} onClick={() => setTab(name)}>{name}{name === "Errors" && diagnostics.length > 0 ? " " + diagnostics.length : ""}</button>)}
 					</div>
 					{tab === "Node" && (
-						selectedNode ? <NodeInspector node={selectedNode} task={selectedTask} fps={fps} refresh={device.refresh} layouts={layoutByDevice} /> : <div className="ed-empty">Enable “Pick node,” then click an Engine element in the preview.</div>
+						selectedNode ? <NodeInspector node={selectedNode} task={selectedTask} fps={fps} refresh={device.refresh} layouts={layoutByDevice} /> : <div className="ed-empty">Pick node, then select an Engine element in the preview.</div>
+					)}
+					{tab === "Errors" && (
+						<ErrorInspector
+							diagnostics={diagnostics}
+							selectedId={selectedDiagnosticId}
+							filter={diagnosticFilter}
+							onFilter={setDiagnosticFilter}
+							onSelect={setSelectedDiagnosticId}
+							onClear={() => { setDiagnostics([]); setSelectedDiagnosticId(null); }}
+						/>
 					)}
 					{tab === "Scheduler" && <SchedulerInspector snapshot={scheduler} transitions={transitions} />}
 					{tab === "Device" && <DeviceInspector device={device} layouts={layoutByDevice} selectedNode={selectedNode} changeMode={changeMode} updateDevice={updateDevice} />}
 				</aside>
 			</div>
 		</main>
+	);
+}
+
+
+function ErrorInspector({
+	diagnostics,
+	selectedId,
+	filter,
+	onFilter,
+	onSelect,
+	onClear,
+}: {
+	diagnostics: EngineDebugDiagnostic[];
+	selectedId: string | null;
+	filter: "all" | "error" | "warning";
+	onFilter: (value: "all" | "error" | "warning") => void;
+	onSelect: (id: string) => void;
+	onClear: () => void;
+}) {
+	const visible = diagnostics.filter((item) => filter === "all" || item.severity === filter).slice().reverse();
+	const selected = diagnostics.find((item) => item.id === selectedId);
+	const errorCount = diagnostics.filter((item) => item.severity === "error").length;
+	const warningCount = diagnostics.length - errorCount;
+	const copySelected = () => {
+		if (!selected || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+		void navigator.clipboard.writeText(formatEngineDebugDiagnostic(selected)).catch(() => undefined);
+	};
+	return (
+		<>
+			<div className="ed-severity-summary"><span><strong>{errorCount}</strong> errors</span><span><strong className="warn">{warningCount}</strong> warnings</span><span>{diagnostics.length}/200 captured</span></div>
+			<div className="ed-problem-toolbar">
+				{(["all", "error", "warning"] as const).map((value) => <button key={value} type="button" className="ed-filter" aria-pressed={filter === value} onClick={() => onFilter(value)}>{value === "all" ? "All" : value === "error" ? "Errors" : "Warnings"}</button>)}
+				<span className="ed-problem-count">{visible.length} shown</span>
+				<button type="button" className="ed-filter" onClick={onClear} disabled={diagnostics.length === 0}>Clear</button>
+			</div>
+			<div className="ed-diagnostic-list" aria-label="Captured problems">
+				{visible.length === 0 ? <div className="ed-empty">No captured problems. Run or reload the preview to collect console, runtime, rejection, and visible Next.js overlay errors.</div> : visible.map((item) => (
+					<button key={item.id} type="button" className="ed-diagnostic" aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
+						<span className={"ed-problem-glyph " + item.severity}>{item.severity === "error" ? "●" : "▲"}</span>
+						<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span><span>{new Date(item.at).toLocaleTimeString()}</span></span></span>
+					</button>
+				))}
+			</div>
+			{selected && (
+				<section className="ed-card" aria-label="Selected diagnostic details">
+					<h3>{selected.category} diagnostic</h3>
+					<DebugRow name="Severity" value={selected.severity.toUpperCase()} />
+					<DebugRow name="Likely owner" value={selected.ownerHint} />
+					<DebugRow name="Captured from" value={selected.source} />
+					{selected.location && <DebugRow name="Location" value={selected.location} />}
+					<p className="ed-explain">Owner is a heuristic from the message and stack, not proof. Verify the source before changing NE or application code.</p>
+					<pre className="ed-detail-text">{[selected.message, selected.detail].filter(Boolean).join("\n\n")}</pre>
+					<button type="button" className="ed-button" onClick={copySelected}>Copy details</button>
+				</section>
+			)}
+			<p className="ed-explain"><span className="ed-warning">Capture boundary:</span> browser errors, unhandled rejections, console errors, and visible Next.js error overlays are collected from the same-origin preview in memory. Server errors emitted before a page reaches the browser may still appear only in the Next.js overlay or dev-server terminal.</p>
+		</>
 	);
 }
 
