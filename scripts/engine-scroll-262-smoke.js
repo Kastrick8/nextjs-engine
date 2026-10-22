@@ -100,6 +100,7 @@ function main() {
 		global.ResizeObserver = class ResizeObserver {
 			observe() {}
 			unobserve() {}
+			disconnect() {}
 		};
 		global.window = {
 			scrollX: 0,
