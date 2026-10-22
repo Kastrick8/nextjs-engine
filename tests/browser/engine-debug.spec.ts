@@ -41,10 +41,7 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 	await page.goto("/_engine/debug");
 	const preview = page.frameLocator("iframe[title^='Live preview:']");
 	await expect(preview.locator("body")).toBeVisible();
-	await page.waitForFunction(() => {
-		const frame = document.querySelector<HTMLIFrameElement>('iframe[title^="Live preview:"]');
-		return frame?.contentDocument?.documentElement?.dataset.engineDebugConsoleCapture === "ready";
-	});
+	await expect(page.locator(".ed-preview-status")).toHaveText(/^(READY|ERROR)$/);
 
 	await preview.locator("body").evaluate(() => {
 		console.error("ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch");
