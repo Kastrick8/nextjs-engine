@@ -354,6 +354,23 @@ export const EngineCanvas = memo(function EngineCanvas({
 			resizeObserver.observe(canvas);
 		}
 
+		const handleWindowResize = (): void => {
+			const nextSize = getCanvasCssSize(canvas, width, height);
+			const nextDpr = getTargetDpr(dprProp, maxDpr);
+			const dprChanged = nextDpr !== currentDpr;
+			const cssSizeChanged = nextSize.width !== lastCssWidth || nextSize.height !== lastCssHeight;
+			const expectedWidth = Math.max(1, Math.round(nextSize.width * nextDpr));
+			const expectedHeight = Math.max(1, Math.round(nextSize.height * nextDpr));
+			const backingStoreChanged = canvas.width !== expectedWidth || canvas.height !== expectedHeight;
+			if (!dprChanged && !cssSizeChanged && !backingStoreChanged) return;
+			const resized = resizeBackingStore(nextSize.width, nextSize.height, nextDpr, true);
+			if (resized && !graphicsRef.current && onDrawRef.current) {
+				drawCompleted = false;
+				startLoop();
+			}
+		};
+		window.addEventListener("resize", handleWindowResize, { passive: true });
+
 		let intersectionObserver: IntersectionObserver | undefined;
 		if (pauseWhenOffscreen && typeof IntersectionObserver !== "undefined") {
 			intersectionObserver = new IntersectionObserver(([entry]) => {
@@ -412,6 +429,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 			graphicsEngine = null;
 			resizeObserver?.disconnect();
 			intersectionObserver?.disconnect();
+			window.removeEventListener("resize", handleWindowResize);
 			if (pauseWhenHidden) document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
 	}, [
