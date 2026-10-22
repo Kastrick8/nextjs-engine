@@ -432,6 +432,7 @@ function compileProject(projectRoot, options = {}) {
 		engineModuleCount: moduleAnalysis.summary.engineModuleCount,
 		localEngineModuleCount: moduleAnalysis.summary.localEngineModuleCount,
 		externalEngineModuleCount: moduleAnalysis.summary.externalEngineModuleCount,
+		schemaSourceEntryCount: moduleAnalysis.summary.schemaSourceEntryCount,
 		modulePassTimeMs: moduleAnalysis.summary.modulePassTimeMs,
 		schemaCandidateCount: candidateCount,
 		compiledPageCount: pages.length,
@@ -450,6 +451,7 @@ function compileProject(projectRoot, options = {}) {
 		compilerVersion: readVersion(projectRoot),
 		scannedSourceFiles: files.map((file) => displayPath(projectRoot, file)),
 		routes: moduleAnalysis.routes,
+		schemaSources: moduleAnalysis.schemaSources,
 		modules: moduleAnalysis.modules,
 		registeredCustomComponents: registered,
 		pages,
@@ -487,20 +489,22 @@ function resolveDistDir(projectRoot) {
 function summarizeNextOutputs(context = {}) {
 	const outputs = context && context.outputs && typeof context.outputs === "object" ? context.outputs : null;
 	if (!outputs) return undefined;
-	const kinds = [
-		["appPages", "appRouterEntries"],
-		["pages", "pagesRouterEntries"],
-		["pagesApi", "apiRoutes"],
-		["prerenders", "prerenders"],
-		["staticFiles", "staticFiles"],
+	const outputKinds = [
+		"appPages",
+		"appRoutes",
+		"pages",
+		"pagesApi",
+		"prerenders",
+		"staticFiles",
 	];
 	const counts = {};
 	const paths = {};
-	for (const [outputKey, manifestKey] of kinds) {
-		const entries = outputs[outputKey];
+	for (const kind of outputKinds) {
+		const entries = outputs[kind];
 		if (!Array.isArray(entries)) continue;
-		counts[manifestKey] = entries.length;
-		paths[manifestKey] = entries
+		counts[kind] = entries.length;
+		if (kind === "staticFiles") continue;
+		paths[kind] = entries
 			.map((entry) => entry && typeof entry.pathname === "string" ? entry.pathname : undefined)
 			.filter(Boolean)
 			.sort();
@@ -530,10 +534,12 @@ function emitArtifacts(projectRoot, inputPath, distDir, buildContext = {}) {
 	console.log("nextjs-engine | ✓ Emitted " + displayPath(root, outputFile) + " after Next.js build succeeded");
 	if (nextBuild) {
 		const labels = [
-			["appRouterEntries", "App Router entries"],
-			["pagesRouterEntries", "Pages Router entries"],
-			["apiRoutes", "API routes"],
+			["appPages", "App pages"],
+			["appRoutes", "App route handlers / metadata"],
+			["pages", "Pages Router pages"],
+			["pagesApi", "Pages API routes"],
 			["prerenders", "prerenders"],
+			["staticFiles", "static files"],
 		];
 		const parts = labels
 			.filter(([key]) => Number.isInteger(nextBuild.counts[key]))
@@ -594,6 +600,7 @@ module.exports = {
 	logEvent,
 	ASCII_WORDMARK,
 	BOTTOM_TEXT,
+	summarizeNextOutputs,
 	bannerMarkerPath,
 	printBanner,
 	printBannerOnce,
