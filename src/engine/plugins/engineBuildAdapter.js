@@ -97,7 +97,7 @@ function startCompiler(projectDir) {
 }
 
 const adapter = {
-	name: "nextjs-engine-generation-3-compiler",
+	name: "nenc",
 
 	async modifyConfig(config, context = {}) {
 		const delegate = await loadDelegateAdapter();
