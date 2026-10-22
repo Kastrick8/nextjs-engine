@@ -2,6 +2,7 @@
 
 import React, { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { EngineScroll } from "../core/enginescroll";
+import { EngineScheduler } from "../core/enginescheduler/EngineScheduler";
 import {
 	EngineShaderScheduler,
 	loadEngineShader,
@@ -136,7 +137,8 @@ function boundedFps(value: number | undefined, layer: boolean): number {
 
 function desiredDpr(maxDpr: number, resolutionScale: number): number {
 	const deviceDpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
-	return Math.max(0.125, Math.min(deviceDpr, maxDpr) * resolutionScale);
+	const scaledDpr = Math.min(deviceDpr, maxDpr) * resolutionScale;
+	return Math.max(0.125, Math.min(scaledDpr, maxDpr));
 }
 
 export const EngineShader = memo(function EngineShader(props: EngineShaderProps) {
@@ -233,6 +235,7 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		gl.useProgram(program);
 		gl.enableVertexAttribArray(position);
 		gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+		gl.clearColor(0, 0, 0, 0);
 
 		const builtins = {
 			resolution: gl.getUniformLocation(program, "e_resolution"),
@@ -257,7 +260,7 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		const reducedMotion = (config.respectReducedMotion ?? true)
 			&& window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 		const host = props.layer ? canvas.parentElement ?? canvas : canvas;
-		const currentDpr = desiredDpr(maxDpr, resolutionScale);
+		let currentDpr = desiredDpr(maxDpr, resolutionScale);
 		let cssWidth = Math.max(1, host.clientWidth || canvas.clientWidth || 1);
 		let cssHeight = Math.max(1, host.clientHeight || canvas.clientHeight || 1);
 		let lastTimestamp = 0;
@@ -270,16 +273,20 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		let pointerDirty = false;
 		let scrollProgress = 0;
 		let offscreen = false;
+		let contextLost = false;
 		let disposed = false;
 		let eventFrame = 0;
 		let animationCleanup: (() => void) | null = null;
+		let animationMonitorCleanup: (() => void) | null = null;
 
-		const resizeBackingStore = () => {
+		const resizeBackingStore = (): boolean => {
 			const width = Math.max(1, Math.round(cssWidth * currentDpr));
 			const height = Math.max(1, Math.round(cssHeight * currentDpr));
+			if (canvas.width === width && canvas.height === height) return false;
 			if (canvas.width !== width) canvas.width = width;
 			if (canvas.height !== height) canvas.height = height;
 			gl.viewport(0, 0, width, height);
+			return true;
 		};
 		resizeBackingStore();
 
@@ -302,14 +309,11 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		};
 
 		const draw = (timestamp: number) => {
-			if (disposed || offscreen || ((config.pauseWhenHidden ?? true) && document.hidden)) return;
+			if (disposed || contextLost || offscreen || ((config.pauseWhenHidden ?? true) && document.hidden)) return;
 			syncPointer();
 			const delta = lastDrawTimestamp === 0 ? 0 : Math.min(250, timestamp - lastDrawTimestamp);
 			lastDrawTimestamp = timestamp;
 			frameNumber += 1;
-			gl.useProgram(program);
-			gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-			gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 			gl.uniform2f(builtins.resolution, canvas.width, canvas.height);
 			gl.uniform1f(builtins.time, timestamp / 1000);
 			gl.uniform1f(builtins.delta, delta / 1000);
@@ -317,7 +321,6 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			gl.uniform2f(builtins.pointer, pointerX, pointerY);
 			gl.uniform1f(builtins.scroll, scrollProgress);
 			uploadVariables();
-			gl.clearColor(0, 0, 0, 0);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 			gl.drawArrays(gl.TRIANGLES, 0, 3);
 			if (!readyRef.current) {
@@ -345,18 +348,34 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			draw(timestamp);
 		};
 
+		const scheduledAnimationFrame = (timestamp: number) => {
+			try {
+				animationFrame(timestamp);
+			} catch (reason) {
+				animationCleanup?.();
+				animationCleanup = null;
+				animationMonitorCleanup?.();
+				animationMonitorCleanup = null;
+				throw reason;
+			}
+		};
+
 		const syncAnimationSubscription = () => {
 			const shouldAnimate = plan.execution === "animated"
 				&& !reducedMotion
+				&& !contextLost
 				&& !offscreen
 				&& !((config.pauseWhenHidden ?? true) && document.hidden);
 			if (shouldAnimate && !animationCleanup) {
 				lastTimestamp = 0;
 				lastDrawTimestamp = 0;
-				animationCleanup = EngineShaderScheduler.add(animationFrame);
+				animationMonitorCleanup = EngineScheduler.acquireFrameMonitor();
+				animationCleanup = EngineShaderScheduler.add(scheduledAnimationFrame);
 			} else if (!shouldAnimate && animationCleanup) {
 				animationCleanup();
 				animationCleanup = null;
+				animationMonitorCleanup?.();
+				animationMonitorCleanup = null;
 			}
 		};
 
@@ -381,17 +400,29 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			updateScroll();
 			cleanups.push(EngineScroll.subscribe(updateScroll));
 		}
+		const syncCanvasSize = (observedSize?: { width: number; height: number }) => {
+			const nextWidth = Math.max(1, observedSize?.width || host.clientWidth || canvas.clientWidth || 1);
+			const nextHeight = Math.max(1, observedSize?.height || host.clientHeight || canvas.clientHeight || 1);
+			const nextDpr = desiredDpr(maxDpr, resolutionScale);
+			const changed = nextWidth !== cssWidth || nextHeight !== cssHeight || nextDpr !== currentDpr;
+			if (!changed) return;
+			cssWidth = nextWidth;
+			cssHeight = nextHeight;
+			currentDpr = nextDpr;
+			resizeBackingStore();
+			if (plan.execution !== "animated") requestEventDraw();
+		};
 		if (typeof ResizeObserver !== "undefined") {
 			const resizeObserver = new ResizeObserver(([entry]) => {
 				if (!entry) return;
-				cssWidth = Math.max(1, entry.contentRect.width || host.clientWidth || 1);
-				cssHeight = Math.max(1, entry.contentRect.height || host.clientHeight || 1);
-				resizeBackingStore();
-				if (plan.execution !== "animated") requestEventDraw();
+				syncCanvasSize({ width: entry.contentRect.width, height: entry.contentRect.height });
 			});
 			resizeObserver.observe(host);
 			cleanups.push(() => resizeObserver.disconnect());
 		}
+		const handleWindowResize = () => syncCanvasSize();
+		window.addEventListener("resize", handleWindowResize, { passive: true });
+		cleanups.push(() => window.removeEventListener("resize", handleWindowResize));
 		if ((config.pauseWhenOffscreen ?? true) && typeof IntersectionObserver !== "undefined") {
 			const intersectionObserver = new IntersectionObserver(([entry]) => {
 				offscreen = !entry?.isIntersecting;
@@ -417,8 +448,22 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			requestEventDraw();
 		}
 
-		const onContextLost = (event: Event) => event.preventDefault();
-		const onContextRestored = () => setContextVersion((version) => version + 1);
+		const onContextLost = (event: Event) => {
+			event.preventDefault();
+			contextLost = true;
+			if (eventFrame !== 0) {
+				cancelAnimationFrame(eventFrame);
+				eventFrame = 0;
+			}
+			animationCleanup?.();
+			animationCleanup = null;
+			animationMonitorCleanup?.();
+			animationMonitorCleanup = null;
+		};
+		const onContextRestored = () => {
+			contextLost = false;
+			setContextVersion((version) => version + 1);
+		};
 		canvas.addEventListener("webglcontextlost", onContextLost);
 		canvas.addEventListener("webglcontextrestored", onContextRestored);
 		cleanups.push(() => {
@@ -432,6 +477,8 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			if (eventFrame !== 0) cancelAnimationFrame(eventFrame);
 			animationCleanup?.();
 			animationCleanup = null;
+			animationMonitorCleanup?.();
+			animationMonitorCleanup = null;
 			for (const cleanup of cleanups) cleanup();
 			gl.deleteBuffer(positionBuffer);
 			gl.deleteProgram(program);
