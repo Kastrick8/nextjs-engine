@@ -126,6 +126,12 @@ check(shaderRuntime.includes("Number.isFinite(configuredMaxDpr)")
 check(shaderRuntime.includes("if (eventFrame !== 0 || disposed || contextLost || offscreen")
 	&& shaderRuntime.includes("animationMonitorCleanup?.();"),
 	"Shader avoids scheduling paused/context-lost event draws and releases active monitoring");
+check(shaderRuntime.includes("frameIntervalRef.current")
+	&& !shaderRuntime.includes("\n\t\tconfig?.fps,"),
+	"changing the shader FPS cap does not rebuild/link the WebGL program");
+check(shaderRuntime.includes("}, [variableSignatureKey]);")
+	&& !shaderRuntime.includes("}, [props.variables, props.shader]);"),
+	"event shaders avoid redundant GPU redraws when an inline config object has unchanged values");
 const drawStart = shaderRuntime.indexOf("const draw = (timestamp: number) => {");
 const drawEnd = shaderRuntime.indexOf("const requestEventDraw", drawStart);
 const shaderDrawBody = shaderRuntime.slice(drawStart, drawEnd);
