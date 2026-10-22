@@ -82,7 +82,18 @@ The preview displays a waiting/building state until its response arrives, a read
 
 ## Validation status
 
-This note is a prepared alpha-candidate release document, not proof of a published stable release. The diagnostics smoke and TypeScript check pass in the current development workflow. The full runtime workflow has also reported an existing EngineScroll observer-teardown failure, so the complete suite must be green or the remaining issue explicitly resolved/accepted before presenting this candidate as fully validated.
+This is a prepared alpha-candidate note, not proof of a published GitHub Release.
+
+Validation on merged upstream commit `7c373ffd1d54859dde3a7a1900e823a14264eba2`:
+
+- Engine runtime CI passed: [workflow run #340](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/39845431110).
+- Chromium, Firefox and WebKit browser compatibility passed: [workflow run #143](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/39845431494).
+- The distributable package sync completed `npm run type-check` and `npm run pack:check`. Its final direct push was rejected by protection on `main-3-package`; the same validated package snapshot was then merged through [PR #33](https://github.com/Kate-alt-69/nextjs-engine/pull/33).
+- Kastrick's vendored update is merged and its Vercel deployment status is green.
+
+The Engine repository still reports a red Vercel status targeting the `roavio` deployment project. Its build logs were not accessible in this workflow, so that status remains separately unresolved rather than being presented as a failing Engine runtime test. The Engine Actions runtime and browser suites above are green.
+
+Generation 3 remains an alpha candidate. The latest published stable release is `Release-v2.6.2`; `v3.0.0-alpha.1` has not yet been published as an official GitHub Release or tag.
 
 ## Links
 
