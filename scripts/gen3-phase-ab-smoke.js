@@ -117,12 +117,18 @@ check(canvasCore.includes("window.addEventListener(\"resize\", handleWindowResiz
 check(canvasCore.includes("Number.isFinite(deviceDpr)")
 	&& canvasCore.includes("Number.isFinite(maxDpr)"),
 	"Canvas normalizes invalid DPR inputs before sizing the backing store");
+check(canvasCore.includes('canvas.addEventListener("webglcontextlost", handleContextLost)')
+	&& canvasCore.includes("setContextVersion((version) => version + 1)"),
+	"Canvas pauses on WebGL context loss and rebuilds runtime resources after restoration");
 check(canvasCore.includes("const onSetupRef = useRef(resolvedOnSetup)")
 	&& !canvasCore.includes("\n\t\tresolvedOnSetup,\n\t]);"),
 	"Canvas does not rebuild the renderer only because an inline onSetup callback identity changed");
 check(shaderRuntime.includes("Number.isFinite(configuredMaxDpr)")
 	&& shaderRuntime.includes("Number.isFinite(deviceDpr)"),
 	"Shader normalizes invalid DPR inputs before sizing the backing store");
+check(shaderRuntime.includes('canvas.addEventListener("webglcontextlost", onContextLost)')
+	&& shaderRuntime.includes("contextLost = false;\n\t\t\tsetContextVersion((version) => version + 1)"),
+	"Shader stops animation on context loss and recreates GL resources after restoration");
 check(shaderRuntime.includes("if (eventFrame !== 0 || disposed || contextLost || offscreen")
 	&& shaderRuntime.includes("animationMonitorCleanup?.();"),
 	"Shader avoids scheduling paused/context-lost event draws and releases active monitoring");
@@ -154,6 +160,9 @@ check(manim3D.includes("releaseFrameMonitor ??= EngineScheduler.acquireFrameMoni
 check(manim3D.includes("const lookWorldPosition = lookTarget ? new THREE.Vector3() : null")
 	&& !manim3D.includes("const worldPosition = new THREE.Vector3()"),
 	"Manim3D reuses its camera target vector instead of allocating one each frame");
+check(manim3D.includes('canvas.addEventListener("webglcontextlost", handleContextLost)')
+	&& manim3D.includes("if (contextLost || !nearViewport || !documentVisible)"),
+	"Manim3D pauses GPU work during WebGL context loss and resumes after restoration");
 check(!manim3D.includes("sampled.rotate.map(toRad)")
 	&& !manim3D.includes("const origin = mixer ? [target.position.x"),
 	"Manim3D bone tracks avoid short-lived arrays in the animation hot path");
