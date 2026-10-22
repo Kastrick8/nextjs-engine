@@ -94,6 +94,9 @@ export const EngineManim3D = memo(function EngineManim3D({
 }: EngineManim3DProps) {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const cfg = cprop.manim3d;
+	// Schema config is plain serializable data; keying by value prevents an
+	// inline-but-identical cprop object from restarting model loading/rendering.
+	const cfgKey = JSON.stringify(cfg);
 
 	useEffect(() => {
 		const mountedCanvas = canvasRef.current;
@@ -494,7 +497,7 @@ export const EngineManim3D = memo(function EngineManim3D({
 			disposed = true;
 			cleanupInitializedRuntime?.();
 		};
-	}, [cfg, width, height]);
+	}, [cfgKey, width, height]);
 
 	const canvasStyle: CSSProperties = {
 		display: "block",
