@@ -180,10 +180,11 @@ function schemaCandidates(sourceFile, vars) {
 	return candidates.filter(({ result }) => result.ok && result.value && typeof result.value === "object"
 		&& result.value.root && typeof result.value.root.type === "string");
 }
-function registeredCustomTypes(sourceFiles) {
+function registeredCustomTypes(sourceFiles, sourceByPath = new Map()) {
 	const types = new Set();
 	for (const file of sourceFiles) {
-		const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+		const source = sourceByPath.get(path.resolve(file))
+			|| ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
 		function visit(node) {
 			if (ts.isCallExpression(node) && callName(node) === "registerComponent" && node.arguments.length) {
 				const first = unwrap(node.arguments[0]);
@@ -351,7 +352,7 @@ function compileProject(projectRoot, options = {}) {
 		schemaSymbolsByFile,
 		schemaCandidateCountsByFile,
 	});
-	const registered = registeredCustomTypes(files);
+	const registered = registeredCustomTypes(files, sourceByPath);
 	installTypeScriptRequireHook();
 	const compilePage = require(path.join(__dirname, "../compiler/EngineCompiler.ts")).compilePage;
 	const pages = [];
