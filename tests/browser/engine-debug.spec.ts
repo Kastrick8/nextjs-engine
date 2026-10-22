@@ -41,16 +41,30 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 	await page.goto("/_engine/debug");
 	const preview = page.frameLocator("iframe[title^='Live preview:']");
 	await expect(preview.locator("body")).toBeVisible();
-	await page.waitForFunction(() => {
-		const frame = document.querySelector<HTMLIFrameElement>('iframe[title^="Live preview:"]');
-		const previewWindow = frame?.contentWindow as (Window & { __NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__?: boolean }) | null | undefined;
-		return previewWindow?.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__ === true;
-	});
+	await expect(page.locator(".ed-preview-status")).toHaveText(/^(READY|ERROR)$/);
 
 	await preview.locator("body").evaluate(() => {
 		console.error("ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch");
 	});
 	await page.getByRole("tab", { name: /Errors/ }).click();
-	await expect(page.getByText(/ENGINE_DEBUG_CAPTURE_SMOKE/)).toBeVisible();
-	await expect(page.getByText("Hydration", { exact: true })).toBeVisible();
+	const capturedDiagnostic = page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_CAPTURE_SMOKE" });
+	await expect(capturedDiagnostic).toBeVisible();
+	await expect(capturedDiagnostic).toContainText("Hydration");
+});
+
+test("EngineDebug shows a waiting state while the preview response is pending", async ({ page }) => {
+	let continuePreview!: () => void;
+	const previewGate = new Promise<void>((resolve) => {
+		continuePreview = resolve;
+	});
+	await page.route(/__engine_debug=1/, async (route) => {
+		await previewGate;
+		await route.continue();
+	});
+
+	await page.goto("/_engine/debug");
+	await expect(page.getByText("Waiting for Next.js…", { exact: true })).toBeVisible();
+	continuePreview();
+	await expect(page.locator(".ed-preview-state")).toHaveCount(0);
+	await expect(page.locator(".ed-preview-status")).toHaveText(/^(READY|ERROR)$/);
 });

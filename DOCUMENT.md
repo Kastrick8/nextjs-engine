@@ -1,6 +1,7 @@
 # Next.js Engine — Technical Documentation
 
-> **Last updated:** 2026-09-15
+> **Last updated:** 2026-10-22
+> - **Generation 3 alpha candidate and EngineDebug preview lifecycle** — Prepared `3.0.0-alpha.1` candidate notes describing the compiler-first/server-first architectural shift from Generation 2. EngineDebug now has an accessible WAITING overlay with indeterminate progress, a persistent WAITING/READY/ERROR status, reload and Problems actions, plus regression coverage for the pending-preview state. The candidate is not a published GitHub Release; the latest published stable release remains v2.6.2.
 > **Changes in this update:**
 > - **Generation 3 EngineDebug D.5–D.10** — Added the development-only `/_engine/debug` workbench with application route exploration, live preview, compiler-node picking, static/server/client/deferred boundary overlays, live scheduler states and transitions, and desktop/tablet/phone/custom device simulation. The plugin removes its generated route before production route discovery, and CI proves no debug route or workbench module enters the production output.
 > - **Generation 3 EngineSEO** — Added a JSON-style SEO schema and `engineseo.set.*` builder that generate Next.js metadata, canonical/OpenGraph/Twitter tags, Google/Bing verification, sitemap and robots results, safely escaped JSON-LD, dynamic `ImageResponse` cards, custom previews, and real website-screenshot previews. The combined plugin can discover static routes and generate protected Next metadata files without overwriting application-owned files.

@@ -120,6 +120,12 @@ try {
 		"Copy details",
 		"ed-activity",
 		"ed-problem-toolbar",
+		"Waiting for Next.js",
+		"ed-preview-progress",
+		"aria-busy={previewStatus === \"waiting\"}",
+		"Reload preview",
+		"View Problems",
+		"handlePreviewLoad",
 	]) assert.ok(pageSource.includes(required), "debug workbench includes " + required);
 
 	console.log("Generation 3 EngineDebug diagnostics smoke: ok");

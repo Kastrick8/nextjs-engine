@@ -4,12 +4,12 @@
 
 Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, graphics, API, motion, and browser plumbing in every app, NE lets you describe UI as typed schema objects and routes that schema through shared Engine systems.
 
-**Current development / release target:** **NE v2.6.1**  
-**Latest stability notes:** [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md)  
-**Latest major feature notes:** [`docs/release/NE-v2-6-0.md`](./docs/release/NE-v2-6-0.md)  
-**Latest published GitHub release:** [NE v2.5.0](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.5.0)
+**Current development track:** **NE v3.0.0-alpha.1 (Generation 3, prerelease candidate)**  
+**Generation 3 release notes:** [`docs/release/NE-v3-0-0-alpha-1.md`](./docs/release/NE-v3-0-0-alpha-1.md)  
+**Latest published v2 release:** [NE v2.6.2](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.6.2)  
+**Current Gen 3 branch:** [`main-3`](https://github.com/Kate-alt-69/nextjs-engine/tree/main-3)
 
-> v2.6.x is the Shader + Motion + Scroll + Overlay generation of NE. v2.6.1 focuses on React 19 hydration, App Router stability, primitive style correctness, routing consistency, and regression coverage.
+> Generation 3 is a substantial, compiler-first and server-first architectural update from Generation 2. It is still an alpha track, not the stable 2.x contract. Keep existing production apps on their validated release line until their Gen 3 migration has been tested.
 
 ---
 
