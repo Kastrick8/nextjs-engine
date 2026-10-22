@@ -406,8 +406,8 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			<style>{PAGE_CSS}</style>
 			<header className="ed-head">
 				<span className="ed-brand-mark" aria-hidden="true">NE</span>
-				<h1>Engine Debug</h1>
-				<span className="ed-badge">DEV</span>
+				<h1>Next.js Engine Debug</h1>
+				<span className="ed-badge">DEV ONLY</span>
 				<span className="ed-count">{diagnostics.filter((item) => item.severity === "error").length} errors · {diagnostics.filter((item) => item.severity === "warning").length} warnings · /_engine/debug</span>
 			</header>
 			<div className="ed-body">
@@ -418,7 +418,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					<button type="button" className="ed-activity-button" aria-label="Device" title="Device simulation" aria-pressed={tab === "Device"} onClick={() => setTab("Device")}><span className="ed-activity-glyph">▦</span></button>
 				</nav>
 				<nav className="ed-sidebar" aria-label="Application pages">
-					<h2 className="ed-section-title">Explorer</h2>
+					<h2 className="ed-section-title">Page explorer</h2>
 					<div className="ed-sidebar-subtitle">APPLICATION ROUTES</div>
 					{pages.map((route) => (
 						<button key={route} type="button" className="ed-route" data-route={route} aria-current={selectedPage === route ? "page" : undefined} onClick={() => { setSelectedPage(route); setSelectedNode(null); }}>
