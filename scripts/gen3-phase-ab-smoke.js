@@ -159,6 +159,9 @@ check(!manim3D.includes("sampled.rotate.map(toRad)")
 	"Manim3D bone tracks avoid short-lived arrays in the animation hot path");
 check(manim3D.includes("Number.isFinite(configuredFps)"),
 	"Manim3D normalizes invalid FPS input before animation timing arithmetic");
+check(manim3D.includes("const cfgKey = JSON.stringify(cfg);")
+	&& manim3D.includes("[cfgKey, width, height]"),
+	"identical inline Manim3D config objects do not reload models or recreate the WebGL renderer");
 
 const scrollPoints = read("src/engine/core/enginescroll/EngineScrollPointManager.ts");
 check(scrollPoints.includes("private static releaseObserverIfUnused()")
