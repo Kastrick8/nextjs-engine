@@ -426,7 +426,6 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					} catch {
 						try { frameWindow.console.error = originalConsoleError; } catch { /* Console method is browser-owned. */ }
 					}
-					delete frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__;
 				}
 				overlayObserver.disconnect();
 				frameWindow.clearInterval(scanTimer);
