@@ -24,7 +24,7 @@ try {
 	assert.deepEqual(banner, renderBannerLines(), "the output is exactly the shared framed banner render");
 	const bannerAssetDirectory = path.join(__dirname, "..", "src/engine/plugins/banner");
 	const readBannerAsset = (name) => fs.readFileSync(path.join(bannerAssetDirectory, name), "utf8")
-		.replace(/^\\uFEFF/, "").replace(/\\r\\n?/g, "\\n").replace(/\\n$/, "").split("\\n");
+		.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").replace(/\n$/, "").split("\n");
 	assert.deepEqual(ASCII_WORDMARK, readBannerAsset("wordmark.txt"),
 		"the main wordmark is loaded directly from its committed TXT asset");
 	assert.deepEqual(BOTTOM_TEXT, readBannerAsset("bottom-text.txt"),
