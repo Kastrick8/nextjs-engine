@@ -136,9 +136,14 @@ function boundedFps(value: number | undefined, layer: boolean): number {
 }
 
 function desiredDpr(maxDpr: number, resolutionScale: number): number {
-	const deviceDpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
-	const scaledDpr = Math.min(deviceDpr, maxDpr) * resolutionScale;
-	return Math.max(0.125, Math.min(scaledDpr, maxDpr));
+	const deviceDpr = typeof window === "undefined" ? 1 : window.devicePixelRatio;
+	const safeDeviceDpr = Number.isFinite(deviceDpr) && deviceDpr > 0 ? deviceDpr : 1;
+	const safeMaxDpr = Number.isFinite(maxDpr) ? Math.max(0.5, maxDpr) : 2;
+	const safeResolutionScale = Number.isFinite(resolutionScale)
+		? Math.max(0.125, Math.min(2, resolutionScale))
+		: 1;
+	const scaledDpr = Math.min(safeDeviceDpr, safeMaxDpr) * safeResolutionScale;
+	return Math.max(0.125, Math.min(scaledDpr, safeMaxDpr));
 }
 
 export const EngineShader = memo(function EngineShader(props: EngineShaderProps) {
@@ -255,7 +260,10 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		const layer = props.layer === true;
 		const targetFps = boundedFps(config.fps, layer);
 		const frameInterval = 1000 / targetFps;
-		const maxDpr = Math.max(0.5, config.maxDpr ?? (layer ? 1.5 : 2));
+		const configuredMaxDpr = config.maxDpr;
+		const maxDpr = typeof configuredMaxDpr === "number" && Number.isFinite(configuredMaxDpr)
+			? Math.max(0.5, configuredMaxDpr)
+			: layer ? 1.5 : 2;
 		const resolutionScale = Math.max(0.125, Math.min(2, plan.render.resolution || 1));
 		const reducedMotion = (config.respectReducedMotion ?? true)
 			&& window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
