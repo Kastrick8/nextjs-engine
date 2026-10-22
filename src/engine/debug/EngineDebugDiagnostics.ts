@@ -24,8 +24,13 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
 
 export function redactEngineDebugText(value: unknown, maxLength = MAX_MESSAGE_LENGTH): string {
 	let text: string;
-	if (value instanceof Error) {
-		text = [value.name + ": " + value.message, value.stack].filter(Boolean).join("\n");
+	const errorLike = value && typeof value === "object"
+		? value as { name?: unknown; message?: unknown; stack?: unknown }
+		: undefined;
+	if (value instanceof Error || (errorLike && typeof errorLike.message === "string" && typeof errorLike.stack === "string")) {
+		const name = typeof errorLike?.name === "string" && errorLike.name ? errorLike.name : "Error";
+		const message = typeof errorLike?.message === "string" ? errorLike.message : String(value);
+		text = [name + ": " + message, typeof errorLike?.stack === "string" ? errorLike.stack : ""].filter(Boolean).join("\n");
 	} else if (typeof value === "string") {
 		text = value;
 	} else {
@@ -79,9 +84,10 @@ export function createEngineDebugDiagnostic(input: {
 	const stable = [input.source, classification.category, message, location ?? ""].join("|");
 	let hash = 2166136261;
 	for (let index = 0; index < stable.length; index++) hash = Math.imul(hash ^ stable.charCodeAt(index), 16777619);
+	const at = input.now ?? Date.now();
 	return {
-		id: (hash >>> 0).toString(16) + "-" + String(input.now ?? Date.now()),
-		at: input.now ?? Date.now(),
+		id: (hash >>> 0).toString(16) + "-" + String(at),
+		at,
 		...classification,
 		source: input.source,
 		message,
