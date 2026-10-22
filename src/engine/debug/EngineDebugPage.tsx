@@ -93,7 +93,7 @@ button,input,select{font:inherit;color:inherit}.ed-shell{height:100dvh;display:g
 .ed-head{display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ed-border);background:#181818}.ed-brand-mark{width:18px;height:18px;display:grid;place-items:center;border:1px solid #5da9e9;color:#75beff;font:700 10px ui-monospace,monospace}.ed-head h1{font-size:12px;font-weight:600;margin:0;color:#f1f1f1}.ed-badge{font:600 9px ui-monospace,monospace;color:#89d185;border:1px solid #365d36;border-radius:3px;padding:2px 5px;letter-spacing:.04em}.ed-body{min-height:0;display:grid;grid-template-columns:42px 196px minmax(280px,1fr) 304px}
 .ed-activity{display:flex;align-items:center;flex-direction:column;gap:4px;padding:7px 0;background:var(--ed-panel-alt);border-right:1px solid #242424}.ed-activity-button{width:34px;height:36px;border:0;border-left:2px solid transparent;background:transparent;color:#858585;display:grid;place-items:center;cursor:pointer;font:16px/1 ui-sans-serif,system-ui;border-radius:0}.ed-activity-button:hover{color:#eee;background:#232323}.ed-activity-button[aria-pressed="true"]{color:#fff;border-left-color:#fff;background:#202020}.ed-activity-button .ed-activity-glyph{font-size:16px}
 .ed-sidebar,.ed-inspector{min-height:0;overflow:auto;background:var(--ed-panel)}.ed-sidebar{border-right:1px solid var(--ed-border);padding:0 0 12px}.ed-inspector{border-left:1px solid var(--ed-border);padding:0 10px 14px}.ed-section-title{margin:0;padding:13px 12px 9px;color:#bbbbbb;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}.ed-sidebar-subtitle{padding:3px 12px 10px;color:var(--ed-muted);font:10px ui-monospace,monospace}
-.ed-route,.ed-button,.ed-mode,.ed-filter,.ed-diagnostic{border:1px solid transparent;background:transparent;color:var(--ed-text);border-radius:2px;cursor:pointer}.ed-route{display:block;width:100%;padding:5px 10px 5px 17px;text-align:left;margin:0;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ed-route:hover{background:var(--ed-hover)}.ed-route[aria-current="page"]{background:#37373d;color:#fff}.ed-button,.ed-mode{padding:5px 8px;font-size:11px;border-radius:2px}.ed-button:hover,.ed-mode:hover{background:var(--ed-hover)}.ed-button[aria-pressed="true"],.ed-mode[aria-pressed="true"]{background:#094771;color:#fff}.ed-stage{min-width:0;min-height:0;display:grid;grid-template-rows:36px minmax(0,1fr);background:#1e1e1e}.ed-tools{display:flex;align-items:center;gap:5px;padding:4px 8px;border-bottom:1px solid var(--ed-border);background:#252526}.ed-spacer{flex:1}.ed-fps{font:10px ui-monospace,monospace;color:#9cdcfe;white-space:nowrap}.ed-viewport-scroll{overflow:auto;padding:15px;display:grid;place-items:start center;background-color:#1e1e1e;background-image:radial-gradient(#343434 .6px,transparent .6px);background-size:9px 9px}.ed-frame-shell{flex:none;background:white;overflow:hidden;box-shadow:0 8px 22px #0006;border:1px solid #444}.ed-frame{display:block;width:100%;height:100%;border:0;background:white}
+.ed-route,.ed-button,.ed-mode,.ed-filter,.ed-diagnostic{border:1px solid transparent;background:transparent;color:var(--ed-text);border-radius:2px;cursor:pointer}.ed-route{display:block;width:100%;padding:5px 10px 5px 17px;text-align:left;margin:0;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ed-route:hover{background:var(--ed-hover)}.ed-route[aria-current="page"]{background:#37373d;color:#fff}.ed-button,.ed-mode{padding:5px 8px;font-size:11px;border-radius:2px}.ed-button:hover,.ed-mode:hover{background:var(--ed-hover)}.ed-button[aria-pressed="true"],.ed-mode[aria-pressed="true"]{background:#094771;color:#fff}.ed-stage{min-width:0;min-height:0;display:grid;grid-template-rows:36px minmax(0,1fr);background:#1e1e1e}.ed-tools{display:flex;align-items:center;gap:5px;padding:4px 8px;border-bottom:1px solid var(--ed-border);background:#252526}.ed-spacer{flex:1}.ed-fps{font:10px ui-monospace,monospace;color:#9cdcfe;white-space:nowrap}.ed-viewport-scroll{overflow:auto;padding:15px;display:grid;place-items:start center;background-color:#1e1e1e;background-image:radial-gradient(#343434 .6px,transparent .6px);background-size:9px 9px}.ed-frame-shell{flex:none;position:relative;background:white;overflow:hidden;box-shadow:0 8px 22px #0006;border:1px solid #444}.ed-frame{display:block;width:100%;height:100%;border:0;background:white}.ed-preview-state{position:absolute;inset:0;z-index:2;display:grid;place-items:center;padding:18px;background:rgba(24,24,24,.94);color:#d4d4d4}.ed-preview-state[hidden]{display:none}.ed-preview-state-card{width:min(340px,100%);display:grid;justify-items:center;gap:11px;padding:22px 20px;border:1px solid #454545;border-radius:5px;background:#252526;box-shadow:0 12px 42px #0007;text-align:center}.ed-preview-orbit{width:32px;height:32px;border:2px solid #3d3d3d;border-top-color:#75beff;border-right-color:#007acc;border-radius:50%;animation:ed-preview-spin .9s linear infinite}.ed-preview-state.error .ed-preview-orbit{border-color:#f48771;background:transparent;animation:none;position:relative}.ed-preview-state.error .ed-preview-orbit:after{content:"!";position:absolute;inset:0;display:grid;place-items:center;color:#f48771;font-weight:800}.ed-preview-title{font-size:13px;font-weight:650;color:#f1f1f1}.ed-preview-description{max-width:285px;color:#a8a8a8;font-size:11px;line-height:1.55}.ed-preview-progress{width:100%;height:3px;overflow:hidden;border-radius:9px;background:#3a3a3a}.ed-preview-progress:after{content:"";display:block;width:38%;height:100%;background:#007acc;animation:ed-preview-progress 1.35s ease-in-out infinite}.ed-preview-state.error .ed-preview-progress{display:none}.ed-preview-actions{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}.ed-preview-status{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;border:1px solid #3c3c3c;border-radius:3px;padding:3px 6px;font:9px ui-monospace,monospace;color:#aaa}.ed-preview-status:before{content:"";width:5px;height:5px;background:#cca700;border-radius:50%}.ed-preview-status.ready{color:#89d185;border-color:#365d36}.ed-preview-status.ready:before{background:#89d185}.ed-preview-status.error{color:#f48771;border-color:#69413a}.ed-preview-status.error:before{background:#f48771}@keyframes ed-preview-spin{to{transform:rotate(360deg)}}@keyframes ed-preview-progress{0%{transform:translateX(-120%)}100%{transform:translateX(360%)}}@media(prefers-reduced-motion:reduce){.ed-preview-orbit,.ed-preview-progress:after{animation:none}}
 .ed-tabs{display:flex;gap:0;margin:0 -10px 12px;position:sticky;top:0;padding:0 6px;background:var(--ed-panel);border-bottom:1px solid var(--ed-border);z-index:2;overflow-x:auto}.ed-tabs .ed-button{white-space:nowrap;padding:11px 8px 9px;border:0;border-bottom:1px solid transparent;color:#999}.ed-tabs .ed-button[aria-pressed="true"]{border-bottom-color:#007acc;background:transparent;color:#f0f0f0}.ed-tabs .ed-button:hover{background:#2a2d2e}.ed-card{border:1px solid #383838;background:#1f1f1f;border-radius:3px;padding:9px;margin-bottom:8px}.ed-card h3{font-size:12px;font-weight:600;margin:0 0 8px;color:#e7e7e7}.ed-row{display:grid;grid-template-columns:78px minmax(0,1fr);gap:7px;padding:4px 0;font-size:11px;line-height:1.45}.ed-key{color:#9da0a5}.ed-value{color:#d4d4d4;overflow-wrap:anywhere}.ed-chip{display:inline-block;padding:2px 5px;margin:2px;border-radius:2px;background:#333;color:#ccc;font:600 9px ui-monospace,monospace}.ed-task{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}.ed-task-name{font-size:11px;font-weight:500}.ed-task-state{text-align:right;white-space:nowrap}.ed-transition{font:10px/1.5 ui-monospace,monospace;color:#9da0a5;border-left:2px solid #555;padding-left:8px;margin:7px 0}.ed-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}.ed-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.ed-field{display:grid;gap:4px;color:#9da0a5;font-size:10px}.ed-field input,.ed-field select{width:100%;border:1px solid #454545;border-radius:2px;background:#181818;color:#ddd;padding:5px}.ed-check{display:flex;gap:7px;align-items:center;font-size:11px;color:#ccc}.ed-empty{padding:22px 8px;color:#858585;text-align:center;font-size:11px;line-height:1.5}.ed-explain{font-size:11px;line-height:1.55;color:#c7c7c7}.ed-warning{color:#e2c08d}.ed-count{margin-left:auto;color:#999;font:10px ui-monospace,monospace}
 .ed-route-picker{display:flex;align-items:center;gap:5px;min-width:0;color:#999;font-size:10px;white-space:nowrap}.ed-route-picker select{min-width:0;max-width:180px;border:1px solid #454545;border-radius:2px;background:#181818;color:#ddd;padding:4px 5px;font:10px ui-monospace,SFMono-Regular,Consolas,monospace}.ed-problem-toolbar{display:flex;align-items:center;gap:4px;margin:0 0 8px;flex-wrap:wrap}.ed-filter{padding:4px 7px;border-color:#424242;color:#bdbdbd;font-size:10px}.ed-filter[aria-pressed="true"]{background:#37373d;border-color:#666;color:#fff}.ed-problem-count{margin-left:auto;color:#999;font:10px ui-monospace,monospace}.ed-diagnostic-list{display:grid;gap:2px;margin-bottom:12px}.ed-diagnostic{display:grid;grid-template-columns:12px minmax(0,1fr);gap:6px;width:100%;padding:6px 7px;text-align:left;border-radius:2px}.ed-diagnostic:hover{background:#2a2d2e}.ed-diagnostic[aria-pressed="true"]{background:#094771}.ed-problem-glyph{font:700 11px ui-monospace,monospace}.ed-problem-glyph.error{color:var(--ed-error)}.ed-problem-glyph.warning{color:var(--ed-warning)}.ed-diagnostic-message{font-size:11px;line-height:1.4;display:block;overflow-wrap:anywhere;color:#ddd}.ed-diagnostic-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;color:#999;font:9px ui-monospace,monospace}.ed-severity-summary{display:flex;gap:12px;padding:7px 0 9px;border-bottom:1px solid #383838;margin-bottom:8px;color:#bdbdbd;font:10px ui-monospace,monospace}.ed-severity-summary strong{color:#f48771}.ed-severity-summary .warn{color:#cca700}.ed-detail-text{font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#d4d4d4;max-height:230px;overflow:auto;margin:6px 0 10px}
 @media(max-width:1050px){.ed-body{grid-template-columns:40px 166px minmax(250px,1fr)}.ed-inspector{position:fixed;right:0;top:40px;bottom:0;width:min(318px,calc(100vw - 205px));box-shadow:-15px 0 35px #0009;z-index:3}.ed-stage{grid-column:3;grid-row:1}.ed-sidebar{grid-column:2;grid-row:1}}@media(max-width:680px){.ed-body{grid-template-columns:38px minmax(220px,1fr)}.ed-sidebar{display:none}.ed-stage{grid-column:2;grid-row:1}.ed-inspector{width:min(330px,calc(100vw - 42px));}.ed-count{display:none}.ed-fps{font-size:9px}.ed-route-picker select{max-width:90px}.ed-tools{gap:3px;padding:4px}.ed-button{padding:5px 6px}.ed-viewport-scroll{padding:8px}}
@@ -235,7 +235,40 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [device, setDevice] = useState<DeviceProfile>(DEVICE_PROFILES.Desktop);
 	const [fps, setFps] = useState(0);
 	const [layoutByDevice, setLayoutByDevice] = useState<Record<string, number>>({});
+	const [previewStatus, setPreviewStatus] = useState<"waiting" | "ready" | "error">("waiting");
 	const frameSource = useMemo(() => `${selectedPage}${selectedPage.includes("?") ? "&" : "?"}__engine_debug=1`, [selectedPage]);
+
+	useEffect(() => {
+		setPreviewStatus("waiting");
+	}, [frameSource]);
+
+	const handlePreviewLoad = () => {
+		const frame = iframeRef.current;
+		if (!frame) return;
+		const frameDocument = frame.contentDocument;
+		if (!frameDocument?.documentElement) {
+			setPreviewStatus("error");
+			return;
+		}
+		const overlays = frameDocument.querySelectorAll<HTMLElement>(
+			"nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]",
+		);
+		const hasVisibleError = [...overlays].some((element) => {
+			const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
+			return Boolean(text && /(compilation failed|failed to compile|uncaught|hydration|error occurred|module not found|exception)/i.test(text));
+		});
+		setPreviewStatus(hasVisibleError ? "error" : "ready");
+	};
+
+	const reloadPreview = () => {
+		setPreviewStatus("waiting");
+		try {
+			iframeRef.current?.contentWindow?.location.reload();
+		} catch {
+			const frame = iframeRef.current;
+			if (frame) frame.src = frameSource;
+		}
+	};
 
 	useEffect(() => {
 		const frame = iframeRef.current;
@@ -265,6 +298,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location });
 				setDiagnostics((current) => appendEngineDebugDiagnostics(current, diagnostic));
 				setSelectedDiagnosticId((current) => current ?? diagnostic.id);
+				if (diagnostic.severity === "error") setPreviewStatus("error");
 			};
 			const handleRuntimeError = (event: ErrorEvent) => {
 				reportDiagnostic(
@@ -438,12 +472,34 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 						</label>
 						<button type="button" className="ed-button" aria-pressed={picker} onClick={() => setPicker((value) => !value)}>Pick node</button>
 						<button type="button" className="ed-button" aria-pressed={overlay} onClick={() => setOverlay((value) => !value)}>Runtime boundaries</button>
+						<button type="button" className="ed-button" aria-label="Reload preview" title="Reload preview" onClick={reloadPreview}>↻ Reload</button>
 						<span className="ed-spacer" />
+						<span className={`ed-preview-status ${previewStatus === "ready" ? "ready" : previewStatus === "error" ? "error" : ""}`} aria-live="polite">
+							{previewStatus === "ready" ? "READY" : previewStatus === "error" ? "ERROR" : "WAITING"}
+						</span>
 						<span className="ed-fps">{device.width}×{device.height} · DPR {device.dpr} · {fps.toFixed(1)} FPS</span>
 					</div>
 					<div className="ed-viewport-scroll">
-						<div className="ed-frame-shell" style={{ width: device.width, height: device.height }}>
-							<iframe ref={iframeRef} className="ed-frame" title={"Live preview: " + selectedPage} src={frameSource} />
+						<div className="ed-frame-shell" style={{ width: device.width, height: device.height }} aria-busy={previewStatus === "waiting"}>
+							<iframe ref={iframeRef} className="ed-frame" title={"Live preview: " + selectedPage} src={frameSource} onLoad={handlePreviewLoad} />
+							{previewStatus !== "ready" && (
+								<div className={`ed-preview-state ${previewStatus === "error" ? "error" : ""}`} role="status" aria-live="polite">
+									<div className="ed-preview-state-card">
+										<span className="ed-preview-orbit" aria-hidden="true" />
+										<strong className="ed-preview-title">{previewStatus === "error" ? "Preview needs attention" : "Waiting for Next.js…"}</strong>
+										<span className="ed-preview-description">
+											{previewStatus === "error"
+												? "The preview reported a runtime or development error. Inspect Problems for captured details."
+												: "Next.js may be compiling this route or waiting for the dev server. The preview will become interactive when the response arrives."}
+										</span>
+										<div className="ed-preview-progress" aria-hidden="true" />
+										<div className="ed-preview-actions">
+											{previewStatus === "error" && <button type="button" className="ed-button" onClick={() => setTab("Errors")}>View Problems</button>}
+											<button type="button" className="ed-button" onClick={reloadPreview}>Reload preview</button>
+										</div>
+									</div>
+								</div>
+							)}
 						</div>
 					</div>
 				</section>
