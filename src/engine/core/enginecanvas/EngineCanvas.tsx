@@ -17,6 +17,7 @@ import React, {
 	useCallback,
 	useEffect,
 	useRef,
+	useState,
 	type CSSProperties,
 } from "react";
 import type { ECScene } from "./ECTypes";
@@ -210,6 +211,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 	const onResizeRef = useRef(resolvedOnResize);
 	const graphicsRef = useRef(graphics);
 	const requestLoopRef = useRef<() => void>(() => {});
+	const [contextVersion, setContextVersion] = useState(0);
 	onSetupRef.current = resolvedOnSetup;
 	onDrawRef.current = resolvedOnDraw;
 	onResizeRef.current = resolvedOnResize;
@@ -236,6 +238,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 		const context = contextResult.ctx;
 		let graphicsEngine: RenderingEngine | null = null;
 		let disposed = false;
+		let contextLost = false;
 		let raf = 0;
 		let running = false;
 		let releaseFrameMonitor: (() => void) | null = null;
@@ -281,7 +284,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 		resizeBackingStore(initialSize.width, initialSize.height, currentDpr, false);
 		const userCleanup = onSetupRef.current?.(context, canvas);
 
-		const shouldPause = (): boolean => offscreenPaused || hiddenPaused;
+		const shouldPause = (): boolean => offscreenPaused || hiddenPaused || contextLost;
 
 		const stopLoop = (): void => {
 			if (running) {
@@ -341,6 +344,21 @@ export const EngineCanvas = memo(function EngineCanvas({
 			if (shouldPause()) stopLoop();
 			else startLoop();
 		};
+
+		const handleContextLost = (event: Event): void => {
+			if (contextResult.resolvedMode === "2d") return;
+			event.preventDefault();
+			contextLost = true;
+			stopLoop();
+		};
+		const handleContextRestored = (): void => {
+			if (contextResult.resolvedMode === "2d") return;
+			setContextVersion((version) => version + 1);
+		};
+		if (contextResult.resolvedMode !== "2d") {
+			canvas.addEventListener("webglcontextlost", handleContextLost);
+			canvas.addEventListener("webglcontextrestored", handleContextRestored);
+		}
 
 		let resizeObserver: ResizeObserver | undefined;
 		if (isResponsive && typeof ResizeObserver !== "undefined") {
@@ -436,6 +454,10 @@ export const EngineCanvas = memo(function EngineCanvas({
 			graphicsEngine = null;
 			resizeObserver?.disconnect();
 			intersectionObserver?.disconnect();
+			if (contextResult.resolvedMode !== "2d") {
+				canvas.removeEventListener("webglcontextlost", handleContextLost);
+				canvas.removeEventListener("webglcontextrestored", handleContextRestored);
+			}
 			window.removeEventListener("resize", handleWindowResize);
 			if (pauseWhenHidden) document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
@@ -455,6 +477,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 		pauseWhenOffscreen,
 		pauseWhenHidden,
 		graphics?.engine,
+		contextVersion,
 	]);
 
 	useEffect(() => {
