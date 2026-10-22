@@ -43,3 +43,19 @@ The isolation contract is specifically that host UI cannot render into, style, c
 ## Production invariant
 
 `EngineDebugIsolation` is reachable only from the generated development route. Production preparation removes `app/%5Fengine/debug/page.tsx` before route discovery, and the production proof rejects both EngineDebug UI markers and the isolation marker from emitted server/client bundles.
+
+## Development error inspector
+
+The workbench's **Errors** view captures diagnostics from its same-origin preview while the workbench is open:
+
+- uncaught browser runtime errors and unhandled promise rejections;
+- calls to the preview frame's `console.error`, including common React hydration mismatch messages;
+- visible Next.js development error overlay text when it can be read from the preview DOM or overlay shadow root.
+
+The inspector keeps a bounded, in-memory history (up to 200 items), coalesces adjacent repeats, redacts common credential-shaped text, and can copy a selected diagnostic. It does not upload reports or modify application source.
+
+**Likely owner is a hint, not a verdict.** Paths and stack traces that point into Engine source are marked *Likely NE source*; app/page/component paths are marked *Likely application code*; React/Next frames receive a framework hint. Always confirm the relevant stack and reproduce before filing an Engine bug or changing application code.
+
+This is a browser-side collector, not a replacement for the Next.js dev overlay or terminal. Server exceptions that happen before the preview sends a usable document, process-level build errors, and diagnostics hidden in a cross-origin or inaccessible frame may only be visible in Next.js' own overlay/terminal output. Captured messages are intentionally bounded and redacted heuristically; treat copied diagnostic details as potentially sensitive before sharing them.
+
+The workbench layout uses a compact, VS Code-inspired dark workspace: activity rail, route explorer, live preview, and an Errors/Node/Scheduler/Device inspector. The editor styling is confined to the development-only workbench and does not change application UI.

@@ -39,18 +39,25 @@ try {
 		"custom art keeps every border and content row aligned");
 	assert.ok(customFrame.some((line) => line.includes("a substantially wider wordmark")),
 		"custom art content is preserved by the frame renderer");
-	assert.equal(ASCII_WORDMARK.length, 6, "the compact supplied wordmark has six rows");
-	assert.equal(BOTTOM_TEXT.length, 9, "the supplied footer keeps its two four-row messages");
-	assert.equal(BOTTOM_TEXT.filter((line) => line === "").length, 1, "the two footer messages have one blank row between them");
-	assert.equal(BOTTOM_TEXT[8], "|_|\\__|___/_/ \\_\\ |_\\//___/|___/|_|\\__|\\__/|_|_\\   \\_/  |___|_|\\__/___|___|", "the final footer row matches the supplied updated artwork");
-	assert.equal(banner.length, 18, "the banner has a top and bottom border plus its spaced content rows");
+	assert.ok(ASCII_WORDMARK.length > 0, "the editable wordmark asset contains at least one line");
+	assert.ok(BOTTOM_TEXT.length > 0, "the editable footer asset contains at least one line");
+	assert.equal(
+		banner.length,
+		ASCII_WORDMARK.length + BOTTOM_TEXT.length + 3,
+		"banner height follows the current asset line counts plus one separator and two frame rows",
+	);
 	assert.ok(banner[0].startsWith("╭") && banner[banner.length - 1].startsWith("╰"), "the banner has a light frame");
 	assert.equal(new Set(banner.map((line) => line.length)).size, 1, "all frame and content rows align to one width");
 	const framedBlankRows = banner.filter((line) => line.startsWith("│") && line.slice(1, -1).trim() === "");
-	assert.equal(framedBlankRows.length, 2, "the wordmark and footer are separated, and the footer messages do not overlap");
-	assert.ok(banner.some((line) => line.includes("███████╗███╗   ██╗ ██████╗")), "the compact supplied wordmark is rendered");
-	assert.ok(banner.some((line) => line.includes(" __  _  __ _____")), "the updated bottom-text artwork is rendered");
-	assert.ok(!banner.some((line) => line.includes("██████   █████ ██████████")), "the oversized previous wordmark is removed");
+	const artworkBlankRows = [...ASCII_WORDMARK, ...BOTTOM_TEXT].filter((line) => line.trim() === "").length;
+	assert.equal(framedBlankRows.length, artworkBlankRows + 1,
+		"the renderer preserves whitespace-only artwork rows and inserts a separator between the two assets");
+	const sampleWordmark = ASCII_WORDMARK.find((line) => line.trim().length > 0);
+	const sampleBottomText = BOTTOM_TEXT.find((line) => line.trim().length > 0);
+	assert.ok(sampleWordmark && banner.some((line) => line.includes(sampleWordmark)),
+		"the current wordmark art is present in the rendered banner");
+	assert.ok(sampleBottomText && banner.some((line) => line.includes(sampleBottomText)),
+		"the current bottom-text art is present in the rendered banner");
 
 	const adapterSummary = summarizeNextOutputs({
 		nextVersion: "16.4.2",

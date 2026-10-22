@@ -35,3 +35,22 @@ test("EngineDebug exposes live scheduler and mobile simulation controls", async 
 	await expect(page.getByLabel("Touch input")).toBeChecked();
 	await expect(page.getByLabel("Hover input")).not.toBeChecked();
 });
+
+
+test("EngineDebug captures preview console errors in its Problems view", async ({ page }) => {
+	await page.goto("/_engine/debug");
+	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	await expect(preview.locator("body")).toBeVisible();
+	await page.waitForFunction(() => {
+		const frame = document.querySelector<HTMLIFrameElement>('iframe[title^="Live preview:"]');
+		const previewWindow = frame?.contentWindow as (Window & { __NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__?: boolean }) | null | undefined;
+		return previewWindow?.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__ === true;
+	});
+
+	await preview.locator("body").evaluate(() => {
+		console.error("ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch");
+	});
+	await page.getByRole("tab", { name: /Errors/ }).click();
+	await expect(page.getByText(/ENGINE_DEBUG_CAPTURE_SMOKE/)).toBeVisible();
+	await expect(page.getByText("Hydration", { exact: true })).toBeVisible();
+});
