@@ -148,8 +148,13 @@ function resolveGraphicsMode(mode: Mode, graphicsEngine?: string): Mode {
 }
 
 function getTargetDpr(dpr: number | "auto", maxDpr: number): number {
-	const rawDpr = dpr === "auto" ? window.devicePixelRatio || 1 : dpr;
-	return Math.max(0.5, Math.min(rawDpr, maxDpr));
+	const deviceDpr = window.devicePixelRatio;
+	const fallbackDpr = Number.isFinite(deviceDpr) && deviceDpr > 0 ? deviceDpr : 1;
+	const requestedDpr = dpr === "auto"
+		? fallbackDpr
+		: Number.isFinite(dpr) ? dpr : fallbackDpr;
+	const requestedMaxDpr = Number.isFinite(maxDpr) ? maxDpr : 2;
+	return Math.max(0.5, Math.min(requestedDpr, Math.max(0.5, requestedMaxDpr)));
 }
 
 function getCanvasCssSize(
@@ -200,10 +205,12 @@ export const EngineCanvas = memo(function EngineCanvas({
 		| undefined;
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const onSetupRef = useRef(resolvedOnSetup);
 	const onDrawRef = useRef(resolvedOnDraw);
 	const onResizeRef = useRef(resolvedOnResize);
 	const graphicsRef = useRef(graphics);
 	const requestLoopRef = useRef<() => void>(() => {});
+	onSetupRef.current = resolvedOnSetup;
 	onDrawRef.current = resolvedOnDraw;
 	onResizeRef.current = resolvedOnResize;
 	graphicsRef.current = graphics;
@@ -272,7 +279,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 
 		const initialSize = getCanvasCssSize(canvas, width, height);
 		resizeBackingStore(initialSize.width, initialSize.height, currentDpr, false);
-		const userCleanup = resolvedOnSetup?.(context, canvas);
+		const userCleanup = onSetupRef.current?.(context, canvas);
 
 		const shouldPause = (): boolean => offscreenPaused || hiddenPaused;
 
@@ -448,7 +455,6 @@ export const EngineCanvas = memo(function EngineCanvas({
 		pauseWhenOffscreen,
 		pauseWhenHidden,
 		graphics?.engine,
-		resolvedOnSetup,
 	]);
 
 	useEffect(() => {
