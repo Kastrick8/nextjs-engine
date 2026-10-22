@@ -112,7 +112,7 @@ check(shaderRuntime.includes("window.addEventListener(\"resize\", handleWindowRe
 	&& shaderRuntime.includes("currentDpr = nextDpr"),
 	"Shader refreshes its backing-store density after DPR/display changes");
 check(canvasCore.includes("window.addEventListener(\"resize\", handleWindowResize")
-	&& canvasCore.includes("const nextDpr = getTargetDpr(dprProp, maxDpr)"),
+	&& canvasCore.includes("const nextPixelRatio = getTargetDpr(dprProp, maxDpr)"),
 	"Canvas refreshes its backing-store density after DPR/display changes");
 
 const manim3D = read("src/engine/components/EngineManim/EngineManim3D.tsx");
