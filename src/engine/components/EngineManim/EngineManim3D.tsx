@@ -252,6 +252,7 @@ export const EngineManim3D = memo(function EngineManim3D({
 			scene.add(modelRoot);
 
 			let raf = 0;
+			let contextLost = false;
 			let visibilityCheckRaf = 0;
 			let resizeObserver: ResizeObserver | undefined;
 			let intersectionObserver: IntersectionObserver | undefined;
@@ -339,7 +340,7 @@ export const EngineManim3D = memo(function EngineManim3D({
 			};
 
 			const renderOnce = (): void => {
-				if (disposed || !nearViewport || !documentVisible) return;
+				if (disposed || contextLost || !nearViewport || !documentVisible) return;
 				updateCameraConstraint();
 				renderer.render(scene, camera);
 			};
@@ -386,7 +387,7 @@ export const EngineManim3D = memo(function EngineManim3D({
 
 			const tick = (): void => {
 				if (disposed || !running) return;
-				if (!nearViewport || !documentVisible) {
+				if (contextLost || !nearViewport || !documentVisible) {
 					running = false;
 					raf = 0;
 					clock.stop();
@@ -419,7 +420,7 @@ export const EngineManim3D = memo(function EngineManim3D({
 					renderOnce();
 					return;
 				}
-				if (running || disposed || !nearViewport || !documentVisible) return;
+				if (running || disposed || contextLost || !nearViewport || !documentVisible) return;
 				running = true;
 				releaseFrameMonitor ??= EngineScheduler.acquireFrameMonitor();
 				fpsAccumulator = 0;
@@ -437,6 +438,20 @@ export const EngineManim3D = memo(function EngineManim3D({
 				releaseFrameMonitor?.();
 				releaseFrameMonitor = null;
 			};
+
+			const handleContextLost = (event: Event): void => {
+				event.preventDefault();
+				contextLost = true;
+				stopLoop();
+			};
+			const handleContextRestored = (): void => {
+				contextLost = false;
+				resizeRenderer();
+				if (!continuous) renderOnce();
+				startLoop();
+			};
+			canvas.addEventListener("webglcontextlost", handleContextLost);
+			canvas.addEventListener("webglcontextrestored", handleContextRestored);
 
 			window.addEventListener("resize", resizeRenderer, { passive: true });
 			if (typeof ResizeObserver !== "undefined") {
@@ -471,6 +486,8 @@ export const EngineManim3D = memo(function EngineManim3D({
 				resizeObserver?.disconnect();
 				intersectionObserver?.disconnect();
 				window.removeEventListener("resize", resizeRenderer);
+				canvas.removeEventListener("webglcontextlost", handleContextLost);
+				canvas.removeEventListener("webglcontextrestored", handleContextRestored);
 				if (fallbackViewportCheck) {
 					window.removeEventListener("scroll", fallbackViewportCheck);
 					window.removeEventListener("resize", fallbackViewportCheck);
