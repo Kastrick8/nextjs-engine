@@ -41,6 +41,9 @@ jobs:
       - name: Test Generation 3 banner artwork and frame sizing
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: node scripts/gen3-build-compiler-smoke.js
+      - name: Test Generation 3 EngineDebug error diagnostics
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: node scripts/gen3-engine-debug-diagnostics-smoke.js
       - name: Test EngineScroll core and mobile stability
         run: |
           node scripts/engine-scroll-smoke.js
