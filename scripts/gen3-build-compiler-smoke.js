@@ -38,7 +38,7 @@ try {
 		nextVersion: "16.4.2",
 		buildId: "adapter-fixture",
 		outputs: {
-			appPages: [{ pathname: "/" }, { pathname: "/about" }],
+			appPages: [{ pathname: "/" }, { pathname: "/about" }, { pathname: "/about.rsc" }],
 			appRoutes: [{ pathname: "/api/search" }],
 			pages: [{ pathname: "/legacy" }],
 			pagesApi: [{ pathname: "/api/legacy" }],
@@ -47,13 +47,16 @@ try {
 		},
 	});
 	assert.equal(adapterSummary.nextVersion, "16.4.2", "the Next.js version is preserved");
-	assert.equal(adapterSummary.counts.appPages, 2, "App Router pages come from the real adapter output field");
+	assert.equal(adapterSummary.counts.appPages, 3, "App Router pages come from the real adapter output field");
 	assert.equal(adapterSummary.counts.appRoutes, 1, "App Router handlers and metadata outputs are counted");
 	assert.equal(adapterSummary.counts.pages, 1, "Pages Router output is counted separately");
 	assert.equal(adapterSummary.counts.pagesApi, 1, "Pages API output is counted separately");
 	assert.equal(adapterSummary.counts.prerenders, 2, "prerender output entries are counted");
 	assert.equal(adapterSummary.counts.staticFiles, 2, "static files are counted without bloating the manifest with every asset path");
-	assert.deepEqual(adapterSummary.paths.appPages, ["/", "/about"], "route paths from Next.js are captured and sorted");
+	assert.deepEqual(adapterSummary.paths.appPages, ["/", "/about", "/about.rsc"], "route paths from Next.js are captured and sorted");
+	assert.equal(adapterSummary.routeOutputCount, 5, "the canonical route count deduplicates RSC output variants");
+	assert.deepEqual(adapterSummary.routePaths, ["/", "/about", "/api/legacy", "/api/search", "/legacy"],
+		"canonical route paths are included without .rsc output variants");
 	assert.equal(adapterSummary.paths.staticFiles, undefined, "static asset path lists are omitted from the summary");
 
 	const bannerProject = path.join(root, "banner-once-fixture");
