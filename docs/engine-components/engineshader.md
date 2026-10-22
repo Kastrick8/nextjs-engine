@@ -845,6 +845,7 @@ ESH currently does these things automatically:
 - animated shaders share one EngineShader scheduler;
 - fully offscreen animated shaders leave that scheduler;
 - hidden tabs suspend shader animation work;
+- WebGL context loss stops event/animation frames and releases the frame-pressure monitor; restoration rebuilds the program/buffer state;
 - `prefers-reduced-motion` blocks continuous animation by default;
 - variable uploads are skipped while their value signature is unchanged;
 - backing-store size follows `ResizeObserver` instead of per-frame layout reads;
