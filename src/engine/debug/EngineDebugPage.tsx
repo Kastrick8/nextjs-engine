@@ -321,7 +321,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			let consolePatched = false;
 			try {
 				frameWindow.console.error = patchedConsoleError;
-				consolePatched = frameWindow.console.error === patchedConsoleError;
+				consolePatched = true;
 			} catch {
 				// Some browser realms reject writes to console methods.
 			}
@@ -332,7 +332,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 						writable: true,
 						value: patchedConsoleError,
 					});
-					consolePatched = frameWindow.console.error === patchedConsoleError;
+					consolePatched = true;
 				} catch {
 					// Keep the window error/rejection listeners active if console cannot be wrapped.
 				}
