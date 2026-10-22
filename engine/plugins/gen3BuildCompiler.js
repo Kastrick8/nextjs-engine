@@ -212,74 +212,84 @@ function logEvent(event, logger = console.log) {
 	}
 }
 const ASCII_WORDMARK = Object.freeze([
-	" ██████   █████ ██████████ █████ █████ ███████████       █████  █████████     ██████████ ██████   █████   █████████  █████ ██████   █████ ██████████",
-	"▒▒██████ ▒▒███ ▒▒███▒▒▒▒▒█▒▒███ ▒▒███ ▒█▒▒▒███▒▒▒█      ▒▒███  ███▒▒▒▒▒███   ▒▒███▒▒▒▒▒█▒▒██████ ▒▒███   ███▒▒▒▒▒███▒▒███ ▒▒██████ ▒▒███ ▒▒███▒▒▒▒▒█",
-	" ▒███▒███ ▒███  ▒███  █ ▒  ▒▒███ ███  ▒   ▒███  ▒        ▒███ ▒███    ▒▒▒     ▒███  █ ▒  ▒███▒███ ▒███  ███     ▒▒▒  ▒███  ▒███▒███ ▒███  ▒███  █ ▒ ",
-	" ▒███▒▒███▒███  ▒██████     ▒▒█████       ▒███           ▒███ ▒▒█████████     ▒██████    ▒███▒▒███▒███ ▒███          ▒███  ▒███▒▒███▒███  ▒██████   ",
-	" ▒███ ▒▒██████  ▒███▒▒█      ███▒███      ▒███           ▒███  ▒▒▒▒▒▒▒▒███    ▒███▒▒█    ▒███ ▒▒██████ ▒███    █████ ▒███  ▒███ ▒▒██████  ▒███▒▒█   ",
-	" ▒███  ▒▒█████  ▒███ ▒   █  ███ ▒▒███     ▒███     ███   ▒███  ███    ▒███    ▒███ ▒   █ ▒███  ▒▒█████ ▒▒███  ▒▒███  ▒███  ▒███  ▒▒█████  ▒███ ▒   █",
-	" █████  ▒▒█████ ██████████ █████ █████    █████   ▒▒████████  ▒▒█████████     ██████████ █████  ▒▒█████ ▒▒█████████  █████ █████  ▒▒█████ ██████████",
-	"▒▒▒▒▒    ▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒     ▒▒▒▒▒▒▒▒    ▒▒▒▒▒▒▒▒▒     ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒   ▒▒▒▒▒▒▒▒▒  ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒ ",
-	"",
-	"",
-	"",
+	"    ███╗   ██╗███████╗██╗  ██╗████████╗  ██╗███████╗    ███████╗███╗   ██╗ ██████╗ ██╗███╗   ██╗███████╗",
+	"    ████╗  ██║██╔════╝╚██╗██╔╝╚══██╔══╝  ██║██╔════╝    ██╔════╝████╗  ██║██╔════╝ ██║████╗  ██║██╔════╝",
+	"    ██╔██╗ ██║█████╗   ╚███╔╝    ██║     ██║███████╗    █████╗  ██╔██╗ ██║██║  ███╗██║██╔██╗ ██║█████╗",
+	"    ██║╚██╗██║██╔══╝   ██╔██╗    ██║██   ██║╚════██║    ██╔══╝  ██║╚██╗██║██║   ██║██║██║╚██╗██║██╔══╝",
+	"    ██║ ╚████║███████╗██╔╝ ██╗   ██║╚█████╔╝███████║    ███████╗██║ ╚████║╚██████╔╝██║██║ ╚████║███████╗",
+	"    ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝   ╚═╝ ╚════╝ ╚══════╝    ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚══════╝"
 ]);
 
-const PEGGA_GLYPHS = Object.freeze({
-	A: ["█▀█", "█▀█", "█░█"],
-	B: ["█▀█", "█▀█", "▀▀▀"],
-	C: ["█▀▀", "█░░", "▀▀▀"],
-	D: ["█▀█", "█░█", "▀▀▀"],
-	E: ["█▀▀", "█▀▀", "▀▀▀"],
-	F: ["█▀▀", "█▀▀", "█░░"],
-	G: ["█▀▀", "█░▀", "▀▀█"],
-	H: ["█░█", "█▀█", "█░█"],
-	I: ["▀█▀", "░█░", "░▀░"],
-	J: ["░▀█", "░░█", "█▀█"],
-	K: ["█░█", "█▀▄", "█░█"],
-	L: ["█░░", "█░░", "▀▀▀"],
-	M: ["█▄█", "█▀█", "█░█"],
-	N: ["█▄█", "█▀█", "█░█"],
-	O: ["█▀█", "█░█", "▀▀▀"],
-	P: ["█▀█", "█▀█", "█░░"],
-	Q: ["█▀█", "█░█", "▀▀▄"],
-	R: ["█▀█", "█▀█", "█░▀"],
-	S: ["█▀▀", "▀▀█", "▀▀▀"],
-	T: ["▀█▀", "░█░", "░█░"],
-	U: ["█░█", "█░█", "▀▀▀"],
-	V: ["█░█", "█░█", "░▀░"],
-	W: ["█░█", "█▀█", "█▄█"],
-	X: ["█░█", "░▀░", "█░█"],
-	Y: ["█░█", "░▀█", "░█░"],
-	Z: ["▀▀█", "░█░", "█▀▀"],
-	".": ["░░░", "░░░", "░░▀"],
-});
+const BOTTOM_TEXT = Object.freeze([
+	" __  _  __ _____    __  ___ _ _   _ _____ __ _____ ___ __    _   _  _ _____ _  _",
+	"|  \\| |/__\\_   _|  /  \\| __| | | | |_   _/  \\_   _| __| _\\  | | | || |_   _| || |",
+	"| | ' | \\/ || |   | /\\ | _|| | |_| | | || /\\ || | | _|| v | | 'V' || | | | | >< |",
+	"|_|\\__|\\__/ |_|   |_||_|_| |_|___|_| |_||_||_||_| |___|__/  !_/ \\_!|_| |_| |_||_|",
+	"",
+	" __  _ _____   _______ __    __   __  _  __  ___   _   _  ___ ___  ______ _",
+	"|  \\| | __\\ \\_/ /_   _|_ \\ /' _/ |  \\| |/__\\| _ \\ | \\ / || __| _ \\/ _/ __| |",
+	"| | ' | _| > , <  | |_ _\\ |`._`. | | ' | \\/ | v / `\\ V /'| _|| v / \\_| _|| |_",
+	"|_|\\__|___/_/ \\_\\ |_\\//___/|___/|_|\\__|\\__/|_|_\\   \\_/  |___|_|\\__/___|___|"
+]);
 
-function renderPeggaText(text) {
-	const words = String(text).toUpperCase().split(" ");
-	return Array.from({ length: 3 }, (_, row) => words
-		.map((word) => [...word].map((letter) => "░" + (PEGGA_GLYPHS[letter] || PEGGA_GLYPHS["."])[row]).join(""))
-		.join("░░░"));
+function bannerMarkerPath(projectRoot) {
+	const resolvedRoot = path.resolve(projectRoot);
+	const key = require("node:crypto").createHash("sha256").update(resolvedRoot).digest("hex").slice(0, 24);
+	return path.join(require("node:os").tmpdir(), "nextjs-engine-gen3-banner-" + key + ".lock");
 }
 
 function renderBannerLines() {
-	const footerSourceRows = [
-		...renderPeggaText("INDEPENDENT PROJECT BY KASTRICK"),
-		...renderPeggaText("NOT AFFILIATED WITH NEXT.JS NOR VERCEL"),
-	];
-	const contentWidth = Math.max(
-		...ASCII_WORDMARK.map((line) => line.length),
-		...footerSourceRows.map((line) => line.length),
-	);
+	const sourceLines = [...ASCII_WORDMARK, "", ...BOTTOM_TEXT];
+	const contentWidth = Math.max(...sourceLines.map((line) => line.length));
 	const center = (line) => {
 		const left = Math.max(0, Math.floor((contentWidth - line.length) / 2));
 		return " ".repeat(left) + line + " ".repeat(Math.max(0, contentWidth - left - line.length));
 	};
-	return [...ASCII_WORDMARK.map(center), ...footerSourceRows.map(center)];
+	const innerWidth = contentWidth + 4;
+	return [
+		"╭" + "─".repeat(innerWidth) + "╮",
+		...sourceLines.map((line) => "│  " + center(line) + "  │"),
+		"╰" + "─".repeat(innerWidth) + "╯",
+	];
 }
 
 function printBanner(logger = console.log) {
 	for (const line of renderBannerLines()) logger(line);
+}
+
+function printBannerOnce(projectRoot, logger = console.log) {
+	const marker = bannerMarkerPath(projectRoot);
+	for (let attempt = 0; attempt < 2; attempt++) {
+		let descriptor;
+		try {
+			descriptor = fs.openSync(marker, "wx");
+		} catch (error) {
+			if (error.code !== "EEXIST") throw error;
+			let stale = false;
+			try { stale = Date.now() - fs.statSync(marker).mtimeMs > 60 * 60 * 1000; }
+			catch (statError) { if (statError.code === "ENOENT") continue; throw statError; }
+			if (!stale) return false;
+			try { fs.unlinkSync(marker); }
+			catch (unlinkError) { if (unlinkError.code === "ENOENT") continue; return false; }
+			continue;
+		}
+		try { fs.writeFileSync(descriptor, JSON.stringify({ pid: process.pid, startedAt: Date.now() }), "utf8"); }
+		catch (error) {
+			try { fs.closeSync(descriptor); } catch { /* Preserve the original error. */ }
+			try { fs.rmSync(marker, { force: true }); } catch { /* Preserve the original error. */ }
+			throw error;
+		}
+		fs.closeSync(descriptor);
+		try { printBanner(logger); }
+		catch (error) { releaseBanner(projectRoot); throw error; }
+		return true;
+	}
+	return false;
+}
+
+function releaseBanner(projectRoot) {
+	try { fs.rmSync(bannerMarkerPath(projectRoot), { force: true }); }
+	catch { /* Cleanup must not hide the build outcome. */ }
 }
 
 function installTypeScriptRequireHook() {
@@ -432,11 +442,12 @@ function emitArtifacts(projectRoot, inputPath, distDir) {
 	return outputFile;
 }
 function parseArgs(argv) {
-	const args = { mode: "scan" };
+	const args = { mode: "scan", adapterWorker: false };
 	for (let i = 0; i < argv.length; i++) {
 		const item = argv[i];
 		if (item === "--scan") args.mode = "scan";
 		else if (item === "--emit") args.mode = "emit";
+		else if (item === "--adapter-worker") args.adapterWorker = true;
 		else if (item === "--output") args.output = argv[++i];
 		else if (item === "--input") args.input = argv[++i];
 		else if (item === "--project-root") args.projectRoot = argv[++i];
@@ -446,13 +457,18 @@ function parseArgs(argv) {
 	return args;
 }
 function runCLI(argv = process.argv.slice(2)) {
+	let bannerOwner = false;
+	let bannerRoot;
 	try {
 		const args = parseArgs(argv);
 		const root = path.resolve(args.projectRoot || process.cwd());
+		bannerRoot = root;
 		if (args.mode === "scan") {
 			if (!args.output) throw new Error("--scan requires --output <temporary-json-path>");
-			printBanner();
-			console.log("nextjs-engine | Starting Generation 3 compiler pass alongside Next.js");
+			if (!args.adapterWorker) {
+				bannerOwner = printBannerOnce(root);
+				if (bannerOwner) console.log("nextjs-engine | Starting Generation 3 compiler pass alongside Next.js");
+			}
 			const manifest = compileProject(root);
 			atomicWriteJson(path.resolve(args.output), manifest);
 			console.log("nextjs-engine | Compiler pass completed — " + manifest.summary.compiledPageCount
@@ -465,6 +481,8 @@ function runCLI(argv = process.argv.slice(2)) {
 	} catch (error) {
 		console.error("nextjs-engine | ERROR " + (error instanceof Error ? error.message : String(error)));
 		return 1;
+	} finally {
+		if (bannerOwner && bannerRoot) releaseBanner(bannerRoot);
 	}
 }
 if (require.main === module) process.exitCode = runCLI();
@@ -474,9 +492,12 @@ module.exports = {
 	emitArtifacts,
 	logEvent,
 	ASCII_WORDMARK,
-	PEGGA_GLYPHS,
+	BOTTOM_TEXT,
+	bannerMarkerPath,
 	printBanner,
-	renderPeggaText,
+	printBannerOnce,
+	releaseBanner,
+	renderBannerLines,
 	resolveDistDir,
 	routePathForFile,
 	runCLI,
