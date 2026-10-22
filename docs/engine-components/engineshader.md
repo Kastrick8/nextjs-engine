@@ -848,7 +848,9 @@ ESH currently does these things automatically:
 - `prefers-reduced-motion` blocks continuous animation by default;
 - variable uploads are skipped while their value signature is unchanged;
 - backing-store size follows `ResizeObserver` instead of per-frame layout reads;
-- adaptive density can lower/recover DPR from measured frame timing;
+- backing-store DPR is not lowered in response to frame pressure; use `maxDpr` and `.shed` `render.resolution` to choose explicit quality budgets;
+- DPR changes are rechecked on resize, while unchanged physical dimensions avoid unnecessary backing-store resets;
+- animated shader subscriptions acquire the shared frame-pressure monitor only while animation is active and release it on pause, context loss, or teardown;
 - `render.resolution` can lower backing density before fragment work is paid;
 - stale development artifact promises are pruned when the manifest changes.
 
