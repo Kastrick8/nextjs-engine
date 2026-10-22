@@ -94,11 +94,26 @@ const canvasFacade = read("src/engine/components/EngineCanvas.tsx");
 check(canvasFacade.includes("adaptiveProp ?? false"), "Gen 3 Canvas keeps the compatibility adaptive default explicit");
 check(canvasFacade.includes("handlers.adaptive ?? false"), "Gen 3 low-level Canvas hook keeps the compatibility default explicit");
 check(canvasFacade.includes("useCoreEngineCanvas"), "Gen 3 low-level hook wraps the compatible v2 core instead of changing patch behavior");
-check(canvasFacade.includes("acquireFrameMonitor"), "Canvas/Shader activity feeds the shared frame-pressure monitor without changing resolution");
 const canvasCore = read("src/engine/core/enginecanvas/EngineCanvas.tsx");
 const shaderRuntime = read("src/engine/components/EngineShader.tsx");
-check(!canvasCore.includes("resolveAdaptiveDpr") && !canvasCore.includes("nextDpr"), "Canvas never lowers backing resolution under frame pressure");
-check(!shaderRuntime.includes("nextDpr") && !shaderRuntime.includes("adaptiveWindowStart"), "Shader never lowers backing resolution under frame pressure");
+check(!canvasFacade.includes("useEffect(() => EngineScheduler.acquireFrameMonitor(), [])"),
+	"the Canvas facade does not keep a frame-pressure RAF alive for static or offscreen components");
+check(canvasCore.includes("releaseFrameMonitor ??= EngineScheduler.acquireFrameMonitor()")
+	&& canvasCore.includes("releaseFrameMonitor?.();"),
+	"Canvas frame-pressure monitoring follows the active draw-loop lifecycle");
+check(shaderRuntime.includes("animationMonitorCleanup = EngineScheduler.acquireFrameMonitor()")
+	&& shaderRuntime.includes("animationMonitorCleanup?.();"),
+	"Shader frame-pressure monitoring follows the active animated-shader lifecycle");
+check(!canvasCore.includes("isUnderFramePressure()") && !canvasCore.includes("underFramePressure"),
+	"Canvas does not reduce backing resolution from the shared pressure signal");
+check(!shaderRuntime.includes("isUnderFramePressure()") && !shaderRuntime.includes("underFramePressure"),
+	"Shader does not reduce backing resolution from the shared pressure signal");
+check(shaderRuntime.includes("window.addEventListener(\"resize\", handleWindowResize")
+	&& shaderRuntime.includes("currentDpr = nextDpr"),
+	"Shader refreshes its backing-store density after DPR/display changes");
+check(canvasCore.includes("window.addEventListener(\"resize\", handleWindowResize")
+	&& canvasCore.includes("const nextDpr = getTargetDpr(dprProp, maxDpr)"),
+	"Canvas refreshes its backing-store density after DPR/display changes");
 
 const model = read("src/engine/core/EngineModel.ts");
 for (const api of ["get<", "set<", "update<", "computed<", "action<", "watch<", "subscribe("]) {
