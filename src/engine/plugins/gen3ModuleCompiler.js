@@ -558,6 +558,7 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 		return output;
 	}
 	function analyze(routes, schemaSymbolsByFile = new Map(), schemaCandidateCountsByFile = new Map(), schemaSources = []) {
+		const schemaSourceRecords = [];
 		for (const route of routes) {
 			routeVisited.clear();
 			const started = Date.now();
@@ -616,20 +617,18 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 				.filter((record) => record.usedBy.includes(usageKey))
 				.map((record) => record.importName)
 				.sort();
-			routeRecords.push({
+			schemaSourceRecords.push({
 				sourcePath: source.sourcePath,
-				routePath: null,
-				kind: "engine-schema-source",
 				engineModules: moduleNames,
 				engineModuleCount: moduleNames.length,
 				schemaCandidateCount: schemaCandidateCountsByFile.get(source.file) || 0,
-				analyzedInMilliseconds: 0,
 			});
 			log("nextjs-engine | ✓ COMPILED ENGINE SCHEMA SOURCE : " + source.sourcePath
 				+ " — " + moduleNames.length + " Engine modules indexed");
 		}
 		return {
 			routes: routeRecords,
+			schemaSources: schemaSourceRecords,
 			modules: [...moduleRecords.values()].map((record) => ({
 				...record,
 				usedBy: record.usedBy.sort(),
