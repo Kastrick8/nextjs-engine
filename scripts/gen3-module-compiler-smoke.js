@@ -27,6 +27,11 @@ try {
 			},
 		},
 	}, null, 2));
+	write("app/layout.tsx", [
+		'import { EngineNav } from "@/engine";',
+		'export default function RootLayout({ children }: { children: unknown }) { return <html><body><EngineNav>{children}</EngineNav></body></html>; }',
+		"",
+	].join("\n"));
 	const homePage = write("app/page.tsx", [
 		'import { EngineCanvas } from "@/engine";',
 		'import Showcase from "../components/Showcase";',
@@ -45,8 +50,13 @@ try {
 	].join("\n"));
 	write("src/engine/index.ts", [
 		'export { EngineCanvas } from "./components/EngineCanvas";',
+		'export { EngineNav } from "./components/EngineNav";',
 		'export { EngineScheduler } from "./core/EngineScheduler";',
 		'export { createPage } from "./createPage";',
+		"",
+	].join("\n"));
+	write("src/engine/components/EngineNav.tsx", [
+		'export function EngineNav({ children }: { children?: unknown }) { return <nav>{children as never}</nav>; }',
 		"",
 	].join("\n"));
 	write("src/engine/components/EngineCanvas.tsx", [
@@ -90,6 +100,12 @@ try {
 	assert.ok(result.modules.some((module) => module.name === "EngineScheduler"
 		&& module.sourcePath === "src/engine/core/EngineScheduler.ts"),
 		"transitive Engine dependencies are included once");
+	const sharedLayoutModule = result.modules.find((module) =>
+		module.name === "EngineNav" && module.sourcePath === "src/engine/components/EngineNav.tsx");
+	assert.deepEqual(sharedLayoutModule?.usedBy, ["/", "/about"],
+		"Engine modules imported by the shared App Router layout are attributed to each route");
+	assert.ok(result.routes.every((route) => route.frameworkFiles.includes("app/layout.tsx")),
+		"App Router route records explain which shared layout files contributed dependencies");
 	assert.ok(result.modules.some((module) => module.sourcePath === "src/engine/core/frame.ts"),
 		"the reachable module graph follows local dependencies below Engine modules");
 	assert.equal(result.modules.filter((module) => module.sourcePath === "src/engine/components/EngineCanvas.tsx").length, 1,
