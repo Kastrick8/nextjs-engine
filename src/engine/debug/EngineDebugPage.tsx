@@ -429,7 +429,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				<section className="ed-stage" aria-label="Live page preview">
 					<div className="ed-tools">
 						<button type="button" className="ed-button" aria-pressed={picker} onClick={() => setPicker((value) => !value)}>Pick node</button>
-						<button type="button" className="ed-button" aria-pressed={overlay} onClick={() => setOverlay((value) => !value)}>Boundaries</button>
+						<button type="button" className="ed-button" aria-pressed={overlay} onClick={() => setOverlay((value) => !value)}>Runtime boundaries</button>
 						<span className="ed-spacer" />
 						<span className="ed-fps">{device.width}×{device.height} · DPR {device.dpr} · {fps.toFixed(1)} FPS</span>
 					</div>
