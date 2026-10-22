@@ -495,8 +495,12 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 		return record;
 	}
 	function addExternalSymbol(specifier, name, routePath) {
-		if (!hasEngineSymbolName(name) || !isEngineLikeSpecifier(specifier)) return undefined;
-		const logicalName = name === "default" || name === "*" ? fallbackEngineName(specifier, name).replace(/^@engine\//, "") : name;
+		if (!isEngineLikeSpecifier(specifier)) return undefined;
+		let logicalName = name;
+		if (name === "default" || name === "*") {
+			logicalName = fallbackEngineName(specifier, name).replace(/^@engine\//, "");
+		}
+		if (!hasEngineSymbolName(logicalName)) return undefined;
 		return recordFor(undefined, logicalName, specifier, routePath, "package");
 	}
 	function resolveSymbolTargets(targetPath, name) {
