@@ -356,14 +356,14 @@ export const EngineCanvas = memo(function EngineCanvas({
 
 		const handleWindowResize = (): void => {
 			const nextSize = getCanvasCssSize(canvas, width, height);
-			const nextDpr = getTargetDpr(dprProp, maxDpr);
-			const dprChanged = nextDpr !== currentDpr;
+			const nextPixelRatio = getTargetDpr(dprProp, maxDpr);
+			const dprChanged = nextPixelRatio !== currentDpr;
 			const cssSizeChanged = nextSize.width !== lastCssWidth || nextSize.height !== lastCssHeight;
-			const expectedWidth = Math.max(1, Math.round(nextSize.width * nextDpr));
-			const expectedHeight = Math.max(1, Math.round(nextSize.height * nextDpr));
+			const expectedWidth = Math.max(1, Math.round(nextSize.width * nextPixelRatio));
+			const expectedHeight = Math.max(1, Math.round(nextSize.height * nextPixelRatio));
 			const backingStoreChanged = canvas.width !== expectedWidth || canvas.height !== expectedHeight;
 			if (!dprChanged && !cssSizeChanged && !backingStoreChanged) return;
-			const resized = resizeBackingStore(nextSize.width, nextSize.height, nextDpr, true);
+			const resized = resizeBackingStore(nextSize.width, nextSize.height, nextPixelRatio, true);
 			if (resized && !graphicsRef.current && onDrawRef.current) {
 				drawCompleted = false;
 				startLoop();
