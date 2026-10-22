@@ -298,7 +298,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location });
 				setDiagnostics((current) => appendEngineDebugDiagnostics(current, diagnostic));
 				setSelectedDiagnosticId((current) => current ?? diagnostic.id);
-				if (diagnostic.severity === "error") setPreviewStatus("error");
+				if (source !== "console" && diagnostic.severity === "error") setPreviewStatus("error");
 			};
 			const handleRuntimeError = (event: ErrorEvent) => {
 				reportDiagnostic(
@@ -322,10 +322,22 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			try {
 				frameWindow.console.error = patchedConsoleError;
 				consolePatched = frameWindow.console.error === patchedConsoleError;
-				if (consolePatched) frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__ = true;
 			} catch {
-				// Keep diagnostic collection alive when a browser exposes a locked console object.
+				// Some browser realms reject writes to console methods.
 			}
+			if (!consolePatched) {
+				try {
+					Object.defineProperty(frameWindow.console, "error", {
+						configurable: true,
+						writable: true,
+						value: patchedConsoleError,
+					});
+					consolePatched = frameWindow.console.error === patchedConsoleError;
+				} catch {
+					// Keep the window error/rejection listeners active if console cannot be wrapped.
+				}
+			}
+			if (consolePatched) frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__ = true;
 			frameWindow.addEventListener("error", handleRuntimeError);
 			frameWindow.addEventListener("unhandledrejection", handleUnhandledRejection);
 			const scanNextOverlay = () => {
@@ -407,7 +419,15 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				frameWindow.removeEventListener("error", handleRuntimeError);
 				frameWindow.removeEventListener("unhandledrejection", handleUnhandledRejection);
 				if (consolePatched && frameWindow.console.error === patchedConsoleError) {
-					frameWindow.console.error = originalConsoleError;
+					try {
+						Object.defineProperty(frameWindow.console, "error", {
+							configurable: true,
+							writable: true,
+							value: originalConsoleError,
+						});
+					} catch {
+						try { frameWindow.console.error = originalConsoleError; } catch { /* Console method is browser-owned. */ }
+					}
 					delete frameWindow.__NEXT_ENGINE_DEBUG_CONSOLE_CAPTURED__;
 				}
 				overlayObserver.disconnect();
@@ -473,6 +493,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 						<button type="button" className="ed-button" aria-pressed={picker} onClick={() => setPicker((value) => !value)}>Pick node</button>
 						<button type="button" className="ed-button" aria-pressed={overlay} onClick={() => setOverlay((value) => !value)}>Runtime boundaries</button>
 						<button type="button" className="ed-button" aria-label="Reload preview" title="Reload preview" onClick={reloadPreview}>↻ Reload</button>
+						{previewStatus === "error" && <button type="button" className="ed-button" onClick={() => setTab("Errors")}>View Problems</button>}
 						<span className="ed-spacer" />
 						<span className={`ed-preview-status ${previewStatus === "ready" ? "ready" : previewStatus === "error" ? "error" : ""}`} aria-live="polite">
 							{previewStatus === "ready" ? "READY" : previewStatus === "error" ? "ERROR" : "WAITING"}
@@ -482,19 +503,14 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					<div className="ed-viewport-scroll">
 						<div className="ed-frame-shell" style={{ width: device.width, height: device.height }} aria-busy={previewStatus === "waiting"}>
 							<iframe ref={iframeRef} className="ed-frame" title={"Live preview: " + selectedPage} src={frameSource} onLoad={handlePreviewLoad} />
-							{previewStatus !== "ready" && (
-								<div className={`ed-preview-state ${previewStatus === "error" ? "error" : ""}`} role="status" aria-live="polite">
+							{previewStatus === "waiting" && (
+								<div className="ed-preview-state" role="status" aria-live="polite">
 									<div className="ed-preview-state-card">
 										<span className="ed-preview-orbit" aria-hidden="true" />
-										<strong className="ed-preview-title">{previewStatus === "error" ? "Preview needs attention" : "Waiting for Next.js…"}</strong>
-										<span className="ed-preview-description">
-											{previewStatus === "error"
-												? "The preview reported a runtime or development error. Inspect Problems for captured details."
-												: "Next.js may be compiling this route or waiting for the dev server. The preview will become interactive when the response arrives."}
-										</span>
+										<strong className="ed-preview-title">Waiting for Next.js…</strong>
+										<span className="ed-preview-description">Next.js may be compiling this route or waiting for the dev server. The preview will become interactive when the response arrives.</span>
 										<div className="ed-preview-progress" aria-hidden="true" />
 										<div className="ed-preview-actions">
-											{previewStatus === "error" && <button type="button" className="ed-button" onClick={() => setTab("Errors")}>View Problems</button>}
 											<button type="button" className="ed-button" onClick={reloadPreview}>Reload preview</button>
 										</div>
 									</div>
