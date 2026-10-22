@@ -4,7 +4,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const ts = require("typescript");
 const { analyzeProjectModules } = require("../src/engine/plugins/gen3ModuleCompiler");
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-module-compiler-smoke-"));
@@ -22,7 +21,10 @@ try {
 			moduleResolution: "Bundler",
 			target: "ES2022",
 			baseUrl: ".",
-			paths: { "@/*": ["./*"] },
+			paths: {
+				"@/engine": ["./src/engine/index.ts"],
+				"@/*": ["./*"],
+			},
 		},
 	}, null, 2));
 	const homePage = write("app/page.tsx", [
