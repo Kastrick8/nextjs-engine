@@ -1,6 +1,13 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+	appendEngineDebugDiagnostics,
+	createEngineDebugDiagnostic,
+	formatEngineDebugDiagnostic,
+	redactEngineDebugText,
+} from "./EngineDebugDiagnostics";
+import type { EngineDebugDiagnostic, EngineDebugSource } from "./EngineDebugDiagnostics";
 import type {
 	EngineSchedulerDebugSnapshot,
 	EngineSchedulerDebugTask,
@@ -208,7 +215,10 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [selectedPage, setSelectedPage] = useState(pages[0] ?? "/");
 	const [picker, setPicker] = useState(false);
 	const [overlay, setOverlay] = useState(false);
-	const [tab, setTab] = useState<"Node" | "Scheduler" | "Device">("Node");
+	const [tab, setTab] = useState<"Node" | "Errors" | "Scheduler" | "Device">("Node");
+	const [diagnostics, setDiagnostics] = useState<EngineDebugDiagnostic[]>([]);
+	const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
+	const [diagnosticFilter, setDiagnosticFilter] = useState<"all" | "error" | "warning">("all");
 	const [selectedNode, setSelectedNode] = useState<DebugNode | null>(null);
 	const [scheduler, setScheduler] = useState<EngineSchedulerDebugSnapshot>(EMPTY_SCHEDULER);
 	const [inferredTransitions, setInferredTransitions] = useState<EngineSchedulerDebugTransition[]>([]);
@@ -235,6 +245,54 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				overlayStyle.textContent = FRAME_OVERLAY_CSS;
 				frameDocument.head.appendChild(overlayStyle);
 			}
+
+			const reportDiagnostic = (
+				source: EngineDebugSource,
+				message: unknown,
+				detail?: unknown,
+				location?: string,
+			) => {
+				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location });
+				setDiagnostics((current) => appendEngineDebugDiagnostics(current, diagnostic));
+				setSelectedDiagnosticId((current) => current ?? diagnostic.id);
+			};
+			const handleRuntimeError = (event: ErrorEvent) => {
+				reportDiagnostic(
+					"runtime",
+					event.message || "Uncaught browser runtime error",
+					event.error,
+					event.filename ? event.filename + (event.lineno ? ":" + event.lineno : "") : frameWindow.location.pathname,
+				);
+			};
+			const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+				reportDiagnostic("unhandled-rejection", "Unhandled promise rejection", event.reason, frameWindow.location.pathname);
+			};
+			const originalConsoleError = frameWindow.console.error;
+			const patchedConsoleError: typeof frameWindow.console.error = (...args) => {
+				const detail = args.map((argument) => redactEngineDebugText(argument, 1_500)).join("\n");
+				const message = typeof args[0] === "string" ? args[0] : detail || "console.error";
+				reportDiagnostic("console", message, detail, frameWindow.location.pathname);
+				originalConsoleError.apply(frameWindow.console, args);
+			};
+			let consolePatched = false;
+			try {
+				frameWindow.console.error = patchedConsoleError;
+				consolePatched = frameWindow.console.error === patchedConsoleError;
+			} catch {
+				// Keep diagnostic collection alive when a browser exposes a locked console object.
+			}
+			frameWindow.addEventListener("error", handleRuntimeError);
+			frameWindow.addEventListener("unhandledrejection", handleUnhandledRejection);
+			const scanNextOverlay = () => {
+				for (const element of frameDocument.querySelectorAll<HTMLElement>("nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]")) {
+					const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
+					if (!text || !/(error|exception|failed|hydration|mismatch|digest)/i.test(text)) continue;
+					reportDiagnostic("next-overlay", "Next.js development error overlay", text, frameWindow.location.pathname);
+				}
+			};
+			const overlayObserver = new MutationObserver(scanNextOverlay);
+			if (frameDocument.body) overlayObserver.observe(frameDocument.body, { childList: true, subtree: true, characterData: true });
+			scanNextOverlay();
 
 			const selectNode = (event: MouseEvent) => {
 				if (!picker) return;
@@ -301,6 +359,12 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			frameCleanup = () => {
 				frameDocument.removeEventListener("click", selectNode, true);
 				frameWindow.removeEventListener("engine:debug:scheduler", updateScheduler);
+				frameWindow.removeEventListener("error", handleRuntimeError);
+				frameWindow.removeEventListener("unhandledrejection", handleUnhandledRejection);
+				if (consolePatched && frameWindow.console.error === patchedConsoleError) {
+					frameWindow.console.error = originalConsoleError;
+				}
+				overlayObserver.disconnect();
 				frameWindow.clearInterval(scanTimer);
 				frameWindow.cancelAnimationFrame(raf);
 			};
