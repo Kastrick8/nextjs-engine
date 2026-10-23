@@ -126,6 +126,10 @@ try {
 		createEngineDebugSourceDocument,
 		saveEngineDebugSourceDocument,
 	} = require("../src/engine/debug/EngineDebugSourceRoute.ts");
+	const {
+		getEngineDebugAutoCompletions,
+		getEngineDebugFixSuggestions,
+	} = require("../src/engine/debug/EngineDebugCodeActions.ts");
 	const sourcePreview = createEngineDebugSourcePreview(process.cwd(), "src/engine/debug/EngineDebugDiagnostics.ts", 1);
 	assert.ok(sourcePreview, "development source preview reads an allowed workspace source file");
 	assert.equal(sourcePreview.path, "src/engine/debug/EngineDebugDiagnostics.ts");
@@ -134,6 +138,45 @@ try {
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), "../.env", 1), null, "source preview rejects parent traversal");
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), ".env.local", 1), null, "source preview rejects hidden environment files");
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), "node_modules/typescript/lib/typescript.js", 1), null, "source preview rejects dependency directories");
+
+	const brokenHookSource = '"use client";\nexport default function Page() { const [count, setCount] = useState(0); return <button onClick={() => setCount(count + 1)}>{count}</button>; }\n';
+	const completions = getEngineDebugAutoCompletions("app/page.tsx", brokenHookSource);
+	const hookCompletion = completions.find((action) => action.id === "react-hooks-import");
+	assert.ok(hookCompletion, "autocomplete detects used but unimported React hooks");
+	assert.match(hookCompletion.replacement, /^"use client";\nimport \{ useState \} from "react";/);
+	assert.match(hookCompletion.beforePreview, /useState/);
+	assert.match(hookCompletion.afterPreview, /from "react"/);
+	const linkCompletion = getEngineDebugAutoCompletions("app/page.tsx", 'export default function Page() { return <Link href="/">Home</Link>; }\n');
+	assert.match(linkCompletion.find((action) => action.id === "next-link-import")?.replacement ?? "", /import Link from "next\/link"/,
+		"Next.js Link autocomplete uses its default import");
+	const hookDiagnostic = {
+		message: "ReferenceError: useState is not defined",
+		detail: "useState was referenced while rendering app/page.tsx",
+		location: "app/page.tsx:1:34",
+		source: "runtime",
+		category: "Runtime",
+	};
+	assert.ok(getEngineDebugFixSuggestions(hookDiagnostic, "app/page.tsx", brokenHookSource).some((action) => action.id === "react-hooks-import"),
+		"Auto-Fix offers a focused import suggestion for a missing React hook");
+	const clientDiagnostic = {
+		message: "useState can only be used in a Client Component",
+		detail: "Add a use client directive to this component",
+		location: "app/page.tsx:1",
+		source: "next-overlay",
+		category: "SSR",
+	};
+	const clientFix = getEngineDebugFixSuggestions(clientDiagnostic, "app/page.tsx", 'export default function Page() { return useState(0); }\n');
+	assert.match(clientFix.find((action) => action.id === "add-use-client")?.replacement ?? "", /^"use client";\n/);
+	const typoDiagnostic = {
+		message: "Cannot find name 'usState'. Did you mean 'useState'?",
+		detail: "",
+		location: "app/page.tsx:3",
+		source: "next-overlay",
+		category: "SSR",
+	};
+	assert.match(getEngineDebugFixSuggestions(typoDiagnostic, "app/page.tsx", "const count = usState(0);\n").find((action) => action.id === "replace-suggested-identifier")?.replacement ?? "", /useState/,
+		"compiler-suggested identifier fixes are proposed in the editor buffer");
+
 
 	const os = require("node:os");
 	const editorRoot = fs.mkdtempSync(path.join(os.tmpdir(), "engine-debug-editor-"));

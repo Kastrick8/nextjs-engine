@@ -921,7 +921,7 @@ function ErrorInspector({
 								</div>
 							</div>
 							<div className="ed-code-actions">
-								<button type="button" className="ed-code-action-toggle" aria-expanded={autoFixSuggestions.length > 0} aria-label={"Auto-fix suggestions (" + autoFixSuggestions.length + ")"} onClick={() => setExpandedActions((current) => ({ ...current, "__autoFixPanel": !current.__autoFixPanel }))}>
+								<button type="button" className="ed-code-action-toggle" aria-expanded={Boolean(expandedActions.__autoFixPanel)} aria-label={"Auto-fix suggestions (" + autoFixSuggestions.length + ")"} onClick={() => setExpandedActions((current) => ({ ...current, "__autoFixPanel": !current.__autoFixPanel }))}>
 									<span>Auto-fix suggestions <span className="ed-code-action-label">{autoFixSuggestions.length} available</span></span><span>{expandedActions.__autoFixPanel ? "−" : "+"}</span>
 								</button>
 								{expandedActions.__autoFixPanel && <div className="ed-code-action-list">

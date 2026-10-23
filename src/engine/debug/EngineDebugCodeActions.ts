@@ -66,10 +66,20 @@ function hasNamedImport(source: string, moduleName: string, symbol: string): boo
 	return defaultMatcher.test(source);
 }
 
-function importContainsModule(source: string, moduleName: string): boolean {
-	const escaped = escapeRegExp(moduleName);
-	return new RegExp("import[\\s\\S]*?from\\s*(['\"])" + escaped + "\\1").test(source)
-		|| new RegExp("import\\s*(['\"])" + escaped + "\\1").test(source);
+function hasDefaultImport(source: string, moduleName: string, symbol: string): boolean {
+	const escapedModule = escapeRegExp(moduleName);
+	if (symbol === "React" && new RegExp("import\\s+\\*\\s+as\\s+React\\s+from\\s*(['\"])"+escapedModule+"\\1").test(source)) return true;
+	return new RegExp("import\\s+" + escapeRegExp(symbol) + "\\s+from\\s*(['\"])"+escapedModule+"\\1").test(source);
+}
+
+function insertDefaultImport(source: string, moduleName: string, symbol: string): string {
+	if (hasDefaultImport(source, moduleName, symbol)) return source;
+	const insertion = getDirectiveInsertionIndex(source);
+	const before = source.slice(0, insertion);
+	const after = source.slice(insertion);
+	const separatorBefore = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+	const separatorAfter = after.length > 0 && !after.startsWith("\n") ? "\n" : "";
+	return before + separatorBefore + 'import ' + symbol + ' from "' + moduleName + '";\n' + separatorAfter + after;
 }
 
 function insertImport(source: string, moduleName: string, symbols: readonly string[]): string {
@@ -119,15 +129,15 @@ function getImportCompletions(source: string): EngineDebugCodeAction[] {
 		const action = createAction("next-navigation-hooks-import", "Import Next.js navigation hooks", "Add " + missingNavigationHooks.join(", ") + " from next/navigation.", "high", source, insertImport(source, "next/navigation", missingNavigationHooks));
 		if (action) actions.push(action);
 	}
-	if (/<Link(?:\s|>)/.test(source) && !importContainsModule(source, "next/link")) {
-		const action = createAction("next-link-import", "Import next/link", "Add the Link component import for the JSX element.", "high", source, insertImport(source, "next/link", ["Link"]));
+	if (/<Link(?:\s|>)/.test(source) && !hasNamedImport(source, "next/link", "Link")) {
+		const action = createAction("next-link-import", "Import next/link", "Add the default Link component import for the JSX element.", "high", source, insertDefaultImport(source, "next/link", "Link"));
 		if (action) actions.push(action);
 	}
-	if (/<Image(?:\s|>)/.test(source) && !importContainsModule(source, "next/image")) {
-		const action = createAction("next-image-import", "Import next/image", "Add the Image component import for the JSX element.", "high", source, insertImport(source, "next/image", ["Image"]));
+	if (/<Image(?:\s|>)/.test(source) && !hasNamedImport(source, "next/image", "Image")) {
+		const action = createAction("next-image-import", "Import next/image", "Add the default Image component import for the JSX element.", "high", source, insertDefaultImport(source, "next/image", "Image"));
 		if (action) actions.push(action);
 	}
-	if (/\bReact\s*\./.test(source) && !importContainsModule(source, "react")) {
+	if (/\bReact\s*\./.test(source) && !hasDefaultImport(source, "react", "React")) {
 		const insertion = getDirectiveInsertionIndex(source);
 		const before = source.slice(0, insertion);
 		const after = source.slice(insertion);
