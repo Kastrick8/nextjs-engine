@@ -521,6 +521,7 @@ function renderServerNode(
 				<Tag {...debug} id={id} className={className} style={headingStyle}>
 					{renderTextContent(props, children)}
 				</Tag>,
+				props,
 			);
 			const subheadingProps = props.subheadingProps != null
 				&& typeof props.subheadingProps === "object"
@@ -559,6 +560,7 @@ function renderServerNode(
 					<SubheadingTag id={subheadingId} className={subheadingClassName} style={subheadingStyle}>
 						{renderTextContent(subheadingInput, props.subheading)}
 					</SubheadingTag>,
+					subheadingInput,
 				)
 				: null;
 			return <React.Fragment key={compiled.id}>{heading}{subheading}</React.Fragment>;
