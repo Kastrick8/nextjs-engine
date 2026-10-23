@@ -26,7 +26,7 @@ import { engineFallbackPlanNeedsCompatibilityCheck } from "./core/EngineBrowserC
 import dynamic from "next/dynamic";
 
 const EngineDebugRuntimeMonitor = process.env.NODE_ENV === "development"
-	? dynamic(() => import("./debug/EngineDebugRuntimeMonitor").then((module) => module.EngineDebugRuntimeMonitor), { ssr: false })
+	? dynamic(() => import("./debug/EngineDebugRuntimeMonitor").then((module) => module.EngineDebugRuntimeMonitor))
 	: () => null;
 
 export interface EngineCompilerOptions {
