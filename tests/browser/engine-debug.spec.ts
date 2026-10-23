@@ -89,6 +89,7 @@ test("EngineDebug pins a mapped problem to its element and opens its dashboard d
 
 	const marker = preview.locator("[data-engine-debug-inline-callout]");
 	await expect(marker).toBeVisible();
+	await page.locator("iframe[title^='Live preview:']").scrollIntoViewIfNeeded();
 	const badge = preview.getByRole("button", { name: "! Error" });
 	await badge.hover();
 	await expect(preview.getByText("app/page.tsx:1:2", { exact: true })).toBeVisible();
