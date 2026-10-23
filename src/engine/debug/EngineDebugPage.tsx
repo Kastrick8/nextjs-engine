@@ -8,6 +8,7 @@ import {
 	redactEngineDebugText,
 } from "./EngineDebugDiagnostics";
 import type { EngineDebugDiagnostic, EngineDebugSource } from "./EngineDebugDiagnostics";
+import { installEngineDebugInlineCallout } from "./EngineDebugInlineCallout";
 import type {
 	EngineSchedulerDebugSnapshot,
 	EngineSchedulerDebugTask,
@@ -226,6 +227,8 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [overlay, setOverlay] = useState(false);
 	const [tab, setTab] = useState<"Node" | "Errors" | "Scheduler" | "Device">("Node");
 	const [diagnostics, setDiagnostics] = useState<EngineDebugDiagnostic[]>([]);
+	const diagnosticsRef = useRef<EngineDebugDiagnostic[]>([]);
+	const inlineCalloutsRef = useRef(new Map<string, () => void>());
 	const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
 	const [diagnosticFilter, setDiagnosticFilter] = useState<"all" | "error" | "warning">("all");
 	const [selectedNode, setSelectedNode] = useState<DebugNode | null>(null);
@@ -236,6 +239,21 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [layoutByDevice, setLayoutByDevice] = useState<Record<string, number>>({});
 	const [previewStatus, setPreviewStatus] = useState<"waiting" | "ready" | "error">("waiting");
 	const frameSource = useMemo(() => `${selectedPage}${selectedPage.includes("?") ? "&" : "?"}__engine_debug=1`, [selectedPage]);
+	useEffect(() => {
+		const handleInlineIssueNavigation = (event: MessageEvent) => {
+			const frame = iframeRef.current;
+			if (!frame?.contentWindow || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
+			const payload = event.data as { type?: unknown; issueId?: unknown };
+			if (payload?.type !== "nextjs-engine:debug:view-diagnostic" || typeof payload.issueId !== "string") return;
+			const issue = diagnosticsRef.current.find((item) => item.id === payload.issueId);
+			if (!issue) return;
+			setSelectedDiagnosticId(issue.id);
+			setTab("Errors");
+		};
+		window.addEventListener("message", handleInlineIssueNavigation);
+		return () => window.removeEventListener("message", handleInlineIssueNavigation);
+	}, []);
+
 
 	useEffect(() => {
 		setPreviewStatus("waiting");
@@ -295,9 +313,24 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				location?: string,
 			) => {
 				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location });
-				setDiagnostics((current) => appendEngineDebugDiagnostics(current, diagnostic));
-				setSelectedDiagnosticId((current) => current ?? diagnostic.id);
-				if (source !== "console" && diagnostic.severity === "error") setPreviewStatus("error");
+				const nextDiagnostics = appendEngineDebugDiagnostics(diagnosticsRef.current, diagnostic);
+				diagnosticsRef.current = nextDiagnostics;
+				setDiagnostics(nextDiagnostics);
+				const stored = nextDiagnostics[nextDiagnostics.length - 1] ?? diagnostic;
+				setSelectedDiagnosticId((current) => current ?? stored.id);
+				const retainedIds = new Set(nextDiagnostics.map((item) => item.id));
+				for (const [id, cleanup] of inlineCalloutsRef.current) {
+					if (!retainedIds.has(id)) {
+						cleanup();
+						inlineCalloutsRef.current.delete(id);
+					}
+				}
+				const previousCallout = inlineCalloutsRef.current.get(stored.id);
+				previousCallout?.();
+				inlineCalloutsRef.current.delete(stored.id);
+				const cleanupCallout = installEngineDebugInlineCallout(frameDocument, stored, frameWindow.location.pathname);
+				if (cleanupCallout) inlineCalloutsRef.current.set(stored.id, cleanupCallout);
+				if (source !== "console" && stored.severity === "error") setPreviewStatus("error");
 			};
 			const handleRuntimeError = (event: ErrorEvent) => {
 				reportDiagnostic(
@@ -412,6 +445,8 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			};
 			raf = frameWindow.requestAnimationFrame(measure);
 			frameCleanup = () => {
+				for (const cleanupCallout of inlineCalloutsRef.current.values()) cleanupCallout();
+				inlineCalloutsRef.current.clear();
 				frameDocument.removeEventListener("click", selectNode, true);
 				frameWindow.removeEventListener("engine:debug:scheduler", updateScheduler);
 				frameWindow.removeEventListener("error", handleRuntimeError);
@@ -530,7 +565,13 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 							filter={diagnosticFilter}
 							onFilter={setDiagnosticFilter}
 							onSelect={setSelectedDiagnosticId}
-							onClear={() => { setDiagnostics([]); setSelectedDiagnosticId(null); }}
+							onClear={() => {
+							for (const cleanupCallout of inlineCalloutsRef.current.values()) cleanupCallout();
+							inlineCalloutsRef.current.clear();
+							diagnosticsRef.current = [];
+							setDiagnostics([]);
+							setSelectedDiagnosticId(null);
+						}}
 						/>
 					)}
 					{tab === "Scheduler" && <SchedulerInspector snapshot={scheduler} transitions={transitions} />}
@@ -573,14 +614,6 @@ function ErrorInspector({
 				<span className="ed-problem-count">{visible.length} shown</span>
 				<button type="button" className="ed-filter" onClick={onClear} disabled={diagnostics.length === 0}>Clear</button>
 			</div>
-			<div className="ed-diagnostic-list" aria-label="Captured problems">
-				{visible.length === 0 ? <div className="ed-empty">No captured problems. Run or reload the preview to collect console, runtime, rejection, and visible Next.js overlay errors.</div> : visible.map((item) => (
-					<button key={item.id} type="button" className="ed-diagnostic" aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
-						<span className={"ed-problem-glyph " + item.severity}>{item.severity === "error" ? "●" : "▲"}</span>
-						<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span><span>{new Date(item.at).toLocaleTimeString()}</span></span></span>
-					</button>
-				))}
-			</div>
 			{selected && (
 				<section className="ed-card" aria-label="Selected diagnostic details">
 					<h3>{selected.category} diagnostic</h3>
@@ -593,6 +626,15 @@ function ErrorInspector({
 					<button type="button" className="ed-button" onClick={copySelected}>Copy details</button>
 				</section>
 			)}
+			<div className="ed-diagnostic-list" aria-label="Captured problems">
+				{visible.length === 0 ? <div className="ed-empty">No captured problems. Run or reload the preview to collect console, runtime, rejection, and visible Next.js overlay errors.</div> : visible.map((item) => (
+					<button key={item.id} type="button" className="ed-diagnostic" aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
+						<span className={"ed-problem-glyph " + item.severity}>{item.severity === "error" ? "●" : "▲"}</span>
+						<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span><span>{new Date(item.at).toLocaleTimeString()}</span></span></span>
+					</button>
+				))}
+			</div>
+
 			<p className="ed-explain"><span className="ed-warning">Capture boundary:</span> browser errors, unhandled rejections, console errors, and visible Next.js error overlays are collected from the same-origin preview in memory. Server errors emitted before a page reaches the browser may still appear only in the Next.js overlay or dev-server terminal.</p>
 		</>
 	);
