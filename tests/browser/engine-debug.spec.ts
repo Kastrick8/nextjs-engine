@@ -95,7 +95,7 @@ test("EngineDebug pins a mapped problem to its element and opens its dashboard d
 	await expect(preview.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/)).toBeVisible();
 	await expect(preview.getByRole("button", { name: "View on Dashboard" })).toBeVisible();
 	await preview.getByRole("button", { name: "View on Dashboard" }).click();
-
+	await expect(page).toHaveURL(/\/_engine\/debug\?route=.*issue=/);
 	await expect(page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_INLINE_CALLOUT" })).toBeVisible();
 	await expect(page.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/).first()).toBeVisible();
 });
