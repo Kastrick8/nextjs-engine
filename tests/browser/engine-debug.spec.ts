@@ -95,7 +95,7 @@ test("EngineDebug pins a mapped problem to its element and opens its dashboard d
 	await expect(preview.getByRole("button", { name: "View on Dashboard" })).toBeVisible();
 	await preview.getByRole("button", { name: "View on Dashboard" }).click();
 
-	await expect(page.locator(".ed-diagnostic").filter({ hasText: /ENGINE_DEBUG_(?:INLINE|STANDALONE)_CALLOUT/ })).toBeVisible();
+	await expect(page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_INLINE_CALLOUT" })).toBeVisible();
 	await expect(page.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/).first()).toBeVisible();
 });
 
@@ -121,7 +121,7 @@ test("a normal Engine page can open its inline issue directly in EngineDebug", a
 	await page.getByRole("button", { name: "View on Dashboard" }).click();
 
 	await expect(page).toHaveURL(/\/_engine\/debug/);
-	await expect(page.locator(".ed-diagnostic").filter({ hasText: /ENGINE_DEBUG_(?:INLINE|STANDALONE)_CALLOUT/ })).toBeVisible();
+	await expect(page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_STANDALONE_CALLOUT" })).toBeVisible();
 	await expect(page.getByText(/ENGINE_DEBUG_STANDALONE_CALLOUT/).first()).toBeVisible();
 	await expect(page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true })).toHaveAttribute("aria-current", "page");
 });
