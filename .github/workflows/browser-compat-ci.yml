@@ -1,4 +1,4 @@
-name: Engine browser compatibility
+name: Engine cross-browser compatibility
 
 on:
   push:
