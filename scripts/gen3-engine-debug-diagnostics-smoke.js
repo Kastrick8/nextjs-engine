@@ -255,6 +255,8 @@ try {
 
 	assert.ok(runtimeMonitorSource.includes('url.searchParams.get("__engine_debug") === "1"'), "normal-page monitor skips the dashboard preview to prevent duplicate overlays");
 	assert.ok(runtimeMonitorSource.includes("__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__"), "normal-page instrumentation avoids double-patching console.error");
+	assert.ok(runtimeMonitorSource.includes("scannedOverlayText"), "overlay observer ignores unchanged overlays when callout mutations trigger rescans");
+	assert.ok(runtimeMonitorSource.includes("existingRoute === activeRoute"), "identical issues do not recreate their inline callout on the same route");
 	const inlineCalloutSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugInlineCallout.ts"), "utf8");
 	for (const required of [
 		"data-engine-debug-error-target",
