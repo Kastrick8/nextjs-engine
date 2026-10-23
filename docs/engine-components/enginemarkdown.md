@@ -29,10 +29,10 @@ including standard/bright colors, 256-color and truecolor foreground/background,
 bold, dim, italic, underline, inverse, strikethrough, and reset codes.
 
 ````md
-\`\`\`ansi
-\u001b[1;32m✓ Build complete\u001b[0m
-\u001b[38;2;255;120;50mCustom truecolor output\u001b[0m
-\`\`\`
+```ansi
+\\u001b[1;32m✓ Build complete\\u001b[0m
+\\u001b[38;2;255;120;50mCustom truecolor output\\u001b[0m
+```
 ````
 
 ANSI output is rendered as React text spans; escape sequences are never inserted
