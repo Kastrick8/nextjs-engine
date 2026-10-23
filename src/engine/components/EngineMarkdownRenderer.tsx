@@ -67,6 +67,7 @@ interface MarkdownRenderConfig {
 	codeBorderColor: string;
 	codeFontFamily: string;
 	showCodeLanguage: boolean;
+	markdownStyles?: MarkdownProps["markdownStyles"];
 	ansiPalette: EngineAnsiPalette;
 	ansiForeground: string;
 	ansiBackground: string;
@@ -168,6 +169,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					scrollMarginTop: "7rem",
 					textAlign: "left",
 					...props.style,
+					...config.markdownStyles?.heading,
 				}}
 			>
 				{children}
@@ -194,6 +196,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					lineHeight: config.bodyLineHeight,
 					overflowWrap: "anywhere",
 					...style,
+					...config.markdownStyles?.paragraph,
 				}}
 			/>
 		),
@@ -207,7 +210,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					target={external ? "_blank" : undefined}
 					rel={external ? "noopener noreferrer" : undefined}
 					className={className}
-					style={{ color: config.linkColor, fontWeight: 700, overflowWrap: "anywhere", ...style }}
+					style={{ color: config.linkColor, fontWeight: 700, overflowWrap: "anywhere", ...style, ...config.markdownStyles?.link }}
 				/>
 			);
 		},
@@ -259,6 +262,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					borderRadius: "0 .5rem .5rem 0",
 					color: config.textColor,
 					...style,
+					...config.markdownStyles?.blockquote,
 				}}
 			/>
 		),
@@ -275,6 +279,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					borderRadius: ".3rem",
 					padding: ".12em .35em",
 					...style,
+					...config.markdownStyles?.inlineCode,
 				}}
 			/>
 		),
@@ -320,6 +325,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 						overflow: "hidden",
 						background: config.codeBackground,
 						color: config.codeColor,
+						...config.markdownStyles?.codeBlock,
 					}}
 				>
 					{language && config.showCodeLanguage ? (
@@ -332,6 +338,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 							letterSpacing: ".08em",
 							textTransform: "uppercase",
 							color: "rgba(226,232,240,.72)",
+							...config.markdownStyles?.codeLanguage,
 						}}>{language}</figcaption>
 					) : null}
 					<pre style={{
@@ -360,8 +367,14 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					borderRadius: ".65rem",
 				}}
 			>
-				<table>{children}</table>
+				<table style={config.markdownStyles?.table}>{children}</table>
 			</div>
+		),
+		th: ({ node: _node, style, ...props }) => (
+			<th {...props} style={{ ...style, ...config.markdownStyles?.tableHeader }} />
+		),
+		td: ({ node: _node, style, ...props }) => (
+			<td {...props} style={{ ...style, ...config.markdownStyles?.tableCell }} />
 		),
 		img: ({ node: _node, src = "", alt = "", className, style, ...props }) => (
 			<img
@@ -384,6 +397,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					borderTop: `1px solid ${config.mutedColor}`,
 					margin: ".5rem 0",
 					...style,
+					...config.markdownStyles?.horizontalRule,
 				}}
 			/>
 		),
@@ -426,6 +440,7 @@ export function EngineMarkdownRenderer({
 	codeBorderColor = "rgba(148,163,184,.28)",
 	codeFontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
 	showCodeLanguage = true,
+	markdownStyles,
 	ansiPalette = {},
 	ansiForeground,
 	ansiBackground,
@@ -458,6 +473,7 @@ export function EngineMarkdownRenderer({
 		codeBorderColor,
 		codeFontFamily,
 		showCodeLanguage,
+		markdownStyles,
 		ansiPalette,
 		ansiForeground: ansiForeground ?? codeColor,
 		ansiBackground: ansiBackground ?? codeBackground,
