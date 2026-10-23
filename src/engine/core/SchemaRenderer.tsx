@@ -318,6 +318,7 @@ function NodeRenderer({ node, depth, path }: NodeRendererProps) {
 	const debugMetadata = process.env.NODE_ENV === "development" ? { "data-engine-debug-path": path, "data-engine-debug-name": String(node.type) } : {};
 	const nodeProps = {
 		...componentProps,
+		...debugMetadata,
 		...(resolvedDomId ? { id: resolvedDomId } : {}),
 		...(mergedClassName ? { className: mergedClassName } : {}),
 		...(Object.keys(extraStyle).length > 0
