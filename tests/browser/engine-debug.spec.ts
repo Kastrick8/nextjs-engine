@@ -74,6 +74,7 @@ test("EngineDebug pins a mapped problem to its element and opens its dashboard d
 	await page.goto("/_engine/debug");
 	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
 	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	await expect(preview.getByRole("heading", { name: "Reasonable fallback available" })).toBeVisible();
 	const componentName = await preview.locator("[data-engine-debug-path][data-engine-debug-name]").evaluateAll((elements) => {
 		const names = elements.map((element) => element.getAttribute("data-engine-debug-name") || element.getAttribute("data-engine-debug-type") || "");
 		return names.find((name) =>
