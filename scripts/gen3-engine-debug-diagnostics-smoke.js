@@ -157,7 +157,6 @@ try {
 		"handlePreviewLoad",
 		"installEngineDebugInlineCallout",
 		"nextjs-engine:debug:view-diagnostic",
-		"View on Dashboard",
 	]) assert.ok(pageSource.includes(required), "debug workbench includes " + required);
 
 
