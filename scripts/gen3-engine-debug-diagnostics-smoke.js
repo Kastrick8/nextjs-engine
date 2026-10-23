@@ -184,7 +184,7 @@ try {
 		"Source preview",
 		"View on Dashboard",
 		"SOURCE_LOCATION",
-		"nextjs-engine:debug:view-diagnostic",
+		"nextjs-engine:debug:diagnostic-handoff",
 	]) assert.ok(inlineCalloutSource.includes(required), "inline callout includes " + required);
 	const sourceRouteSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugSourceRoute.ts"), "utf8");
 	for (const required of [
