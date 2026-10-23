@@ -23,6 +23,7 @@ import { EngineServerRenderer } from "./compiler/EngineServerRenderer";
 import type { EngineCompiledPage } from "./compiler/types";
 import { EngineBrowserUpdateDialog } from "./components/EngineCompatibilityDialog";
 import { engineFallbackPlanNeedsCompatibilityCheck } from "./core/EngineBrowserCompatibility";
+import { EngineDebugRuntimeMonitor } from "./debug/EngineDebugRuntimeMonitor";
 
 export interface EngineCompilerOptions {
 	strict?: boolean;
@@ -223,6 +224,7 @@ export function createPage(options: CreatePageOptions): EnginePageComponent {
 				<EngineProvider config={config} handlers={handlers} slots={slots}>
 					<EngineTheme schema={resolvedSchema} />
 					<SchemaRenderer schema={resolvedSchema} />
+					{process.env.NODE_ENV === "development" && <EngineDebugRuntimeMonitor />}
 					<EngineCollectedStyles id="__engine_styles__" />
 					{renderCompatibility(resolvedPlan)}
 				</EngineProvider>
@@ -242,6 +244,7 @@ export function createPage(options: CreatePageOptions): EnginePageComponent {
 			<>
 				<EngineTheme schema={resolvedSchema} />
 				<EngineServerRenderer schema={resolvedSchema} plan={resolvedPlan} config={config} slots={slots} />
+				{process.env.NODE_ENV === "development" && <EngineDebugRuntimeMonitor />}
 				{renderCompatibility(resolvedPlan)}
 			</>
 		);
