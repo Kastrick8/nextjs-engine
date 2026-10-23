@@ -20,6 +20,7 @@ new Function("module", "exports", "require", ts.transpileModule(parserSource, {
 
 const {
 	normalizeEngineMarkdownSource,
+	parseEngineAnsi,
 	slugifyMarkdownHeading,
 } = parserModule.exports;
 
@@ -46,6 +47,17 @@ async function main() {
 	);
 	assert.equal(slugifyMarkdownHeading("**NAS** layout `v3`"), "nas-layout-v3");
 
+	const ansi = parseEngineAnsi("\u001b[1;31mERROR\u001b[0m plain \u001b[38;2;12;34;56mRGB");
+	assert.equal(ansi.length, 3, "ANSI SGR sequences should split terminal output into styled text segments");
+	assert.equal(ansi[0].text, "ERROR");
+	assert.equal(ansi[0].style.fontWeight, 700, "ANSI bold should map to font weight");
+	assert.equal(ansi[0].style.color, "#aa0000", "ANSI basic colors should use the configurable palette defaults");
+	assert.equal(ansi[1].text, " plain ");
+	assert.equal(ansi[2].style.color, "rgb(12, 34, 56)", "ANSI truecolor should preserve RGB values");
+	const customAnsi = parseEngineAnsi("\u001b[91mbright\u001b[0m", { brightRed: "#ff0066" });
+	assert.equal(customAnsi[0].style.color, "#ff0066", "ANSI palette colors should be theme-overridable");
+	assert.equal(parseEngineAnsi("safe \u001b[31mtext\u001b[0m")[0].text, "safe ");
+
 	const [{ default: ReactMarkdown }, { default: remarkGfm }] = await Promise.all([
 		import("react-markdown"),
 		import("remark-gfm"),
@@ -69,6 +81,8 @@ async function main() {
 	assert.match(rendererSource, /skipHtml/, "raw HTML must remain disabled");
 	assert.match(rendererSource, /overflowX: "auto"/, "wide code and tables must scroll inside their container");
 	assert.match(rendererSource, /safeMarkdownUrl/, "links and images must pass through the Engine URL policy");
+	assert.match(rendererSource, /parseEngineAnsi/, "ANSI fenced blocks must use the safe ANSI parser");
+	assert.match(rendererSource, /ansiPalette/, "ANSI colors must be configurable through the renderer API");
 	assert.match(serverSource, /collector\.add\(ENGINE_MARKDOWN_CSS\)/, "server rendering must collect Markdown CSS without a client effect");
 	assert.match(serverSource, /case "markdown"/, "the Gen 3 server renderer must own schema Markdown nodes");
 
