@@ -63,3 +63,18 @@ The workbench layout uses a compact, VS Code-inspired dark workspace: activity r
 ## Preview lifecycle feedback
 
 The central preview now shows an accessible waiting overlay while its iframe response is pending, with indeterminate progress rather than a fabricated percentage. It changes to **READY** after the preview document loads, or **ERROR** when captured runtime diagnostics report a problem. The overlay offers **Reload preview** and, on errors, **View Problems**. A persistent status label remains in the preview toolbar. This indicates iframe loading and captured failures; it does not claim to read Next.js compiler progress from the dev server.
+
+## Inline issue callouts and source previews
+
+When EngineDebug can map a captured diagnostic to exactly one rendered Engine node, it marks that element with a non-layout-shifting red outline and a small error badge. The badge opens an accessible hover/focus card with the authoring file and line when available, a short highlighted source excerpt, the diagnostic summary, and a **View on Dashboard** action. That action sends the issue ID to the embedding workbench; the workbench validates the message origin and iframe source, opens the Problems inspector, and selects the same diagnostic.
+
+A callout is only attached when the mapping is unambiguous:
+
+- an exact `schema:root.children[...]` diagnostic path matches the Engine node's `data-engine-debug-path`; or
+- a component name from the captured stack uniquely matches a node's `data-engine-debug-name` / `data-engine-debug-type`.
+
+A source file/line by itself does not identify a DOM element. If no node can be identified safely, the diagnostic remains in Problems without a guessed red outline. If a trustworthy file/line mapping is absent, the callout states that the source mapping is unavailable rather than inventing a path or code snippet.
+
+The generated `/_engine/debug/source` route returns a bounded line excerpt from an allowed workspace source file. It exists only in development; the request is same-origin and limited to loopback hosts; path traversal, hidden files, dependency/build directories, unsupported extensions, symlink escapes and files larger than 1 MiB are rejected. Responses are non-cacheable. Production preparation removes both the generated debug page and source route before Next.js route discovery.
+
+The inline callout does not change application source. Quick Fix / Code Actions remains a separate workflow: proposed edits must be reviewable, explicitly applied by the developer, and verified afterward.
