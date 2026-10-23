@@ -66,6 +66,16 @@ async function main() {
 	assert.ok(githubIcon.startsWith("https://www.google.com/s2/favicons?"), "external links should resolve through the favicon provider");
 	assert.ok(githubIcon.includes("domain_url=https%3A%2F%2Fgithub.com"), "favicon lookups must use the domain origin");
 	assert.doesNotMatch(githubIcon, /Kate-alt-69|private|do-not-forward/, "favicon lookup must not expose the path or query");
+	assert.equal(
+		resolveEngineFaviconUrl("http://github.com/another-path"),
+		resolveEngineFaviconUrl("https://github.com"),
+		"favicon lookup cache keys should normalize HTTP and HTTPS to the same hostname",
+	);
+	assert.equal(
+		resolveEngineFaviconUrl("http://[::ffff:127.0.0.1]"),
+		undefined,
+		"IPv4-mapped IPv6 loopback must be skipped",
+	);
 	assert.equal(resolveEngineFaviconUrl("/relative/path"), undefined, "relative links must not receive favicons");
 	assert.equal(resolveEngineFaviconUrl("javascript:alert(1)"), undefined, "unsafe schemes must not receive favicons");
 	assert.equal(resolveEngineFaviconUrl("http://127.0.0.1:3000"), undefined, "loopback destinations must be skipped");
