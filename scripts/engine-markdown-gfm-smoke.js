@@ -56,6 +56,8 @@ async function main() {
 	assert.equal(ansi[2].style.color, "rgb(12, 34, 56)", "ANSI truecolor should preserve RGB values");
 	const customAnsi = parseEngineAnsi("\u001b[91mbright\u001b[0m", { brightRed: "#ff0066" });
 	assert.equal(customAnsi[0].style.color, "#ff0066", "ANSI palette colors should be theme-overridable");
+	assert.equal(parseEngineAnsi("\u001b[38;5;196m256-color")[0].style.color, "rgb(255, 0, 0)", "ANSI 256-color codes should map to the xterm palette");
+	assert.equal(parseEngineAnsi("\u001b[4munderlined\u001b[0m")[0].style.textDecoration, "underline");
 	assert.equal(parseEngineAnsi("safe \u001b[31mtext\u001b[0m")[0].text, "safe ");
 
 	const [{ default: ReactMarkdown }, { default: remarkGfm }] = await Promise.all([
@@ -74,6 +76,7 @@ async function main() {
 	const componentSource = fs.readFileSync(path.join(process.cwd(), "src", "engine", "components", "EngineMarkdown.tsx"), "utf8");
 	const rendererSource = fs.readFileSync(path.join(process.cwd(), "src", "engine", "components", "EngineMarkdownRenderer.tsx"), "utf8");
 	const serverSource = fs.readFileSync(path.join(process.cwd(), "src", "engine", "compiler", "EngineServerRenderer.tsx"), "utf8");
+	const publicApiSource = fs.readFileSync(path.join(process.cwd(), "src", "engine", "index.ts"), "utf8");
 	assert.doesNotMatch(componentSource, /import ReactMarkdown/, "the compatibility adapter must not own the AST implementation");
 	assert.match(componentSource, /EngineMarkdownRenderer/, "direct component imports must retain the shared renderer");
 	assert.match(rendererSource, /import ReactMarkdown/);
@@ -83,6 +86,8 @@ async function main() {
 	assert.match(rendererSource, /safeMarkdownUrl/, "links and images must pass through the Engine URL policy");
 	assert.match(rendererSource, /parseEngineAnsi/, "ANSI fenced blocks must use the safe ANSI parser");
 	assert.match(rendererSource, /ansiPalette/, "ANSI colors must be configurable through the renderer API");
+	assert.match(rendererSource, /markdownStyles/, "semantic Markdown styles must be overridable through the renderer API");
+	assert.match(publicApiSource, /EngineMarkdownStyles/, "Markdown theme types must be publicly exported");
 	assert.match(serverSource, /collector\.add\(ENGINE_MARKDOWN_CSS\)/, "server rendering must collect Markdown CSS without a client effect");
 	assert.match(serverSource, /case "markdown"/, "the Gen 3 server renderer must own schema Markdown nodes");
 
