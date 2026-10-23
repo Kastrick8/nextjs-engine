@@ -14,7 +14,7 @@ export interface EngineUrlIconProps {
 
 /**
  * Small opt-in favicon for an external URL.
- * The domain-only provider request has a stable URL that can be HTTP-cached.
+ * The same-origin asset endpoint downloads and caches icon bytes server-side.
  */
 export const EngineUrlIcon = memo(function EngineUrlIcon({
 	href,
