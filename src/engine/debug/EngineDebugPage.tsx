@@ -481,11 +481,16 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		const overlays = frameDocument.querySelectorAll<HTMLElement>(
 			"nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]",
 		);
-		const hasVisibleError = [...overlays].some((element) => {
+		const activeRoute = normalizeDebugRoute(frame.contentWindow?.location.pathname ?? selectedPage);
+		const hasApplicableError = [...overlays].some((element) => {
 			const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
-			return Boolean(text && /(compilation failed|failed to compile|uncaught|hydration|error occurred|module not found|exception|syntax error|type error)/i.test(text));
+			if (!text || !/(compilation failed|failed to compile|uncaught|hydration|error occurred|module not found|exception|syntax error|type error)/i.test(text)) return false;
+			const message = summarizeNextOverlay(text);
+			const mapped = parseEngineDebugSourceLocation({ location: "", message, detail: text });
+			const owner = mapped ? inferRouteFromSourcePath(mapped.path, pages) : undefined;
+			return !owner || normalizeDebugRoute(owner) === activeRoute;
 		});
-		setPreviewStatus(hasVisibleError && !hasRenderablePreviewContent(frameDocument) ? "error" : "ready");
+		setPreviewStatus(hasApplicableError && !hasRenderablePreviewContent(frameDocument) ? "error" : "ready");
 	};
 
 	const reloadPreview = () => {

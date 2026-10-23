@@ -47,7 +47,7 @@ try {
 	assert.doesNotMatch(generated, /_private/);
 	const generatedSourceRoute = fs.readFileSync(sourceRouteFile, "utf8");
 	assert.ok(generatedSourceRoute.startsWith(GENERATED_MARKER));
-	assert.match(generatedSourceRoute, /export \\{ GET, POST \\} from/);
+	assert.match(generatedSourceRoute, /export \{ GET, POST \} from/);
 	assert.equal(
 		prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath }).routeFile,
 		routeFile,
