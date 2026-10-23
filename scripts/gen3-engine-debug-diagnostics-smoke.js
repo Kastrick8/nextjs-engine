@@ -155,7 +155,7 @@ try {
 	assert.equal(monitorSyntaxErrors.length, 0,
 		"normal-page monitor TSX parses cleanly: " + monitorSyntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
 	const createPageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/createPage.tsx"), "utf8");
-	assert.match(createPageSource, /process\\.env\\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
+	assert.match(createPageSource, /process\.env\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
 		"normal Engine pages only mount the inline diagnostics monitor during development");
 	for (const required of [
 		"unhandledrejection",
