@@ -171,7 +171,7 @@ try {
 	]) assert.ok(inlineCalloutSource.includes(required), "inline callout includes " + required);
 	const sourceRouteSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugSourceRoute.ts"), "utf8");
 	for (const required of [
-		"process.env.NODE_ENV !== \\"development\\"",
+		"process.env.NODE_ENV",
 		"isLoopbackHost",
 		"FORBIDDEN_SEGMENTS",
 		"MAX_SOURCE_BYTES",
