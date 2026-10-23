@@ -39,7 +39,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ hashFiles('package.json') }}
           restore-keys: |
-            ${{ runner.os }}-playwright-
+            ${{ runner.os }}-playwright-${{ matrix.browser }}-
       - name: Install browser system dependencies
         run: npx playwright install-deps ${{ matrix.browser }}
       - name: Install ${{ matrix.browser }} browser
