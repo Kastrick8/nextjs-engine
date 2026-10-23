@@ -24,8 +24,13 @@ function isPrivateOrLocalHostname(hostname: string): boolean {
 
 	if (host.includes(":")) {
 		if (host === "::" || host === "::1" || /^(fc|fd|fe[89ab])/i.test(host)) return true;
-		const mapped = /::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(host);
-		return mapped ? isPrivateOrLocalHostname(mapped[1]) : false;
+		if (host.startsWith("::ffff:")) {
+			const mapped = /::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(host);
+			// Conservative: also reject hexadecimal IPv4-mapped forms we cannot
+			// reliably normalize without an IPv6 parser.
+			return mapped ? isPrivateOrLocalHostname(mapped[1]) : true;
+		}
+		return false;
 	}
 
 	const parts = host.split(".");
@@ -63,13 +68,13 @@ export function resolveEngineFaviconUrl(
 		|| isPrivateOrLocalHostname(url.hostname)
 	) return undefined;
 
-	// Use the registrable host origin only; never disclose a linked path or query.
-	const origin = `${url.protocol}//${url.hostname.toLowerCase()}`;
+	// Normalize to HTTPS and include only the hostname, never a path, query, port or fragment.
+	const origin = `https://${url.hostname.toLowerCase()}`;
 	const renderedSize = size === "auto"
 		? "auto"
 		: Math.max(MIN_ICON_SIZE, Math.min(MAX_ICON_SIZE, Math.round(Number.isFinite(size) ? size : 16)));
 	const providerSize = renderedSize === "auto" ? 64 : Math.max(32, Math.min(128, renderedSize * 2));
-	const cacheKey = `${origin}| ${providerSize}`;
+	const cacheKey = `${origin}|${providerSize}`;
 	const cached = faviconUrlCache.get(cacheKey);
 	if (cached) return cached;
 
