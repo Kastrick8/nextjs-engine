@@ -23,7 +23,11 @@ import { EngineServerRenderer } from "./compiler/EngineServerRenderer";
 import type { EngineCompiledPage } from "./compiler/types";
 import { EngineBrowserUpdateDialog } from "./components/EngineCompatibilityDialog";
 import { engineFallbackPlanNeedsCompatibilityCheck } from "./core/EngineBrowserCompatibility";
-import { EngineDebugRuntimeMonitor } from "./debug/EngineDebugRuntimeMonitor";
+import dynamic from "next/dynamic";
+
+const EngineDebugRuntimeMonitor = process.env.NODE_ENV === "development"
+	? dynamic(() => import("./debug/EngineDebugRuntimeMonitor").then((module) => module.EngineDebugRuntimeMonitor), { ssr: false })
+	: () => null;
 
 export interface EngineCompilerOptions {
 	strict?: boolean;
