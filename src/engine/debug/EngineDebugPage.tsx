@@ -558,13 +558,13 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				setSelectedDiagnosticId((current) => current ?? stored.id);
 				const retainedIds = new Set(nextDiagnostics.map((item) => item.id));
 				for (const [id, cleanup] of inlineCalloutsRef.current) if (!retainedIds.has(id)) { cleanup(); inlineCalloutsRef.current.delete(id); }
-				if (!existing) {
-					const cleanupCallout = installEngineDebugInlineCallout(frameDocument, stored, stored.route ?? frameWindow.location.pathname);
+				const activeRoute = normalizeDebugRoute(frameWindow.location.pathname);
+				const incomingRoute = normalizeDebugRoute(diagnostic.route ?? activeRoute);
+				if (incomingRoute === activeRoute && !inlineCalloutsRef.current.has(stored.id)) {
+					const cleanupCallout = installEngineDebugInlineCallout(frameDocument, stored, activeRoute);
 					if (cleanupCallout) inlineCalloutsRef.current.set(stored.id, cleanupCallout);
 				}
-				const activeRoute = normalizeDebugRoute(frameWindow.location.pathname);
-				const diagnosticRoute = normalizeDebugRoute(stored.route ?? activeRoute);
-				if (diagnosticRoute === activeRoute && stored.severity === "error" && source !== "console") setPreviewStatus(source === "next-overlay" && hasRenderablePreviewContent(frameDocument) ? "ready" : "error");
+				if (incomingRoute === activeRoute && stored.severity === "error" && source !== "console") setPreviewStatus(source === "next-overlay" && hasRenderablePreviewContent(frameDocument) ? "ready" : "error");
 			};
 			const handleRuntimeError = (event: ErrorEvent) => {
 				reportDiagnostic(

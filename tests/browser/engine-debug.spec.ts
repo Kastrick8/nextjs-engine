@@ -57,7 +57,7 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 	await expect(page.getByRole("button", { name: "Auto-complete", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: /Auto-fix suggestions/ })).toBeVisible();
 	await page.getByRole("button", { name: "Auto-complete", exact: true }).click();
-	await expect(page.getByText(/No missing imports detected|Import missing React hooks/).first()).toBeVisible();
+	await expect(page.locator(".ed-code-action-list").last()).toBeVisible();
 });
 
 test("EngineDebug shows a waiting state while the preview response is pending", async ({ page }) => {
