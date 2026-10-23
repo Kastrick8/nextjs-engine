@@ -1,7 +1,7 @@
 # Next.js Engine v3.0.0-alpha.1 — A Modern, Server-First Generation
 
 > **Release track:** Generation 3 alpha candidate  
-> **Status:** Prepared for validation; not yet published as a GitHub Release  
+> **Status:** Validation completed; alpha candidate not yet published as a GitHub Release  
 > **Target branch:** `main-3`  
 > **Previous stable generation:** Next.js Engine 2.6.x  
 > **Runtime baseline:** React 19 and Next.js 16
@@ -82,7 +82,7 @@ The preview displays a waiting/building state until its response arrives, a read
 
 ## Validation status
 
-This is a prepared alpha-candidate note, not proof of a published GitHub Release.
+The validation evidence below supports this alpha candidate; it does not mean a GitHub Release has been published.
 
 Validation on merged upstream commit `7c373ffd1d54859dde3a7a1900e823a14264eba2`:
 
