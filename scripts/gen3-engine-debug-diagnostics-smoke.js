@@ -76,14 +76,14 @@ try {
 	const duplicate = createEngineDebugDiagnostic({
 		source: "console",
 		message: hydration.message,
-		detail: "repeat",
+		detail: "repeat - additional source context for the same failure",
 		location: "/",
 		now: 1_500,
 	});
 	let collection = appendEngineDebugDiagnostics([], hydration);
 	collection = appendEngineDebugDiagnostics(collection, duplicate);
 	assert.equal(collection.length, 1, "duplicate messages are coalesced");
-	assert.equal(collection[0].detail, "repeat", "a repeated message can refresh available detail");
+	assert.equal(collection[0].detail, "repeat - additional source context for the same failure", "a repeated message replaces detail when it adds more useful context");
 	assert.equal(collection[0].repeatCount, 2, "repeat count is recorded");
 	collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({ source: "runtime", message: "intervening issue", now: 1_600, route: "/" }));
 	collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({ source: "console", message: hydration.message, detail: "repeat much later", location: "/", now: 30_000 }));
