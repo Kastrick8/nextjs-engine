@@ -204,7 +204,20 @@ import { EngineUrlIcon } from "nextjs-engine";
 
 Raw HTML embedded inside Markdown remains disabled for safety. Use Markdown links
 with the schema-level option above, or render regular HTML/JSX using
-`EngineUrlIcon` / `EngineLink`.
+`EngineUrlIcon` / `EngineLink`. A regular EngineLink can use the same boolean and size
+options without wrapping its label manually:
+
+```tsx
+import { EngineLink } from "nextjs-engine";
+
+<EngineLink
+  href="https://github.com"
+  emd_show-url-icon={true}
+  emd_url-icon-size={18}
+>
+  GitHub <strong>repository</strong>
+</EngineLink>
+```
 
 ## Responsive font family
 
