@@ -97,7 +97,12 @@ export function createEngineDebugSourceDocument(rootDirectory: string, file: str
 	}
 }
 
-export type EngineDebugSourceSaveResult = { status: "saved"; document: EngineDebugSourceDocument } | { status: "not-found" | "conflict" | "too-large" | "failed" };
+export type EngineDebugSourceSaveResult =
+	| { status: "saved"; document: EngineDebugSourceDocument }
+	| { status: "not-found" }
+	| { status: "conflict" }
+	| { status: "too-large" }
+	| { status: "failed" };
 
 export function saveEngineDebugSourceDocument(rootDirectory: string, file: string, expectedSha256: string, content: string): EngineDebugSourceSaveResult {
 	if (Buffer.byteLength(content, "utf8") > MAX_SOURCE_BYTES) return { status: "too-large" };
