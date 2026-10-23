@@ -91,6 +91,7 @@ test("EngineDebug pins a mapped problem to its element and opens its dashboard d
 	await expect(marker).toBeVisible();
 	await page.locator("iframe[title^='Live preview:']").scrollIntoViewIfNeeded();
 	const badge = preview.getByRole("button", { name: "! Error" });
+	await badge.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
 	await badge.hover();
 	await expect(preview.getByText("app/page.tsx:1:2", { exact: true })).toBeVisible();
 	await expect(preview.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/)).toBeVisible();
