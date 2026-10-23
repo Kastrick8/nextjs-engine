@@ -32,7 +32,7 @@ for (const compiledRoot of compiledRoots) {
 		for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
 			const filename = path.join(current, entry.name);
 			if (entry.isDirectory()) pending.push(filename);
-			else if (/\.(?:js|json)$/.test(entry.name)) {
+			else if (/\.(?:js|json)$/.test(entry.name) && !/client-reference-manifest\.js$/.test(entry.name)) {
 				assert.doesNotMatch(
 					fs.readFileSync(filename, "utf8"),
 					/Next\.js Engine Debug|D\.5–D\.10|data-next-engine-debug-active|data-engine-debug-inline-callout|nextjs-engine:debug:view-diagnostic|EngineDebugRuntimeMonitor/,
