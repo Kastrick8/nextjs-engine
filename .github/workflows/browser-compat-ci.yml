@@ -17,6 +17,7 @@ jobs:
   browser-compat:
     name: ${{ matrix.browser }} compatibility
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.0-noble
     strategy:
       fail-fast: false
       matrix:
@@ -24,10 +25,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
       - name: Cache npm downloads
         uses: actions/cache@v4
         with:
@@ -37,20 +34,6 @@ jobs:
             ${{ runner.os }}-npm-
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Read installed Playwright version
-        id: playwright-version
-        run: node -e 'console.log("version=" + require("./node_modules/@playwright/test/package.json").version)' >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browser binaries
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ steps.playwright-version.outputs.version }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-${{ matrix.browser }}-
-      - name: Install browser system dependencies
-        run: npx playwright install-deps ${{ matrix.browser }}
-      - name: Install ${{ matrix.browser }} browser
-        run: npx playwright install ${{ matrix.browser }}
       - name: Test ${{ matrix.browser }}
         run: npx playwright test --project=${{ matrix.browser }}
       - name: Upload failed traces
