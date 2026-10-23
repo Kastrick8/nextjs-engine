@@ -254,6 +254,54 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		return () => window.removeEventListener("message", handleInlineIssueNavigation);
 	}, []);
 
+	useEffect(() => {
+		const url = new URL(window.location.href);
+		const requestedRoute = url.searchParams.get("route");
+		const issueId = url.searchParams.get("issue");
+		if (requestedRoute && pages.includes(requestedRoute)) setSelectedPage(requestedRoute);
+
+		if (issueId) {
+			const handoffKey = "nextjs-engine:debug:diagnostic-handoff";
+			try {
+				const raw = window.sessionStorage.getItem(handoffKey);
+				if (raw) {
+					const handoff = JSON.parse(raw) as {
+						expiresAt?: unknown;
+						route?: unknown;
+						diagnostic?: EngineDebugDiagnostic;
+					};
+					const diagnostic = handoff.diagnostic;
+					const validDiagnostic = Boolean(diagnostic
+						&& typeof diagnostic.id === "string"
+						&& diagnostic.id === issueId
+						&& typeof diagnostic.at === "number"
+						&& typeof diagnostic.message === "string"
+						&& typeof diagnostic.detail === "string"
+						&& ["error", "warning"].includes(diagnostic.severity)
+						&& ["Hydration", "SSR", "Runtime", "Console"].includes(diagnostic.category)
+						&& ["runtime", "unhandled-rejection", "console", "next-overlay"].includes(diagnostic.source));
+					if (validDiagnostic && typeof handoff.expiresAt === "number" && handoff.expiresAt >= Date.now()
+						&& typeof handoff.route === "string" && pages.includes(handoff.route)
+						&& (!requestedRoute || requestedRoute === handoff.route)) {
+						diagnosticsRef.current = [diagnostic!];
+						setDiagnostics([diagnostic!]);
+						setSelectedDiagnosticId(diagnostic!.id);
+						setTab("Errors");
+					}
+				}
+				window.sessionStorage.removeItem(handoffKey);
+			} catch {
+				// Ignore malformed or unavailable session storage and keep the workbench usable.
+			}
+		}
+
+		if (url.searchParams.has("route") || url.searchParams.has("issue")) {
+			url.searchParams.delete("route");
+			url.searchParams.delete("issue");
+			window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+		}
+	}, [pages]);
+
 
 	useEffect(() => {
 		setPreviewStatus("waiting");
