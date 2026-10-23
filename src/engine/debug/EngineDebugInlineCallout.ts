@@ -191,6 +191,7 @@ export function installEngineDebugInlineCallout(
 			type: "nextjs-engine:debug:view-diagnostic",
 			issueId: diagnostic.id,
 			route,
+			diagnostic,
 		}, view.location.origin);
 	});
 	footer.append(dashboard);
