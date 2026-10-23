@@ -6,9 +6,11 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const generatedRoute = path.join(root, "app", "%5Fengine", "debug", "page.tsx");
+const generatedSourceRoute = path.join(root, "app", "%5Fengine", "debug", "source", "route.ts");
 const output = path.join(root, "dist");
 
 assert.equal(fs.existsSync(generatedRoute), false, "the dev-only debug route must be removed before production compilation");
+assert.equal(fs.existsSync(generatedSourceRoute), false, "the dev-only source preview route must be removed before production compilation");
 assert.equal(fs.existsSync(output), true, "run this proof after next build");
 
 const manifestPaths = [
