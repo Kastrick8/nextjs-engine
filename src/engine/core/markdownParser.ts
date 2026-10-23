@@ -170,6 +170,10 @@ export function slugifyMarkdownHeading(text: string): string {
 		.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
 		.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
 		.replace(/[*_`~]/g, "")
+		// Split camel-case boundaries before lowercasing so headings such as
+		// EngineMarkdown receive stable, readable anchors (engine-markdown).
+		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
 		.trim()
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, "-")
