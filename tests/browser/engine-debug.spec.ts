@@ -74,9 +74,11 @@ test("EngineDebug pins a mapped problem to its element and opens its dashboard d
 	await page.goto("/_engine/debug");
 	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
 	const preview = page.frameLocator("iframe[title^='Live preview:']");
-	const componentName = await preview.locator("[data-engine-debug-name]").evaluateAll((elements) => {
-		const names = elements.map((element) => element.getAttribute("data-engine-debug-name") || "");
-		return names.find((name) => name && names.filter((candidate) => candidate === name).length === 1) ?? "";
+	const componentName = await preview.locator("[data-engine-debug-type]").evaluateAll((elements) => {
+		const types = elements.map((element) => element.getAttribute("data-engine-debug-type") || "");
+		return types.find((name) =>
+			/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) && types.filter((candidate) => candidate === name).length === 1
+		) ?? "";
 	});
 	expect(componentName, "the fixture should contain a uniquely identified Engine node").not.toBe("");
 	const componentLabel = componentName.charAt(0).toUpperCase() + componentName.slice(1);
