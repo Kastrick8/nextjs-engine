@@ -5,6 +5,7 @@
 import type { CSSProperties, JSX, ReactNode, MouseEventHandler } from "react";
 import type { ECScene } from "../core/enginecanvas/ECTypes";
 import type { EngineAnsiPalette } from "../core/markdownParser";
+import type { EngineUrlIconSize } from "../core/engineUrlIcon";
 
 export type Breakpoint = "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
 
@@ -44,6 +45,11 @@ export interface BaseNodeProps {
 	style?: EngineStyleObject;
 	point?: string;
 	cprop?: CpropValue;
+
+	/** Add an external-domain favicon before links; disabled by default. */
+	"emd_show-url-icon"?: boolean;
+	/** Favicon display size in CSS pixels, clamped to 8–64; "auto" follows text size. */
+	"emd_url-icon-size"?: EngineUrlIconSize;
 
 	/** Force/disable schema lazy mounting where the renderer supports it. */
 	lazy?: boolean;
