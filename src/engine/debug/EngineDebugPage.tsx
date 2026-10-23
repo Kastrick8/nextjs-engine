@@ -9,6 +9,7 @@ import {
 } from "./EngineDebugDiagnostics";
 import type { EngineDebugDiagnostic, EngineDebugSource } from "./EngineDebugDiagnostics";
 import { installEngineDebugInlineCallout, parseEngineDebugSourceLocation } from "./EngineDebugInlineCallout";
+import { getEngineDebugAutoCompletions, getEngineDebugFixSuggestions, type EngineDebugCodeAction } from "./EngineDebugCodeActions";
 import type {
 	EngineSchedulerDebugSnapshot,
 	EngineSchedulerDebugTask,
@@ -146,6 +147,22 @@ const PAGE_CSS_OVERRIDES = String.raw`
 .ed-source-status.saved{color:#89d185}
 .ed-source-editor .ed-button:disabled{opacity:.45;cursor:not-allowed}
 .ed-editor-help{color:#a5a5a5;font-size:10px;line-height:1.45;margin:5px 0}
+.ed-code-actions{margin:7px 0;border-top:1px solid #383838;padding-top:7px}
+.ed-code-action-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;background:#252526;border:1px solid #3e3e3e;color:#d4d4d4;border-radius:3px;padding:7px 8px;font-size:11px;cursor:pointer}
+.ed-code-action-toggle:hover{border-color:#676767;background:#2c2d2e}
+.ed-code-action-list{display:grid;gap:6px;margin-top:6px}
+.ed-code-action{border:1px solid #393939;background:#1b1b1b;border-radius:3px;padding:7px}
+.ed-code-action-title{display:block;font-size:11px;font-weight:650;color:#e9e9e9;overflow-wrap:anywhere}
+.ed-code-action-description{font-size:10px;line-height:1.4;color:#a7a7a7;margin:4px 0 6px}
+.ed-code-action-buttons{display:flex;gap:5px;flex-wrap:wrap}
+.ed-code-action-diff{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-top:7px}
+.ed-code-action-diff h5{margin:0 0 4px;color:#aaa;font-size:10px;font-weight:600}
+.ed-code-action-diff pre{margin:0;padding:6px;background:#111;border:1px solid #333;max-height:110px;overflow:auto;color:#d4d4d4;font:9px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre}
+.ed-code-action-label{font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:#999;margin-left:5px}
+.ed-editor-status-line{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.ed-editor-status-dot{width:6px;height:6px;border-radius:50%;background:#89d185;display:inline-block}
+@media(max-width:1150px){.ed-code-action-diff{grid-template-columns:minmax(0,1fr)}}
+
 @media(max-width:1050px){.ed-errors-workspace{grid-template-rows:minmax(0,1fr) minmax(110px,.75fr)}}
 @media(max-width:680px){.ed-errors-workspace{grid-template-rows:minmax(0,1.2fr) minmax(100px,.8fr)}.ed-source-textarea{height:170px}.ed-route-search{width:calc(100% - 14px);margin-left:7px;margin-right:7px}}
 `;
@@ -338,6 +355,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [sourceText, setSourceText] = useState("");
 	const [sourceEditorStatus, setSourceEditorStatus] = useState<"idle" | "loading" | "ready" | "saving" | "saved" | "error" | "unavailable">("idle");
 	const [sourceEditorError, setSourceEditorError] = useState<string | null>(null);
+	const [showAutoCompletions, setShowAutoCompletions] = useState(false);
 	const frameSource = useMemo(() => `${selectedPage}${selectedPage.includes("?") ? "&" : "?"}__engine_debug=1`, [selectedPage]);
 
 	async function fetchSourceDocument(source: EngineDebugSourceLocation): Promise<EngineDebugSourceDocument> {
@@ -416,6 +434,9 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 
 
 	const visibleRoutes = useMemo(() => pages.filter((route) => route.toLowerCase().includes(routeSearch.trim().toLowerCase())), [pages, routeSearch]);
+	const selectedDiagnostic = useMemo(() => diagnostics.find((item) => item.id === selectedDiagnosticId) ?? null, [diagnostics, selectedDiagnosticId]);
+	const autoFixSuggestions = useMemo(() => sourceDocument && selectedDiagnostic ? getEngineDebugFixSuggestions(selectedDiagnostic, sourceDocument.path, sourceText) : [], [sourceDocument, selectedDiagnostic, sourceText]);
+	const autoCompletions = useMemo(() => sourceDocument ? getEngineDebugAutoCompletions(sourceDocument.path, sourceText) : [], [sourceDocument, sourceText]);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);
@@ -550,17 +571,18 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					"runtime",
 					event.message || "Uncaught browser runtime error",
 					event.error,
-					event.filename ? event.filename + (event.lineno ? ":" + event.lineno : "") : frameWindow.location.pathname,
+					event.filename ? event.filename + (event.lineno ? ":" + event.lineno : "") : undefined,
+					normalizeDebugRoute(frameWindow.location.pathname),
 				);
 			};
 			const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-				reportDiagnostic("unhandled-rejection", "Unhandled promise rejection", event.reason, frameWindow.location.pathname);
+				reportDiagnostic("unhandled-rejection", "Unhandled promise rejection", event.reason, undefined, normalizeDebugRoute(frameWindow.location.pathname));
 			};
 			const originalConsoleError = frameWindow.console.error;
 			const patchedConsoleError: typeof frameWindow.console.error = (...args) => {
 				const detail = args.map((argument) => redactEngineDebugText(argument, 1_500)).join("\n");
 				const message = typeof args[0] === "string" ? args[0] : detail || "console.error";
-				reportDiagnostic("console", message, detail, frameWindow.location.pathname);
+				reportDiagnostic("console", message, detail, undefined, normalizeDebugRoute(frameWindow.location.pathname));
 				originalConsoleError.apply(frameWindow.console, args);
 			};
 			let consolePatched = false;
@@ -777,6 +799,10 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 						{tab === "Node" && (selectedNode ? <NodeInspector node={selectedNode} task={selectedTask} fps={fps} refresh={device.refresh} layouts={layoutByDevice} /> : <div className="ed-empty">Pick node, then select an Engine element in the preview.</div>)}
 						{tab === "Errors" && <ErrorInspector diagnostics={diagnostics} selectedId={selectedDiagnosticId} filter={diagnosticFilter} onFilter={setDiagnosticFilter} onSelect={setSelectedDiagnosticId}
 							sourceDocument={sourceDocument} sourceText={sourceText} sourceStatus={sourceEditorStatus} sourceError={sourceEditorError}
+							autoFixSuggestions={autoFixSuggestions} autoCompletions={autoCompletions} showAutoCompletions={showAutoCompletions}
+							onApplyFix={(action) => { setSourceText(action.replacement); setSourceEditorStatus("ready"); setShowAutoCompletions(false); }}
+							onToggleAutoCompletions={() => setShowAutoCompletions((open) => !open)}
+							onApplyCompletion={(action) => { setSourceText(action.replacement); setSourceEditorStatus("ready"); setShowAutoCompletions(false); }}
 							onSourceChange={setSourceText} onReloadSource={reloadSourceDocument} onSaveSource={saveSourceDocument}
 							onClear={() => { for (const cleanupCallout of inlineCalloutsRef.current.values()) cleanupCallout(); inlineCalloutsRef.current.clear(); diagnosticsRef.current = []; setDiagnostics([]); setSelectedDiagnosticId(null); }} />}
 						{tab === "Scheduler" && <SchedulerInspector snapshot={scheduler} transitions={transitions} />}
@@ -791,12 +817,16 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 
 function ErrorInspector({
 	diagnostics, selectedId, filter, onFilter, onSelect, onClear,
-	sourceDocument, sourceText, sourceStatus, sourceError, onSourceChange, onReloadSource, onSaveSource,
+	sourceDocument, sourceText, sourceStatus, sourceError,
+	autoFixSuggestions, autoCompletions, showAutoCompletions,
+	onApplyFix, onToggleAutoCompletions, onApplyCompletion, onSourceChange, onReloadSource, onSaveSource,
 }: {
 	diagnostics: EngineDebugDiagnostic[]; selectedId: string | null; filter: "all" | "error" | "warning";
 	onFilter: (value: "all" | "error" | "warning") => void; onSelect: (id: string) => void; onClear: () => void;
 	sourceDocument: EngineDebugSourceDocument | null; sourceText: string;
 	sourceStatus: "idle" | "loading" | "ready" | "saving" | "saved" | "error" | "unavailable"; sourceError: string | null;
+	autoFixSuggestions: EngineDebugCodeAction[]; autoCompletions: EngineDebugCodeAction[]; showAutoCompletions: boolean;
+	onApplyFix: (action: EngineDebugCodeAction) => void; onToggleAutoCompletions: () => void; onApplyCompletion: (action: EngineDebugCodeAction) => void;
 	onSourceChange: (value: string) => void; onReloadSource: () => void; onSaveSource: () => void;
 }) {
 	const visible = diagnostics.filter((item) => filter === "all" || item.severity === filter).slice().reverse();
@@ -804,9 +834,63 @@ function ErrorInspector({
 	const errorCount = diagnostics.filter((item) => item.severity === "error").length;
 	const warningCount = diagnostics.length - errorCount;
 	const dirty = Boolean(sourceDocument && sourceText !== sourceDocument.content);
+	const [expandedActions, setExpandedActions] = useState<Record<string, boolean>>({});
+	const sourceTextareaRef = useRef<HTMLTextAreaElement>(null);
 	const copySelected = () => {
 		if (!selected || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
 		void navigator.clipboard.writeText(formatEngineDebugDiagnostic(selected)).catch(() => undefined);
+	};
+	const updateEditorSelection = (next: string, cursor: number) => {
+		onSourceChange(next);
+		requestAnimationFrame(() => {
+			const editor = sourceTextareaRef.current;
+			if (editor) {
+				editor.focus();
+				editor.setSelectionRange(cursor, cursor);
+			}
+		});
+	};
+	const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if ((event.ctrlKey || event.metaKey) && event.code === "Space") {
+			event.preventDefault();
+			onToggleAutoCompletions();
+			return;
+		}
+		if (event.key === "Tab") {
+			event.preventDefault();
+			const editor = event.currentTarget;
+			const start = editor.selectionStart;
+			const end = editor.selectionEnd;
+			const next = sourceText.slice(0, start) + "\t" + sourceText.slice(end);
+			updateEditorSelection(next, start + 1);
+			return;
+		}
+		if (event.key === "Enter") {
+			event.preventDefault();
+			const editor = event.currentTarget;
+			const start = editor.selectionStart;
+			const end = editor.selectionEnd;
+			const preceding = sourceText.slice(0, start);
+			const currentLine = preceding.slice(preceding.lastIndexOf("\n") + 1);
+			const indent = (currentLine.match(/^[\t ]*/) ?? [""])[0];
+			const insertion = "\n" + indent;
+			updateEditorSelection(sourceText.slice(0, start) + insertion + sourceText.slice(end), start + insertion.length);
+		}
+	};
+	const renderAction = (action: EngineDebugCodeAction, kind: "fix" | "completion") => {
+		const expanded = Boolean(expandedActions[action.id]);
+		return <article className="ed-code-action" key={action.id}>
+			<strong className="ed-code-action-title">{action.title}<span className="ed-code-action-label">{action.confidence} confidence</span></strong>
+			<p className="ed-code-action-description">{action.description}</p>
+			<div className="ed-code-action-buttons">
+				<button type="button" className="ed-button" onClick={() => setExpandedActions((current) => ({ ...current, [action.id]: !current[action.id] }))} aria-expanded={expanded}>{expanded ? "Hide preview" : "Preview change"}</button>
+				<button type="button" className="ed-button" onClick={() => kind === "fix" ? onApplyFix(action) : onApplyCompletion(action)}>{kind === "fix" ? "Apply fix to editor" : "Insert completion"}</button>
+			</div>
+			{expanded && <div className="ed-code-action-diff">
+				<div><h5>BEFORE</h5><pre>{action.beforePreview || "(empty file)"}</pre></div>
+				<div><h5>AFTER</h5><pre>{action.afterPreview || "(empty file)"}</pre></div>
+			</div>}
+		</article>;
 	};
 	return (
 		<section className="ed-errors-view">
@@ -823,7 +907,7 @@ function ErrorInspector({
 						<DebugRow name="Severity" value={selected.severity.toUpperCase()} />
 						<DebugRow name="Likely owner" value={selected.ownerHint} />
 						<DebugRow name="Captured from" value={selected.source} />
-						{selected.route && <DebugRow name="Route" value={selected.route} />}
+						{(selected.routes?.length ?? 0) > 1 ? <DebugRow name="Affected routes" value={selected.routes!.join(", ")} /> : selected.route && <DebugRow name="Route" value={selected.route} />}
 						{selected.location && <DebugRow name="Source location" value={selected.location} />}
 						{(selected.repeatCount ?? 1) > 1 && <DebugRow name="Occurrences" value={String(selected.repeatCount)} />}
 						<p className="ed-issue-title">{selected.message}</p>
@@ -836,20 +920,36 @@ function ErrorInspector({
 									<button type="button" className="ed-button" onClick={onSaveSource} disabled={!sourceDocument || !dirty || sourceStatus === "saving" || sourceStatus === "loading"}>Save fix</button>
 								</div>
 							</div>
+							<div className="ed-code-actions">
+								<button type="button" className="ed-code-action-toggle" aria-expanded={autoFixSuggestions.length > 0} aria-label={"Auto-fix suggestions (" + autoFixSuggestions.length + ")"} onClick={() => setExpandedActions((current) => ({ ...current, "__autoFixPanel": !current.__autoFixPanel }))}>
+									<span>Auto-fix suggestions <span className="ed-code-action-label">{autoFixSuggestions.length} available</span></span><span>{expandedActions.__autoFixPanel ? "−" : "+"}</span>
+								</button>
+								{expandedActions.__autoFixPanel && <div className="ed-code-action-list">
+									{autoFixSuggestions.length ? autoFixSuggestions.map((action) => renderAction(action, "fix")) : <p className="ed-editor-help">No safe rule-based fix matches this diagnostic. Inspect the stack and edit manually; no source changes are made automatically.</p>}
+								</div>}
+							</div>
+							<div className="ed-code-actions">
+								<div className="ed-source-actions">
+									<button type="button" className="ed-button" onClick={onToggleAutoCompletions} aria-label="Auto-complete" aria-expanded={showAutoCompletions}>Auto-complete ({autoCompletions.length})</button>
+								</div>
+								{showAutoCompletions && <div className="ed-code-action-list">
+									{autoCompletions.length ? autoCompletions.map((action) => renderAction(action, "completion")) : <p className="ed-editor-help">No missing imports detected. Auto-complete suggestions are deterministic and local; press Ctrl+Space in the editor to open this panel.</p>}
+								</div>}
+							</div>
 							{sourceDocument ? <>
-								<textarea aria-label="Source editor" className="ed-source-textarea" spellCheck={false} autoCapitalize="off" autoCorrect="off" value={sourceText} onChange={(event) => onSourceChange(event.target.value)} />
+								<textarea ref={sourceTextareaRef} aria-label="Source editor" className="ed-source-textarea" spellCheck={false} autoCapitalize="off" autoCorrect="off" value={sourceText} onChange={(event) => onSourceChange(event.target.value)} onKeyDown={handleEditorKeyDown} />
 								<p className={"ed-source-status" + (sourceStatus === "saved" ? " saved" : sourceStatus === "error" ? " error" : "")}>{sourceStatus === "saving" ? "Saving to your local workspace…" : sourceStatus === "saved" ? "Saved. Next.js can now hot-reload this file." : sourceStatus === "error" ? sourceError : dirty ? "Unsaved changes. Save fix writes the file to disk." : sourceDocument.totalLines + " lines · " + sourceDocument.content.length.toLocaleString() + " characters"}</p>
 							</> : <p className={"ed-source-status" + (sourceStatus === "error" || sourceStatus === "unavailable" ? " error" : "")}>{sourceStatus === "loading" ? "Loading the matching implementation…" : sourceError ?? "No source editor is available for this issue."}</p>}
-							<p className="ed-editor-help">Local development only. Source saves use a content hash to reject stale edits; Next.js hot reload may run immediately after save.</p>
+							<p className="ed-editor-help">Changes first apply to this editor buffer only; review the diff, then use Save fix to write the file. Local development only. Ctrl+Space opens Auto-complete, Tab indents, and Enter carries indentation forward.</p>
 						</div>
 						<div className="ed-source-actions" style={{ marginTop: 8 }}><button type="button" className="ed-button" onClick={copySelected}>Copy issue details</button></div>
 					</> : <div className="ed-empty">Select a problem to inspect its message, stack, owning route and mapped source. When a file/line is available, its implementation opens here.</div>}
 				</section>
 				<div className="ed-diagnostic-list" aria-label="Captured problems">
 					{visible.length === 0 ? <div className="ed-empty">No captured problems. Errors are collected from the preview and deduplicated by message, source and location.</div> : visible.map((item) => (
-						<button key={item.id} type="button" className="ed-diagnostic" title={[item.message, item.route ?? "", item.location ?? ""].filter(Boolean).join("\n")} aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
+						<button key={item.id} type="button" className="ed-diagnostic" title={[item.message, (item.routes ?? (item.route ? [item.route] : [])).join(", "), item.location ?? ""].filter(Boolean).join("\n")} aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
 							<span className={"ed-problem-glyph " + item.severity}>{item.severity === "error" ? "●" : "▲"}</span>
-							<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span>{item.route && <span>{item.route}</span>}<span>{new Date(item.at).toLocaleTimeString()}</span>{(item.repeatCount ?? 1) > 1 && <span className="ed-repeat">{item.repeatCount}×</span>}</span></span>
+							<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span>{(item.routes?.length ?? 0) > 1 ? <span>{item.routes!.length} routes</span> : item.route && <span>{item.route}</span>}<span>{new Date(item.at).toLocaleTimeString()}</span>{(item.repeatCount ?? 1) > 1 && <span className="ed-repeat">{item.repeatCount}×</span>}</span></span>
 						</button>
 					))}
 				</div>
