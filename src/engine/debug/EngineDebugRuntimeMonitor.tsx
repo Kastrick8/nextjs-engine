@@ -12,7 +12,12 @@ import { installEngineDebugInlineCallout } from "./EngineDebugInlineCallout";
 export function EngineDebugRuntimeMonitor() {
 	useEffect(() => {
 		const url = new URL(window.location.href);
-		if (url.searchParams.get("__engine_debug") === "1") return;
+		const debugWindow = window as Window & { __NEXT_ENGINE_DEBUG_INLINE_ACTIVE__?: boolean };
+		// The injected inline runtime script and this React monitor share the same
+		// capture bridge. Only one may patch console.error or they can recursively
+		// capture each other's diagnostic reports in development browsers.
+		if (url.searchParams.get("__engine_debug") === "1" || debugWindow.__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__) return;
+		debugWindow.__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__ = true;
 
 		const callouts = new Map<string, () => void>();
 		let diagnostics = [] as ReturnType<typeof createEngineDebugDiagnostic>[];
@@ -94,6 +99,7 @@ export function EngineDebugRuntimeMonitor() {
 			observer.disconnect();
 			for (const cleanup of callouts.values()) cleanup();
 			callouts.clear();
+			delete debugWindow.__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__;
 		};
 	}, []);
 

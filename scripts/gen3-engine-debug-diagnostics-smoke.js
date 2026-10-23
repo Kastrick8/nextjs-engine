@@ -115,6 +115,13 @@ try {
 	});
 	assert.deepEqual(mappedSource, { path: "app/page.tsx", line: 14, column: 6 },
 		"inline issue markers extract an authoring file and line/column from a mapped stack");
+	const whitespaceMappedSource = parseEngineDebugSourceLocation({
+		location: "",
+		message: "ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch at app/page.tsx:14:2",
+		detail: "",
+	});
+	assert.deepEqual(whitespaceMappedSource, { path: "app/page.tsx", line: 14, column: 2 },
+		"source locations are parsed even when a diagnostic path follows whitespace rather than a parenthesis");
 	assert.equal(parseEngineDebugSchemaPath({
 		location: "/",
 		message: "EngineError(E001): [schema:root.children[2]] Unknown node type",
@@ -227,6 +234,7 @@ try {
 		"Search routes",
 		"ResizeObserver",
 		"unhandledrejection",
+		"__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__",
 		"frameWindow.addEventListener(\"error\"",
 		"summarizeNextOverlay",
 		"dataset.engineDebugCapturedIssue",
