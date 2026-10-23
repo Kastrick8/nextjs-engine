@@ -1,7 +1,7 @@
 # Next.js Engine v3.0.0-alpha.1 — A Modern, Server-First Generation
 
 > **Release track:** Generation 3 alpha candidate  
-> **Status:** Prepared for validation; not yet published as a GitHub Release  
+> **Status:** CI-validated alpha candidate; not yet published as a GitHub Release or tag  
 > **Target branch:** `main-3`  
 > **Previous stable generation:** Next.js Engine 2.6.x  
 > **Runtime baseline:** React 19 and Next.js 16
@@ -84,17 +84,16 @@ The preview displays a waiting/building state until its response arrives, a read
 
 This is a prepared alpha-candidate note, not proof of a published GitHub Release.
 
-Validation on merged upstream commit `7c373ffd1d54859dde3a7a1900e823a14264eba2`:
+Validation on merged upstream commit `be66ba1ec93add3ff021b612b93141b51bae44ae`:
 
-- Engine runtime CI passed: [workflow run #340](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/39845431110).
-- Chromium, Firefox and WebKit browser compatibility passed: [workflow run #143](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/39845431494).
-- The distributable package sync completed `npm run type-check` and `npm run pack:check`. Its final direct push was rejected by protection on `main-3-package`; the same validated package snapshot was then merged through [PR #33](https://github.com/Kate-alt-69/nextjs-engine/pull/33).
-- Kastrick's vendored update is merged and its Vercel deployment status is green.
+- Engine runtime CI passed: [workflow run #343](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/39850660254).
+- Chromium, Firefox and WebKit browser compatibility passed: [workflow run #146](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/39850660330).
+- The distributable `main-3-package` tree has been compared with upstream: all 191 engine files and all 54 documentation files match the `main-3` snapshot. Its package validation completed `npm run type-check` and `npm run pack:check`; the earlier workflow's final direct push failed because the package branch is protected. [PR #36](https://github.com/Kate-alt-69/nextjs-engine/pull/36) changes future syncs to a PR-based flow.
+- Kastrick's vendored Engine tree and bundled docs also match this source snapshot (191 engine files and 54 documentation files). Its product pages advertise `3.0.0-alpha.1` and describe the updated EngineDebug waiting/ready/error feedback.
 
-The Engine repository still reports a red Vercel status targeting the `roavio` deployment project. Its build logs were not accessible in this workflow, so that status remains separately unresolved rather than being presented as a failing Engine runtime test. The Engine Actions runtime and browser suites above are green.
+The Engine repository separately reports a red Vercel status targeting the `roavio` deployment project. The relevant build logs were not available in this workflow, so that status remains unresolved rather than being presented as a failing Engine runtime test. The Engine runtime and browser checks linked above are green.
 
 Generation 3 remains an alpha candidate. The latest published stable release is `Release-v2.6.2`; `v3.0.0-alpha.1` has not yet been published as an official GitHub Release or tag.
-
 ## Links
 
 - [Generation 3 overview](../gen3/overview.md)
