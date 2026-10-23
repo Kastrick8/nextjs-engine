@@ -185,4 +185,4 @@ jobs:
             --base main-3-package \
             --head "$sync_branch" \
             --title "Sync Gen 3 package sources from main-3 ${GITHUB_SHA::7}" \
-            --body "Automated, validated snapshot of `src/engine/`, `docs/`, `DOCUMENT.md`, and the package version from main-3. This PR keeps the protected distributable branch reviewable rather than pushing directly to it."
+            --body 'Automated, validated snapshot of `src/engine/`, `docs/`, `DOCUMENT.md`, and the package version from main-3. This PR keeps the protected distributable branch reviewable rather than pushing directly to it.'
