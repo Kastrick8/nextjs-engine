@@ -2,8 +2,8 @@
  * Engine URL favicon URL policy.
  *
  * Icons are resolved by the favicon provider and loaded as ordinary images.
- * The stable URL is cacheable by the browser/provider; no arbitrary page HTML
- * or favicon bytes are fetched by the rendering server.
+ * The public resolver stays provider-facing; rendered EMD icons use the
+ * same-origin asset route, which downloads and caches icon bytes server-side.
  */
 export type EngineUrlIconSize = number | "auto";
 

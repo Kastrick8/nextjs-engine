@@ -26,7 +26,6 @@ function resolveTarget(request: Request): FaviconTarget | null {
 	if (
 		!rawDomain
 		|| rawDomain.length > 253
-		|| !/^[a-z0-9.-]+$/i.test(rawDomain)
 		|| !Number.isInteger(rawSize)
 		|| rawSize < 32
 		|| rawSize > 128
