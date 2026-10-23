@@ -140,6 +140,23 @@ try {
 	const syntaxErrors = (pageCompile.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
 	assert.equal(syntaxErrors.length, 0,
 		"EngineDebug TSX parses cleanly: " + syntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
+
+	const runtimeMonitorSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugRuntimeMonitor.tsx"), "utf8");
+	const monitorCompile = ts.transpileModule(runtimeMonitorSource, {
+		reportDiagnostics: true,
+		compilerOptions: {
+			jsx: ts.JsxEmit.ReactJSX,
+			module: ts.ModuleKind.CommonJS,
+			target: ts.ScriptTarget.ES2022,
+			esModuleInterop: true,
+		},
+	});
+	const monitorSyntaxErrors = (monitorCompile.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
+	assert.equal(monitorSyntaxErrors.length, 0,
+		"normal-page monitor TSX parses cleanly: " + monitorSyntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
+	const createPageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/createPage.tsx"), "utf8");
+	assert.match(createPageSource, /process\\.env\\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
+		"normal Engine pages only mount the inline diagnostics monitor during development");
 	for (const required of [
 		"unhandledrejection",
 		"frameWindow.addEventListener(\"error\"",
@@ -160,6 +177,7 @@ try {
 	]) assert.ok(pageSource.includes(required), "debug workbench includes " + required);
 
 
+	assert.ok(runtimeMonitorSource.includes('url.searchParams.get("__engine_debug") === "1"'), "normal-page monitor skips the dashboard preview to prevent duplicate overlays");
 	const inlineCalloutSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugInlineCallout.ts"), "utf8");
 	for (const required of [
 		"data-engine-debug-error-target",
