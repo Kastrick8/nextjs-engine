@@ -171,8 +171,9 @@ export function installEngineDebugInlineCallout(
 	dashboard.type = "button";
 	dashboard.addEventListener("click", () => {
 		const handoffKey = "nextjs-engine:debug:diagnostic-handoff";
+		const destination = view.top ?? view;
 		try {
-			view.sessionStorage.setItem(handoffKey, JSON.stringify({
+			destination.sessionStorage.setItem(handoffKey, JSON.stringify({
 				expiresAt: Date.now() + 60_000,
 				route,
 				diagnostic,
@@ -183,7 +184,6 @@ export function installEngineDebugInlineCallout(
 		const dashboardUrl = new URL("/_engine/debug", view.location.href);
 		dashboardUrl.searchParams.set("route", route);
 		dashboardUrl.searchParams.set("issue", diagnostic.id);
-		const destination = view.parent === view ? view : view.top ?? view.parent;
 		try {
 			destination.location.assign(dashboardUrl.href);
 		} catch {
