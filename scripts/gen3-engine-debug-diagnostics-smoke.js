@@ -25,8 +25,6 @@ try {
 		appendEngineDebugDiagnostics,
 		classifyEngineDebugDiagnostic,
 		createEngineDebugDiagnostic,
-		createEngineDebugSourceDocument,
-		saveEngineDebugSourceDocument,
 		formatEngineDebugDiagnostic,
 		redactEngineDebugText,
 	} = require("../src/engine/debug/EngineDebugDiagnostics.ts");
@@ -124,6 +122,8 @@ try {
 
 	const {
 		createEngineDebugSourcePreview,
+		createEngineDebugSourceDocument,
+		saveEngineDebugSourceDocument,
 	} = require("../src/engine/debug/EngineDebugSourceRoute.ts");
 	const sourcePreview = createEngineDebugSourcePreview(process.cwd(), "src/engine/debug/EngineDebugDiagnostics.ts", 1);
 	assert.ok(sourcePreview, "development source preview reads an allowed workspace source file");

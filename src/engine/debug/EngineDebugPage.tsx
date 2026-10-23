@@ -8,7 +8,7 @@ import {
 	redactEngineDebugText,
 } from "./EngineDebugDiagnostics";
 import type { EngineDebugDiagnostic, EngineDebugSource } from "./EngineDebugDiagnostics";
-import { installEngineDebugInlineCallout } from "./EngineDebugInlineCallout";
+import { installEngineDebugInlineCallout, parseEngineDebugSourceLocation } from "./EngineDebugInlineCallout";
 import type {
 	EngineSchedulerDebugSnapshot,
 	EngineSchedulerDebugTask,
@@ -43,6 +43,15 @@ interface DebugNode {
 	capabilities: string[];
 	columns?: number;
 }
+
+interface EngineDebugSourceDocument {
+	path: string;
+	content: string;
+	sha256: string;
+	totalLines: number;
+}
+
+type EngineDebugSourceLocation = { path: string; line: number; column?: number };
 
 interface DebugSchedulerWindow extends Window {
 	console: Console;
@@ -98,6 +107,90 @@ button,input,select{font:inherit;color:inherit}.ed-shell{height:100dvh;display:g
 .ed-route-picker{display:flex;align-items:center;gap:5px;min-width:0;color:#999;font-size:10px;white-space:nowrap}.ed-route-picker select{min-width:0;max-width:180px;border:1px solid #454545;border-radius:2px;background:#181818;color:#ddd;padding:4px 5px;font:10px ui-monospace,SFMono-Regular,Consolas,monospace}.ed-problem-toolbar{display:flex;align-items:center;gap:4px;margin:0 0 8px;flex-wrap:wrap}.ed-filter{padding:4px 7px;border-color:#424242;color:#bdbdbd;font-size:10px}.ed-filter[aria-pressed="true"]{background:#37373d;border-color:#666;color:#fff}.ed-problem-count{margin-left:auto;color:#999;font:10px ui-monospace,monospace}.ed-diagnostic-list{display:grid;gap:2px;margin-bottom:12px}.ed-diagnostic{display:grid;grid-template-columns:12px minmax(0,1fr);gap:6px;width:100%;padding:6px 7px;text-align:left;border-radius:2px}.ed-diagnostic:hover{background:#2a2d2e}.ed-diagnostic[aria-pressed="true"]{background:#094771}.ed-problem-glyph{font:700 11px ui-monospace,monospace}.ed-problem-glyph.error{color:var(--ed-error)}.ed-problem-glyph.warning{color:var(--ed-warning)}.ed-diagnostic-message{font-size:11px;line-height:1.4;display:block;overflow-wrap:anywhere;color:#ddd}.ed-diagnostic-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;color:#999;font:9px ui-monospace,monospace}.ed-severity-summary{display:flex;gap:12px;padding:7px 0 9px;border-bottom:1px solid #383838;margin-bottom:8px;color:#bdbdbd;font:10px ui-monospace,monospace}.ed-severity-summary strong{color:#f48771}.ed-severity-summary .warn{color:#cca700}.ed-detail-text{font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#d4d4d4;max-height:230px;overflow:auto;margin:6px 0 10px}
 @media(max-width:1050px){.ed-body{grid-template-columns:40px 166px minmax(250px,1fr)}.ed-inspector{position:fixed;right:0;top:40px;bottom:0;width:min(318px,calc(100vw - 205px));box-shadow:-15px 0 35px #0009;z-index:3}.ed-stage{grid-column:3;grid-row:1}.ed-sidebar{grid-column:2;grid-row:1}}@media(max-width:680px){.ed-body{grid-template-columns:38px minmax(220px,1fr)}.ed-sidebar{display:none}.ed-stage{grid-column:2;grid-row:1}.ed-inspector{width:min(330px,calc(100vw - 42px));}.ed-count{display:none}.ed-fps{font-size:9px}.ed-route-picker select{max-width:90px}.ed-tools{gap:3px;padding:4px}.ed-button{padding:5px 6px}.ed-viewport-scroll{padding:8px}}
 `;
+
+const PAGE_CSS_OVERRIDES = String.raw`
+.ed-inspector{display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;padding-bottom:0}
+.ed-inspector>.ed-tabs{margin:0 -10px;padding:0 6px;min-height:36px;flex-wrap:nowrap}
+.ed-inspector-content{min-width:0;min-height:0;overflow:auto;padding:0 0 14px}
+.ed-inspector-content.ed-errors-wrap{overflow:hidden;padding:0}
+.ed-errors-view{height:100%;min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:7px}
+.ed-severity-summary{margin:0;padding:7px 2px;border-bottom:1px solid var(--ed-border)}
+.ed-problem-toolbar{margin:0}
+.ed-errors-workspace{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1.1fr) minmax(110px,.9fr);gap:8px;overflow:hidden}
+.ed-selected-problem{min-height:0;overflow:auto;border:1px solid #383838;background:#1f1f1f;border-radius:3px;padding:9px}
+.ed-selected-problem h3{margin:0 0 7px;font-size:12px;line-height:1.35;color:#f1f1f1}
+.ed-diagnostic-list{min-height:0;overflow:auto;align-content:start;padding:3px;border:1px solid #383838;background:#1b1b1b;border-radius:3px;margin:0}
+.ed-diagnostic{min-height:35px}
+.ed-diagnostic-message{word-break:break-word}
+.ed-diagnostic-meta{align-items:center}
+.ed-repeat{display:inline-flex;border:1px solid #5c4630;border-radius:3px;padding:1px 4px;color:#eac18b;background:#35291e}
+.ed-route-search{display:block;width:calc(100% - 20px);margin:2px 10px 9px;padding:7px 8px;border:1px solid #454545;border-radius:3px;background:#181818;color:#e5e5e5;outline:none}
+.ed-route-search:focus{border-color:#007acc;box-shadow:0 0 0 1px #007acc}
+.ed-route{padding-right:8px}
+.ed-frame-fit{position:relative;flex:none;overflow:visible}
+.ed-frame-shell{position:absolute;top:0;left:0;flex:none;transform-origin:top left}
+.ed-preview-state.error{background:rgba(22,12,12,.94)}
+.ed-preview-state.error .ed-preview-title{color:#ffb4a8}
+.ed-preview-state.error .ed-preview-progress{display:none}
+.ed-preview-description{overflow-wrap:anywhere}
+.ed-issue-title{font-size:12px;line-height:1.5;overflow-wrap:anywhere;margin:7px 0;color:#f0f0f0}
+.ed-detail-text{max-height:150px;margin:5px 0 8px}
+.ed-source-editor{margin-top:10px;border-top:1px solid #3b3b3b;padding-top:9px}
+.ed-source-editor-head{display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.ed-source-path{min-width:0;overflow-wrap:anywhere;color:#9cdcfe;font:10px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}
+.ed-source-actions{display:flex;gap:5px;flex-wrap:wrap}
+.ed-source-textarea{display:block;width:100%;min-height:150px;height:clamp(150px,24vh,280px);resize:vertical;border:1px solid #454545;border-radius:3px;background:#151515;color:#d4d4d4;padding:8px;font:10px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2;white-space:pre;overflow:auto}
+.ed-source-textarea:focus{outline:1px solid #007acc;border-color:#007acc}
+.ed-source-status{font-size:10px;line-height:1.4;color:#a5a5a5;margin:5px 0}
+.ed-source-status.error{color:#f48771}
+.ed-source-status.saved{color:#89d185}
+.ed-source-editor .ed-button:disabled{opacity:.45;cursor:not-allowed}
+.ed-editor-help{color:#a5a5a5;font-size:10px;line-height:1.45;margin:5px 0}
+@media(max-width:1050px){.ed-errors-workspace{grid-template-rows:minmax(0,1fr) minmax(110px,.75fr)}}
+@media(max-width:680px){.ed-errors-workspace{grid-template-rows:minmax(0,1.2fr) minmax(100px,.8fr)}.ed-source-textarea{height:170px}.ed-route-search{width:calc(100% - 14px);margin-left:7px;margin-right:7px}}
+`;
+
+function normalizeDebugRoute(route: string): string {
+	return route === "/" ? "/" : route.replace(/\/+$/, "") || "/";
+}
+
+function inferRouteFromSourcePath(file: string, pages: readonly string[]): string | undefined {
+	const normalized = file.replace(/\\/g, "/").replace(/^\.\//, "");
+	const appMatch = normalized.match(/^(?:src\/)?app\/(?:(.*)\/)?(?:page|route)\.(?:tsx?|jsx?|mjs|cjs)$/i);
+	if (appMatch) {
+		const segments = (appMatch[1] ?? "").split("/").filter((segment) =>
+			segment && !(segment.startsWith("(") && segment.endsWith(")")) && !segment.startsWith("@"),
+		);
+		const candidate = segments.length ? "/" + segments.join("/") : "/";
+		const matched = pages.find((route) => normalizeDebugRoute(route) === normalizeDebugRoute(candidate));
+		if (matched) return normalizeDebugRoute(matched);
+	}
+	const pagesMatch = normalized.match(/^(?:src\/)?pages\/(.+)\.(?:tsx?|jsx?|mjs|cjs)$/i);
+	if (pagesMatch) {
+		const route = pagesMatch[1].replace(/\/index$/i, "").replace(/^index$/i, "");
+		const candidate = route ? "/" + route : "/";
+		const matched = pages.find((entry) => normalizeDebugRoute(entry) === normalizeDebugRoute(candidate));
+		if (matched) return normalizeDebugRoute(matched);
+	}
+	return undefined;
+}
+
+function summarizeNextOverlay(text: string): string {
+	const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+	const actionable = lines.find((line) => /Module not found|Cannot find module|Can't resolve|TypeError:|ReferenceError:|SyntaxError:|Parsing error|Export .+ was not found|is not exported from|does not provide an export/i.test(line));
+	const compiler = lines.find((line) => /Failed to compile|Build Error|Server Error|Unhandled Runtime Error/i.test(line));
+	const fallback = lines.find((line) => !/^(next\.js|application error|error|stack trace|show ignored frames|hide ignored frames)$/i.test(line));
+	return (actionable || compiler || fallback || "Next.js reported a development error").slice(0, 500);
+}
+
+function hasRenderablePreviewContent(document: Document): boolean {
+	if (!document.body) return false;
+	return [...document.body.children].some((element) => {
+		if (element.matches("nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]")) return false;
+		const text = (element as HTMLElement).innerText || element.textContent || "";
+		return text.trim().length > 0 || Boolean(element.querySelector("img, canvas, video, iframe, svg, input, button, main, article"));
+	});
+}
 
 function clampNumber(value: number, min: number, max: number): number {
 	if (!Number.isFinite(value)) return min;
@@ -221,6 +314,9 @@ export interface EngineDebugPageProps {
 
 export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const viewportRef = useRef<HTMLDivElement>(null);
+	const [previewScale, setPreviewScale] = useState(1);
+	const [routeSearch, setRouteSearch] = useState("");
 	const previousTasks = useRef(new Map<string, EngineSchedulerDebugTask>());
 	const [selectedPage, setSelectedPage] = useState(pages[0] ?? "/");
 	const [picker, setPicker] = useState(false);
@@ -238,7 +334,88 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [fps, setFps] = useState(0);
 	const [layoutByDevice, setLayoutByDevice] = useState<Record<string, number>>({});
 	const [previewStatus, setPreviewStatus] = useState<"waiting" | "ready" | "error">("waiting");
+	const [sourceDocument, setSourceDocument] = useState<EngineDebugSourceDocument | null>(null);
+	const [sourceText, setSourceText] = useState("");
+	const [sourceEditorStatus, setSourceEditorStatus] = useState<"idle" | "loading" | "ready" | "saving" | "saved" | "error" | "unavailable">("idle");
+	const [sourceEditorError, setSourceEditorError] = useState<string | null>(null);
 	const frameSource = useMemo(() => `${selectedPage}${selectedPage.includes("?") ? "&" : "?"}__engine_debug=1`, [selectedPage]);
+
+	async function fetchSourceDocument(source: EngineDebugSourceLocation): Promise<EngineDebugSourceDocument> {
+		const query = new URLSearchParams({ file: source.path, line: String(source.line), mode: "edit" });
+		const response = await fetch("/_engine/debug/source?" + query.toString(), { cache: "no-store", credentials: "same-origin" });
+		const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+		if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "Unable to load this source file.");
+		if (typeof body.path !== "string" || typeof body.content !== "string" || typeof body.sha256 !== "string" || typeof body.totalLines !== "number") throw new Error("The source endpoint returned an invalid editor document.");
+		return { path: body.path, content: body.content, sha256: body.sha256, totalLines: body.totalLines };
+	}
+
+	async function reloadSourceDocument() {
+		const selected = diagnosticsRef.current.find((item) => item.id === selectedDiagnosticId);
+		const mapped = selected ? parseEngineDebugSourceLocation(selected) : null;
+		if (!mapped) { setSourceEditorStatus("unavailable"); setSourceEditorError("This diagnostic has no mapped local file and line."); return; }
+		setSourceEditorStatus("loading"); setSourceEditorError(null);
+		try {
+			const document = await fetchSourceDocument(mapped);
+			setSourceDocument(document); setSourceText(document.content); setSourceEditorStatus("ready");
+		} catch (error) {
+			setSourceDocument(null); setSourceEditorStatus("error");
+			setSourceEditorError(error instanceof Error ? error.message : "Unable to load this source file.");
+		}
+	}
+
+	async function saveSourceDocument() {
+		if (!sourceDocument) return;
+		setSourceEditorStatus("saving"); setSourceEditorError(null);
+		try {
+			const response = await fetch("/_engine/debug/source", {
+				method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ file: sourceDocument.path, content: sourceText, expectedSha256: sourceDocument.sha256 }),
+			});
+			const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+			if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "Unable to save this source file.");
+			if (typeof body.path !== "string" || typeof body.content !== "string" || typeof body.sha256 !== "string" || typeof body.totalLines !== "number") throw new Error("The source endpoint returned an invalid save response.");
+			const saved = { path: body.path, content: body.content, sha256: body.sha256, totalLines: body.totalLines };
+			setSourceDocument(saved); setSourceText(saved.content); setSourceEditorStatus("saved");
+		} catch (error) {
+			setSourceEditorStatus("error");
+			setSourceEditorError(error instanceof Error ? error.message : "Unable to save this source file.");
+		}
+	}
+
+	useEffect(() => {
+		const selected = diagnosticsRef.current.find((item) => item.id === selectedDiagnosticId);
+		const mapped = selected ? parseEngineDebugSourceLocation(selected) : null;
+		setSourceDocument(null); setSourceText(""); setSourceEditorError(null);
+		if (!selected) { setSourceEditorStatus("idle"); return; }
+		if (!mapped) { setSourceEditorStatus("unavailable"); setSourceEditorError("No trustworthy source file and line could be extracted from this issue. Inspect the message and stack above."); return; }
+		let cancelled = false;
+		setSourceEditorStatus("loading");
+		void fetchSourceDocument(mapped).then((document) => {
+			if (cancelled) return;
+			setSourceDocument(document); setSourceText(document.content); setSourceEditorStatus("ready");
+		}).catch((error: unknown) => {
+			if (cancelled) return;
+			setSourceEditorStatus("error"); setSourceEditorError(error instanceof Error ? error.message : "Unable to load this source file.");
+		});
+		return () => { cancelled = true; };
+	}, [selectedDiagnosticId]);
+
+	useEffect(() => {
+		const viewport = viewportRef.current;
+		if (!viewport) return;
+		const updateScale = () => {
+			const availableWidth = Math.max(1, viewport.clientWidth - 30);
+			const scale = Math.min(1, availableWidth / device.width);
+			setPreviewScale((current) => Math.abs(current - scale) < 0.005 ? current : scale);
+		};
+		updateScale();
+		const observer = new ResizeObserver(updateScale);
+		observer.observe(viewport);
+		return () => observer.disconnect();
+	}, [device.width, device.height]);
+
+
+	const visibleRoutes = useMemo(() => pages.filter((route) => route.toLowerCase().includes(routeSearch.trim().toLowerCase())), [pages, routeSearch]);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);
@@ -306,9 +483,9 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		);
 		const hasVisibleError = [...overlays].some((element) => {
 			const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
-			return Boolean(text && /(compilation failed|failed to compile|uncaught|hydration|error occurred|module not found|exception)/i.test(text));
+			return Boolean(text && /(compilation failed|failed to compile|uncaught|hydration|error occurred|module not found|exception|syntax error|type error)/i.test(text));
 		});
-		setPreviewStatus(hasVisibleError ? "error" : "ready");
+		setPreviewStatus(hasVisibleError && !hasRenderablePreviewContent(frameDocument) ? "error" : "ready");
 	};
 
 	const reloadPreview = () => {
@@ -345,26 +522,23 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				message: unknown,
 				detail?: unknown,
 				location?: string,
+				route?: string,
 			) => {
-				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location });
+				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location, route: route ?? normalizeDebugRoute(frameWindow.location.pathname) });
+				const existing = diagnosticsRef.current.some((item) => item.id === diagnostic.id);
 				const nextDiagnostics = appendEngineDebugDiagnostics(diagnosticsRef.current, diagnostic);
-				diagnosticsRef.current = nextDiagnostics;
-				setDiagnostics(nextDiagnostics);
-				const stored = nextDiagnostics[nextDiagnostics.length - 1] ?? diagnostic;
+				diagnosticsRef.current = nextDiagnostics; setDiagnostics(nextDiagnostics);
+				const stored = nextDiagnostics.find((item) => item.id === diagnostic.id) ?? diagnostic;
 				setSelectedDiagnosticId((current) => current ?? stored.id);
 				const retainedIds = new Set(nextDiagnostics.map((item) => item.id));
-				for (const [id, cleanup] of inlineCalloutsRef.current) {
-					if (!retainedIds.has(id)) {
-						cleanup();
-						inlineCalloutsRef.current.delete(id);
-					}
+				for (const [id, cleanup] of inlineCalloutsRef.current) if (!retainedIds.has(id)) { cleanup(); inlineCalloutsRef.current.delete(id); }
+				if (!existing) {
+					const cleanupCallout = installEngineDebugInlineCallout(frameDocument, stored, stored.route ?? frameWindow.location.pathname);
+					if (cleanupCallout) inlineCalloutsRef.current.set(stored.id, cleanupCallout);
 				}
-				const previousCallout = inlineCalloutsRef.current.get(stored.id);
-				previousCallout?.();
-				inlineCalloutsRef.current.delete(stored.id);
-				const cleanupCallout = installEngineDebugInlineCallout(frameDocument, stored, frameWindow.location.pathname);
-				if (cleanupCallout) inlineCalloutsRef.current.set(stored.id, cleanupCallout);
-				if (source !== "console" && stored.severity === "error") setPreviewStatus("error");
+				const activeRoute = normalizeDebugRoute(frameWindow.location.pathname);
+				const diagnosticRoute = normalizeDebugRoute(stored.route ?? activeRoute);
+				if (diagnosticRoute === activeRoute && stored.severity === "error" && source !== "console") setPreviewStatus(source === "next-overlay" && hasRenderablePreviewContent(frameDocument) ? "ready" : "error");
 			};
 			const handleRuntimeError = (event: ErrorEvent) => {
 				reportDiagnostic(
@@ -408,8 +582,16 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			const scanNextOverlay = () => {
 				for (const element of frameDocument.querySelectorAll<HTMLElement>("nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]")) {
 					const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
-					if (!text || !/(error|exception|failed|hydration|mismatch|digest)/i.test(text)) continue;
-					reportDiagnostic("next-overlay", "Next.js development error overlay", text, frameWindow.location.pathname);
+					if (!text || !/(error|exception|failed|hydration|mismatch|digest|cannot find|module not found|syntax error|type error)/i.test(text)) continue;
+					const message = summarizeNextOverlay(text);
+					const mapped = parseEngineDebugSourceLocation({ location: "", message, detail: text });
+					const mappedRoute = mapped ? inferRouteFromSourcePath(mapped.path, pages) : undefined;
+					const location = mapped ? mapped.path + ":" + mapped.line + (mapped.column ? ":" + mapped.column : "") : undefined;
+					const captureKey = [message, location ?? "", mappedRoute ?? ""].join("|");
+					if (element.dataset.engineDebugCapturedIssue === captureKey) { element.style.setProperty("display", "none", "important"); continue; }
+					element.dataset.engineDebugCapturedIssue = captureKey;
+					element.style.setProperty("display", "none", "important");
+					reportDiagnostic("next-overlay", message, text, location, mappedRoute ?? normalizeDebugRoute(frameWindow.location.pathname));
 				}
 			};
 			const overlayObserver = new MutationObserver(scanNextOverlay);
@@ -507,7 +689,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			frame.removeEventListener("load", connect);
 			frameCleanup();
 		};
-	}, [device, overlay, picker, selectedNode?.id]);
+	}, [device, overlay, picker, selectedNode?.id, pages]);
 
 	const changeMode = (mode: DeviceMode) => {
 		if (mode === "Custom") {
@@ -526,7 +708,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 
 	return (
 		<main className="ed-shell">
-			<style>{PAGE_CSS}</style>
+			<style>{PAGE_CSS}{PAGE_CSS_OVERRIDES}</style>
 			<header className="ed-head">
 				<span className="ed-brand-mark" aria-hidden="true">NE</span>
 				<h1>Next.js Engine Debug</h1>
@@ -542,12 +724,14 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				</nav>
 				<nav className="ed-sidebar" aria-label="Application pages">
 					<h2 className="ed-section-title">Page explorer</h2>
-					<div className="ed-sidebar-subtitle">APPLICATION ROUTES</div>
-					{pages.map((route) => (
-						<button key={route} type="button" className="ed-route" data-route={route} aria-current={selectedPage === route ? "page" : undefined} onClick={() => { setSelectedPage(route); setSelectedNode(null); }}>
+					<div className="ed-sidebar-subtitle">{pages.length} application routes</div>
+					<input className="ed-route-search" aria-label="Search routes" type="search" placeholder="Filter routes…" value={routeSearch} onChange={(event) => setRouteSearch(event.target.value)} />
+					{visibleRoutes.map((route) => (
+						<button key={route} type="button" className="ed-route" data-route={route} title={route} aria-current={selectedPage === route ? "page" : undefined} onClick={() => { setSelectedPage(route); setSelectedNode(null); }}>
 							{route === "/" ? "/ (home)" : route}
 						</button>
 					))}
+					{visibleRoutes.length === 0 && <div className="ed-empty">No route matches that filter.</div>}
 				</nav>
 				<section className="ed-stage" aria-label="Live page preview">
 					<div className="ed-tools">
@@ -566,22 +750,17 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 						</span>
 						<span className="ed-fps">{device.width}×{device.height} · DPR {device.dpr} · {fps.toFixed(1)} FPS</span>
 					</div>
-					<div className="ed-viewport-scroll">
-						<div className="ed-frame-shell" style={{ width: device.width, height: device.height }} aria-busy={previewStatus === "waiting"}>
-							<iframe ref={iframeRef} className="ed-frame" title={"Live preview: " + selectedPage} src={frameSource} onLoad={handlePreviewLoad} />
-							{previewStatus === "waiting" && (
-								<div className="ed-preview-state" role="status" aria-live="polite">
-									<div className="ed-preview-state-card">
-										<span className="ed-preview-orbit" aria-hidden="true" />
-										<strong className="ed-preview-title">Waiting for Next.js…</strong>
-										<span className="ed-preview-description">Next.js may be compiling this route or waiting for the dev server. The preview will become interactive when the response arrives.</span>
-										<div className="ed-preview-progress" aria-hidden="true" />
-										<div className="ed-preview-actions">
-											<button type="button" className="ed-button" onClick={reloadPreview}>Reload preview</button>
-										</div>
-									</div>
-								</div>
-							)}
+					<div className="ed-viewport-scroll" ref={viewportRef}>
+						<div className="ed-frame-fit" style={{ width: Math.round(device.width * previewScale), height: Math.round(device.height * previewScale) }}>
+							<div className="ed-frame-shell" style={{ width: device.width, height: device.height, transform: "scale(" + previewScale + ")" }} aria-busy={previewStatus === "waiting"}>
+								<iframe ref={iframeRef} className="ed-frame" title={"Live preview: " + selectedPage} src={frameSource} onLoad={handlePreviewLoad} />
+							</div>
+							{previewStatus !== "ready" && <div className={"ed-preview-state" + (previewStatus === "error" ? " error" : "")} role="status" aria-live="polite">
+								<div className="ed-preview-state-card"><span className="ed-preview-orbit" aria-hidden="true" />
+									<strong className="ed-preview-title">{previewStatus === "error" ? "This route has a runtime or compile error" : "Waiting for Next.js…"}</strong>
+									<span className="ed-preview-description">{previewStatus === "error" ? "The error is isolated to this preview route. Other routes remain selectable. Open Problems to inspect the actual message and source, then reload after saving a fix." : "Next.js may be compiling this route or waiting for the dev server. The preview will become interactive when the response arrives."}</span>
+									<div className="ed-preview-progress" aria-hidden="true" /><div className="ed-preview-actions">{previewStatus === "error" && <button type="button" className="ed-button" onClick={() => setTab("Errors")}>View Problems</button>}<button type="button" className="ed-button" onClick={reloadPreview}>Reload preview</button></div>
+								</div></div>}
 						</div>
 					</div>
 				</section>
@@ -589,27 +768,15 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					<div className="ed-tabs" role="tablist" aria-label="Debug inspectors">
 						{(["Node", "Errors", "Scheduler", "Device"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} className="ed-button" aria-pressed={tab === name} onClick={() => setTab(name)}>{name}{name === "Errors" && diagnostics.length > 0 ? " " + diagnostics.length : ""}</button>)}
 					</div>
-					{tab === "Node" && (
-						selectedNode ? <NodeInspector node={selectedNode} task={selectedTask} fps={fps} refresh={device.refresh} layouts={layoutByDevice} /> : <div className="ed-empty">Pick node, then select an Engine element in the preview.</div>
-					)}
-					{tab === "Errors" && (
-						<ErrorInspector
-							diagnostics={diagnostics}
-							selectedId={selectedDiagnosticId}
-							filter={diagnosticFilter}
-							onFilter={setDiagnosticFilter}
-							onSelect={setSelectedDiagnosticId}
-							onClear={() => {
-							for (const cleanupCallout of inlineCalloutsRef.current.values()) cleanupCallout();
-							inlineCalloutsRef.current.clear();
-							diagnosticsRef.current = [];
-							setDiagnostics([]);
-							setSelectedDiagnosticId(null);
-						}}
-						/>
-					)}
-					{tab === "Scheduler" && <SchedulerInspector snapshot={scheduler} transitions={transitions} />}
-					{tab === "Device" && <DeviceInspector device={device} layouts={layoutByDevice} selectedNode={selectedNode} changeMode={changeMode} updateDevice={updateDevice} />}
+					<div className={"ed-inspector-content" + (tab === "Errors" ? " ed-errors-wrap" : "")}>
+						{tab === "Node" && (selectedNode ? <NodeInspector node={selectedNode} task={selectedTask} fps={fps} refresh={device.refresh} layouts={layoutByDevice} /> : <div className="ed-empty">Pick node, then select an Engine element in the preview.</div>)}
+						{tab === "Errors" && <ErrorInspector diagnostics={diagnostics} selectedId={selectedDiagnosticId} filter={diagnosticFilter} onFilter={setDiagnosticFilter} onSelect={setSelectedDiagnosticId}
+							sourceDocument={sourceDocument} sourceText={sourceText} sourceStatus={sourceEditorStatus} sourceError={sourceEditorError}
+							onSourceChange={setSourceText} onReloadSource={reloadSourceDocument} onSaveSource={saveSourceDocument}
+							onClear={() => { for (const cleanupCallout of inlineCalloutsRef.current.values()) cleanupCallout(); inlineCalloutsRef.current.clear(); diagnosticsRef.current = []; setDiagnostics([]); setSelectedDiagnosticId(null); }} />}
+						{tab === "Scheduler" && <SchedulerInspector snapshot={scheduler} transitions={transitions} />}
+						{tab === "Device" && <DeviceInspector device={device} layouts={layoutByDevice} selectedNode={selectedNode} changeMode={changeMode} updateDevice={updateDevice} />}
+					</div>
 				</aside>
 			</div>
 		</main>
@@ -618,59 +785,71 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 
 
 function ErrorInspector({
-	diagnostics,
-	selectedId,
-	filter,
-	onFilter,
-	onSelect,
-	onClear,
+	diagnostics, selectedId, filter, onFilter, onSelect, onClear,
+	sourceDocument, sourceText, sourceStatus, sourceError, onSourceChange, onReloadSource, onSaveSource,
 }: {
-	diagnostics: EngineDebugDiagnostic[];
-	selectedId: string | null;
-	filter: "all" | "error" | "warning";
-	onFilter: (value: "all" | "error" | "warning") => void;
-	onSelect: (id: string) => void;
-	onClear: () => void;
+	diagnostics: EngineDebugDiagnostic[]; selectedId: string | null; filter: "all" | "error" | "warning";
+	onFilter: (value: "all" | "error" | "warning") => void; onSelect: (id: string) => void; onClear: () => void;
+	sourceDocument: EngineDebugSourceDocument | null; sourceText: string;
+	sourceStatus: "idle" | "loading" | "ready" | "saving" | "saved" | "error" | "unavailable"; sourceError: string | null;
+	onSourceChange: (value: string) => void; onReloadSource: () => void; onSaveSource: () => void;
 }) {
 	const visible = diagnostics.filter((item) => filter === "all" || item.severity === filter).slice().reverse();
 	const selected = diagnostics.find((item) => item.id === selectedId);
 	const errorCount = diagnostics.filter((item) => item.severity === "error").length;
 	const warningCount = diagnostics.length - errorCount;
+	const dirty = Boolean(sourceDocument && sourceText !== sourceDocument.content);
 	const copySelected = () => {
 		if (!selected || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
 		void navigator.clipboard.writeText(formatEngineDebugDiagnostic(selected)).catch(() => undefined);
 	};
 	return (
-		<>
-			<div className="ed-severity-summary"><span><strong>{errorCount}</strong> errors</span><span><strong className="warn">{warningCount}</strong> warnings</span><span>{diagnostics.length}/200 captured</span></div>
+		<section className="ed-errors-view">
+			<div className="ed-severity-summary"><span><strong>{errorCount}</strong> unique errors</span><span><strong className="warn">{warningCount}</strong> warnings</span><span>{diagnostics.length}/200 issues</span></div>
 			<div className="ed-problem-toolbar">
 				{(["all", "error", "warning"] as const).map((value) => <button key={value} type="button" className="ed-filter" aria-pressed={filter === value} onClick={() => onFilter(value)}>{value === "all" ? "All" : value === "error" ? "Errors" : "Warnings"}</button>)}
 				<span className="ed-problem-count">{visible.length} shown</span>
 				<button type="button" className="ed-filter" onClick={onClear} disabled={diagnostics.length === 0}>Clear</button>
 			</div>
-			{selected && (
-				<section className="ed-card" aria-label="Selected diagnostic details">
-					<h3>{selected.category} diagnostic</h3>
-					<DebugRow name="Severity" value={selected.severity.toUpperCase()} />
-					<DebugRow name="Likely owner" value={selected.ownerHint} />
-					<DebugRow name="Captured from" value={selected.source} />
-					{selected.location && <DebugRow name="Location" value={selected.location} />}
-					<p className="ed-explain">Owner is a heuristic from the message and stack, not proof. Verify the source before changing NE or application code.</p>
-					<pre className="ed-detail-text">{[selected.message, selected.detail].filter(Boolean).join("\n\n")}</pre>
-					<button type="button" className="ed-button" onClick={copySelected}>Copy details</button>
+			<div className="ed-errors-workspace">
+				<section className="ed-selected-problem" aria-label="Selected issue details" aria-live="polite">
+					{selected ? <>
+						<h3>{selected.category} issue</h3>
+						<DebugRow name="Severity" value={selected.severity.toUpperCase()} />
+						<DebugRow name="Likely owner" value={selected.ownerHint} />
+						<DebugRow name="Captured from" value={selected.source} />
+						{selected.route && <DebugRow name="Route" value={selected.route} />}
+						{selected.location && <DebugRow name="Source location" value={selected.location} />}
+						{(selected.repeatCount ?? 1) > 1 && <DebugRow name="Occurrences" value={String(selected.repeatCount)} />}
+						<p className="ed-issue-title">{selected.message}</p>
+						{selected.detail && <pre className="ed-detail-text">{selected.detail}</pre>}
+						<div className="ed-source-editor">
+							<div className="ed-source-editor-head">
+								<span className="ed-source-path">{sourceDocument?.path ?? (sourceStatus === "loading" ? "Loading source…" : "Source editor")}</span>
+								<div className="ed-source-actions">
+									<button type="button" className="ed-button" onClick={onReloadSource} disabled={sourceStatus === "loading" || sourceStatus === "saving"}>Reload source</button>
+									<button type="button" className="ed-button" onClick={onSaveSource} disabled={!sourceDocument || !dirty || sourceStatus === "saving" || sourceStatus === "loading"}>Save fix</button>
+								</div>
+							</div>
+							{sourceDocument ? <>
+								<textarea aria-label="Source editor" className="ed-source-textarea" spellCheck={false} autoCapitalize="off" autoCorrect="off" value={sourceText} onChange={(event) => onSourceChange(event.target.value)} />
+								<p className={"ed-source-status" + (sourceStatus === "saved" ? " saved" : sourceStatus === "error" ? " error" : "")}>{sourceStatus === "saving" ? "Saving to your local workspace…" : sourceStatus === "saved" ? "Saved. Next.js can now hot-reload this file." : sourceStatus === "error" ? sourceError : dirty ? "Unsaved changes. Save fix writes the file to disk." : sourceDocument.totalLines + " lines · " + sourceDocument.content.length.toLocaleString() + " characters"}</p>
+							</> : <p className={"ed-source-status" + (sourceStatus === "error" || sourceStatus === "unavailable" ? " error" : "")}>{sourceStatus === "loading" ? "Loading the matching implementation…" : sourceError ?? "No source editor is available for this issue."}</p>}
+							<p className="ed-editor-help">Local development only. Source saves use a content hash to reject stale edits; Next.js hot reload may run immediately after save.</p>
+						</div>
+						<div className="ed-source-actions" style={{ marginTop: 8 }}><button type="button" className="ed-button" onClick={copySelected}>Copy issue details</button></div>
+					</> : <div className="ed-empty">Select a problem to inspect its message, stack, owning route and mapped source. When a file/line is available, its implementation opens here.</div>}
 				</section>
-			)}
-			<div className="ed-diagnostic-list" aria-label="Captured problems">
-				{visible.length === 0 ? <div className="ed-empty">No captured problems. Run or reload the preview to collect console, runtime, rejection, and visible Next.js overlay errors.</div> : visible.map((item) => (
-					<button key={item.id} type="button" className="ed-diagnostic" aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
-						<span className={"ed-problem-glyph " + item.severity}>{item.severity === "error" ? "●" : "▲"}</span>
-						<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span><span>{new Date(item.at).toLocaleTimeString()}</span></span></span>
-					</button>
-				))}
+				<div className="ed-diagnostic-list" aria-label="Captured problems">
+					{visible.length === 0 ? <div className="ed-empty">No captured problems. Errors are collected from the preview and deduplicated by message, source and location.</div> : visible.map((item) => (
+						<button key={item.id} type="button" className="ed-diagnostic" title={[item.message, item.route ?? "", item.location ?? ""].filter(Boolean).join("\n")} aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
+							<span className={"ed-problem-glyph " + item.severity}>{item.severity === "error" ? "●" : "▲"}</span>
+							<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span>{item.route && <span>{item.route}</span>}<span>{new Date(item.at).toLocaleTimeString()}</span>{(item.repeatCount ?? 1) > 1 && <span className="ed-repeat">{item.repeatCount}×</span>}</span></span>
+						</button>
+					))}
+				</div>
 			</div>
-
-			<p className="ed-explain"><span className="ed-warning">Capture boundary:</span> browser errors, unhandled rejections, console errors, and visible Next.js error overlays are collected from the same-origin preview in memory. Server errors emitted before a page reaches the browser may still appear only in the Next.js overlay or dev-server terminal.</p>
-		</>
+		</section>
 	);
 }
 
