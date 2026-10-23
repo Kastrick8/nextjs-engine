@@ -33,7 +33,7 @@ try {
 		source: "console",
 		message: "Warning: Text content did not match. Server: \"Loading\" Client: \"Ready\"",
 		detail: "at Home (app/page.tsx:14)",
-		location: "/",
+		route: "/",
 		now: 1_000,
 	});
 	assert.equal(hydration.category, "Hydration", "hydration mismatch messages get a dedicated category");
@@ -77,7 +77,7 @@ try {
 		source: "console",
 		message: hydration.message,
 		detail: "repeat - additional source context for the same failure",
-		location: "/",
+		route: "/",
 		now: 1_500,
 	});
 	let collection = appendEngineDebugDiagnostics([], hydration);
@@ -86,9 +86,10 @@ try {
 	assert.equal(collection[0].detail, "repeat - additional source context for the same failure", "a repeated message replaces detail when it adds more useful context");
 	assert.equal(collection[0].repeatCount, 2, "repeat count is recorded");
 	collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({ source: "runtime", message: "intervening issue", now: 1_600, route: "/" }));
-	collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({ source: "console", message: hydration.message, detail: "repeat much later", location: "/", now: 30_000 }));
+	collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({ source: "console", message: hydration.message, detail: "repeat much later", route: "/docs", now: 30_000 }));
 	assert.equal(collection.filter((item) => item.message === hydration.message).length, 1, "duplicates coalesce across intervening messages");
 	assert.equal(collection.find((item) => item.message === hydration.message).repeatCount, 3, "later repeats increment the count");
+	assert.deepEqual(collection.find((item) => item.message === hydration.message).routes, ["/", "/docs"], "identical issues on different routes are grouped");
 	for (let index = 0; index < 205; index++) {
 		collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({
 			source: "runtime",

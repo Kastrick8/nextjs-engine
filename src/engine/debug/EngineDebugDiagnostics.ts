@@ -14,6 +14,7 @@ export interface EngineDebugDiagnostic {
 	detail: string;
 	location?: string;
 	route?: string;
+	routes?: string[];
 	firstAt?: number;
 	repeatCount?: number;
 }
@@ -83,8 +84,7 @@ export function createEngineDebugDiagnostic(input: {
 	const detail = redactEngineDebugText(input.detail ?? "", 6_000).trim();
 	const classification = classifyEngineDebugDiagnostic(input.source, message, detail);
 	const location = input.location ? redactEngineDebugText(input.location, 500) : undefined;
-	const routeKey = input.source === "next-overlay" ? "" : input.route ?? "";
-	const stable = [input.source, classification.category, message, location ?? "", routeKey].join("|");
+	const stable = [input.source, classification.category, message, location ?? ""].join("|");
 	let hash = 2166136261;
 	for (let index = 0; index < stable.length; index++) hash = Math.imul(hash ^ stable.charCodeAt(index), 16777619);
 	const at = input.now ?? Date.now();
@@ -99,6 +99,7 @@ export function createEngineDebugDiagnostic(input: {
 		detail,
 		location,
 		route: input.route,
+		routes: input.route ? [input.route] : undefined,
 	};
 }
 
@@ -107,7 +108,7 @@ export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): 
 		"[" + diagnostic.severity.toUpperCase() + "] " + diagnostic.category,
 		"Likely owner: " + diagnostic.ownerHint,
 		"Source: " + diagnostic.source,
-		diagnostic.route ? "Route: " + diagnostic.route : "",
+		(diagnostic.routes?.length ?? 0) > 1 ? "Routes: " + diagnostic.routes!.join(", ") : diagnostic.route ? "Route: " + diagnostic.route : "",
 		"Time: " + new Date(diagnostic.at).toISOString(),
 		diagnostic.repeatCount && diagnostic.repeatCount > 1 ? "Occurrences: " + diagnostic.repeatCount : "",
 		diagnostic.location ? "Location: " + diagnostic.location : "",
@@ -118,8 +119,7 @@ export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): 
 }
 
 function diagnosticFingerprint(diagnostic: EngineDebugDiagnostic): string {
-	const route = diagnostic.source === "next-overlay" ? "" : diagnostic.route ?? "";
-	return [diagnostic.source, diagnostic.category, diagnostic.message, diagnostic.location ?? "", route].join("|");
+	return [diagnostic.source, diagnostic.category, diagnostic.message, diagnostic.location ?? ""].join("|");
 }
 
 export function appendEngineDebugDiagnostics(
@@ -138,6 +138,7 @@ export function appendEngineDebugDiagnostics(
 			repeatCount: (previous.repeatCount ?? 1) + 1,
 			detail: incoming.detail.length > previous.detail.length ? incoming.detail : previous.detail,
 			route: previous.route ?? incoming.route,
+			routes: [...new Set([...(previous.routes ?? (previous.route ? [previous.route] : [])), ...(incoming.routes ?? (incoming.route ? [incoming.route] : []))])].sort(),
 		};
 		return current.map((item, itemIndex) => itemIndex === index ? repeated : item).slice(-Math.max(1, limit));
 	}
