@@ -51,7 +51,7 @@ export function resolveEngineFaviconUrl(
 ): string | undefined {
 	let url: URL;
 	try {
-		url = new URL(href);
+		url = new URL(href.startsWith("//") ? `https:${href}` : href);
 	} catch {
 		return undefined;
 	}
