@@ -12,13 +12,13 @@ export default defineConfig({
 	use: {
 		// localhost HTTP is a secure context for Web Crypto and Secure cookies,
 		// while avoiding Node fetch rejecting Next dev’s self-signed HTTPS cert.
-		baseURL: "http://localhost:3100",
+		baseURL: "http://127.0.0.1:3100",
 		ignoreHTTPSErrors: true,
 		trace: "retain-on-failure",
 	},
 	webServer: {
-		command: "npm run dev -- --hostname localhost --port 3100",
-		url: "http://localhost:3100/",
+		command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
+		url: "http://127.0.0.1:3100/",
 		ignoreHTTPSErrors: true,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,
