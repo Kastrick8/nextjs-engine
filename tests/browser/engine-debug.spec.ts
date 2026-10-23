@@ -98,3 +98,30 @@ test("EngineDebug pins a mapped problem to its element and opens its dashboard d
 	await expect(page.getByRole("heading", { name: "Console diagnostic" })).toBeVisible();
 	await expect(page.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/)).toBeVisible();
 });
+
+
+test("a normal Engine page can open its inline issue directly in EngineDebug", async ({ page }) => {
+	await page.goto("/engine-compat-test/browser-dialog/fallback");
+	const componentName = await page.locator("[data-engine-debug-type]").evaluateAll((elements) => {
+		const types = elements.map((element) => element.getAttribute("data-engine-debug-type") || "");
+		return types.find((name) =>
+			/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) && types.filter((candidate) => candidate === name).length === 1
+		) ?? "";
+	});
+	expect(componentName, "the Engine page should expose a uniquely identifiable node").not.toBe("");
+	const componentLabel = componentName.charAt(0).toUpperCase() + componentName.slice(1);
+	await page.locator("body").evaluate((body, name) => {
+		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_STANDALONE_CALLOUT at " + name + " (app/page.tsx:1:2)");
+	}, componentLabel);
+
+	const marker = page.locator("[data-engine-debug-inline-callout]");
+	await expect(marker).toBeVisible();
+	await page.getByRole("button", { name: "! Error" }).hover();
+	await expect(page.getByRole("button", { name: "View on Dashboard" })).toBeVisible();
+	await page.getByRole("button", { name: "View on Dashboard" }).click();
+
+	await expect(page).toHaveURL(/\/_engine\/debug/);
+	await expect(page.getByRole("heading", { name: "Console diagnostic" })).toBeVisible();
+	await expect(page.getByText(/ENGINE_DEBUG_STANDALONE_CALLOUT/)).toBeVisible();
+	await expect(page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true })).toHaveAttribute("aria-current", "page");
+});
