@@ -16,6 +16,7 @@ import React, {
 import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MarkdownProps } from "../schema/types";
+import { EngineUrlIcon } from "./EngineUrlIcon";
 import {
 	normalizeEngineMarkdownSource,
 	parseEngineAnsi,
@@ -71,6 +72,8 @@ interface MarkdownRenderConfig {
 	ansiPalette: EngineAnsiPalette;
 	ansiForeground: string;
 	ansiBackground: string;
+	showUrlIcon: boolean;
+	urlIconSize: NonNullable<MarkdownProps["emd_url-icon-size"]>;
 }
 
 const DEFAULT_HEADING_SIZES: Record<string, string> = {
@@ -200,7 +203,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				}}
 			/>
 		),
-		a: ({ node: _node, href = "#", className, style, ...props }) => {
+		a: ({ node: _node, href = "#", className, style, children, ...props }) => {
 			const safeHref = safeMarkdownUrl(href, "href");
 			const external = /^https?:/i.test(safeHref);
 			return (
@@ -211,7 +214,10 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					rel={external ? "noopener noreferrer" : undefined}
 					className={className}
 					style={{ color: config.linkColor, fontWeight: 700, overflowWrap: "anywhere", ...style, ...config.markdownStyles?.link }}
-				/>
+				>
+					{config.showUrlIcon && external ? <EngineUrlIcon href={safeHref} size={config.urlIconSize} /> : null}
+					{children}
+				</a>
 			);
 		},
 		ul: ({ node, className, style, ...props }) => (
@@ -440,6 +446,8 @@ export function EngineMarkdownRenderer({
 	codeBorderColor = "rgba(148,163,184,.28)",
 	codeFontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
 	showCodeLanguage = true,
+	"emd_show-url-icon": showUrlIcon = false,
+	"emd_url-icon-size": urlIconSize = "auto",
 	markdownStyles,
 	ansiPalette = {},
 	ansiForeground,
@@ -477,6 +485,8 @@ export function EngineMarkdownRenderer({
 		ansiPalette,
 		ansiForeground: ansiForeground ?? codeColor,
 		ansiBackground: ansiBackground ?? codeBackground,
+		showUrlIcon,
+		urlIconSize,
 	};
 	const components = createMarkdownComponents(renderConfig);
 	const articleAnimationClass = animClass(textAnimation);
