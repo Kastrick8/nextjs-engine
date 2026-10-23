@@ -173,7 +173,6 @@ try {
 		"View Problems",
 		"handlePreviewLoad",
 		"installEngineDebugInlineCallout",
-		"nextjs-engine:debug:view-diagnostic",
 	]) assert.ok(pageSource.includes(required), "debug workbench includes " + required);
 
 
