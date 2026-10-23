@@ -1,5 +1,3 @@
-"use client";
-
 import React, { memo, type CSSProperties } from "react";
 import {
 	normalizeEngineUrlIconSize,
