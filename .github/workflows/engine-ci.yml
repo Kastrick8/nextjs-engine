@@ -16,13 +16,10 @@ permissions:
 jobs:
   validate-engine:
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.0-noble
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
       - name: Cache npm downloads
         uses: actions/cache@v4
         with:
@@ -32,9 +29,6 @@ jobs:
             ${{ runner.os }}-npm-
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Read installed Playwright version
-        id: playwright-version
-        run: node -e 'console.log("version=" + require("./node_modules/@playwright/test/package.json").version)' >> "$GITHUB_OUTPUT"
       - name: Test APIStatic compiler
         run: |
           node scripts/api-static-smoke.js
@@ -127,20 +121,6 @@ jobs:
           node scripts/gen3-production-proof.js dist /engine-compat-test
           node scripts/gen3-production-proof.js dist /engine-markdown-test
           node scripts/gen3-tree-shaking-smoke.js
-      - name: Cache Generation 3 browser binaries
-        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-all-${{ steps.playwright-version.outputs.version }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-all-
-      - name: Install Generation 3 browser system dependencies
-        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
-        run: npx playwright install-deps chromium firefox webkit
-      - name: Install Generation 3 browser matrix
-        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
-        run: npx playwright install chromium firefox webkit
       - name: Test Generation 3 browsers, devices, and networks
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: npx playwright test
