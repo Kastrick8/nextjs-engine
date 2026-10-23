@@ -130,8 +130,8 @@ export function installEngineDebugInlineCallout(
 		".anchor{position:fixed;pointer-events:auto;z-index:2147483647}",
 		".badge{display:flex;align-items:center;gap:5px;border:1px solid #f87171;border-radius:99px;background:#991b1b;color:#fff;font:800 12px/1 ui-sans-serif,system-ui;padding:5px 8px;box-shadow:0 2px 12px #0006;cursor:pointer}",
 		".badge:hover,.badge:focus-visible{background:#b91c1c;outline:2px solid #fecaca;outline-offset:2px}",
-		".panel{display:none;position:fixed;width:min(390px,calc(100vw - 24px));max-height:min(440px,calc(100vh - 24px));overflow:hidden;border:1px solid #484848;border-radius:8px;background:#1f1f1f;color:#e5e7eb;box-shadow:0 18px 55px #0009;font-size:12px}",
-		".anchor:hover .panel,.anchor:focus-within .panel{display:flex;flex-direction:column}",
+		".panel{display:flex;flex-direction:column;visibility:hidden;pointer-events:none;position:fixed;width:min(390px,calc(100vw - 24px));max-height:min(440px,calc(100vh - 24px));overflow:hidden;border:1px solid #484848;border-radius:8px;background:#1f1f1f;color:#e5e7eb;box-shadow:0 18px 55px #0009;font-size:12px}",
+		".anchor:hover .panel,.anchor:focus-within .panel{visibility:visible;pointer-events:auto}",
 		".source-path{padding:10px 12px;background:#252526;border-bottom:1px solid #3c3c3c;color:#9cdcfe;font:11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}",
 		".problem{padding:9px 12px 7px;color:#fca5a5;font-weight:650;line-height:1.45;overflow-wrap:anywhere}",
 		".code-label{padding:4px 12px;color:#9da0a5;font:10px ui-monospace,monospace;text-transform:uppercase;letter-spacing:.06em}",
@@ -205,11 +205,13 @@ export function installEngineDebugInlineCallout(
 		const y = Math.max(8, Math.min(view.innerHeight - 38, rect.top - 10));
 		anchor.style.left = x + "px";
 		anchor.style.top = y + "px";
-		const panelLeft = Math.max(8, Math.min(view.innerWidth - Math.min(390, view.innerWidth - 24) - 8, rect.left));
-		const estimatedHeight = 340;
-		let panelTop = rect.bottom + 12;
-		if (panelTop + estimatedHeight > view.innerHeight - 8) panelTop = Math.max(8, rect.top - estimatedHeight - 18);
+		const badgeRect = badge.getBoundingClientRect();
+		const panelWidth = Math.min(390, Math.max(220, view.innerWidth - 24));
+		const panelLeft = Math.max(8, Math.min(view.innerWidth - panelWidth - 8, badgeRect.right - panelWidth));
 		panel.style.left = panelLeft + "px";
+		const panelHeight = panel.getBoundingClientRect().height || Math.min(360, view.innerHeight - 24);
+		let panelTop = badgeRect.bottom - 1;
+		if (panelTop + panelHeight > view.innerHeight - 8) panelTop = Math.max(8, badgeRect.top - panelHeight + 1);
 		panel.style.top = panelTop + "px";
 	};
 	const scheduleUpdate = () => view.requestAnimationFrame(updatePosition);
