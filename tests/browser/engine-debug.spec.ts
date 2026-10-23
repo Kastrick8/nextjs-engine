@@ -68,3 +68,62 @@ test("EngineDebug shows a waiting state while the preview response is pending", 
 	await expect(page.locator(".ed-preview-state")).toHaveCount(0);
 	await expect(page.locator(".ed-preview-status")).toHaveText(/^(READY|ERROR)$/);
 });
+
+
+test("EngineDebug pins a mapped problem to its element and opens its dashboard details", async ({ page }) => {
+	await page.goto("/_engine/debug");
+	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
+	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	await expect(preview.getByRole("heading", { name: "Reasonable fallback available" })).toBeVisible();
+	const componentName = await preview.locator("[data-engine-debug-path][data-engine-debug-name]").evaluateAll((elements) => {
+		const names = elements.map((element) => element.getAttribute("data-engine-debug-name") || element.getAttribute("data-engine-debug-type") || "");
+		return names.find((name) =>
+			/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) && names.filter((candidate) => candidate === name).length === 1
+		) ?? "";
+	});
+	expect(componentName, "the fixture should contain a uniquely identified Engine node").not.toBe("");
+	const componentLabel = componentName.charAt(0).toUpperCase() + componentName.slice(1);
+	await preview.locator("body").evaluate((body, name) => {
+		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_INLINE_CALLOUT at " + name + " (app/page.tsx:1:2)");
+	}, componentLabel);
+
+	const marker = preview.locator("[data-engine-debug-inline-callout]");
+	await expect(marker).toBeVisible();
+	await page.locator("iframe[title^='Live preview:']").scrollIntoViewIfNeeded();
+	const badge = preview.getByRole("button", { name: "! Error" });
+	await badge.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
+	await badge.hover();
+	await expect(preview.getByText("app/page.tsx:1:2", { exact: true })).toBeVisible();
+	await expect(preview.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/)).toBeVisible();
+	await expect(preview.getByRole("button", { name: "View on Dashboard" })).toBeVisible();
+	await preview.getByRole("button", { name: "View on Dashboard" }).click();
+	await expect(page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_INLINE_CALLOUT" })).toBeVisible();
+	await expect(page.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/).first()).toBeVisible();
+});
+
+
+test("a normal Engine page can open its inline issue directly in EngineDebug", async ({ page }) => {
+	await page.goto("/engine-compat-test/browser-dialog/fallback");
+	const componentName = await page.locator("[data-engine-debug-path][data-engine-debug-name]").evaluateAll((elements) => {
+		const names = elements.map((element) => element.getAttribute("data-engine-debug-name") || element.getAttribute("data-engine-debug-type") || "");
+		return names.find((name) =>
+			/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) && names.filter((candidate) => candidate === name).length === 1
+		) ?? "";
+	});
+	expect(componentName, "the Engine page should expose a uniquely identifiable node").not.toBe("");
+	const componentLabel = componentName.charAt(0).toUpperCase() + componentName.slice(1);
+	await page.locator("body").evaluate((body, name) => {
+		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_STANDALONE_CALLOUT at " + name + " (app/page.tsx:1:2)");
+	}, componentLabel);
+
+	const marker = page.locator("[data-engine-debug-inline-callout]");
+	await expect(marker).toBeVisible();
+	await page.getByRole("button", { name: "! Error" }).hover();
+	await expect(page.getByRole("button", { name: "View on Dashboard" })).toBeVisible();
+	await page.getByRole("button", { name: "View on Dashboard" }).click();
+
+	await expect(page).toHaveURL(/\/_engine\/debug/);
+	await expect(page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_STANDALONE_CALLOUT" })).toBeVisible();
+	await expect(page.getByText(/ENGINE_DEBUG_STANDALONE_CALLOUT/).first()).toBeVisible();
+	await expect(page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true })).toHaveAttribute("aria-current", "page");
+});
