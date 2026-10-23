@@ -28,6 +28,9 @@ jobs:
             ${{ runner.os }}-npm-
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Read installed Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p 'require("./node_modules/@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
       - name: Test APIStatic compiler
         run: |
           node scripts/api-static-smoke.js
@@ -125,7 +128,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-all-${{ hashFiles('package.json') }}
+          key: ${{ runner.os }}-playwright-all-${{ steps.playwright-version.outputs.version }}
           restore-keys: |
             ${{ runner.os }}-playwright-all-
       - name: Install Generation 3 browser system dependencies
