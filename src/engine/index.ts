@@ -266,6 +266,10 @@ export type {
 	RenderingEngine as ECRenderingEngine, ECRenderContext,
 } from "./core/enginecanvas";
 export { EngineMarkdown } from "./components/EngineMarkdown";
+export { EngineUrlIcon } from "./components/EngineUrlIcon";
+export type { EngineUrlIconProps } from "./components/EngineUrlIcon";
+export { normalizeEngineUrlIconSize, resolveEngineFaviconUrl } from "./core/engineUrlIcon";
+export type { EngineUrlIconSize } from "./core/engineUrlIcon";
 export { EngineHero } from "./components/EngineHero";
 export { LazyMount, LazySection } from "./components/LazyMount";
 export { CustomSelect } from "./components/CustomSelect";
