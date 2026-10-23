@@ -13,6 +13,9 @@ export interface EngineDebugDiagnostic {
 	message: string;
 	detail: string;
 	location?: string;
+	route?: string;
+	firstAt?: number;
+	repeatCount?: number;
 }
 
 const MAX_MESSAGE_LENGTH = 8_000;
@@ -74,23 +77,28 @@ export function createEngineDebugDiagnostic(input: {
 	detail?: unknown;
 	location?: string;
 	now?: number;
+	route?: string;
 }): EngineDebugDiagnostic {
 	const message = redactEngineDebugText(input.message, 1_600).trim() || "(empty diagnostic)";
 	const detail = redactEngineDebugText(input.detail ?? "", 6_000).trim();
 	const classification = classifyEngineDebugDiagnostic(input.source, message, detail);
 	const location = input.location ? redactEngineDebugText(input.location, 500) : undefined;
-	const stable = [input.source, classification.category, message, location ?? ""].join("|");
+	const routeKey = input.source === "next-overlay" ? "" : input.route ?? "";
+	const stable = [input.source, classification.category, message, location ?? "", routeKey].join("|");
 	let hash = 2166136261;
 	for (let index = 0; index < stable.length; index++) hash = Math.imul(hash ^ stable.charCodeAt(index), 16777619);
 	const at = input.now ?? Date.now();
 	return {
-		id: (hash >>> 0).toString(16) + "-" + String(at),
+		id: (hash >>> 0).toString(16),
 		at,
+		firstAt: at,
+		repeatCount: 1,
 		...classification,
 		source: input.source,
 		message,
 		detail,
 		location,
+		route: input.route,
 	};
 }
 
@@ -99,7 +107,9 @@ export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): 
 		"[" + diagnostic.severity.toUpperCase() + "] " + diagnostic.category,
 		"Likely owner: " + diagnostic.ownerHint,
 		"Source: " + diagnostic.source,
+		diagnostic.route ? "Route: " + diagnostic.route : "",
 		"Time: " + new Date(diagnostic.at).toISOString(),
+		diagnostic.repeatCount && diagnostic.repeatCount > 1 ? "Occurrences: " + diagnostic.repeatCount : "",
 		diagnostic.location ? "Location: " + diagnostic.location : "",
 		"",
 		diagnostic.message,
@@ -107,18 +117,29 @@ export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): 
 	].filter((line, index) => line || index === 5).join("\n").trim();
 }
 
+function diagnosticFingerprint(diagnostic: EngineDebugDiagnostic): string {
+	const route = diagnostic.source === "next-overlay" ? "" : diagnostic.route ?? "";
+	return [diagnostic.source, diagnostic.category, diagnostic.message, diagnostic.location ?? "", route].join("|");
+}
+
 export function appendEngineDebugDiagnostics(
 	current: readonly EngineDebugDiagnostic[],
 	incoming: EngineDebugDiagnostic,
 	limit = 200,
 ): EngineDebugDiagnostic[] {
-	const fingerprint = incoming.source + "|" + incoming.category + "|" + incoming.message + "|" + (incoming.location ?? "");
-	const mostRecent = current[current.length - 1];
-	if (mostRecent) {
-		const lastFingerprint = mostRecent.source + "|" + mostRecent.category + "|" + mostRecent.message + "|" + (mostRecent.location ?? "");
-		if (fingerprint === lastFingerprint && incoming.at - mostRecent.at < 1_500) {
-			return [...current.slice(0, -1), { ...mostRecent, at: incoming.at, detail: incoming.detail || mostRecent.detail }];
-		}
+	const fingerprint = diagnosticFingerprint(incoming);
+	for (let index = current.length - 1; index >= 0; index--) {
+		const previous = current[index];
+		if (diagnosticFingerprint(previous) !== fingerprint) continue;
+		const repeated: EngineDebugDiagnostic = {
+			...previous,
+			at: incoming.at,
+			firstAt: previous.firstAt ?? previous.at,
+			repeatCount: (previous.repeatCount ?? 1) + 1,
+			detail: incoming.detail.length > previous.detail.length ? incoming.detail : previous.detail,
+			route: previous.route ?? incoming.route,
+		};
+		return current.map((item, itemIndex) => itemIndex === index ? repeated : item).slice(-Math.max(1, limit));
 	}
 	return [...current, incoming].slice(-Math.max(1, limit));
 }

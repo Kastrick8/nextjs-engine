@@ -109,7 +109,8 @@ function generatedSourceRouteSource(routeDirectory, sourceModulePath) {
 	const importPath = normalizeImportPath(path.relative(routeDirectory, sourceModulePath));
 	return [
 		GENERATED_MARKER,
-		`export { GET } from ${JSON.stringify(importPath)};`,
+		`export const runtime = "nodejs";`,
+		`export { GET, POST } from ${JSON.stringify(importPath)};`,
 		"",
 	].join("\n");
 }

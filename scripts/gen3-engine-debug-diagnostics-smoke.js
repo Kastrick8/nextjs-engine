@@ -25,6 +25,8 @@ try {
 		appendEngineDebugDiagnostics,
 		classifyEngineDebugDiagnostic,
 		createEngineDebugDiagnostic,
+		createEngineDebugSourceDocument,
+		saveEngineDebugSourceDocument,
 		formatEngineDebugDiagnostic,
 		redactEngineDebugText,
 	} = require("../src/engine/debug/EngineDebugDiagnostics.ts");
@@ -82,8 +84,13 @@ try {
 	});
 	let collection = appendEngineDebugDiagnostics([], hydration);
 	collection = appendEngineDebugDiagnostics(collection, duplicate);
-	assert.equal(collection.length, 1, "consecutive duplicate messages are coalesced inside the dedupe window");
+	assert.equal(collection.length, 1, "duplicate messages are coalesced");
 	assert.equal(collection[0].detail, "repeat", "a repeated message can refresh available detail");
+	assert.equal(collection[0].repeatCount, 2, "repeat count is recorded");
+	collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({ source: "runtime", message: "intervening issue", now: 1_600, route: "/" }));
+	collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({ source: "console", message: hydration.message, detail: "repeat much later", location: "/", now: 30_000 }));
+	assert.equal(collection.filter((item) => item.message === hydration.message).length, 1, "duplicates coalesce across intervening messages");
+	assert.equal(collection.find((item) => item.message === hydration.message).repeatCount, 3, "later repeats increment the count");
 	for (let index = 0; index < 205; index++) {
 		collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({
 			source: "runtime",
@@ -127,6 +134,20 @@ try {
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), ".env.local", 1), null, "source preview rejects hidden environment files");
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), "node_modules/typescript/lib/typescript.js", 1), null, "source preview rejects dependency directories");
 
+	const os = require("node:os");
+	const editorRoot = fs.mkdtempSync(path.join(os.tmpdir(), "engine-debug-editor-"));
+	try {
+		fs.mkdirSync(path.join(editorRoot, "app"), { recursive: true });
+		fs.writeFileSync(path.join(editorRoot, "app/page.tsx"), "before\\n", "utf8");
+		const beforeEdit = createEngineDebugSourceDocument(editorRoot, "app/page.tsx");
+		assert.ok(beforeEdit, "editor can load an allowed source file");
+		const savedEdit = saveEngineDebugSourceDocument(editorRoot, beforeEdit.path, beforeEdit.sha256, "after\\n");
+		assert.equal(savedEdit.status, "saved", "editor saves a version-matched file");
+		assert.equal(fs.readFileSync(path.join(editorRoot, "app/page.tsx"), "utf8"), "after\\n");
+		assert.equal(saveEngineDebugSourceDocument(editorRoot, beforeEdit.path, beforeEdit.sha256, "stale").status, "conflict", "stale edits are rejected");
+		assert.equal(saveEngineDebugSourceDocument(editorRoot, "../.env", beforeEdit.sha256, "forbidden").status, "not-found", "editor rejects traversal");
+	} finally { fs.rmSync(editorRoot, { recursive: true, force: true }); }
+
 	const pageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugPage.tsx"), "utf8");
 	const pageCompile = ts.transpileModule(pageSource, {
 		reportDiagnostics: true,
@@ -158,6 +179,9 @@ try {
 	assert.match(createPageSource, /process\.env\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
 		"normal Engine pages only mount the inline diagnostics monitor during development");
 	for (const required of [
+		"Source editor",
+		"Search routes",
+		"ResizeObserver",
 		"unhandledrejection",
 		"frameWindow.addEventListener(\"error\"",
 		"Next.js development error overlay",
