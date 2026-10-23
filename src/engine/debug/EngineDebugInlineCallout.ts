@@ -170,6 +170,23 @@ export function installEngineDebugInlineCallout(
 	const dashboard = el(document, "button", "dashboard", "View on Dashboard");
 	dashboard.type = "button";
 	dashboard.addEventListener("click", () => {
+		if (view.parent === view) {
+			const handoffKey = "nextjs-engine:debug:diagnostic-handoff";
+			try {
+				view.sessionStorage.setItem(handoffKey, JSON.stringify({
+					expiresAt: Date.now() + 60_000,
+					route,
+					diagnostic,
+				}));
+			} catch {
+				// Dashboard navigation still works without a session handoff; the route will show general Problems.
+			}
+			const dashboardUrl = new URL("/_engine/debug", view.location.href);
+			dashboardUrl.searchParams.set("route", route);
+			dashboardUrl.searchParams.set("issue", diagnostic.id);
+			view.location.assign(dashboardUrl.href);
+			return;
+		}
 		view.parent.postMessage({
 			type: "nextjs-engine:debug:view-diagnostic",
 			issueId: diagnostic.id,
