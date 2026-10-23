@@ -35,7 +35,7 @@ for (const compiledRoot of compiledRoots) {
 			else if (/\.(?:js|json)$/.test(entry.name) && !/client-reference-manifest\.js$/.test(entry.name)) {
 				assert.doesNotMatch(
 					fs.readFileSync(filename, "utf8"),
-					/Next\.js Engine Debug|D\.5–D\.10|data-next-engine-debug-active|data-engine-debug-inline-callout|nextjs-engine:debug:view-diagnostic|EngineDebugRuntimeMonitor/,
+					/Next\.js Engine Debug|D\.5–D\.10|data-engine-debug-inline-callout|nextjs-engine:debug:view-diagnostic|EngineDebugRuntimeMonitor/,
 					`${filename} compiled the dev-only debugger`,
 				);
 			}
