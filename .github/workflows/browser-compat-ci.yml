@@ -18,6 +18,8 @@ jobs:
     name: ${{ matrix.browser }} compatibility
     runs-on: ubuntu-latest
     container: mcr.microsoft.com/playwright:v1.64.0-noble
+    env:
+      HOME: /root
     strategy:
       fail-fast: false
       matrix:
