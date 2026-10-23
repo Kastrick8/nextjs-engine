@@ -184,7 +184,7 @@ Markdown schema node to show a small favicon before each external HTTP(S) link:
   skipped. The resolver sends only the link's origin hostname to the favicon
   lookup, never the full path, query string, or fragment.
 
-The icon is served through Engine's same-origin `/_static/emd/favicon` route.
+When NENC is enabled through the combined Engine plugin, the icon is served through its generated same-origin `/_static/emd/favicon` route.
 The server contacts only the fixed Google S2 favicon endpoint, never the linked
 page itself, validates the requested hostname, limits image size, and keeps a
 bounded in-memory byte cache with HTTP cache headers. During development, a
