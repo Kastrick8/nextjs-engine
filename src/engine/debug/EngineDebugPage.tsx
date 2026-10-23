@@ -239,36 +239,6 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [layoutByDevice, setLayoutByDevice] = useState<Record<string, number>>({});
 	const [previewStatus, setPreviewStatus] = useState<"waiting" | "ready" | "error">("waiting");
 	const frameSource = useMemo(() => `${selectedPage}${selectedPage.includes("?") ? "&" : "?"}__engine_debug=1`, [selectedPage]);
-	useEffect(() => {
-		const handleInlineIssueNavigation = (event: MessageEvent) => {
-			const frame = iframeRef.current;
-			if (!frame?.contentWindow || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
-			const payload = event.data as { type?: unknown; issueId?: unknown; route?: unknown; diagnostic?: unknown };
-			if (payload?.type !== "nextjs-engine:debug:view-diagnostic" || typeof payload.issueId !== "string") return;
-			const diagnostic = payload.diagnostic as Partial<EngineDebugDiagnostic> | undefined;
-			const validDiagnostic = Boolean(diagnostic
-				&& diagnostic.id === payload.issueId
-				&& typeof diagnostic.at === "number"
-				&& typeof diagnostic.message === "string"
-				&& typeof diagnostic.detail === "string"
-				&& ["error", "warning"].includes(diagnostic.severity ?? "")
-				&& ["Hydration", "SSR", "Runtime", "Console"].includes(diagnostic.category ?? "")
-				&& ["runtime", "unhandled-rejection", "console", "next-overlay"].includes(diagnostic.source ?? "")
-				&& ["Likely NE source", "Likely application code", "Likely React / Next.js", "Unknown"].includes(diagnostic.ownerHint ?? ""));
-			if (!validDiagnostic || !diagnostic) return;
-			const issue: EngineDebugDiagnostic = diagnostic as EngineDebugDiagnostic;
-			const nextDiagnostics = diagnosticsRef.current.some((item) => item.id === issue.id)
-				? diagnosticsRef.current
-				: [...diagnosticsRef.current, issue].slice(-200);
-			diagnosticsRef.current = nextDiagnostics;
-			setDiagnostics(nextDiagnostics);
-			if (typeof payload.route === "string" && pages.includes(payload.route)) setSelectedPage(payload.route);
-			setSelectedDiagnosticId(issue.id);
-			setTab("Errors");
-		};
-		window.addEventListener("message", handleInlineIssueNavigation);
-		return () => window.removeEventListener("message", handleInlineIssueNavigation);
-	}, []);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);
