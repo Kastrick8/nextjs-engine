@@ -66,7 +66,7 @@ The central preview now shows an accessible waiting overlay while its iframe res
 
 ## Inline issue callouts and source previews
 
-When EngineDebug can map a captured diagnostic to exactly one rendered Engine node, it marks that element with a non-layout-shifting red outline and a small error badge. The badge opens an accessible hover/focus card with the authoring file and line when available, a short highlighted source excerpt, the diagnostic summary, and a **View on Dashboard** action. That action sends the issue ID to the embedding workbench; the workbench validates the message origin and iframe source, opens the Problems inspector, and selects the same diagnostic.
+In development, Engine pages rendered through `createPage()` also install a lightweight runtime monitor; it skips the dashboard's own `?__engine_debug=1` preview to avoid duplicate collection. When EngineDebug can map a captured diagnostic to exactly one rendered Engine node, it marks that element with a non-layout-shifting red outline and a small error badge. The badge opens an accessible hover/focus card with the authoring file and line when available, a short highlighted source excerpt, the diagnostic summary, and a **View on Dashboard** action. From an embedded preview, that action sends the issue ID to the embedding workbench; the workbench validates the message origin and iframe source, opens the Problems inspector, and selects the same diagnostic. From a normal Engine page, the action stores a short-lived, redacted diagnostic handoff in same-tab session storage and navigates to `/_engine/debug` with the route and issue ID; the dashboard validates the handoff and selects the matching issue.
 
 A callout is only attached when the mapping is unambiguous:
 
