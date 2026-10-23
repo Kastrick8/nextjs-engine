@@ -1,10 +1,14 @@
-name: Engine browser compatibility
+name: Engine cross-browser compatibility
 
 on:
   push:
     branches: [main-3]
   pull_request:
     branches: [main-3]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -13,6 +17,7 @@ jobs:
   browser-compat:
     name: ${{ matrix.browser }} compatibility
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.0-noble
     strategy:
       fail-fast: false
       matrix:
@@ -20,14 +25,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Cache npm downloads
+        uses: actions/cache@v4
         with:
-          node-version: 24
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Install ${{ matrix.browser }} browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Test ${{ matrix.browser }}
         run: npx playwright test --project=${{ matrix.browser }}
       - name: Upload failed traces

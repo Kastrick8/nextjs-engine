@@ -6,9 +6,11 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const generatedRoute = path.join(root, "app", "%5Fengine", "debug", "page.tsx");
+const generatedSourceRoute = path.join(root, "app", "%5Fengine", "debug", "source", "route.ts");
 const output = path.join(root, "dist");
 
 assert.equal(fs.existsSync(generatedRoute), false, "the dev-only debug route must be removed before production compilation");
+assert.equal(fs.existsSync(generatedSourceRoute), false, "the dev-only source preview route must be removed before production compilation");
 assert.equal(fs.existsSync(output), true, "run this proof after next build");
 
 const manifestPaths = [
@@ -30,10 +32,10 @@ for (const compiledRoot of compiledRoots) {
 		for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
 			const filename = path.join(current, entry.name);
 			if (entry.isDirectory()) pending.push(filename);
-			else if (/\.(?:js|json)$/.test(entry.name)) {
+			else if (/\.(?:js|json)$/.test(entry.name) && !/client-reference-manifest\.js$/.test(entry.name)) {
 				assert.doesNotMatch(
 					fs.readFileSync(filename, "utf8"),
-					/Next\.js Engine Debug|D\.5–D\.10|data-next-engine-debug-active/,
+					/Next\.js Engine Debug|D\.5–D\.10|data-engine-debug-inline-callout|nextjs-engine:debug:view-diagnostic|EngineDebugRuntimeMonitor/,
 					`${filename} compiled the dev-only debugger`,
 				);
 			}

@@ -98,6 +98,35 @@ try {
 	assert.match(formatted, /Likely owner:/);
 	assert.match(formatted, /Failed to render on the server/);
 
+	const {
+		parseEngineDebugSchemaPath,
+		parseEngineDebugSourceLocation,
+	} = require("../src/engine/debug/EngineDebugInlineCallout.ts");
+	const mappedSource = parseEngineDebugSourceLocation({
+		location: "/engine-compat-test/browser-dialog/fallback",
+		message: "Preview failed",
+		detail: "at EngineCard (app/page.tsx:14:6)",
+	});
+	assert.deepEqual(mappedSource, { path: "app/page.tsx", line: 14, column: 6 },
+		"inline issue markers extract an authoring file and line/column from a mapped stack");
+	assert.equal(parseEngineDebugSchemaPath({
+		location: "/",
+		message: "EngineError(E001): [schema:root.children[2]] Unknown node type",
+		detail: "",
+	}), "root.children[2]", "schema diagnostics preserve their exact Engine node path");
+
+	const {
+		createEngineDebugSourcePreview,
+	} = require("../src/engine/debug/EngineDebugSourceRoute.ts");
+	const sourcePreview = createEngineDebugSourcePreview(process.cwd(), "src/engine/debug/EngineDebugDiagnostics.ts", 1);
+	assert.ok(sourcePreview, "development source preview reads an allowed workspace source file");
+	assert.equal(sourcePreview.path, "src/engine/debug/EngineDebugDiagnostics.ts");
+	assert.equal(sourcePreview.highlightLine, 1);
+	assert.ok(sourcePreview.lines.some((line) => line.number === 1), "source preview includes the selected line");
+	assert.equal(createEngineDebugSourcePreview(process.cwd(), "../.env", 1), null, "source preview rejects parent traversal");
+	assert.equal(createEngineDebugSourcePreview(process.cwd(), ".env.local", 1), null, "source preview rejects hidden environment files");
+	assert.equal(createEngineDebugSourcePreview(process.cwd(), "node_modules/typescript/lib/typescript.js", 1), null, "source preview rejects dependency directories");
+
 	const pageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugPage.tsx"), "utf8");
 	const pageCompile = ts.transpileModule(pageSource, {
 		reportDiagnostics: true,
@@ -111,6 +140,23 @@ try {
 	const syntaxErrors = (pageCompile.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
 	assert.equal(syntaxErrors.length, 0,
 		"EngineDebug TSX parses cleanly: " + syntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
+
+	const runtimeMonitorSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugRuntimeMonitor.tsx"), "utf8");
+	const monitorCompile = ts.transpileModule(runtimeMonitorSource, {
+		reportDiagnostics: true,
+		compilerOptions: {
+			jsx: ts.JsxEmit.ReactJSX,
+			module: ts.ModuleKind.CommonJS,
+			target: ts.ScriptTarget.ES2022,
+			esModuleInterop: true,
+		},
+	});
+	const monitorSyntaxErrors = (monitorCompile.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
+	assert.equal(monitorSyntaxErrors.length, 0,
+		"normal-page monitor TSX parses cleanly: " + monitorSyntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
+	const createPageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/createPage.tsx"), "utf8");
+	assert.match(createPageSource, /process\.env\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
+		"normal Engine pages only mount the inline diagnostics monitor during development");
 	for (const required of [
 		"unhandledrejection",
 		"frameWindow.addEventListener(\"error\"",
@@ -126,7 +172,26 @@ try {
 		"Reload preview",
 		"View Problems",
 		"handlePreviewLoad",
+		"installEngineDebugInlineCallout",
 	]) assert.ok(pageSource.includes(required), "debug workbench includes " + required);
+
+
+	assert.ok(runtimeMonitorSource.includes('url.searchParams.get("__engine_debug") === "1"'), "normal-page monitor skips the dashboard preview to prevent duplicate overlays");
+	const inlineCalloutSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugInlineCallout.ts"), "utf8");
+	for (const required of [
+		"data-engine-debug-error-target",
+		"Source preview",
+		"View on Dashboard",
+		"SOURCE_LOCATION",
+		"nextjs-engine:debug:diagnostic-handoff",
+	]) assert.ok(inlineCalloutSource.includes(required), "inline callout includes " + required);
+	const sourceRouteSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugSourceRoute.ts"), "utf8");
+	for (const required of [
+		"process.env.NODE_ENV",
+		"isLoopbackHost",
+		"FORBIDDEN_SEGMENTS",
+		"MAX_SOURCE_BYTES",
+	]) assert.ok(sourceRouteSource.includes(required), "source preview route includes " + required);
 
 	console.log("Generation 3 EngineDebug diagnostics smoke: ok");
 } finally {

@@ -6,19 +6,27 @@ on:
   pull_request:
     branches: [main-2, main-3]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   validate-engine:
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.0-noble
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Cache npm downloads
+        uses: actions/cache@v4
         with:
-          node-version: 24
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Test APIStatic compiler
@@ -113,9 +121,6 @@ jobs:
           node scripts/gen3-production-proof.js dist /engine-compat-test
           node scripts/gen3-production-proof.js dist /engine-markdown-test
           node scripts/gen3-tree-shaking-smoke.js
-      - name: Install Generation 3 browser matrix
-        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
-        run: npx playwright install --with-deps chromium firefox webkit
       - name: Test Generation 3 browsers, devices, and networks
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: npx playwright test

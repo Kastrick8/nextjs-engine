@@ -22,7 +22,7 @@
 		"two.js": "^0.8.23"
 	},
 	"devDependencies": {
-		"@playwright/test": "^1.55.0",
+		"@playwright/test": "1.64.0",
 		"@types/node": "^20.10.0",
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0",
