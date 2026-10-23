@@ -1,4 +1,4 @@
-export const ENGINE_DEBUG_RUNTIME_SCRIPT = String.raw\`(function () {
+export const ENGINE_DEBUG_RUNTIME_SCRIPT = String.raw`(function () {
 "use strict";
 var bootKey = "__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__";
 var currentUrl = new URL(window.location.href);
@@ -285,4 +285,4 @@ var scanOverlay = function () {
 var observer = new MutationObserver(scanOverlay);
 if (document.body) observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 scanOverlay();
-})();\`;
+})();`;
