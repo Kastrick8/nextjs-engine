@@ -15,7 +15,9 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-debug-"));
 const previousNodeEnv = process.env.NODE_ENV;
 const modulePath = path.resolve(__dirname, "../src/engine/debug/EngineDebugPage.tsx");
 const isolationModulePath = path.resolve(__dirname, "../src/engine/debug/EngineDebugIsolation.tsx");
+const sourceModulePath = path.resolve(__dirname, "../src/engine/debug/EngineDebugSourceRoute.ts");
 const routeFile = path.join(root, "app", "%5Fengine", "debug", "page.tsx");
+const sourceRouteFile = path.join(root, "app", "%5Fengine", "debug", "source", "route.ts");
 
 function touch(relative) {
 	const filename = path.join(root, relative);
@@ -34,7 +36,7 @@ try {
 
 	assert.deepEqual(discoverEngineDebugPages(root), ["/", "/account", "/docs", "/products"]);
 	process.env.NODE_ENV = "development";
-	const development = prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath });
+	const development = prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath });
 	assert.equal(development.development, true);
 	assert.deepEqual(development.pages, ["/", "/account", "/docs", "/products"]);
 	const generated = fs.readFileSync(routeFile, "utf8");
@@ -43,8 +45,11 @@ try {
 	assert.match(generated, /<EngineDebugIsolation>/);
 	assert.match(generated, /EngineDebugPage/);
 	assert.doesNotMatch(generated, /_private/);
+	const generatedSourceRoute = fs.readFileSync(sourceRouteFile, "utf8");
+	assert.ok(generatedSourceRoute.startsWith(GENERATED_MARKER));
+	assert.match(generatedSourceRoute, /export \{ GET \} from/);
 	assert.equal(
-		prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath }).routeFile,
+		prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath }).routeFile,
 		routeFile,
 		"generation must be idempotent",
 	);
@@ -65,9 +70,10 @@ try {
 	fs.mkdirSync(staleDevelopmentTypes, { recursive: true });
 	fs.writeFileSync(path.join(staleDevelopmentTypes, "validator.ts"), "import './_engine/debug';\n", "utf8");
 	process.env.NODE_ENV = "production";
-	const production = prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath });
+	const production = prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath });
 	assert.equal(production.development, false);
 	assert.equal(fs.existsSync(routeFile), false, "production preparation must remove the generated route before route discovery");
+	assert.equal(fs.existsSync(sourceRouteFile), false, "production preparation must remove the development-only source endpoint");
 	assert.equal(fs.existsSync(staleDevelopmentTypes), false, "production preparation must remove stale development route types");
 
 	fs.mkdirSync(path.dirname(routeFile), { recursive: true });
