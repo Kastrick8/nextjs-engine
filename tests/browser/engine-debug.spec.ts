@@ -68,3 +68,31 @@ test("EngineDebug shows a waiting state while the preview response is pending", 
 	await expect(page.locator(".ed-preview-state")).toHaveCount(0);
 	await expect(page.locator(".ed-preview-status")).toHaveText(/^(READY|ERROR)$/);
 });
+
+
+test("EngineDebug pins a mapped problem to its element and opens its dashboard details", async ({ page }) => {
+	await page.goto("/_engine/debug");
+	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
+	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	const componentName = await preview.locator("[data-engine-debug-name]").evaluateAll((elements) => {
+		const names = elements.map((element) => element.getAttribute("data-engine-debug-name") || "");
+		return names.find((name) => name && names.filter((candidate) => candidate === name).length === 1) ?? "";
+	});
+	expect(componentName, "the fixture should contain a uniquely identified Engine node").not.toBe("");
+	const componentLabel = componentName.charAt(0).toUpperCase() + componentName.slice(1);
+	await preview.locator("body").evaluate((body, name) => {
+		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_INLINE_CALLOUT at " + name + " (app/page.tsx:1:2)");
+	}, componentLabel);
+
+	const marker = preview.locator("[data-engine-debug-inline-callout]");
+	await expect(marker).toBeVisible();
+	const badge = preview.getByRole("button", { name: "! Error" });
+	await badge.hover();
+	await expect(preview.getByText("app/page.tsx:1:2", { exact: true })).toBeVisible();
+	await expect(preview.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/)).toBeVisible();
+	await expect(preview.getByRole("button", { name: "View on Dashboard" })).toBeVisible();
+	await preview.getByRole("button", { name: "View on Dashboard" }).click();
+
+	await expect(page.getByRole("heading", { name: "Console diagnostic" })).toBeVisible();
+	await expect(page.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/)).toBeVisible();
+});
