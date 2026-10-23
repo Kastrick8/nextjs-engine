@@ -234,7 +234,6 @@ try {
 		"Search routes",
 		"ResizeObserver",
 		"unhandledrejection",
-		"__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__",
 		"frameWindow.addEventListener(\"error\"",
 		"summarizeNextOverlay",
 		"dataset.engineDebugCapturedIssue",
@@ -255,6 +254,7 @@ try {
 
 
 	assert.ok(runtimeMonitorSource.includes('url.searchParams.get("__engine_debug") === "1"'), "normal-page monitor skips the dashboard preview to prevent duplicate overlays");
+	assert.ok(runtimeMonitorSource.includes("__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__"), "normal-page instrumentation avoids double-patching console.error");
 	const inlineCalloutSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugInlineCallout.ts"), "utf8");
 	for (const required of [
 		"data-engine-debug-error-target",
