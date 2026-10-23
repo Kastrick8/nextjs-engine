@@ -165,7 +165,7 @@ try {
 		"data-engine-debug-error-target",
 		"Source preview",
 		"View on Dashboard",
-		"app/page.tsx",
+		"SOURCE_LOCATION",
 		"nextjs-engine:debug:view-diagnostic",
 	]) assert.ok(inlineCalloutSource.includes(required), "inline callout includes " + required);
 	const sourceRouteSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugSourceRoute.ts"), "utf8");
