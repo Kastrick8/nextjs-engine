@@ -35,7 +35,7 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Read installed Playwright version
         id: playwright-version
-        run: echo "version=$(node -p 'require("./node_modules/@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+        run: node -e 'console.log("version=" + require("./node_modules/@playwright/test/package.json").version)' >> "$GITHUB_OUTPUT"
       - name: Cache Playwright browser binaries
         uses: actions/cache@v4
         with:
