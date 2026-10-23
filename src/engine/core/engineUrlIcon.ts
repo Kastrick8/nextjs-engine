@@ -85,6 +85,23 @@ export function resolveEngineFaviconUrl(
 	return result;
 }
 
+/** Resolve a validated favicon through Engine's same-origin asset endpoint. */
+export function resolveEngineFaviconAssetUrl(
+	href: string,
+	size: EngineUrlIconSize = "auto",
+): string | undefined {
+	const providerUrl = resolveEngineFaviconUrl(href, size);
+	if (!providerUrl) return undefined;
+
+	const provider = new URL(providerUrl);
+	const domainUrl = provider.searchParams.get("domain_url");
+	const domain = domainUrl ? new URL(domainUrl).hostname : "";
+	const providerSize = provider.searchParams.get("sz") ?? "64";
+	if (!domain) return undefined;
+
+	return `/_static/emd/favicon?domain=${encodeURIComponent(domain)}&sz=${encodeURIComponent(providerSize)}`;
+}
+
 /** Fixed sizes are clamped; "auto" tracks the current text size. */
 export function normalizeEngineUrlIconSize(size: EngineUrlIconSize = "auto"): number | "1em" {
 	if (size === "auto") return "1em";

@@ -1,7 +1,7 @@
 import React, { memo, type CSSProperties } from "react";
 import {
 	normalizeEngineUrlIconSize,
-	resolveEngineFaviconUrl,
+	resolveEngineFaviconAssetUrl,
 	type EngineUrlIconSize,
 } from "../core/engineUrlIcon";
 
@@ -22,7 +22,7 @@ export const EngineUrlIcon = memo(function EngineUrlIcon({
 	className,
 	style,
 }: EngineUrlIconProps) {
-	const src = resolveEngineFaviconUrl(href, size);
+	const src = resolveEngineFaviconAssetUrl(href, size);
 	if (!src) return null;
 
 	const renderedSize = normalizeEngineUrlIconSize(size);
