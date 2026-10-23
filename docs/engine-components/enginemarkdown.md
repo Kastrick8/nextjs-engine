@@ -159,6 +159,53 @@ Supported `markdownStyles` slots are `heading`, `paragraph`, `link`,
 `tableHeader`, `tableCell`, and `horizontalRule`. Existing color and sizing
 props remain supported; style-slot values override the matching renderer defaults.
 
+
+## External-link favicons
+
+Favicons are opt-in and disabled by default. Set `emd_show-url-icon` on a
+Markdown schema node to show a small favicon before each external HTTP(S) link:
+
+```ts
+{
+  type: "markdown",
+  props: {
+    content: "[GitHub](https://github.com) and [Next.js](https://nextjs.org)",
+    "emd_show-url-icon": true,
+    "emd_url-icon-size": "auto",
+  },
+}
+```
+
+- `emd_show-url-icon`: boolean; defaults to `false`.
+- `emd_url-icon-size`: `"auto"` (matches the current text size) or a number
+  of CSS pixels. Numeric values are clamped to 8–64 pixels.
+- Only absolute HTTP(S) links to public-looking hostnames receive an icon.
+  Relative URLs, unsafe schemes, localhost and private-network IP ranges are
+  skipped. The resolver sends only the link's origin hostname to the favicon
+  lookup, never the full path, query string, or fragment.
+
+The stable favicon lookup URL is reused and is HTTP-cacheable by the browser and
+favicon provider. The component does not download arbitrary linked HTML or
+proxy icon bytes through your Next.js server. This avoids server-side fetching
+of author-controlled destinations; it also means the provider, not the app
+server, owns the upstream favicon cache and its refresh cadence.
+
+The same schema keys work on Engine link nodes and linked schema components.
+For a regular React/HTML anchor, use the exported icon component explicitly:
+
+```tsx
+import { EngineUrlIcon } from "nextjs-engine";
+
+<a href="https://github.com">
+  <EngineUrlIcon href="https://github.com" size={18} />
+  GitHub
+</a>
+```
+
+Raw HTML embedded inside Markdown remains disabled for safety. Use Markdown links
+with the schema-level option above, or render regular HTML/JSX using
+`EngineUrlIcon` / `EngineLink`.
+
 ## Responsive font family
 
 `fontFamily` goes through the same engine style resolver as other responsive CSS
