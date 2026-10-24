@@ -584,7 +584,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			frameCleanup();
 			const frameWindow = frame.contentWindow as DebugSchedulerWindow | null;
 			const frameDocument = frame.contentDocument;
-			if (!frameWindow || !frameDocument) return;
+			if (!frameWindow || !frameDocument || !frameDocument.documentElement || !frameDocument.head) return;
 			applyDeviceProfile(frameWindow, device);
 			frameDocument.documentElement.dataset.engineDebugOverlay = String(overlay);
 			let overlayStyle = frameDocument.getElementById("__engine_debug_overlay__") as HTMLStyleElement | null;
