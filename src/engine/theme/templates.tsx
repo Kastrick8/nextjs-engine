@@ -1,8 +1,6 @@
 import React, { createElement, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import type {
-	EngineMarkdownThemeTemplates,
 	EngineThemeTemplateDefinition,
-	EngineThemeTemplateNode,
 	EngineThemeTemplateNodeType,
 } from "../schema/types";
 
@@ -42,7 +40,7 @@ const ALLOWED_STYLE_KEYS = new Set([
 	"alignSelf", "justifySelf", "gap", "rowGap", "columnGap",
 	"padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
 	"margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
-	"width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight",
+	"width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "flexShrink",
 	"color", "background", "backgroundColor", "border", "borderColor",
 	"borderTop", "borderRight", "borderBottom", "borderLeft", "borderRadius",
 	"boxShadow", "fontFamily", "fontSize", "fontWeight", "fontStyle",
@@ -50,12 +48,7 @@ const ALLOWED_STYLE_KEYS = new Set([
 	"whiteSpace", "overflow", "overflowX", "overflowY", "gridTemplateColumns",
 	"gridTemplateRows", "gridColumn", "gridRow", "opacity",
 ]);
-const CSS_SHORTHANDS = new Set([
-	"gap", "padding", "margin", "width", "height", "minWidth", "minHeight",
-	"maxWidth", "maxHeight", "color", "background", "border", "radius",
-	"fontSize", "fontWeight", "fontFamily", "lineHeight", "textAlign",
-	"display", "overflow", "flex", "direction", "align", "justify",
-]);
+
 const SAFE_SLOTS = new Set([
 	"content", "children", "label", "language", "languageLabel", "title", "icon",
 	"footer", "leading", "trailing", "existing", "incoming", "body", "pre",
@@ -207,7 +200,7 @@ function compileStyleFromProps(type: EngineThemeTemplateNodeType, props: Record<
 	for (const [key, cssKey] of [
 		["gap", "gap"], ["padding", "padding"], ["margin", "margin"], ["width", "width"],
 		["height", "height"], ["minWidth", "minWidth"], ["maxWidth", "maxWidth"],
-		["color", "color"], ["background", "background"], ["border", "border"],
+		["color", "color"], ["background", "background"], ["border", "border"], ["radius", "borderRadius"],
 		["fontSize", "fontSize"], ["fontWeight", "fontWeight"], ["fontFamily", "fontFamily"],
 		["lineHeight", "lineHeight"], ["textAlign", "textAlign"], ["overflow", "overflow"],
 	] as const) {

@@ -19,7 +19,7 @@ const MARKDOWN_THEME_PROP_KEYS = new Set([
 	"bodySize", "bodyLineHeight", "headingSizes", "headingIdPrefix",
 	"textAnimation", "blockAnimation", "animationDuration", "animationStagger",
 	"codeBackground", "codeColor", "inlineCodeBackground", "inlineCodeColor",
-	"codeBorderColor", "codeFontFamily", "showCodeLanguage", "prettyPlease", "ansiPalette",
+	"codeBorderColor", "codeFontFamily", "showCodeLanguage", "prettyPlease", "themeTemplates", "ansiPalette",
 	"ansiForeground", "ansiBackground", "markdownStyles",
 	"emd_show-url-icon", "emd_url-icon-size",
 ]);
@@ -77,6 +77,20 @@ function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject): {
 		styles = mergeMarkdownStyleSlots(styles, part);
 	}
 	if (styles) delete props.markdownStyles;
+
+	// A variant may replace one named template without copying every block.
+	const templateParts = [
+		definition.templates,
+		definition.themeTemplates,
+		defaults?.templates,
+		defaults?.themeTemplates,
+		explicitProps?.themeTemplates,
+	];
+	const templates: Record<string, unknown> = {};
+	for (const part of templateParts) {
+		if (isThemeRecord(part)) Object.assign(templates, part);
+	}
+	if (Object.keys(templates).length > 0) props.themeTemplates = templates;
 	return { props, styles };
 }
 
@@ -108,6 +122,12 @@ function applyMarkdownThemeToNode(node: SchemaNode, markdownTheme: ResolvedMarkd
 		nextProps.prettyPlease = {
 			...(isThemeRecord(themeProps.prettyPlease) ? themeProps.prettyPlease : {}),
 			...(isThemeRecord(originalProps.prettyPlease) ? originalProps.prettyPlease : {}),
+		};
+	}
+	if (isThemeRecord(themeProps.themeTemplates) || isThemeRecord(originalProps.themeTemplates)) {
+		nextProps.themeTemplates = {
+			...(isThemeRecord(themeProps.themeTemplates) ? themeProps.themeTemplates : {}),
+			...(isThemeRecord(originalProps.themeTemplates) ? originalProps.themeTemplates : {}),
 		};
 	}
 	if (mergedStyles) nextProps.markdownStyles = mergedStyles;

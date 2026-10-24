@@ -193,11 +193,23 @@ export {
 	dispatchEngineThemeDataEvent,
 } from "./theme/dataApi";
 
+export {
+	registerEngineThemeTemplateAdapter,
+	unregisterEngineThemeTemplateAdapter,
+	listEngineThemeTemplateAdapters,
+	renderEngineThemeTemplate,
+} from "./theme/templates";
+export type {
+	EngineThemeTemplateAdapter,
+	EngineThemeTemplateContext,
+} from "./theme/templates";
+
 export type {
 	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,
 	EngineThemeScope, EngineThemeJsonValue, EngineThemeJsonObject, EngineConfig,
 	EngineThemeJoinDirection, EngineThemeDataEventType, EngineThemeDataEventBinding, EngineThemeDataEventContext,
 	EngineThemeDataEvent, EngineThemeDataHandlerResult, EngineThemeDataHandler,
+	EngineThemeTemplateNodeType, EngineThemeTemplateNode, EngineThemeTemplateDefinition, EngineMarkdownThemeTemplates,
 	EngineHighlighterTokenKind, EngineMarkdownTokenPalette, EngineMarkdownPrettyPleaseConfig,
 	NodeType, BuiltinNodeType, Breakpoint, ResponsiveValue,
 	CpropValue, SelectOption,

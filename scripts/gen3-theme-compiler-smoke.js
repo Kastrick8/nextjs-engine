@@ -52,6 +52,13 @@ function testPublicThemeApi() {
 			registerEngineThemeDataHandler,
 			unregisterEngineThemeDataHandler,
 		} = require(path.resolve(__dirname, "../src/engine/theme/dataApi.ts"));
+		const React = require("react");
+		const {
+			renderEngineThemeTemplate,
+			listEngineThemeTemplateAdapters,
+			registerEngineThemeTemplateAdapter,
+			unregisterEngineThemeTemplateAdapter,
+		} = require(path.resolve(__dirname, "../src/engine/theme/templates.tsx"));
 
 		const definition = createTheme({
 			id: "safe-theme",
@@ -161,6 +168,50 @@ function testPublicThemeApi() {
 			incoming: { run: () => true },
 		}), /must be JSON data/);
 		assert.equal(unregisterEngineThemeDataHandler("smoke-theme.table-join"), true);
+
+		const schemaTemplate = {
+			schema: {
+				type: "stack",
+				props: { direction: "row", gap: "6px", align: "center" },
+				children: [
+					{ type: "slot", props: { name: "leading" } },
+					{ type: "slot", props: { name: "content" } },
+					{ type: "text", props: { content: "{{language}}" } },
+				],
+			},
+		};
+		const schemaTemplateResult = renderEngineThemeTemplate(schemaTemplate, {
+			componentId: "markdown",
+			block: "tableHeader",
+			language: "typescript",
+			slots: {
+				leading: React.createElement("b", null, "icon"),
+				content: React.createElement("span", null, "Feature"),
+			},
+		});
+		assert.equal(schemaTemplateResult.type, "div", "Engine Schema templates render as safe React elements");
+		assert.equal(schemaTemplateResult.props.style.flexDirection, "row");
+		assert.equal(schemaTemplateResult.props.style.gap, "6px");
+		assert.equal(schemaTemplateResult.props.children[2].props.children, "typescript");
+		const fallbackTemplate = renderEngineThemeTemplate({
+			schema: {
+				type: "box",
+				props: { style: { background: "url(https://unsafe.invalid/pixel)" } },
+				children: ["literal <script> text"],
+			},
+		}, {});
+		assert.equal(fallbackTemplate.props.style.background, undefined, "template CSS URLs are dropped");
+		assert.equal(fallbackTemplate.props.children, "literal <script> text", "template text is kept as text, never raw HTML");
+		assert.equal(renderEngineThemeTemplate({
+			schema: { type: "box", props: { dangerouslySetInnerHTML: { __html: "x" } } },
+		}, {}), undefined, "raw HTML and dangerous props invalidate a template");
+		const localAdapter = (props) => React.createElement("aside", null, props.label);
+		registerEngineThemeTemplateAdapter("smoke.markdown.header", localAdapter);
+		assert.ok(listEngineThemeTemplateAdapters().includes("smoke.markdown.header"));
+		const adapterElement = renderEngineThemeTemplate({ adapterId: "smoke.markdown.header" }, { label: "custom" });
+		assert.equal(adapterElement.type, localAdapter, "only the explicitly registered local adapter is returned");
+		assert.equal(unregisterEngineThemeTemplateAdapter("smoke.markdown.header"), true);
+		assert.equal(renderEngineThemeTemplate({ adapterId: "missing.remote.adapter" }, {}), undefined, "unregistered adapters fail closed");
 
 		createTheme({
 			id: "theme-runtime-smoke",
