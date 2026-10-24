@@ -332,6 +332,30 @@ export interface EngineMarkdownPrettyPleaseConfig {
 	palette?: EngineMarkdownTokenPalette;
 }
 
+/** Declarative subset of Engine Schema accepted as a reusable theme template. */
+export type EngineThemeTemplateNodeType = "box" | "stack" | "grid" | "text" | "heading" | "divider" | "spacer" | "slot";
+
+export interface EngineThemeTemplateNode {
+	type: EngineThemeTemplateNodeType;
+	props?: EngineThemeJsonObject;
+	children?: Array<EngineThemeTemplateNode | string>;
+}
+
+export type EngineThemeTemplateDefinition =
+	| { schema: EngineThemeTemplateNode; adapterId?: never }
+	| { adapterId: string; schema?: never };
+
+export interface EngineMarkdownThemeTemplates {
+	/** Wrap a fenced code block; slots include languageLabel and content (the PRE). */
+	codeBlock?: EngineThemeTemplateDefinition;
+	/** Compose content inside the semantic table header cell. */
+	tableHeader?: EngineThemeTemplateDefinition;
+	/** Compose content inside the semantic table data cell. */
+	tableCell?: EngineThemeTemplateDefinition;
+	/** Optional template for recognized information/admonition blocks. */
+	infoBlock?: EngineThemeTemplateDefinition;
+}
+
 export interface MarkdownProps extends BaseNodeProps {
 	content?: string;
 	filePath?: string;
@@ -359,6 +383,8 @@ export interface MarkdownProps extends BaseNodeProps {
 	showCodeLanguage?: boolean;
 	/** Pretty-please syntax highlighting; providers are registered by trusted project code. */
 	prettyPlease?: EngineMarkdownPrettyPleaseConfig;
+	/** Safe declarative templates or registered local adapters for Markdown sub-blocks. */
+	themeTemplates?: EngineMarkdownThemeTemplates;
 	/** Per-element style overrides for reusable documentation themes. */
 	markdownStyles?: EngineMarkdownStyles;
 	/** Custom colors for ANSI 16-color/bright terminal palettes. */
