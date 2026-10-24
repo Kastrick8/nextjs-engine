@@ -16,6 +16,14 @@ NENC terminal output uses one live status row pinned to the terminal bottom whil
 
 A resolved Engine import logs its source path. An Engine symbol coming from an installed package or an unresolved source alias uses a stable import name such as `@engine/EngineCanvas`. Module completion means Engine's dependency/usage metadata is ready; it does **not** mean Engine emits a replacement JS chunk. The imported code continues through Next.js as usual.
 
+## Mirroring Next.js build activity
+
+During `next build`, the Engine adapter also watches Next.js's terminal output for recognizable phase messages. Messages such as optimized-build compilation, type checking, page-data collection, static-page generation, and build-trace collection update the same bottom status row. Recognized one-line progress/completion messages are normalized to the NENC display; successful milestones become `[NENC] DONE ...` lines. Unrecognized output—including detailed diagnostics—is passed through without rewriting.
+
+The adapter currently has only configuration and build-completion lifecycle hooks; it does not expose a supported per-file Turbopack compile callback. This bridge therefore parses known CLI messages as a best-effort display feature, not as a stable Next.js internal API. New or changed Next.js wording can simply remain ordinary output until the parser is updated.
+
+The Generation 3 worker sends structured status/completion messages to the parent adapter over IPC. The parent adapter owns the terminal cursor and reapplies the pinned row after Next.js writes to the terminal, preventing two processes from fighting over the same row. Redirected logs and CI cannot pin a cursor, so only completion/failure events are printed there.
+
 ## Helping Next.js compile faster
 
 The combined Engine plugin opts into Next.js's supported Turbopack filesystem cache for development and production builds. This warm-cache optimization lets Next.js restore prior work on subsequent sessions/builds; it does not promise that the first cold build is faster, and Next.js still owns JS/TSX transformation and bundling. Apps can explicitly override either setting with `experimental.turbopackFileSystemCacheForDev: false` or `experimental.turbopackFileSystemCacheForBuild: false`; other `experimental` values are preserved.

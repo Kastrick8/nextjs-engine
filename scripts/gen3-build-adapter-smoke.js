@@ -7,6 +7,7 @@ const path = require("node:path");
 
 const plugin = require("../src/engine/plugins/enginePlugin");
 const adapter = require("../src/engine/plugins/engineBuildAdapter");
+const nencLogger = require("../src/engine/plugins/nencTerminalLogger");
 
 const defaultCacheConfig = plugin.withEngineTurbopackCache({ experimental: { keepUserSetting: true } });
 assert.equal(defaultCacheConfig.experimental.turbopackFileSystemCacheForDev, true,
@@ -22,6 +23,28 @@ assert.equal(explicitCacheOptOut.experimental.turbopackFileSystemCacheForDev, fa
 	"apps can explicitly disable the development cache");
 assert.equal(explicitCacheOptOut.experimental.turbopackFileSystemCacheForBuild, false,
 	"apps can explicitly disable the build cache");
+
+assert.deepEqual(nencLogger.classifyNextBuildLine("  Creating an optimized production build ..."), {
+	level: "status", message: "NEXT.JS COMPILING APPLICATION", suppressible: true,
+}, "a Next.js build phase is mirrored to the pinned row");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled successfully in 2.1s"), {
+	level: "done", message: "NEXT.JS COMPILED APPLICATION", suppressible: true,
+}, "a complete Next.js compile step becomes a DONE line");
+assert.deepEqual(nencLogger.classifyNextBuildLine("  Linting and checking validity of types ..."), {
+	level: "status", message: "NEXT.JS CHECKING TYPES", suppressible: true,
+}, "Next.js type-checking progress is exposed");
+assert.deepEqual(nencLogger.classifyNextBuildLine("  Generating static pages (3/8) ..."), {
+	level: "status", message: "NEXT.JS GENERATING STATIC PAGES (3/8)", suppressible: true,
+}, "static page progress keeps its current count");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Generating static pages (8/8) in 243ms"), {
+	level: "done", message: "NEXT.JS GENERATED STATIC PAGES (8/8)", suppressible: true,
+}, "finished static-page generation gets a completion line");
+assert.deepEqual(nencLogger.classifyNextBuildLine("Failed to compile."), {
+	level: "failed", message: "NEXT.JS BUILD FAILED", suppressible: true,
+}, "Next.js compile failure is mapped without swallowing other error output");
+assert.equal(nencLogger.classifyNextBuildLine("the compiler emitted a warning"), null,
+	"unrecognized Next.js output is not rewritten");
+
 const originalDelegate = process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER;
 
 async function main() {

@@ -28,8 +28,19 @@ async function loadDelegateAdapter() {
 }
 function removeState(state) {
 	if (getState() === state) delete globalThis[BUILD_STATE_KEY];
+	if (state.stopNextBuildOutputBridge) {
+		state.stopNextBuildOutputBridge();
+		state.stopNextBuildOutputBridge = null;
+	}
 	if (state.bannerOwner && state.compiler) state.compiler.releaseBanner(state.projectDir);
 	try { fs.rmSync(state.tempDirectory, { recursive: true, force: true }); } catch { /* Build cleanup must not hide the original outcome. */ }
+}
+function forwardWorkerLog(event) {
+	if (!event || event.type !== "nenc-log") return;
+	if (event.level === "status") nencLogger.setStatus(event.message, event.source || "engine");
+	else if (event.level === "done") nencLogger.done(event.message);
+	else if (event.level === "failed") nencLogger.failed(event.message);
+	else if (event.level === "clear") nencLogger.clearStatus(event.source || "engine");
 }
 function startCompiler(projectDir) {
 	const existing = getState();
@@ -41,7 +52,7 @@ function startCompiler(projectDir) {
 	const compilerScript = path.join(__dirname, "gen3BuildCompiler.js");
 	const compiler = require("./gen3BuildCompiler");
 	const bannerOwner = compiler.printBannerOnce(resolvedProjectDir);
-	// The child worker owns the live status row; avoid competing terminal cursors here.
+	const stopNextBuildOutputBridge = nencLogger.installNextBuildOutputBridge();
 
 	let child;
 	try {
@@ -53,12 +64,15 @@ function startCompiler(projectDir) {
 			"--output", manifestFile,
 		], {
 			cwd: resolvedProjectDir,
-			env: process.env,
-			stdio: "inherit",
+			env: { ...process.env, NENC_LOG_TRANSPORT: "ipc" },
+			// The parent adapter owns the terminal; compiler events arrive over IPC.
+			stdio: ["ignore", "ignore", "inherit", "ipc"],
 			windowsHide: true,
 		});
 	} catch (error) {
+		stopNextBuildOutputBridge();
 		if (bannerOwner) compiler.releaseBanner(resolvedProjectDir);
+		try { fs.rmSync(tempDirectory, { recursive: true, force: true }); } catch { /* Keep the original spawn error. */ }
 		throw error;
 	}
 
@@ -69,8 +83,10 @@ function startCompiler(projectDir) {
 		child,
 		compiler,
 		bannerOwner,
+		stopNextBuildOutputBridge,
 		completion: null,
 	};
+	child.on("message", forwardWorkerLog);
 	state.completion = new Promise((resolve, reject) => {
 		let settled = false;
 		child.once("error", (error) => {
@@ -117,12 +133,16 @@ const adapter = {
 		const state = getState();
 		try {
 			if (state) {
+				if (state.stopNextBuildOutputBridge) {
+					state.stopNextBuildOutputBridge();
+					state.stopNextBuildOutputBridge = null;
+				}
 				await state.completion;
 				if (!fs.existsSync(state.manifestFile)) {
 					throw new Error("[NENC] Generation 3 compiler completed without writing its manifest.");
 				}
 				const compiler = require("./gen3BuildCompiler");
-				nencLogger.setStatus("FINALIZING NEXT.JS BUILD OUTPUTS");
+				nencLogger.setStatus("FINALIZING NEXT.JS BUILD OUTPUTS", "engine");
 				compiler.emitArtifacts(context.projectDir || state.projectDir, state.manifestFile, context.distDir, context);
 			}
 		} finally {
@@ -143,3 +163,4 @@ const adapter = {
 module.exports = adapter;
 module.exports.startCompiler = startCompiler;
 module.exports.loadDelegateAdapter = loadDelegateAdapter;
+module.exports.forwardWorkerLog = forwardWorkerLog;
