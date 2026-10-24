@@ -215,6 +215,8 @@ try {
 		"unhandledrejection",
 		"frameWindow.addEventListener(\"error\"",
 		"Next.js development error overlay",
+		"data-engine-debug-next-overlay-hidden",
+		"details in EngineDebug Problems",
 		"console.error",
 		"ErrorInspector",
 		"Copy details",

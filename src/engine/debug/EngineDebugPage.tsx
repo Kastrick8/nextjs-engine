@@ -469,7 +469,37 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				for (const element of frameDocument.querySelectorAll<HTMLElement>("nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]")) {
 					const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
 					if (!text || !/(error|exception|failed|hydration|mismatch|digest)/i.test(text)) continue;
-					reportDiagnostic("next-overlay", "Next.js development error overlay", text, frameWindow.location.pathname);
+					if (element.dataset.engineDebugCaptured !== "true") {
+						element.dataset.engineDebugCaptured = "true";
+						reportDiagnostic("next-overlay", "Next.js development error overlay", text, frameWindow.location.pathname);
+					}
+					// Do not let Next.js' full-screen dev overlay hide the rest of the last
+					// rendered route. Keep the actual diagnostic in the parent Problems panel.
+					element.style.setProperty("display", "none", "important");
+					let badge = frameDocument.getElementById("__engine_debug_next_error_badge__") as HTMLDivElement | null;
+					if (!badge && frameDocument.body) {
+						badge = frameDocument.createElement("div");
+						badge.id = "__engine_debug_next_error_badge__";
+						badge.setAttribute("data-engine-debug-next-overlay-hidden", "true");
+						badge.setAttribute("role", "status");
+						badge.textContent = "Next.js error overlay hidden · details in EngineDebug Problems";
+						Object.assign(badge.style, {
+							position: "fixed",
+							left: "10px",
+							bottom: "10px",
+							zIndex: "2147483647",
+							maxWidth: "calc(100vw - 20px)",
+							padding: "7px 10px",
+							border: "1px solid #a33",
+							borderRadius: "4px",
+							background: "#2a171a",
+							color: "#ffd7dc",
+							font: "11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace",
+							boxShadow: "0 3px 18px #0008",
+							pointerEvents: "none",
+						});
+						frameDocument.body.appendChild(badge);
+					}
 				}
 			};
 			const overlayObserver = new MutationObserver(scanNextOverlay);

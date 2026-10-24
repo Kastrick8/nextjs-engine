@@ -164,6 +164,8 @@ test("EngineDebug keeps unrelated Next.js overlays from obscuring the preview an
 		body.append(overlay);
 	});
 	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
+	await expect(preview.locator("[data-engine-debug-next-overlay-hidden]")).toBeVisible();
+	await expect(preview.getByText("Reasonable fallback available")).toBeVisible();
 	const viewport = page.locator(".ed-viewport-scroll");
 	const fit = page.locator(".ed-frame-fit");
 	await expect(fit).toBeVisible();
