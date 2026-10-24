@@ -77,6 +77,7 @@ jobs:
           node scripts/gen3-compiler-runtime-smoke.js
           node scripts/gen3-module-compiler-smoke.js
           node scripts/gen3-build-adapter-smoke.js
+          node scripts/gen3-api-config-path-smoke.js
           node scripts/gen3-adaptive-runtime-smoke.js
           node scripts/gen3-server-first-parity-smoke.js
       - name: Test Generation 3 phase C contracts
