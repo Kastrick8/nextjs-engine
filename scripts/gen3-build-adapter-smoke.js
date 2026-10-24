@@ -45,6 +45,34 @@ assert.deepEqual(nencLogger.classifyNextBuildLine("Failed to compile."), {
 assert.equal(nencLogger.classifyNextBuildLine("the compiler emitted a warning"), null,
 	"unrecognized Next.js output is not rewritten");
 
+// Simulate terminal writes so the bridge contract is checked even in CI/non-TTY environments.
+const originalWrite = process.stdout.write;
+const originalCI = process.env.CI;
+const passedThrough = [];
+process.env.CI = "true";
+process.stdout.write = function (chunk) {
+	passedThrough.push(Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk));
+	return true;
+};
+const stopOutputBridge = nencLogger.installNextBuildOutputBridge();
+try {
+	process.stdout.write("  Creating an optimized production build ...\n");
+	assert.equal(passedThrough.length, 0, "a recognized transient Next.js phase is not printed as a duplicate line");
+
+	process.stdout.write("✓ Compiled successfully in 2.1s\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] DONE NEXT.JS COMPILED APPLICATION")),
+		"a recognized Next.js completion becomes a stable NENC DONE line");
+
+	process.stdout.write("custom warning that should remain visible\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("custom warning that should remain visible")),
+		"unrecognized diagnostics remain untouched");
+} finally {
+	stopOutputBridge();
+	process.stdout.write = originalWrite;
+	if (originalCI === undefined) delete process.env.CI;
+	else process.env.CI = originalCI;
+}
+
 const originalDelegate = process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER;
 
 async function main() {
