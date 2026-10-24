@@ -54,6 +54,11 @@ jobs:
       - name: Test Generation 3 NENC build adapter and route progress
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: node scripts/gen3-build-adapter-smoke.js
+      - name: Test NENC schema workers and EngineMarkdown icon telemetry
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: |
+          node scripts/gen3-nenc-plugin-smoke.js
+          node scripts/engine-markdown-gfm-smoke.js
       - name: Test Generation 3 EngineDebug error diagnostics
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: node scripts/gen3-engine-debug-diagnostics-smoke.js
@@ -90,7 +95,6 @@ jobs:
           node scripts/gen3-nenc-dispatcher-smoke.js
           node scripts/gen3-nenc-session-auth-smoke.js
           node scripts/gen3-nenc-command-security-smoke.js
-          node scripts/gen3-nenc-plugin-smoke.js
           node scripts/gen3-nenc-backend-proving-smoke.js
           node scripts/gen3-private-search-app-smoke.js
           node scripts/gen3-private-search-next-app-smoke.js
@@ -105,7 +109,6 @@ jobs:
           node scripts/gen3-debug-inspectors-smoke.js
           node scripts/gen3-incremental-hmr-smoke.js
           node scripts/gen3-budget-security-smoke.js
-          node scripts/engine-markdown-gfm-smoke.js
       - name: Test Generation 3 EngineSEO contracts
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: |
