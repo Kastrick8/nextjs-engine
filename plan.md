@@ -1,6 +1,6 @@
 # EngineTheme / createTheme / Pretty-please — Implementation Plan
 
-**Status:** PLANNING ONLY. Do not implement until Kate explicitly says to proceed.  
+**Status:** Implementation in progress on feat/enginetheme-foundation; phases are being delivered incrementally.  
 **Repository:** Kate-alt-69/nextjs-engine  
 **Baseline inspected:** main-3, 2026-10-24
 
@@ -286,4 +286,25 @@ Run browser regressions on Chromium, Firefox, and WebKit wherever the repository
 
 ## 13. Current status
 
-This is a plan only. Repository files were inspected; no source code, dependencies, tests, font files, generated outputs, or runtime behavior have been changed or implemented. Wait for Kate's explicit implementation instruction before beginning implementation.
+Implementation has started on branch feat/enginetheme-foundation.
+
+### Completed in the initial foundation slice
+- Added the public createTheme() constructor and group/component ID parser.
+- Added serializable theme schema types and public exports.
+- Added static NENC extraction that generates deterministic JSON .etr artifacts with canonical SHA-256, safe filenames, no-overwrite checks, and low-churn writes.
+- Wired theme extraction into the existing Gen 3 source pass, reusing its parsed TypeScript ASTs.
+- Added a focused ETR compiler smoke script and package command.
+- Added documentation for what is implemented versus still pending.
+
+### Still pending
+- Runtime resolution/application of ID-based themes and variant inheritance.
+- Pretty-please highlighting/providers and authoritative language palettes.
+- Declarative UI templates and the event-driven Data-API.
+- Remote URL resolution/fetching, compatibility pinning, and remote cache policy.
+- Production font downloading, local asset emission, and font cache handling.
+
+### Verification state
+- GitHub source reads/writes are verified.
+- Local clone/testing was blocked because this environment could not resolve github.com.
+- The smoke test is added but must be run by CI or in a local checkout; do not treat it as passed until a test result confirms it.
+- Keep the implementation incremental and update this section as each phase is completed.
