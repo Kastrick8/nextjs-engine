@@ -16,7 +16,7 @@ export function EngineDebugRuntimeMonitor() {
 		// Capture this document's console object. `window` can act as a WindowProxy
 		// across navigation, so teardown must not restore an old handler onto the
 		// replacement document's console.
-		const debugConsole = debugWindow.console;
+		const debugConsole = console;
 		// The injected inline runtime script and this React monitor share the same
 		// capture bridge. Only one may patch console.error or they can recursively
 		// capture each other's diagnostic reports in development browsers.

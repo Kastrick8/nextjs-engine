@@ -314,7 +314,7 @@ try {
 	assert.ok(runtimeMonitorSource.includes("__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__"), "normal-page instrumentation avoids double-patching console.error");
 	assert.ok(runtimeMonitorSource.includes("scannedOverlayText"), "overlay observer ignores unchanged overlays when callout mutations trigger rescans");
 	assert.ok(runtimeMonitorSource.includes("existingRoute === activeRoute"), "identical issues do not recreate their inline callout on the same route");
-	assert.ok(runtimeMonitorSource.includes("const debugConsole = debugWindow.console"), "runtime monitor captures the document console for safe navigation cleanup");
+	assert.ok(runtimeMonitorSource.includes("const debugConsole = console"), "runtime monitor captures the document console for safe navigation cleanup");
 	assert.ok(runtimeMonitorSource.includes("originalConsoleError.apply(debugConsole, args)"), "runtime monitor delegates through the captured console object");
 	assert.ok(runtimeMonitorSource.includes("debugConsole.error = originalConsoleError"), "runtime monitor restores only the captured console object");
 	const inlineCalloutSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugInlineCallout.ts"), "utf8");
