@@ -107,9 +107,27 @@ function createSchemaOutputCache(projectRoot) {
 
 	function isSafeCacheDirectory() {
 		try {
-			fs.mkdirSync(cacheDirectory, { recursive: true });
 			const actualRoot = fs.realpathSync(root);
-			const actualCacheDirectory = fs.realpathSync(cacheDirectory);
+			const relativeCache = path.relative(root, cacheDirectory);
+			let current = actualRoot;
+			for (const segment of relativeCache.split(path.sep).filter(Boolean)) {
+				current = path.join(current, segment);
+				try {
+					const stat = fs.lstatSync(current);
+					// Do not follow a project-controlled symlink into a location outside
+					// the cache directory expected by NENC.
+					if (stat.isSymbolicLink() || !stat.isDirectory()) return false;
+				} catch (error) {
+					if (!error || error.code !== "ENOENT") return false;
+					try { fs.mkdirSync(current); }
+					catch (createError) {
+						if (!createError || createError.code !== "EEXIST") return false;
+					}
+					const stat = fs.lstatSync(current);
+					if (stat.isSymbolicLink() || !stat.isDirectory()) return false;
+				}
+			}
+			const actualCacheDirectory = fs.realpathSync(current);
 			return isWithin(actualRoot, actualCacheDirectory) && actualCacheDirectory !== actualRoot;
 		} catch {
 			return false;
