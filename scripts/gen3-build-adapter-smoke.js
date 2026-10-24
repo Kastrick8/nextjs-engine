@@ -8,6 +8,7 @@ const path = require("node:path");
 const originalNodeEnv = process.env.NODE_ENV;
 process.env.NODE_ENV = "development";
 const plugin = require("../src/engine/plugins/enginePlugin");
+plugin({}, {});
 const earlyDevelopmentBridge = globalThis[Symbol.for("nextjs-engine.next-output-bridge-state")];
 assert.ok(earlyDevelopmentBridge && typeof earlyDevelopmentBridge.stop === "function",
 	"Next.js 16 development mode is detected from NODE_ENV even when process.argv omits dev");
