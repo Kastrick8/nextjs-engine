@@ -176,7 +176,7 @@ try {
 	for (const required of ["EngineDebugFixEditor", "ed-route-search", "Fit preview to available space", "source !== \"next-overlay\"", "ed-selected-detail", "route: frameWindow.location.pathname"]) {
 		assert.ok(pageSource.includes(required), "dashboard contains " + required);
 	}
-	for (const required of ["Suggest auto-fix", "Apply changes", "originalLines", "replacementLines"]) assert.ok(editorSource.includes(required), "source editor contains " + required);
+	for (const required of ["Suggest auto-fix", "Apply changes", "originalLines", "replacementLines", "Unapplied changes", "ed-fix-diff"]) assert.ok(editorSource.includes(required), "source editor contains " + required);
 
 	const runtimeMonitorSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugRuntimeMonitor.tsx"), "utf8");
 	const monitorCompile = ts.transpileModule(runtimeMonitorSource, {

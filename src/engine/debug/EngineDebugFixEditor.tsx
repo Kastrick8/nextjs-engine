@@ -84,6 +84,18 @@ export function EngineDebugFixEditor({ diagnostic, onApplied }: EngineDebugFixEd
 
 	const originalText = preview?.lines.map(line => line.text).join("\n") ?? "";
 	const dirty = Boolean(preview && draft !== originalText);
+	const diffLines = useMemo(() => {
+		if (!dirty || !preview) return [] as Array<{ kind: "removed" | "added"; line: number; text: string }>;
+		const before = originalText.split("\n");
+		const after = draft.split("\n");
+		const rows: Array<{ kind: "removed" | "added"; line: number; text: string }> = [];
+		for (let index = 0; index < Math.max(before.length, after.length); index++) {
+			if (before[index] === after[index]) continue;
+			if (before[index] !== undefined) rows.push({ kind: "removed", line: preview.startLine + index, text: before[index] });
+			if (after[index] !== undefined) rows.push({ kind: "added", line: preview.startLine + index, text: after[index] });
+		}
+		return rows;
+	}, [dirty, draft, originalText, preview]);
 	const quickFix = () => {
 		if (!preview) return;
 		const lines = draft.split("\n");
@@ -96,7 +108,8 @@ export function EngineDebugFixEditor({ diagnostic, onApplied }: EngineDebugFixEd
 		const propertyMatch = diagnostic.message.match(/Cannot read propert(?:y|ies) of (?:undefined|null) \(reading ['"]?([A-Za-z_$][\w$]*)['"]?\)/i);
 		if (propertyMatch?.[1]) {
 			const property = propertyMatch[1];
-			const access = new RegExp("(?<![?.])\\." + property + "\\b", "g");
+			const escapedProperty = property.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
+			const access = new RegExp("(?<![?.])\\." + escapedProperty + "\\b", "g");
 			const matches = highlighted.match(access) ?? [];
 			if (matches.length === 1) {
 				lines[relativeLine] = highlighted.replace(access, "?." + property);
@@ -176,6 +189,10 @@ export function EngineDebugFixEditor({ diagnostic, onApplied }: EngineDebugFixEd
 								autoCorrect="off"
 							/>
 							{suggestion && <p className="ed-fix-suggestion" aria-live="polite">{suggestion}</p>}
+							{dirty && <div className="ed-fix-diff" aria-label="Proposed source diff">
+								<div className="ed-fix-diff-title">Unapplied changes · {diffLines.filter(line => line.kind === "added").length} additions / {diffLines.filter(line => line.kind === "removed").length} removals</div>
+								{diffLines.map((line, index) => <div key={line.kind + ":" + line.line + ":" + index} className={"ed-fix-diff-line " + line.kind}><span>{line.kind === "added" ? "+" : "−"}{line.line}</span><code>{line.text || " "}</code></div>)}
+							</div>}
 							<div className="ed-fix-actions">
 								<button type="button" className="ed-button" onClick={() => { setDraft(originalText); setSuggestion(""); setStatus(""); }} disabled={!dirty || saving}>Discard edits</button>
 								<button type="button" className="ed-button ed-fix-apply" onClick={() => void save()} disabled={!dirty || saving}>{saving ? "Saving…" : "Apply changes"}</button>
