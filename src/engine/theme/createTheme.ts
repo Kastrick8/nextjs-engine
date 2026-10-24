@@ -3,6 +3,7 @@ import type {
   EngineThemeJsonObject,
   EngineThemeJsonValue,
   EngineThemeScope,
+  EngineTheme,
 } from "../schema/types";
 
 const MAX_THEME_DEPTH = 32;
@@ -53,7 +54,7 @@ function mergeThemeObjects(base: EngineThemeJsonObject, overlay: EngineThemeJson
   return merged;
 }
 
-function getGroupComponents(group: Readonly<EngineThemeDefinition>): Record<string, EngineThemeJsonObject> {
+function getGroupComponents(group: EngineTheme): Record<string, EngineThemeJsonObject> {
   const components: Record<string, EngineThemeJsonObject> = {};
   if (isJsonObject(group.components)) {
     for (const [name, definition] of Object.entries(group.components)) {
@@ -65,6 +66,11 @@ function getGroupComponents(group: Readonly<EngineThemeDefinition>): Record<stri
     components[name] = definition;
   }
   return components;
+}
+
+/** Return a group's direct component namespaces without performing resolution. */
+export function getEngineThemeComponentDefinitions(theme: EngineTheme): Record<string, EngineThemeJsonObject> {
+  return getGroupComponents(theme);
 }
 
 /**
