@@ -17,8 +17,6 @@ export interface EngineDebugDiagnostic {
 	detail: string;
 	location?: string;
 	route?: string;
-	routes?: string[];
-	firstAt?: number;
 	repeatCount?: number;
 }
 
@@ -130,7 +128,6 @@ export function createEngineDebugDiagnostic(input: {
 	location?: string;
 	route?: string;
 	now?: number;
-	route?: string;
 }): EngineDebugDiagnostic {
 	const rawMessage = redactEngineDebugText(input.message, 1_600).trim() || "(empty diagnostic)";
 	const detail = redactEngineDebugText(input.detail ?? "", 6_000).trim();
@@ -141,13 +138,10 @@ export function createEngineDebugDiagnostic(input: {
 	const at = input.now ?? Date.now();
 	const route = routeFromLocation(input.route) ?? routeFromLocation(location);
 	return {
-		id: (hash >>> 0).toString(16),
-		at,
-		firstAt: at,
-		repeatCount: 1,
 		id: "diag-" + hashText(stableFingerprint),
 		at,
 		firstAt: at,
+		repeatCount: 1,
 		occurrences: 1,
 		routes: route ? [route] : [],
 		...classification,
@@ -155,11 +149,9 @@ export function createEngineDebugDiagnostic(input: {
 		message,
 		detail,
 		location,
-		route: input.route,
-		routes: input.route ? [input.route] : undefined,
+		route: route ?? undefined,
 	};
 }
-
 export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): string {
 	const routes = diagnostic.routes?.length ? "Routes observed: " + diagnostic.routes.join(", ") : "";
 	return [
@@ -168,8 +160,7 @@ export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): 
 		"Source: " + diagnostic.source,
 		(diagnostic.routes?.length ?? 0) > 1 ? "Routes: " + diagnostic.routes!.join(", ") : diagnostic.route ? "Route: " + diagnostic.route : "",
 		"Time: " + new Date(diagnostic.at).toISOString(),
-		diagnostic.repeatCount && diagnostic.repeatCount > 1 ? "Occurrences: " + diagnostic.repeatCount : "",
-		"Occurrences: " + String(diagnostic.occurrences ?? 1),
+		"Occurrences: " + String(diagnostic.occurrences ?? diagnostic.repeatCount ?? 1),
 		"First seen: " + new Date(diagnostic.firstAt ?? diagnostic.at).toISOString(),
 		"Last seen: " + new Date(diagnostic.at).toISOString(),
 		diagnostic.location ? "Location: " + diagnostic.location : "",
@@ -180,52 +171,62 @@ export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): 
 	].filter((line, index) => line || index === 8).join("\n").trim();
 }
 
-function diagnosticFingerprint(diagnostic: EngineDebugDiagnostic): string {
-	return [diagnostic.source, diagnostic.category, diagnostic.message, diagnostic.location ?? ""].join("|");
-}
 
 export function appendEngineDebugDiagnostics(
 	current: readonly EngineDebugDiagnostic[],
 	incoming: EngineDebugDiagnostic,
 	limit = 200,
 ): EngineDebugDiagnostic[] {
-	const fingerprint = diagnosticFingerprint(incoming);
-	for (let index = current.length - 1; index >= 0; index--) {
-		const previous = current[index];
-		if (diagnosticFingerprint(previous) !== fingerprint) continue;
-		const repeated: EngineDebugDiagnostic = {
-			...previous,
-			at: incoming.at,
-			firstAt: previous.firstAt ?? previous.at,
-			repeatCount: (previous.repeatCount ?? 1) + 1,
-			detail: incoming.detail.length > previous.detail.length ? incoming.detail : previous.detail,
-			route: previous.route ?? incoming.route,
-			routes: [...new Set([...(previous.routes ?? (previous.route ? [previous.route] : [])), ...(incoming.routes ?? (incoming.route ? [incoming.route] : []))])].sort(),
-		};
-		return current.map((item, itemIndex) => itemIndex === index ? repeated : item).slice(-Math.max(1, limit));
 	const incomingFingerprint = engineDebugDiagnosticFingerprint(incoming);
 	const existingIndex = current.findIndex(item => engineDebugDiagnosticFingerprint(item) === incomingFingerprint);
 	if (existingIndex >= 0) {
 		const existing = current[existingIndex];
-		const routes = [...new Set([...(existing.routes ?? []), ...(incoming.routes ?? []), ...[routeFromLocation(incoming.location)].filter((route): route is string => Boolean(route))])];
-		const richerDetail = (incoming.detail ?? "").length > (existing.detail ?? "").length ? incoming.detail : existing.detail;
+		const routes = [...new Set([
+			...(existing.routes ?? []),
+			...(existing.route ? [existing.route] : []),
+			...(incoming.routes ?? []),
+			...(incoming.route ? [incoming.route] : []),
+			...[
+				routeFromLocation(existing.location),
+				routeFromLocation(incoming.location),
+			].filter((route): route is string => Boolean(route)),
+		])].sort();
+		const existingCount = existing.occurrences ?? existing.repeatCount ?? 1;
+		const incomingCount = incoming.occurrences ?? incoming.repeatCount ?? 1;
+		const richerDetail = incoming.detail.length > existing.detail.length ? incoming.detail : existing.detail;
 		const merged: EngineDebugDiagnostic = {
 			...existing,
 			at: incoming.at,
 			firstAt: existing.firstAt ?? existing.at,
-			occurrences: (existing.occurrences ?? 1) + (incoming.occurrences ?? 1),
+			occurrences: existingCount + incomingCount,
+			repeatCount: existingCount + incomingCount,
 			routes,
-			detail: richerDetail ?? "",
+			route: existing.route ?? incoming.route ?? routes[0],
+			detail: richerDetail,
 			location: incoming.location ?? existing.location,
 			ownerHint: existing.ownerHint === "Unknown" ? incoming.ownerHint : existing.ownerHint,
 		};
-		return [...current.slice(0, existingIndex), ...current.slice(existingIndex + 1), merged].slice(-Math.max(1, limit));
+		return [
+			...current.slice(0, existingIndex),
+			...current.slice(existingIndex + 1),
+			merged,
+		].slice(-Math.max(1, limit));
 	}
+
+	const routes = [...new Set([
+		...(incoming.routes ?? []),
+		...(incoming.route ? [incoming.route] : []),
+		...[
+			routeFromLocation(incoming.location),
+		].filter((route): route is string => Boolean(route)),
+	])].sort();
+	const count = incoming.occurrences ?? incoming.repeatCount ?? 1;
 	const normalized: EngineDebugDiagnostic = {
 		...incoming,
 		firstAt: incoming.firstAt ?? incoming.at,
-		occurrences: incoming.occurrences ?? 1,
-		routes: incoming.routes ?? [routeFromLocation(incoming.location)].filter((route): route is string => Boolean(route)),
+		occurrences: count,
+		repeatCount: count,
+		routes,
 	};
 	return [...current, normalized].slice(-Math.max(1, limit));
 }
