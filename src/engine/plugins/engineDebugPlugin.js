@@ -114,6 +114,15 @@ function generatedSourceRouteSource(routeDirectory, sourceModulePath) {
 	].join("\n");
 }
 
+function generatedGetRouteSource(routeDirectory, routesModulePath) {
+	const importPath = normalizeImportPath(path.relative(routeDirectory, routesModulePath));
+	return [
+		GENERATED_MARKER,
+		`export { GET } from ${JSON.stringify(importPath)};`,
+		"",
+	].join("\n");
+}
+
 function removeGeneratedRoute(routeFile, rootDirectory) {
 	if (!fs.existsSync(routeFile)) return;
 	const existing = fs.readFileSync(routeFile, "utf8");
@@ -149,9 +158,12 @@ function prepareEngineDebugRoute(options = {}) {
 	const routeFile = path.join(routeDirectory, "page.tsx");
 	const sourceRouteDirectory = path.join(routeDirectory, "source");
 	const sourceRouteFile = path.join(sourceRouteDirectory, "route.ts");
+	const routesRouteDirectory = path.join(routeDirectory, "routes");
+	const routesRouteFile = path.join(routesRouteDirectory, "route.ts");
 	const development = process.env.NODE_ENV === "development";
 
 	if (!development || options.enabled === false) {
+		removeGeneratedRoute(routesRouteFile, rootDirectory);
 		removeGeneratedRoute(sourceRouteFile, rootDirectory);
 		removeGeneratedRoute(routeFile, rootDirectory);
 		removeDevelopmentTypeCache(rootDirectory, options.distDir);
@@ -161,6 +173,7 @@ function prepareEngineDebugRoute(options = {}) {
 	const modulePath = path.resolve(options.modulePath || path.join(__dirname, "..", "debug", "EngineDebugPage.tsx"));
 	const isolationModulePath = path.resolve(options.isolationModulePath || path.join(__dirname, "..", "debug", "EngineDebugIsolation.tsx"));
 	const sourceModulePath = path.resolve(options.sourceModulePath || path.join(__dirname, "..", "debug", "EngineDebugSourceRoute.ts"));
+	const routesModulePath = path.resolve(options.routesModulePath || path.join(__dirname, "..", "debug", "EngineDebugRoutesRoute.ts"));
 	if (!fs.existsSync(modulePath)) {
 		throw new Error(`[EngineDebug] Debug page module is missing: ${modulePath}`);
 	}
@@ -170,9 +183,13 @@ function prepareEngineDebugRoute(options = {}) {
 	if (!fs.existsSync(sourceModulePath)) {
 		throw new Error(`[EngineDebug] Debug source preview module is missing: ${sourceModulePath}`);
 	}
+	if (!fs.existsSync(routesModulePath)) {
+		throw new Error(`[EngineDebug] Debug route catalog module is missing: ${routesModulePath}`);
+	}
 	const pages = discoverEngineDebugPages(rootDirectory, options.pages || []);
 	const source = generatedRouteSource(routeDirectory, modulePath, isolationModulePath, pages);
 	const sourceRouteSource = generatedSourceRouteSource(sourceRouteDirectory, sourceModulePath);
+	const routesRouteSource = generatedGetRouteSource(routesRouteDirectory, routesModulePath);
 	if (fs.existsSync(routeFile)) {
 		const existing = fs.readFileSync(routeFile, "utf8");
 		if (!existing.startsWith(GENERATED_MARKER)) {
@@ -185,11 +202,20 @@ function prepareEngineDebugRoute(options = {}) {
 			throw new Error(`[EngineDebug] The reserved /_engine/debug/source route is owned by ${sourceRouteFile}.`);
 		}
 	}
+	if (fs.existsSync(routesRouteFile)) {
+		const existingRoutesRoute = fs.readFileSync(routesRouteFile, "utf8");
+		if (!existingRoutesRoute.startsWith(GENERATED_MARKER)) {
+			throw new Error(`[EngineDebug] The reserved /_engine/debug/routes route is owned by ${routesRouteFile}.`);
+		}
+	}
 	fs.mkdirSync(routeDirectory, { recursive: true });
 	fs.mkdirSync(sourceRouteDirectory, { recursive: true });
+	fs.mkdirSync(routesRouteDirectory, { recursive: true });
 	if (!fs.existsSync(routeFile) || fs.readFileSync(routeFile, "utf8") !== source) fs.writeFileSync(routeFile, source, "utf8");
 	if (!fs.existsSync(sourceRouteFile) || fs.readFileSync(sourceRouteFile, "utf8") !== sourceRouteSource) fs.writeFileSync(sourceRouteFile, sourceRouteSource, "utf8");
-	return { development: true, pages, routeFile, sourceRouteFile };
+	if (!fs.existsSync(routesRouteFile) || fs.readFileSync(routesRouteFile, "utf8") !== routesRouteSource) fs.writeFileSync(routesRouteFile, routesRouteSource, "utf8");
+	if (options.distDir || nextConfig.distDir) process.env.NEXTJS_ENGINE_DIST_DIR = options.distDir || nextConfig.distDir;
+	return { development: true, pages, routeFile, sourceRouteFile, routesRouteFile };
 }
 
 function withEngineDebug(nextConfig = {}, options = {}) {
