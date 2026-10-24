@@ -1,17 +1,5 @@
-import type { EngineMarkdownTokenPalette } from "../schema/types";
-
-export type EngineHighlighterTokenKind =
-	| "plain"
-	| "keyword"
-	| "string"
-	| "comment"
-	| "number"
-	| "type"
-	| "function"
-	| "property"
-	| "constant"
-	| "operator"
-	| "punctuation";
+import type { EngineHighlighterTokenKind, EngineMarkdownTokenPalette } from "../schema/types";
+export type { EngineHighlighterTokenKind } from "../schema/types";
 
 export interface EngineHighlighterToken {
 	kind: EngineHighlighterTokenKind;
