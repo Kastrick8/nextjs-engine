@@ -8,15 +8,22 @@ export function isEngineDebugDynamicRoute(route: string): boolean {
 }
 
 export function getEngineDebugDynamicParameters(route: string): EngineDebugDynamicParameter[] {
-	return route.split("/").flatMap(segment => {
+	const parameters: EngineDebugDynamicParameter[] = [];
+	for (const segment of route.split("/")) {
 		const optionalCatchAll = segment.match(/^\[\[\.\.\.([^\]]+)\]\]$/);
-		if (optionalCatchAll) return [{ name: optionalCatchAll[1], kind: "optional-catch-all" as const }];
+		if (optionalCatchAll) {
+			parameters.push({ name: optionalCatchAll[1], kind: "optional-catch-all" });
+			continue;
+		}
 		const catchAll = segment.match(/^\[\.\.\.([^\]]+)\]$/);
-		if (catchAll) return [{ name: catchAll[1], kind: "catch-all" as const }];
+		if (catchAll) {
+			parameters.push({ name: catchAll[1], kind: "catch-all" });
+			continue;
+		}
 		const single = segment.match(/^\[([^\]]+)\]$/);
-		if (single) return [{ name: single[1], kind: "single" as const }];
-		return [];
-	});
+		if (single) parameters.push({ name: single[1], kind: "single" });
+	}
+	return parameters;
 }
 
 export function matchesEngineDebugRoutePattern(pattern: string, concretePath: string): boolean {
