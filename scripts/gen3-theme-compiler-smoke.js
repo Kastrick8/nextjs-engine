@@ -15,7 +15,8 @@ const {
 
 function testPublicThemeApi() {
 	const previousTsExtension = Module._extensions[".ts"];
-	Module._extensions[".ts"] = (loadedModule, filePath) => {
+	const previousTsxExtension = Module._extensions[".tsx"];
+	const transpileThemeModule = (loadedModule, filePath) => {
 		const sourceText = fs.readFileSync(filePath, "utf8");
 		const transpiled = ts.transpileModule(sourceText, {
 			compilerOptions: {
@@ -30,6 +31,8 @@ function testPublicThemeApi() {
 		assert.deepEqual(errors, [], filePath + " must transpile without syntax diagnostics");
 		loadedModule._compile(transpiled.outputText, filePath);
 	};
+	Module._extensions[".ts"] = transpileThemeModule;
+	Module._extensions[".tsx"] = transpileThemeModule;
 
 	try {
 		const themePath = path.resolve(__dirname, "../src/engine/theme/createTheme.ts");
@@ -281,6 +284,8 @@ function testPublicThemeApi() {
 	} finally {
 		if (previousTsExtension) Module._extensions[".ts"] = previousTsExtension;
 		else delete Module._extensions[".ts"];
+		if (previousTsxExtension) Module._extensions[".tsx"] = previousTsxExtension;
+		else delete Module._extensions[".tsx"];
 	}
 }
 
