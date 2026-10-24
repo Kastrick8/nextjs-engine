@@ -74,14 +74,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return prototype === Object.prototype || prototype === null;
 }
 
-function safeCssText(value: unknown): string | undefined {
+function safeCssText(value: unknown, context?: EngineThemeTemplateContext): string | undefined {
 	if (typeof value !== "string" || value.length > MAX_CSS_TEXT) return undefined;
-	const text = value.trim();
+	const raw = value.trim();
+	const text = context ? interpolate(raw, context) : raw;
 	if (!text || /url\s*\(|expression\s*\(|javascript\s*:|@import|<\/?style|<\/?script/i.test(text)) return undefined;
 	return text;
 }
 
-function safeStyle(value: unknown): CSSProperties {
+function safeStyle(value: unknown, context?: EngineThemeTemplateContext): CSSProperties {
 	if (!isRecord(value)) return {};
 	const style: Record<string, string | number> = {};
 	for (const [key, item] of Object.entries(value)) {
@@ -89,7 +90,7 @@ function safeStyle(value: unknown): CSSProperties {
 		if (typeof item === "number" && Number.isFinite(item)) {
 			style[key] = item;
 		} else if (typeof item === "string") {
-			const normalized = safeCssText(item);
+			const normalized = safeCssText(item, context);
 			if (normalized !== undefined) style[key] = normalized;
 		}
 	}
@@ -189,14 +190,14 @@ function normalizeTag(type: EngineThemeTemplateNodeType, props: Record<string, u
 		: "span";
 }
 
-function scalarStyleProp(value: unknown): string | number | undefined {
+function scalarStyleProp(value: unknown, context?: EngineThemeTemplateContext): string | number | undefined {
 	if (typeof value === "number" && Number.isFinite(value)) return value;
-	if (typeof value === "string") return safeCssText(value);
+	if (typeof value === "string") return safeCssText(value, context);
 	return undefined;
 }
 
-function compileStyleFromProps(type: EngineThemeTemplateNodeType, props: Record<string, unknown>): CSSProperties {
-	const styles: Record<string, string | number> = { ...safeStyle(props.style) } as Record<string, string | number>;
+function compileStyleFromProps(type: EngineThemeTemplateNodeType, props: Record<string, unknown>, context: EngineThemeTemplateContext): CSSProperties {
+	const styles: Record<string, string | number> = { ...safeStyle(props.style, context) } as Record<string, string | number>;
 	for (const [key, cssKey] of [
 		["gap", "gap"], ["padding", "padding"], ["margin", "margin"], ["width", "width"],
 		["height", "height"], ["minWidth", "minWidth"], ["maxWidth", "maxWidth"],
@@ -204,7 +205,7 @@ function compileStyleFromProps(type: EngineThemeTemplateNodeType, props: Record<
 		["fontSize", "fontSize"], ["fontWeight", "fontWeight"], ["fontFamily", "fontFamily"],
 		["lineHeight", "lineHeight"], ["textAlign", "textAlign"], ["overflow", "overflow"],
 	] as const) {
-		const value = scalarStyleProp(props[key]);
+		const value = scalarStyleProp(props[key], context);
 		if (value !== undefined) styles[cssKey] = value;
 	}
 	if (type === "stack") {
@@ -267,7 +268,7 @@ function renderCompiledNode(
 			: undefined;
 	const tag = normalizeTag(node.type, props);
 	const elementProps: Record<string, unknown> = {
-		style: compileStyleFromProps(node.type, props),
+		style: compileStyleFromProps(node.type, props, context),
 	};
 	if (typeof props.className === "string" && /^[A-Za-z0-9 _-]{0,128}$/.test(props.className)) elementProps.className = props.className;
 	if (typeof props.id === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(props.id)) elementProps.id = props.id;
