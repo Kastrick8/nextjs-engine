@@ -29,13 +29,6 @@ function isThemeRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function mergeThemeRecords(
-	base: Record<string, unknown> | undefined,
-	overlay: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-	return { ...(base ?? {}), ...(overlay ?? {}) };
-}
-
 function mergeMarkdownStyleSlots(
 	base: Record<string, unknown> | undefined,
 	overlay: unknown,
@@ -128,7 +121,7 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 	const isBareReference = keys.every((key) => THEME_REFERENCE_KEYS.has(key));
 	const isReference = isQualifiedReference || isBareReference;
 
-	let resolvedCssTheme: EngineThemeConfig = theme;
+	let resolvedCssTheme: EngineTheme = theme;
 	let markdownThemes = getEngineThemeComponentDefinitions(theme);
 
 	if (isReference) {
