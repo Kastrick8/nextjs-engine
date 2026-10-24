@@ -12,25 +12,39 @@ import { installEngineDebugInlineCallout } from "./EngineDebugInlineCallout";
 export function EngineDebugRuntimeMonitor() {
 	useEffect(() => {
 		const url = new URL(window.location.href);
-		if (url.searchParams.get("__engine_debug") === "1") return;
+		const debugWindow = window as Window & { __NEXT_ENGINE_DEBUG_INLINE_ACTIVE__?: boolean };
+		// The injected inline runtime script and this React monitor share the same
+		// capture bridge. Only one may patch console.error or they can recursively
+		// capture each other's diagnostic reports in development browsers.
+		if (url.searchParams.get("__engine_debug") === "1" || debugWindow.__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__) return;
+		debugWindow.__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__ = true;
 
 		const callouts = new Map<string, () => void>();
+		const calloutRoutes = new Map<string, string>();
 		let diagnostics = [] as ReturnType<typeof createEngineDebugDiagnostic>[];
 		const report = (source: EngineDebugSource, message: unknown, detail?: unknown, location?: string) => {
 			const incoming = createEngineDebugDiagnostic({ source, message, detail, location });
 			diagnostics = appendEngineDebugDiagnostics(diagnostics, incoming);
-			const diagnostic = diagnostics[diagnostics.length - 1];
+			const diagnostic = diagnostics.find((item) => item.id === incoming.id) ?? incoming;
 			const liveIds = new Set(diagnostics.map((item) => item.id));
 			for (const [id, cleanup] of callouts) {
 				if (!liveIds.has(id)) {
 					cleanup();
 					callouts.delete(id);
+					calloutRoutes.delete(id);
 				}
 			}
+			const activeRoute = window.location.pathname;
+			const existingRoute = calloutRoutes.get(diagnostic.id);
+			if (callouts.has(diagnostic.id) && existingRoute === activeRoute) return;
 			callouts.get(diagnostic.id)?.();
 			callouts.delete(diagnostic.id);
-			const cleanup = installEngineDebugInlineCallout(document, diagnostic, window.location.pathname);
-			if (cleanup) callouts.set(diagnostic.id, cleanup);
+			calloutRoutes.delete(diagnostic.id);
+			const cleanup = installEngineDebugInlineCallout(document, diagnostic, activeRoute);
+			if (cleanup) {
+				callouts.set(diagnostic.id, cleanup);
+				calloutRoutes.set(diagnostic.id, activeRoute);
+			}
 		};
 
 		const onError = (event: ErrorEvent) => {
@@ -66,10 +80,15 @@ export function EngineDebugRuntimeMonitor() {
 		window.addEventListener("error", onError);
 		window.addEventListener("unhandledrejection", onUnhandledRejection);
 
+		// This observer also sees inline callout mutations. Remember each overlay's
+		// last text so those mutations cannot re-capture an unchanged overlay.
+		const scannedOverlayText = new WeakMap<HTMLElement, string>();
 		const scanNextOverlay = () => {
 			for (const element of document.querySelectorAll<HTMLElement>("nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]")) {
 				const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
 				if (!text || !/(error|exception|failed|hydration|mismatch|digest)/i.test(text)) continue;
+				if (scannedOverlayText.get(element) === text) continue;
+				scannedOverlayText.set(element, text);
 				report("next-overlay", "Next.js development error overlay", text, window.location.pathname);
 			}
 		};
@@ -94,6 +113,8 @@ export function EngineDebugRuntimeMonitor() {
 			observer.disconnect();
 			for (const cleanup of callouts.values()) cleanup();
 			callouts.clear();
+			calloutRoutes.clear();
+			delete debugWindow.__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__;
 		};
 	}, []);
 

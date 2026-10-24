@@ -44,12 +44,20 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 	await expect(page.locator(".ed-preview-status")).toHaveText(/^(READY|ERROR)$/);
 
 	await preview.locator("body").evaluate(() => {
-		console.error("ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch");
+		console.error("ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch at app/page.tsx:14:2");
+		console.error("ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch at app/page.tsx:14:2");
 	});
 	await page.getByRole("tab", { name: /Errors/ }).click();
 	const capturedDiagnostic = page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_CAPTURE_SMOKE" });
-	await expect(capturedDiagnostic).toBeVisible();
+	await expect(capturedDiagnostic).toHaveCount(1);
 	await expect(capturedDiagnostic).toContainText("Hydration");
+	await expect(capturedDiagnostic).toContainText("2×");
+	await capturedDiagnostic.click();
+	await expect(page.getByLabel("Source editor")).toBeVisible();
+	await expect(page.getByRole("button", { name: "Auto-complete", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: /Auto-fix suggestions/ })).toBeVisible();
+	await page.getByRole("button", { name: "Auto-complete", exact: true }).click();
+	await expect(page.locator(".ed-code-action-list").last()).toBeVisible();
 });
 
 test("EngineDebug shows a waiting state while the preview response is pending", async ({ page }) => {

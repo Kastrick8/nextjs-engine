@@ -52,13 +52,13 @@ The workbench's **Errors** view captures diagnostics from its same-origin previe
 - calls to the preview frame's `console.error`, including common React hydration mismatch messages;
 - visible Next.js development error overlay text when it can be read from the preview DOM or overlay shadow root.
 
-The inspector keeps a bounded, in-memory history (up to 200 items), coalesces adjacent repeats, redacts common credential-shaped text, and can copy a selected diagnostic. It does not upload reports or modify application source.
+The inspector keeps up to 200 unique issues in memory, coalesces repeats across intervening messages and route changes, counts occurrences, redacts common credential-shaped text, and can copy selected details. Source-mapped issues can be opened in a local editor. Editing is development-only, loopback/same-origin restricted, limited to allowlisted source files under 1 MiB, and guarded by a SHA-256 compare-before-write check to prevent stale-buffer overwrites.
 
 **Likely owner is a hint, not a verdict.** Paths and stack traces that point into Engine source are marked *Likely NE source*; app/page/component paths are marked *Likely application code*; React/Next frames receive a framework hint. Always confirm the relevant stack and reproduce before filing an Engine bug or changing application code.
 
 This is a browser-side collector, not a replacement for the Next.js dev overlay or terminal. Server exceptions that happen before the preview sends a usable document, process-level build errors, and diagnostics hidden in a cross-origin or inaccessible frame may only be visible in Next.js' own overlay/terminal output. Captured messages are intentionally bounded and redacted heuristically; treat copied diagnostic details as potentially sensitive before sharing them.
 
-The workbench layout uses a compact, VS Code-inspired dark workspace: activity rail, route explorer, live preview, and an Errors/Node/Scheduler/Device inspector. The editor styling is confined to the development-only workbench and does not change application UI.
+The workbench uses a VS Code-inspired dark workspace: activity rail, searchable route explorer with full-path tooltips, auto-fitted live preview, and an Errors/Node/Scheduler/Device inspector. Error details stay in a fixed panel above an independently scrolling issue list. The source editor is confined to the development-only workbench and does not change application UI.
 
 ## Preview lifecycle feedback
 
