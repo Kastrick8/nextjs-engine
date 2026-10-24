@@ -14,6 +14,8 @@ function getState() {
 			activeRoutes: new Map(),
 			completedRoutes: new Set(),
 			routeBatchStartedAt: 0,
+			routeBatchTotal: 0,
+			routeBatchCompleted: 0,
 			timer: null,
 			rows: 0,
 			active: false,
@@ -24,6 +26,8 @@ function getState() {
 	}
 	const state = globalThis[STATE_KEY];
 	if (!(state.completedRoutes instanceof Set)) state.completedRoutes = new Set();
+	if (!Number.isFinite(state.routeBatchTotal)) state.routeBatchTotal = 0;
+	if (!Number.isFinite(state.routeBatchCompleted)) state.routeBatchCompleted = 0;
 	return state;
 }
 
@@ -83,6 +87,20 @@ function restoreLatestStatus(state) {
 	return Boolean(state.status);
 }
 
+function formatRouteProgress(completed, total) {
+	if (!Number.isFinite(total) || total <= 0) return "";
+	const safeCompleted = Math.max(0, Math.min(total, Number(completed) || 0));
+	const percent = Math.round((safeCompleted / total) * 1000) / 10;
+	return safeCompleted + "/" + total + " routes completed (" + percent + "%)";
+}
+
+function liveStatusText(state) {
+	const hasRouteBatch = state.source === "nextjs" && state.routeBatchTotal > 0 && state.routeBatchStartedAt;
+	const progress = hasRouteBatch ? " · " + formatRouteProgress(state.routeBatchCompleted, state.routeBatchTotal) : "";
+	const elapsed = hasRouteBatch ? " · " + ((Date.now() - state.routeBatchStartedAt) / 1000).toFixed(1) + "s elapsed" : "";
+	return state.status + progress + elapsed;
+}
+
 function paintStatus() {
 	const state = getState();
 	if (!state.status || !supportsPinnedStatus()) return;
@@ -92,9 +110,7 @@ function paintStatus() {
 		// Keep ordinary stdout/stderr output inside a scroll region that excludes the last row.
 		process.stdout.write("\u001b[1;" + (rows - 1) + "r");
 		process.stdout.write("\u001b[" + (rows - 1) + ";1H");
-		const liveStatus = state.source === "nextjs" && state.activeRoutes.size && state.routeBatchStartedAt
-			? state.status + " · " + ((Date.now() - state.routeBatchStartedAt) / 1000).toFixed(1) + "s"
-			: state.status;
+		const liveStatus = liveStatusText(state);
 		process.stdout.write("\u001b[" + rows + ";1H\u001b[2K" + formatStatusLine(liveStatus));
 		process.stdout.write("\u001b[" + (rows - 1) + ";1H");
 		state.rows = rows;
@@ -159,6 +175,8 @@ function clearStatus(source) {
 	if (source === "nextjs") {
 		state.activeRoutes.clear();
 		state.routeBatchStartedAt = 0;
+		state.routeBatchTotal = 0;
+		state.routeBatchCompleted = 0;
 	}
 	const effectiveSource = source || (process.env.NENC_LOG_TRANSPORT === "ipc" ? "engine" : undefined);
 	if (sendIPCEvent("clear", "", effectiveSource || "engine")) {
@@ -219,19 +237,22 @@ function classifyNextBuildLine(line) {
 
 	const compilingRoutes = message.match(/^(?:[○◯]\s*)?Compiling\s+(.+?)(?:\s*\.{3}|…)?$/i);
 	if (compilingRoutes) {
-		const routes = compilingRoutes[1].replace(/\s*\.{3}$/, "").replace(/…$/, "")
-			.split(/,\s*/).map((route) => route.trim()).filter(Boolean);
+		const routes = [...new Set(compilingRoutes[1].replace(/\s*\.{3}$/, "").replace(/…$/, "")
+			.split(/,\s*/).map((route) => route.trim()).filter(Boolean))];
 		if (routes.length) return { level: "route-start", routes, message: "Compiling " + routes.join(", "), suppressible: true };
 	}
 	const compiledRoute = message.match(/^(?:✓\s*)?Compiled\s+(.+?)\s+in\s+([\d.]+)\s*(ms|s)(?:\s+\((\d+)\s+modules?\))?$/i);
 	if (compiledRoute && !/^(?:✓\s*)?Compiled successfully\b/i.test(message)) {
 		const duration = compiledRoute[2] + compiledRoute[3];
 		const modules = compiledRoute[4] ? Number(compiledRoute[4]) : null;
+		const routes = [...new Set(compiledRoute[1].split(/,\s*/).map((route) => route.trim()).filter(Boolean))];
 		return {
-			level: "route-done",
-			route: compiledRoute[1].trim(),
+			level: routes.length > 1 ? "routes-done" : "route-done",
+			route: routes[0],
+			routes,
 			details: duration + (modules === null ? "" : ", " + modules + " modules"),
-			message: "compiled " + compiledRoute[1].trim() + " (" + duration + (modules === null ? "" : ", " + modules + " modules") + ")",
+			duration,
+			message: "compiled " + routes.join(", ") + " (" + duration + (modules === null ? "" : ", " + modules + " modules") + ")",
 			suppressible: true,
 		};
 	}
@@ -330,59 +351,81 @@ function parseDurationMilliseconds(value) {
 	return match[2].toLowerCase() === "s" ? amount * 1000 : amount;
 }
 
+function beginRouteCompilation(routes) {
+	const state = getState();
+	if (state.activeRoutes.size === 0) {
+		state.routeBatchStartedAt = Date.now();
+		state.routeBatchTotal = 0;
+		state.routeBatchCompleted = 0;
+	}
+	for (const route of routes) {
+		if (!state.activeRoutes.has(route)) {
+			state.activeRoutes.set(route, { startedAt: Date.now() });
+			state.routeBatchTotal++;
+		}
+		state.completedRoutes.delete(route);
+	}
+	setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
+}
+
+function completeRouteCompilations(routes, details = "", sharedBatch = false) {
+	const state = getState();
+	const uniqueRoutes = [...new Set((routes || []).filter(Boolean))];
+	if (!uniqueRoutes.length) return;
+	for (const route of uniqueRoutes) {
+		if (state.activeRoutes.delete(route)) state.routeBatchCompleted++;
+		state.completedRoutes.add(route);
+	}
+	const hasActive = state.activeRoutes.size > 0;
+	if (hasActive) {
+		setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
+	} else if (state.routeBatchTotal > 0 && state.routeBatchStartedAt) {
+		setStatus("Next.js route batch compiled", "nextjs");
+	}
+	for (let index = 0; index < uniqueRoutes.length; index++) {
+		const route = uniqueRoutes[index];
+		let message = "compiled " + route;
+		if (uniqueRoutes.length > 1 && sharedBatch) {
+			if (index === uniqueRoutes.length - 1 && details) message += " — shared batch " + cleanMessage(details);
+		} else if (details) {
+			message += " (" + cleanMessage(details) + ")";
+		}
+		done(message);
+	}
+	if (!hasActive) {
+		state.routeBatchStartedAt = 0;
+		clearStatus("nextjs");
+	}
+}
+
 function dispatchNextBuildEvent(event) {
 	const state = getState();
 	state.bridgeBusy = true;
 	try {
 		if (event.level === "route-start") {
-			if (state.activeRoutes.size === 0) state.routeBatchStartedAt = Date.now();
-			for (const route of event.routes) {
-				state.activeRoutes.set(route, Date.now());
-				state.completedRoutes.delete(route);
-			}
-			setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
+			beginRouteCompilation(event.routes);
 		} else if (event.level === "route-done") {
-			state.activeRoutes.delete(event.route);
-			state.completedRoutes.add(event.route);
-			if (state.activeRoutes.size) setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
-			else {
-				state.routeBatchStartedAt = 0;
-				clearStatus("nextjs");
-			}
-			done("compiled " + event.route + (event.details ? " (" + cleanMessage(event.details) + ")" : ""));
+			completeRouteCompilations([event.route], event.details || "");
+		} else if (event.level === "routes-done") {
+			completeRouteCompilations(event.routes, event.details || "", true);
 		} else if (event.level === "route-typechecking") {
-			state.activeRoutes.delete(event.route);
-			state.completedRoutes.add(event.route);
-			if (state.activeRoutes.size) setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
-			else {
-				state.routeBatchStartedAt = 0;
-				clearStatus("nextjs");
-			}
-			done("compiled " + event.route + (event.details ? " (" + cleanMessage(event.details) + ")" : ""));
+			completeRouteCompilations([event.route], event.details || "");
 			setStatus("Type checking " + event.route, "nextjs");
 		} else if (event.level === "compiled-batch") {
 			const active = [...state.activeRoutes.keys()];
-			state.activeRoutes.clear();
-			state.routeBatchStartedAt = 0;
-			delete state.statuses.nextjs;
-			clearStatus("nextjs");
-			for (const route of active) state.completedRoutes.add(route);
-			done(active.length
-				? "compiled " + active.join(", ") + " — batch " + (event.duration || "completed")
-				: "NEXT.JS COMPILATION" + (event.duration ? " (" + event.duration + ")" : ""));
+			if (active.length) {
+				completeRouteCompilations(active, event.duration || "", active.length > 1);
+			} else {
+				delete state.statuses.nextjs;
+				clearStatus("nextjs");
+				done("NEXT.JS COMPILATION" + (event.duration ? " (" + event.duration + ")" : ""));
+			}
 		} else if (event.level === "request") {
 			const successfulRequest = event.statusCode >= 200 && event.statusCode < 400;
 			const wasActive = state.activeRoutes.has(event.route);
 			const compileMs = parseDurationMilliseconds(event.compileDuration);
 			if (successfulRequest && wasActive) {
-				state.activeRoutes.delete(event.route);
-				state.completedRoutes.add(event.route);
-				if (state.activeRoutes.size) setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
-				else {
-					state.routeBatchStartedAt = 0;
-					clearStatus("nextjs");
-				}
-				done("compiled " + event.route + (event.compileDuration ? " — compile " + event.compileDuration : ""));
+				completeRouteCompilations([event.route], event.compileDuration ? "compile " + event.compileDuration : "");
 			} else if (successfulRequest && event.compileDuration && compileMs !== null && compileMs > 0
 				&& !state.completedRoutes.has(event.route)) {
 				state.completedRoutes.add(event.route);
@@ -393,18 +436,15 @@ function dispatchNextBuildEvent(event) {
 		} else if (event.level === "ready") {
 			state.activeRoutes.clear();
 			state.routeBatchStartedAt = 0;
+			state.routeBatchTotal = 0;
+			state.routeBatchCompleted = 0;
 			delete state.statuses.nextjs;
 			clearStatus("nextjs");
 			done("NEXT.JS DEV SERVER READY — " + event.duration);
 		} else if (event.level === "done") {
 			const active = [...state.activeRoutes.keys()];
 			if (active.length) {
-				state.activeRoutes.clear();
-				state.routeBatchStartedAt = 0;
-				delete state.statuses.nextjs;
-				clearStatus("nextjs");
-				for (const route of active) state.completedRoutes.add(route);
-				done("compiled " + active.join(", ") + " — Next.js reported compilation complete");
+				completeRouteCompilations(active, event.message || "Next.js reported compilation complete", true);
 			} else {
 				delete state.statuses.nextjs;
 				done(event.message);
@@ -414,6 +454,8 @@ function dispatchNextBuildEvent(event) {
 			const active = [...state.activeRoutes.keys()];
 			state.activeRoutes.clear();
 			state.routeBatchStartedAt = 0;
+			state.routeBatchTotal = 0;
+			state.routeBatchCompleted = 0;
 			delete state.statuses.nextjs;
 			failed(active.length ? "COMPILE " + active.join(", ") : event.message);
 			clearStatus("nextjs");
@@ -422,6 +464,7 @@ function dispatchNextBuildEvent(event) {
 		state.bridgeBusy = false;
 	}
 }
+
 function splitLogSegments(raw) {
 	return raw.match(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$/g) || [raw];
 }
@@ -459,7 +502,8 @@ function installNextBuildOutputBridge(options = {}) {
 					output += segment;
 				} else if (!supportsPinnedStatus() && (event.level === "route-start" || event.level === "status")) {
 					// Redirected logs have no live row, so keep normalized progress visible instead of swallowing it.
-					output += "[NENC] " + event.message + (hasTerminator ? "\n" : "");
+					const visibleMessage = event.level === "route-start" ? liveStatusText(state) : event.message;
+					output += "[NENC] " + visibleMessage + (hasTerminator ? "\n" : "");
 				}
 			}
 
@@ -498,6 +542,7 @@ function installNextBuildOutputBridge(options = {}) {
 }
 module.exports = {
 	cleanMessage,
+	formatRouteProgress,
 	clearStatus,
 	classifyNextBuildLine,
 	dispatchCompilerLine,

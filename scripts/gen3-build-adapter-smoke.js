@@ -9,6 +9,10 @@ const plugin = require("../src/engine/plugins/enginePlugin");
 const adapter = require("../src/engine/plugins/engineBuildAdapter");
 const nencLogger = require("../src/engine/plugins/nencTerminalLogger");
 
+assert.equal(nencLogger.formatRouteProgress(0, 3), "0/3 routes completed (0%)");
+assert.equal(nencLogger.formatRouteProgress(1, 3), "1/3 routes completed (33.3%)");
+assert.equal(nencLogger.formatRouteProgress(3, 3), "3/3 routes completed (100%)");
+
 const defaultCacheConfig = plugin.withEngineTurbopackCache({ experimental: { keepUserSetting: true } });
 assert.equal(defaultCacheConfig.experimental.turbopackFileSystemCacheForDev, true,
 	"Engine opts into Next.js Turbopack cache for development");
@@ -29,9 +33,13 @@ assert.deepEqual(nencLogger.classifyNextBuildLine("○ Compiling /request, /guid
 	message: "Compiling /request, /guide, emd", suppressible: true,
 }, "development route compilation is recognized from actual Next.js output");
 assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled /request in 1050ms (434 modules)"), {
-	level: "route-done", route: "/request", details: "1050ms, 434 modules",
-	message: "compiled /request (1050ms, 434 modules)", suppressible: true,
+	level: "route-done", route: "/request", routes: ["/request"], details: "1050ms, 434 modules",
+	duration: "1050ms", message: "compiled /request (1050ms, 434 modules)", suppressible: true,
 }, "route completion preserves Next.js's real duration and module count");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled /request, /guide, emd in 1.2s (560 modules)"), {
+	level: "routes-done", route: "/request", routes: ["/request", "/guide", "emd"], details: "1.2s, 560 modules",
+	duration: "1.2s", message: "compiled /request, /guide, emd (1.2s, 560 modules)", suppressible: true,
+}, "one real compile event can complete a multi-route batch");
 assert.deepEqual(nencLogger.classifyNextBuildLine("GET / 200 in 89ms (compile: 23ms, render: 66ms)"), {
 	level: "request", method: "GET", route: "/", statusCode: 200, compileDuration: "23ms", suppressible: false,
 }, "request completion uses Next.js's actual reported compile duration");
@@ -73,7 +81,8 @@ try {
 
 	passedThrough.length = 0;
 	process.stdout.write("○ Compiling /request, /guide, emd ...\n");
-	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] Compiling /request, /guide, emd")),
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] Compiling /request, /guide, emd")
+		&& chunk.includes("0/3 routes completed (0%)")),
 		"route progress cannot silently disappear when the output is redirected");
 
 	passedThrough.length = 0;
