@@ -80,6 +80,66 @@ function makeResponse(asset: CachedFavicon, cacheStatus: "HIT" | "MISS"): Respon
 	});
 }
 
+function formatDownloadedBytes(bytes: number): string {
+	return bytes >= 1024 ? Math.round(bytes / 1024) + " KB" : bytes + " B";
+}
+
+async function readFaviconBytes(response: Response, workerSlot: number | null): Promise<Uint8Array> {
+	const startedAt = Date.now();
+	const reader = response.body?.getReader();
+	if (!reader) {
+		const bytes = new Uint8Array(await response.arrayBuffer());
+		if (workerSlot !== null) {
+			nencTerminalLogger.updateWorkerTask(workerSlot, {
+				bytesPerSecond: bytes.byteLength * 1000 / Math.max(1, Date.now() - startedAt),
+			});
+		}
+		return bytes;
+	}
+
+	const chunks: Uint8Array[] = [];
+	let totalBytes = 0;
+	let sampleStartedAt = startedAt;
+	let sampleStartedBytes = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			totalBytes += value.byteLength;
+			if (totalBytes > MAX_ICON_BYTES) {
+				await reader.cancel().catch(() => undefined);
+				throw new Error("provider image size was outside the allowed range");
+			}
+			chunks.push(value);
+			const now = Date.now();
+			const elapsed = now - sampleStartedAt;
+			if (workerSlot !== null && elapsed >= 150) {
+				nencTerminalLogger.updateWorkerTask(workerSlot, {
+					bytesPerSecond: (totalBytes - sampleStartedBytes) * 1000 / elapsed,
+				});
+				sampleStartedAt = now;
+				sampleStartedBytes = totalBytes;
+			}
+		}
+	} catch (error) {
+		await reader.cancel().catch(() => undefined);
+		throw error;
+	}
+
+	if (workerSlot !== null) {
+		nencTerminalLogger.updateWorkerTask(workerSlot, {
+			bytesPerSecond: totalBytes * 1000 / Math.max(1, Date.now() - startedAt),
+		});
+	}
+	const output = new Uint8Array(totalBytes);
+	let offset = 0;
+	for (const chunk of chunks) {
+		output.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return output;
+}
+
 async function downloadFavicon(target: FaviconTarget): Promise<CachedFavicon> {
 	const cached = faviconCache.get(target.key);
 	if (cached && cached.expiresAt > Date.now()) return cached;
@@ -88,10 +148,16 @@ async function downloadFavicon(target: FaviconTarget): Promise<CachedFavicon> {
 	const pending = inFlightDownloads.get(target.key);
 	if (pending) return pending;
 
+	const workerSlot = process.env.NODE_ENV !== "production"
+		? nencTerminalLogger.allocateWorkerTask({
+			operation: "Downloading",
+			target: "ICON:" + target.domain,
+			mode: "rate",
+			bytesPerSecond: 0,
+		})
+		: null;
+
 	const download = (async () => {
-		if (process.env.NODE_ENV !== "production") {
-			nencTerminalLogger.setStatus(`Downloading private asset: favicon = ${target.domain}`);
-		}
 		try {
 			const response = await fetch(target.providerUrl, {
 				cache: "no-store",
@@ -101,8 +167,12 @@ async function downloadFavicon(target: FaviconTarget): Promise<CachedFavicon> {
 
 			const contentType = (response.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
 			if (!contentType.startsWith("image/")) throw new Error("provider returned a non-image response");
+			const declaredBytes = Number(response.headers.get("content-length"));
+			if (Number.isFinite(declaredBytes) && declaredBytes > MAX_ICON_BYTES) {
+				throw new Error("provider image size was outside the allowed range");
+			}
 
-			const bytes = new Uint8Array(await response.arrayBuffer());
+			const bytes = await readFaviconBytes(response, workerSlot);
 			if (bytes.byteLength === 0 || bytes.byteLength > MAX_ICON_BYTES) {
 				throw new Error("provider image size was outside the allowed range");
 			}
@@ -119,14 +189,16 @@ async function downloadFavicon(target: FaviconTarget): Promise<CachedFavicon> {
 			}
 			faviconCache.set(target.key, asset);
 			if (process.env.NODE_ENV !== "production") {
-				nencTerminalLogger.done(`private asset: favicon = ${target.domain}`);
-				nencTerminalLogger.setStatus("IDLE — waiting for private assets");
+				const message = "downloaded icon:" + target.domain + " (" + formatDownloadedBytes(bytes.byteLength) + ")";
+				if (workerSlot !== null) nencTerminalLogger.finishWorkerTask(workerSlot, message);
+				else nencTerminalLogger.done(message);
 			}
 			return asset;
 		} catch {
 			if (process.env.NODE_ENV !== "production") {
-				nencTerminalLogger.failed(`private asset: favicon = ${target.domain}`);
-				nencTerminalLogger.setStatus("IDLE — waiting for private assets");
+				const message = "download icon:" + target.domain + " failed";
+				if (workerSlot !== null) nencTerminalLogger.failWorkerTask(workerSlot, message);
+				else nencTerminalLogger.failed(message);
 			}
 			throw new Error("favicon_unavailable");
 		} finally {
@@ -136,7 +208,6 @@ async function downloadFavicon(target: FaviconTarget): Promise<CachedFavicon> {
 	inFlightDownloads.set(target.key, download);
 	return download;
 }
-
 export async function GET(request: Request): Promise<Response> {
 	const target = resolveTarget(request);
 	if (!target) return Response.json({ error: "invalid_favicon_request" }, { status: 400 });
