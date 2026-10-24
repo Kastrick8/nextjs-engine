@@ -214,7 +214,7 @@ function prepareEngineDebugRoute(options = {}) {
 	if (!fs.existsSync(routeFile) || fs.readFileSync(routeFile, "utf8") !== source) fs.writeFileSync(routeFile, source, "utf8");
 	if (!fs.existsSync(sourceRouteFile) || fs.readFileSync(sourceRouteFile, "utf8") !== sourceRouteSource) fs.writeFileSync(sourceRouteFile, sourceRouteSource, "utf8");
 	if (!fs.existsSync(routesRouteFile) || fs.readFileSync(routesRouteFile, "utf8") !== routesRouteSource) fs.writeFileSync(routesRouteFile, routesRouteSource, "utf8");
-	if (options.distDir || nextConfig.distDir) process.env.NEXTJS_ENGINE_DIST_DIR = options.distDir || nextConfig.distDir;
+	if (options.distDir) process.env.NEXTJS_ENGINE_DIST_DIR = options.distDir;
 	return { development: true, pages, routeFile, sourceRouteFile, routesRouteFile };
 }
 
