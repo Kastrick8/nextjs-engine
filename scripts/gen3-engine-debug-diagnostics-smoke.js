@@ -170,6 +170,9 @@ try {
 	const dynamicRouteCompile = ts.transpileModule(dynamicRouteSource, { reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
 	assert.equal((dynamicRouteCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error).length, 0, "dynamic route helper parses cleanly");
 	const dynamicRoutes = require("../src/engine/debug/EngineDebugDynamicRoutes.ts");
+	assert.equal(dynamicRoutes.isEngineDebugDynamicRoute("/blog/[slug]"), true, "single dynamic route segments trigger the chooser");
+	assert.equal(dynamicRoutes.isEngineDebugDynamicRoute("/docs/[[...slug]]"), true, "optional catch-all route segments trigger the chooser");
+	assert.equal(dynamicRoutes.isEngineDebugDynamicRoute("/about"), false, "static routes open without the dynamic chooser");
 	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/blog/[slug]", "/blog/hello-world"), true, "dynamic route pattern matches concrete slugs");
 	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/docs/[...slug]", "/docs/api/errors"), true, "catch-all pattern matches nested paths");
 	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/docs/[[...slug]]", "/docs"), true, "optional catch-all matches its base path");

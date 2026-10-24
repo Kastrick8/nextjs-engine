@@ -4,7 +4,7 @@ export interface EngineDebugDynamicParameter {
 }
 
 export function isEngineDebugDynamicRoute(route: string): boolean {
-	return route.split("/").some(segment => /^\[\[?.+\]\]$/.test(segment));
+	return route.split("/").some(segment => segment.startsWith("[") && segment.endsWith("]"));
 }
 
 export function getEngineDebugDynamicParameters(route: string): EngineDebugDynamicParameter[] {
