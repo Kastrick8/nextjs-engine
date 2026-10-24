@@ -155,8 +155,10 @@ test("EngineDebug merges repeated problems across routes", async ({ page }) => {
 
 test("EngineDebug keeps unrelated Next.js overlays from obscuring the preview and fits the viewport", async ({ page }) => {
 	await page.goto("/_engine/debug");
-	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
+	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
 	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	await expect(preview.getByRole("heading", { name: "Reasonable fallback available" })).toBeVisible();
+	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
 	await preview.locator("body").evaluate(body => {
 		const overlay = body.ownerDocument.createElement("div");
 		overlay.setAttribute("data-nextjs-error-message", "true");
@@ -198,7 +200,7 @@ test("EngineDebug opens a dynamic route picker with Next.js paths and custom slu
 	await page.getByRole("button", { name: "/blog/hello-world" }).click();
 	await expect(page.locator("iframe[title='Live preview: /blog/hello-world']")).toBeVisible();
 	await page.getByRole("button", { name: "/blog/[slug]", exact: true }).click();
-	await page.getByLabel("slug").fill("special route");
+	await page.getByRole("dialog").getByRole("textbox", { name: "slug", exact: true }).fill("special route");
 	await page.getByRole("button", { name: "Preview route" }).click();
 	await expect(page.locator("iframe[title='Live preview: /blog/special%20route']")).toBeVisible();
 });
