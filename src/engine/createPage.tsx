@@ -10,7 +10,6 @@ import type {
 	PageMeta,
 	MarkdownProps,
 	EngineTheme as EngineThemeConfig,
-	EngineThemeJsonObject,
 } from "./schema/types";
 import { resolveEngineThemeSchema } from "./theme/resolveTheme";
 import { EngineCollectedStyles, EngineProvider } from "./providers/EngineProvider";
