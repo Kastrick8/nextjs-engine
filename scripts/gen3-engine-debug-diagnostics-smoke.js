@@ -291,7 +291,7 @@ try {
 		"summarizeNextOverlay",
 		"dataset.engineDebugCapturedIssue",
 		"inferRouteFromSourcePath",
-		"Next.js development error overlay",
+		'reportDiagnostic("next-overlay"',
 		"inferEngineDebugOverlayRoute",
 		"data-engine-debug-next-overlay-hidden",
 		"details in EngineDebug Problems",
@@ -329,8 +329,10 @@ try {
 		"FORBIDDEN_SEGMENTS",
 		"MAX_SOURCE_BYTES",
 		"applyEngineDebugSourcePatch",
-		"A same-origin request is required",
-		"writeFileSync(target.path, updated",
+		"requestIsSameOrigin",
+		"Source editing is restricted to same-origin localhost development requests",
+		"writeFileSync(temporaryPath, updated",
+		"renameSync(temporaryPath, target.actualPath",
 	]) assert.ok(sourceRouteSource.includes(required), "source preview/edit route includes " + required);
 	const debugPluginSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/plugins/engineDebugPlugin.js"), "utf8");
 	assert.ok(debugPluginSource.includes("export { GET, POST }"), "the generated debug source route exports its guarded save handler");

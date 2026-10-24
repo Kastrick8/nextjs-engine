@@ -666,10 +666,38 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					const mappedRoute = inferEngineDebugOverlayRoute(text, routePatterns) ?? (mapped ? inferRouteFromSourcePath(mapped.path, routePatterns) : undefined);
 					const location = mapped ? mapped.path + ":" + mapped.line + (mapped.column ? ":" + mapped.column : "") : undefined;
 					const captureKey = [message, location ?? "", mappedRoute ?? ""].join("|");
-					if (element.dataset.engineDebugCapturedIssue === captureKey) { element.style.setProperty("display", "none", "important"); continue; }
+					if (element.dataset.engineDebugCapturedIssue === captureKey) {
+						element.style.setProperty("display", "none", "important");
+						continue;
+					}
 					element.dataset.engineDebugCapturedIssue = captureKey;
-					element.style.setProperty("display", "none", "important");
 					reportDiagnostic("next-overlay", message, text, location, mappedRoute ?? normalizeDebugRoute(frameWindow.location.pathname));
+					// Preserve the last usable render; the underlying route-specific issue remains in Problems.
+					element.style.setProperty("display", "none", "important");
+					let badge = frameDocument.getElementById("__engine_debug_next_error_badge__") as HTMLDivElement | null;
+					if (!badge && frameDocument.body) {
+						badge = frameDocument.createElement("div");
+						badge.id = "__engine_debug_next_error_badge__";
+						badge.setAttribute("data-engine-debug-next-overlay-hidden", "true");
+						badge.setAttribute("role", "status");
+						badge.textContent = "Next.js error overlay hidden · details in EngineDebug Problems";
+						Object.assign(badge.style, {
+							position: "fixed",
+							left: "10px",
+							bottom: "10px",
+							zIndex: "2147483647",
+							maxWidth: "calc(100vw - 20px)",
+							padding: "7px 10px",
+							border: "1px solid #a33",
+							borderRadius: "4px",
+							background: "#2a171a",
+							color: "#ffd7dc",
+							font: "11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace",
+							boxShadow: "0 3px 18px #0008",
+							pointerEvents: "none",
+						});
+						frameDocument.body.appendChild(badge);
+					}
 				}
 			};
 			const overlayObserver = new MutationObserver(scanNextOverlay);
