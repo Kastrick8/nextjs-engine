@@ -212,7 +212,7 @@ function classifyNextBuildLine(line) {
 		if (routes.length) return { level: "route-start", routes, message: "Compiling " + routes.join(", "), suppressible: true };
 	}
 	const compiledRoute = message.match(/^(?:✓\s*)?Compiled\s+(.+?)\s+in\s+([\d.]+)\s*(ms|s)(?:\s+\((\d+)\s+modules?\))?$/i);
-	if (compiledRoute && !/^(?:✓\\s*)?Compiled successfully\\b/i.test(message)) {
+	if (compiledRoute && !/^(?:✓\s*)?Compiled successfully\b/i.test(message)) {
 		const duration = compiledRoute[2] + compiledRoute[3];
 		const modules = compiledRoute[4] ? Number(compiledRoute[4]) : null;
 		return { level: "route-done", route: compiledRoute[1].trim(), message: "compiled " + compiledRoute[1].trim() + " (" + duration + (modules === null ? "" : ", " + modules + " modules") + ")", suppressible: true };
