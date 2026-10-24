@@ -124,6 +124,7 @@ export function createEngineDebugDiagnostic(input: {
 	message: unknown;
 	detail?: unknown;
 	location?: string;
+	route?: string;
 	now?: number;
 }): EngineDebugDiagnostic {
 	const rawMessage = redactEngineDebugText(input.message, 1_600).trim() || "(empty diagnostic)";

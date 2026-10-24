@@ -127,3 +127,51 @@ test("a normal Engine page can open its inline issue directly in EngineDebug", a
 	await expect(page.getByText(/ENGINE_DEBUG_STANDALONE_CALLOUT/).first()).toBeVisible();
 	await expect(page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true })).toHaveAttribute("aria-current", "page");
 });
+
+
+test("EngineDebug merges repeated problems across routes", async ({ page }) => {
+	await page.goto("/_engine/debug");
+	const previewFrame = page.locator("iframe[title^='Live preview:']");
+	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
+	await preview.locator("body").evaluate(body => {
+		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_DEDUPE_ROUTE_SMOKE: hydration mismatch");
+	});
+	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
+	await expect(preview.locator("body")).toBeVisible();
+	await preview.locator("body").evaluate(body => {
+		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_DEDUPE_ROUTE_SMOKE: hydration mismatch");
+	});
+	await page.getByRole("tab", { name: /Errors/ }).click();
+	const issue = page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_DEDUPE_ROUTE_SMOKE" });
+	await expect(issue).toHaveCount(1);
+	await expect(issue).toContainText("×2");
+	await issue.click();
+	await expect(page.getByLabel("Selected diagnostic details")).toContainText("Routes: /");
+	await expect(page.getByLabel("Selected diagnostic details")).toContainText("/engine-compat-test/browser-dialog/fallback");
+	await expect(previewFrame).toBeVisible();
+});
+
+test("EngineDebug keeps unrelated Next.js overlays from obscuring the preview and fits the viewport", async ({ page }) => {
+	await page.goto("/_engine/debug");
+	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
+	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	await preview.locator("body").evaluate(body => {
+		const overlay = body.ownerDocument.createElement("div");
+		overlay.setAttribute("data-nextjs-error-message", "true");
+		overlay.textContent = "Failed to compile /guide";
+		body.append(overlay);
+	});
+	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
+	const viewport = page.locator(".ed-viewport-scroll");
+	const fit = page.locator(".ed-frame-fit");
+	await expect(fit).toBeVisible();
+	const viewportBox = await viewport.boundingBox();
+	const fitBox = await fit.boundingBox();
+	expect(viewportBox).not.toBeNull();
+	expect(fitBox).not.toBeNull();
+	expect(fitBox!.width).toBeLessThanOrEqual(viewportBox!.width);
+	expect(fitBox!.height).toBeLessThanOrEqual(viewportBox!.height);
+	await page.getByRole("button", { name: "Fit preview to available space" }).click();
+	await expect(page.getByText("100%", { exact: true })).toBeVisible();
+});
