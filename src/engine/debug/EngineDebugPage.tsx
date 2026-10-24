@@ -333,6 +333,8 @@ export interface EngineDebugPageProps {
 
 export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const lastConnectedFrameDocumentRef = useRef<Document | null>(null);
+	const lastConnectedFrameRouteRef = useRef<string | null>(null);
 	const viewportRef = useRef<HTMLDivElement>(null);
 	const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 	const [fitPreview, setFitPreview] = useState(true);
@@ -579,6 +581,8 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	useEffect(() => {
 		const frame = iframeRef.current;
 		if (!frame) return;
+		const expectedRoute = normalizeDebugRoute(selectedPage.split(/[?#]/, 1)[0] || "/");
+		let lastObservedDocument = frame.contentDocument;
 		let frameCleanup = () => undefined;
 		let retryConnectTimer: number | null = null;
 		let retryConnectCount = 0;
@@ -593,7 +597,20 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			const frameWindow = frame.contentWindow as DebugSchedulerWindow | null;
 			const frameDocument = frame.contentDocument;
 			if (!frameWindow || !frameDocument) return;
-			if (!frameDocument.documentElement || !frameDocument.head) {
+			// During iframe navigation Firefox can fire load while contentDocument still
+			// points at the previous route. Do not instrument that detached document:
+			// the next route's console errors would otherwise be missed.
+			if (frameDocument !== lastObservedDocument) {
+				lastObservedDocument = frameDocument;
+				retryConnectCount = 0;
+			}
+			const currentDocumentRoute = normalizeDebugRoute(frameDocument.location.pathname);
+			const sameConnectedDocument = frameDocument === lastConnectedFrameDocumentRef.current;
+			const initialBlankDocument = lastConnectedFrameDocumentRef.current === null && frameDocument.location.protocol === "about:";
+			const staleRouteDocument = currentDocumentRoute !== expectedRoute && (
+				(sameConnectedDocument && lastConnectedFrameRouteRef.current !== expectedRoute) || initialBlankDocument
+			);
+			if (!frameDocument.documentElement || !frameDocument.head || staleRouteDocument) {
 				// Some browsers report an iframe load while its previous document is
 				// detaching and before the replacement document has a root/head. Retry
 				// briefly on the parent window so the next readable document is wired.
@@ -607,6 +624,8 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				return;
 			}
 			retryConnectCount = 0;
+			lastConnectedFrameDocumentRef.current = frameDocument;
+			lastConnectedFrameRouteRef.current = expectedRoute;
 			applyDeviceProfile(frameWindow, device);
 			frameDocument.documentElement.dataset.engineDebugOverlay = String(overlay);
 			let overlayStyle = frameDocument.getElementById("__engine_debug_overlay__") as HTMLStyleElement | null;
@@ -817,16 +836,20 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				frameWindow.cancelAnimationFrame(raf);
 			};
 		};
-		frame.addEventListener("load", connect);
+		const handleFrameLoad = () => {
+			retryConnectCount = 0;
+			connect();
+		};
+		frame.addEventListener("load", handleFrameLoad);
 		connect();
 		return () => {
-			frame.removeEventListener("load", connect);
+			frame.removeEventListener("load", handleFrameLoad);
 			if (retryConnectTimer !== null) window.clearTimeout(retryConnectTimer);
 			const cleanup = frameCleanup;
 			frameCleanup = () => undefined;
 			cleanup();
 		};
-	}, [device, overlay, picker, selectedNode?.id, pages, routePatterns]);
+	}, [device, overlay, picker, selectedNode?.id, pages, routePatterns, selectedPage]);
 
 	const changeMode = (mode: DeviceMode) => {
 		if (mode === "Custom") {
