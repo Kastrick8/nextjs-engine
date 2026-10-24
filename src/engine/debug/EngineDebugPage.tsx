@@ -986,13 +986,13 @@ function ErrorInspector({
 				<button type="button" className="ed-filter" onClick={onClear} disabled={diagnostics.length === 0}>Clear</button>
 			</div>
 			<div className="ed-errors-workspace">
-				<section className="ed-selected-problem" aria-label="Selected issue details" aria-live="polite">
+				<section className="ed-selected-problem" aria-label="Selected diagnostic details" aria-live="polite">
 					{selected ? <>
 						<h3>{selected.category} issue</h3>
 						<DebugRow name="Severity" value={selected.severity.toUpperCase()} />
 						<DebugRow name="Likely owner" value={selected.ownerHint} />
 						<DebugRow name="Captured from" value={selected.source} />
-						{(selected.routes?.length ?? 0) > 1 ? <DebugRow name="Affected routes" value={selected.routes!.join(", ")} /> : selected.route && <DebugRow name="Route" value={selected.route} />}
+						{(selected.routes?.length ?? 0) > 0 ? <div className="ed-route-tags">Routes: {selected.routes!.join(" · ")}</div> : selected.route && <div className="ed-route-tags">Routes: {selected.route}</div>}
 						{selected.location && <DebugRow name="Source location" value={selected.location} />}
 						{(selected.repeatCount ?? 1) > 1 && <DebugRow name="Occurrences" value={String(selected.repeatCount)} />}
 						<p className="ed-issue-title">{selected.message}</p>
