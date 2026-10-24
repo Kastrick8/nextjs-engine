@@ -17,8 +17,6 @@ export interface EngineDebugDiagnostic {
 	detail: string;
 	location?: string;
 	route?: string;
-	routes?: string[];
-	firstAt?: number;
 	repeatCount?: number;
 }
 
@@ -130,7 +128,6 @@ export function createEngineDebugDiagnostic(input: {
 	location?: string;
 	route?: string;
 	now?: number;
-	route?: string;
 }): EngineDebugDiagnostic {
 	const rawMessage = redactEngineDebugText(input.message, 1_600).trim() || "(empty diagnostic)";
 	const detail = redactEngineDebugText(input.detail ?? "", 6_000).trim();
@@ -141,22 +138,18 @@ export function createEngineDebugDiagnostic(input: {
 	const at = input.now ?? Date.now();
 	const route = routeFromLocation(input.route) ?? routeFromLocation(location);
 	return {
-		id: (hash >>> 0).toString(16),
-		at,
-		firstAt: at,
-		repeatCount: 1,
 		id: "diag-" + hashText(stableFingerprint),
 		at,
 		firstAt: at,
 		occurrences: 1,
+		repeatCount: 1,
+		route: route ?? undefined,
 		routes: route ? [route] : [],
 		...classification,
 		source: input.source,
 		message,
 		detail,
 		location,
-		route: input.route,
-		routes: input.route ? [input.route] : undefined,
 	};
 }
 
@@ -166,10 +159,8 @@ export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): 
 		"[" + diagnostic.severity.toUpperCase() + "] " + diagnostic.category,
 		"Likely owner: " + diagnostic.ownerHint,
 		"Source: " + diagnostic.source,
-		(diagnostic.routes?.length ?? 0) > 1 ? "Routes: " + diagnostic.routes!.join(", ") : diagnostic.route ? "Route: " + diagnostic.route : "",
-		"Time: " + new Date(diagnostic.at).toISOString(),
-		diagnostic.repeatCount && diagnostic.repeatCount > 1 ? "Occurrences: " + diagnostic.repeatCount : "",
-		"Occurrences: " + String(diagnostic.occurrences ?? 1),
+		diagnostic.route ? "Route: " + diagnostic.route : "",
+		"Occurrences: " + String(diagnostic.occurrences ?? diagnostic.repeatCount ?? 1),
 		"First seen: " + new Date(diagnostic.firstAt ?? diagnostic.at).toISOString(),
 		"Last seen: " + new Date(diagnostic.at).toISOString(),
 		diagnostic.location ? "Location: " + diagnostic.location : "",
@@ -180,29 +171,11 @@ export function formatEngineDebugDiagnostic(diagnostic: EngineDebugDiagnostic): 
 	].filter((line, index) => line || index === 8).join("\n").trim();
 }
 
-function diagnosticFingerprint(diagnostic: EngineDebugDiagnostic): string {
-	return [diagnostic.source, diagnostic.category, diagnostic.message, diagnostic.location ?? ""].join("|");
-}
-
 export function appendEngineDebugDiagnostics(
 	current: readonly EngineDebugDiagnostic[],
 	incoming: EngineDebugDiagnostic,
 	limit = 200,
 ): EngineDebugDiagnostic[] {
-	const fingerprint = diagnosticFingerprint(incoming);
-	for (let index = current.length - 1; index >= 0; index--) {
-		const previous = current[index];
-		if (diagnosticFingerprint(previous) !== fingerprint) continue;
-		const repeated: EngineDebugDiagnostic = {
-			...previous,
-			at: incoming.at,
-			firstAt: previous.firstAt ?? previous.at,
-			repeatCount: (previous.repeatCount ?? 1) + 1,
-			detail: incoming.detail.length > previous.detail.length ? incoming.detail : previous.detail,
-			route: previous.route ?? incoming.route,
-			routes: [...new Set([...(previous.routes ?? (previous.route ? [previous.route] : [])), ...(incoming.routes ?? (incoming.route ? [incoming.route] : []))])].sort(),
-		};
-		return current.map((item, itemIndex) => itemIndex === index ? repeated : item).slice(-Math.max(1, limit));
 	const incomingFingerprint = engineDebugDiagnosticFingerprint(incoming);
 	const existingIndex = current.findIndex(item => engineDebugDiagnosticFingerprint(item) === incomingFingerprint);
 	if (existingIndex >= 0) {
@@ -213,7 +186,9 @@ export function appendEngineDebugDiagnostics(
 			...existing,
 			at: incoming.at,
 			firstAt: existing.firstAt ?? existing.at,
-			occurrences: (existing.occurrences ?? 1) + (incoming.occurrences ?? 1),
+			occurrences: (existing.occurrences ?? existing.repeatCount ?? 1) + (incoming.occurrences ?? incoming.repeatCount ?? 1),
+			repeatCount: (existing.repeatCount ?? existing.occurrences ?? 1) + (incoming.repeatCount ?? incoming.occurrences ?? 1),
+			route: existing.route ?? incoming.route ?? routes[0],
 			routes,
 			detail: richerDetail ?? "",
 			location: incoming.location ?? existing.location,
@@ -224,8 +199,10 @@ export function appendEngineDebugDiagnostics(
 	const normalized: EngineDebugDiagnostic = {
 		...incoming,
 		firstAt: incoming.firstAt ?? incoming.at,
-		occurrences: incoming.occurrences ?? 1,
-		routes: incoming.routes ?? [routeFromLocation(incoming.location)].filter((route): route is string => Boolean(route)),
+		occurrences: incoming.occurrences ?? incoming.repeatCount ?? 1,
+		repeatCount: incoming.repeatCount ?? incoming.occurrences ?? 1,
+		route: incoming.route ?? routeFromLocation(incoming.location) ?? undefined,
+		routes: incoming.routes ?? [...new Set([incoming.route, routeFromLocation(incoming.location)].filter((route): route is string => Boolean(route)))],
 	};
 	return [...current, normalized].slice(-Math.max(1, limit));
 }

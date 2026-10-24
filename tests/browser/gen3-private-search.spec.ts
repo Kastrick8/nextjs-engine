@@ -40,7 +40,15 @@ test("Gen 3 login binds one opaque private-search command to its device", async 
 	await page.getByTestId("private-search").click();
 	const commandRequest = await commandRequestPromise;
 	const commandResponse = await commandResponsePromise;
-	expect(commandResponse.status()).toBe(200);
+	const commandHeaders = await commandRequest.allHeaders();
+	const browserCookies = await page.context().cookies();
+	const wireDiagnostic = JSON.stringify({
+		storedSessionCookie: browserCookies.some((cookie) => cookie.name === "__Host-engine-session"),
+		sentSessionCookie: (commandHeaders.cookie ?? "").split(";").some((segment) => segment.trim().startsWith("__Host-engine-session=")),
+		nencHeaderNames: Object.keys(commandHeaders).filter((name) => name.startsWith("x-h")),
+		nencHeaderLengths: Object.entries(commandHeaders).filter(([name]) => name.startsWith("x-h")).map(([, value]) => value.length),
+	});
+	expect(commandResponse.status(), wireDiagnostic).toBe(200);
 	await expect(page.getByRole("heading", { name: "Nebula Render Kit" })).toBeVisible();
 	await expect(page.getByTestId("private-results")).not.toContainText("databaseScore");
 	await expect(page.getByTestId("private-results")).not.toContainText("internalPartition");
@@ -53,7 +61,6 @@ test("Gen 3 login binds one opaque private-search command to its device", async 
 	expect(Object.keys(wireBody)).toHaveLength(1);
 	expect(Object.keys(wireBody)[0]).not.toBe("query");
 	expect(commandRequest.postData()).not.toContain("privateSearch");
-	const commandHeaders = await commandRequest.allHeaders();
 	const opaqueHeaderNames = Object.keys(commandHeaders).filter((name) => name.startsWith("x-h"));
 	expect(opaqueHeaderNames).toHaveLength(4);
 	expect(opaqueHeaderNames.every((name) => !/engine|command|nonce|signature|timestamp/i.test(name))).toBe(true);

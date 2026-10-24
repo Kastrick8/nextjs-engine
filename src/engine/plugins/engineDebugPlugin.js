@@ -111,7 +111,6 @@ function generatedSourceRouteSource(routeDirectory, sourceModulePath) {
 		GENERATED_MARKER,
 		`export const runtime = "nodejs";`,
 		`export { GET, POST } from ${JSON.stringify(importPath)};`,
-		`export { GET, POST } from ${JSON.stringify(importPath)};`,
 		"",
 	].join("\n");
 }

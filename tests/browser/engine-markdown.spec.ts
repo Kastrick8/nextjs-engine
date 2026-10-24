@@ -19,7 +19,8 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await expect(article.locator("h3#markdown-showcase-heading-level-three-2")).toBeVisible();
 	await expect(article.locator("strong").first()).toHaveText("complete documented EngineMarkdown feature set");
 	await expect(article.locator("blockquote blockquote")).toContainText("Nested blockquotes work too");
-	await expect(article.getByRole("listitem").filter({ hasText: "Nested item with" })).toBeVisible();
+	// The parent list item inherits its child text, so target the nested matching item.
+	await expect(article.getByRole("listitem").filter({ hasText: "Nested item with" }).last()).toBeVisible();
 	await expect(article.locator('input[type="checkbox"]:checked')).toHaveCount(1);
 	await expect(article.locator('input[type="checkbox"]:not(:checked)')).toHaveCount(1);
 	await expect(article.locator("img[alt='A small EngineMarkdown feature illustration']")).toHaveAttribute("src", "/markdown-demo.svg");
@@ -35,11 +36,11 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await expect(codeBlocks.nth(2).locator("pre code span").first()).toHaveCSS("color", "rgb(74, 222, 128)");
 
 	await expect(article.locator("table")).toContainText("Wide tables scroll inside their container");
-	await expect(article.locator("del")).toHaveText("old parser");
+	await expect(article.locator("del").filter({ hasText: "old parser" })).toHaveText("old parser");
 	await expect(article.locator('a[href="#"]')).toContainText("blocked JavaScript link");
 	await expect(article.locator("script[data-engine-markdown-unsafe]")).toHaveCount(0);
 	await expect(article.locator("img[onerror]")).toHaveCount(0);
-	await expect(article.locator("a[target='_blank'][rel='noopener noreferrer']")).toContainText("the Next.js website");
+	await expect(article.locator("a[target='_blank'][rel='noopener noreferrer']").filter({ hasText: "the Next.js website" })).toContainText("the Next.js website");
 	await expect(article.locator("a > img")).toHaveCount(2);
 
 	const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

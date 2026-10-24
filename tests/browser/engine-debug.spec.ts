@@ -51,7 +51,7 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 	const capturedDiagnostic = page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_CAPTURE_SMOKE" });
 	await expect(capturedDiagnostic).toHaveCount(1);
 	await expect(capturedDiagnostic).toContainText("Hydration");
-	await expect(capturedDiagnostic).toContainText("2×");
+	await expect(capturedDiagnostic).toContainText("×2");
 	await capturedDiagnostic.click();
 	await expect(page.getByLabel("Source editor")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Auto-complete", exact: true })).toBeVisible();
@@ -102,7 +102,7 @@ test("EngineDebug pins a mapped problem to its element and opens its dashboard d
 	await badge.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
 	await badge.hover();
 	await expect(preview.getByText("app/page.tsx:1:2", { exact: true })).toBeVisible();
-	await expect(preview.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/)).toBeVisible();
+	await expect(marker.getByText(/ENGINE_DEBUG_INLINE_CALLOUT/)).toBeVisible();
 	await expect(preview.getByRole("button", { name: "View on Dashboard" })).toBeVisible();
 	await preview.getByRole("button", { name: "View on Dashboard" }).click();
 	await expect(page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_INLINE_CALLOUT" })).toBeVisible();

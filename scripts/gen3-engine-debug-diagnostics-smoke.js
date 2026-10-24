@@ -87,6 +87,7 @@ try {
 	assert.equal(collection.length, 1, "identical issues are coalesced across routes");
 	assert.match(collection[0].detail, /repeat/, "a repeated message can refresh available detail without losing source context");
 	assert.equal(collection[0].occurrences, 2, "merged errors retain their occurrence count");
+	assert.equal(collection[0].repeatCount, 2, "the older workbench counter stays in sync with occurrence totals");
 	assert.deepEqual(collection[0].routes, ["/", "/guide"], "merged errors retain each affected route");
 	assert.equal(engineDebugDiagnosticFingerprint(hydration), engineDebugDiagnosticFingerprint(duplicate), "fingerprints ignore the route that observed an issue");
 	for (let index = 0; index < 205; index++) {
@@ -255,7 +256,7 @@ try {
 	});
 	const editorSyntaxErrors = (editorCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error);
 	assert.equal(editorSyntaxErrors.length, 0, "EngineDebug editor TSX parses cleanly: " + editorSyntaxErrors.map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
-	for (const required of ["EngineDebugFixEditor", "ed-route-search", "Fit preview to available space", "source !== \"next-overlay\"", "ed-selected-detail", "route: routeOverride ?? frameWindow.location.pathname"]) {
+	for (const required of ["EngineDebugDynamicRoutePicker", "inferEngineDebugOverlayRoute", "matchesEngineDebugRoutePattern", "ed-route-search", "ResizeObserver", "source !== \"console\"", "ed-selected-problem", "expectedSha256", "route: route ?? normalizeDebugRoute(frameWindow.location.pathname)"]) {
 		assert.ok(pageSource.includes(required), "dashboard contains " + required);
 	}
 	for (const required of ["Suggest auto-fix", "Apply changes", "originalLines", "replacementLines", "Unapplied changes", "ed-fix-diff"]) assert.ok(editorSource.includes(required), "source editor contains " + required);
@@ -290,7 +291,7 @@ try {
 		"summarizeNextOverlay",
 		"dataset.engineDebugCapturedIssue",
 		"inferRouteFromSourcePath",
-		"Next.js development error overlay",
+		'reportDiagnostic("next-overlay"',
 		"inferEngineDebugOverlayRoute",
 		"data-engine-debug-next-overlay-hidden",
 		"details in EngineDebug Problems",
@@ -313,6 +314,9 @@ try {
 	assert.ok(runtimeMonitorSource.includes("__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__"), "normal-page instrumentation avoids double-patching console.error");
 	assert.ok(runtimeMonitorSource.includes("scannedOverlayText"), "overlay observer ignores unchanged overlays when callout mutations trigger rescans");
 	assert.ok(runtimeMonitorSource.includes("existingRoute === activeRoute"), "identical issues do not recreate their inline callout on the same route");
+	assert.ok(runtimeMonitorSource.includes("const debugConsole = console"), "runtime monitor captures the document console for safe navigation cleanup");
+	assert.ok(runtimeMonitorSource.includes("originalConsoleError.apply(debugConsole, args)"), "runtime monitor delegates through the captured console object");
+	assert.ok(runtimeMonitorSource.includes("debugConsole.error = originalConsoleError"), "runtime monitor restores only the captured console object");
 	const inlineCalloutSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugInlineCallout.ts"), "utf8");
 	for (const required of [
 		"data-engine-debug-error-target",
@@ -328,8 +332,10 @@ try {
 		"FORBIDDEN_SEGMENTS",
 		"MAX_SOURCE_BYTES",
 		"applyEngineDebugSourcePatch",
-		"A same-origin request is required",
-		"writeFileSync(target.path, updated",
+		"requestIsSameOrigin",
+		"Source editing is restricted to same-origin localhost development requests",
+		"writeFileSync(temporaryPath, updated",
+		"renameSync(temporaryPath, target.actualPath",
 	]) assert.ok(sourceRouteSource.includes(required), "source preview/edit route includes " + required);
 	const debugPluginSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/plugins/engineDebugPlugin.js"), "utf8");
 	assert.ok(debugPluginSource.includes("export { GET, POST }"), "the generated debug source route exports its guarded save handler");
