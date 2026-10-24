@@ -175,3 +175,27 @@ test("EngineDebug keeps unrelated Next.js overlays from obscuring the preview an
 	await page.getByRole("button", { name: "Fit preview to available space" }).click();
 	await expect(page.getByText("100%", { exact: true })).toBeVisible();
 });
+
+
+test("EngineDebug opens a dynamic route picker with Next.js paths and custom slug values", async ({ page }) => {
+	await page.route("**/_engine/debug/routes", async route => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				patterns: ["/", "/blog/[slug]", "/docs/[[...slug]]"],
+				staticPaths: ["/", "/blog/hello-world", "/blog/another-post", "/docs", "/docs/api/errors"],
+				dynamicPatterns: ["/blog/[slug]", "/docs/[[...slug]]"],
+			}),
+		});
+	});
+	await page.goto("/_engine/debug");
+	await page.getByRole("button", { name: "/blog/[slug]", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: /Choose a route for \/blog\/\[slug\]/ })).toBeVisible();
+	await page.getByRole("button", { name: "/blog/hello-world" }).click();
+	await expect(page.locator("iframe[title='Live preview: /blog/hello-world']")).toBeVisible();
+	await page.getByRole("button", { name: "/blog/[slug]", exact: true }).click();
+	await page.getByLabel("slug").fill("special route");
+	await page.getByRole("button", { name: "Preview route" }).click();
+	await expect(page.locator("iframe[title='Live preview: /blog/special%20route']")).toBeVisible();
+});

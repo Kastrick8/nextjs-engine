@@ -166,6 +166,17 @@ try {
 	assert.equal(syntaxErrors.length, 0,
 		"EngineDebug TSX parses cleanly: " + syntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
 
+	const dynamicRouteSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugDynamicRoutes.ts"), "utf8");
+	const dynamicRouteCompile = ts.transpileModule(dynamicRouteSource, { reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
+	assert.equal((dynamicRouteCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error).length, 0, "dynamic route helper parses cleanly");
+	const dynamicRoutes = require("../src/engine/debug/EngineDebugDynamicRoutes.ts");
+	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/blog/[slug]", "/blog/hello-world"), true, "dynamic route pattern matches concrete slugs");
+	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/docs/[...slug]", "/docs/api/errors"), true, "catch-all pattern matches nested paths");
+	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/docs/[[...slug]]", "/docs"), true, "optional catch-all matches its base path");
+	assert.equal(dynamicRoutes.buildEngineDebugDynamicRoute("/blog/[slug]", { slug: "hello world" }).path, "/blog/hello%20world", "user-entered route segments are encoded");
+	const pickerSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugDynamicRoutePicker.tsx"), "utf8");
+	const pickerCompile = ts.transpileModule(pickerSource, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } });
+	assert.equal((pickerCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error).length, 0, "dynamic route picker TSX parses cleanly");
 	const editorSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugFixEditor.tsx"), "utf8");
 	const editorCompile = ts.transpileModule(editorSource, {
 		reportDiagnostics: true,
@@ -191,6 +202,9 @@ try {
 	const monitorSyntaxErrors = (monitorCompile.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
 	assert.equal(monitorSyntaxErrors.length, 0,
 		"normal-page monitor TSX parses cleanly: " + monitorSyntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
+	const schemaRendererSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/core/SchemaRenderer.tsx"), "utf8");
+	assert.ok(schemaRendererSource.includes("NodeErrorBoundary"), "Engine schema nodes are isolated by development render boundaries");
+	assert.ok(schemaRendererSource.includes("EngineDebug · component isolated"), "failed Engine nodes have a marked local fallback");
 	const createPageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/createPage.tsx"), "utf8");
 	assert.match(createPageSource, /process\.env\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
 		"normal Engine pages only mount the inline diagnostics monitor during development");

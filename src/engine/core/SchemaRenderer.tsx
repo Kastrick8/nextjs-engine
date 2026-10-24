@@ -238,7 +238,72 @@ interface NodeRendererProps {
 	path: string;
 }
 
-function NodeRenderer({ node, depth, path }: NodeRendererProps) {
+interface NodeErrorBoundaryProps {
+	path: string;
+	nodeType: string;
+	children: ReactNode;
+}
+
+interface NodeErrorBoundaryState {
+	error: Error | null;
+}
+
+class NodeErrorBoundary extends React.Component<NodeErrorBoundaryProps, NodeErrorBoundaryState> {
+	state: NodeErrorBoundaryState = { error: null };
+
+	static getDerivedStateFromError(error: Error): NodeErrorBoundaryState {
+		return { error };
+	}
+
+	componentDidCatch(error: Error, info: React.ErrorInfo): void {
+		console.error(
+			"[EngineDebug] isolated Engine node \"" + this.props.nodeType + "\" at " + this.props.path,
+			error,
+			info.componentStack,
+		);
+	}
+
+	render(): ReactNode {
+		if (!this.state.error) return this.props.children;
+		const message = this.state.error.message || "This component threw during render.";
+		return (
+			<div
+				role="alert"
+				data-engine-debug-error="true"
+				data-engine-debug-path={this.props.path}
+				data-engine-debug-name={this.props.nodeType}
+				title={this.props.path}
+				style={{
+					boxSizing: "border-box",
+					minWidth: 0,
+					padding: "10px 12px",
+					border: "1px solid #b42335",
+					borderLeft: "4px solid #e5484d",
+					borderRadius: 4,
+					background: "#2a171a",
+					color: "#ffd7dc",
+					font: "12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace",
+					overflowWrap: "anywhere",
+				}}
+			>
+				<strong>EngineDebug · component isolated</strong>
+				<div>{this.props.nodeType} at {this.props.path}</div>
+				<div>{message}</div>
+			</div>
+		);
+	}
+}
+
+function NodeRenderer(props: NodeRendererProps) {
+	if (process.env.NODE_ENV !== "development") return <NodeRendererContent {...props} />;
+	return (
+		<NodeErrorBoundary path={props.path} nodeType={props.node.type}>
+			<NodeRendererContent {...props} />
+		</NodeErrorBoundary>
+	);
+}
+
+function NodeRendererContent({ node, depth, path }: NodeRendererProps) {
 	const styleCollector = useStyleCollector();
 
 	if (node.type === "slot") {
