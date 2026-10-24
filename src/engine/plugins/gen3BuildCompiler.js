@@ -5,6 +5,7 @@ const path = require("node:path");
 const { Worker } = require("node:worker_threads");
 const ts = require("typescript");
 const { analyzeProjectModules, SCHEMA_ENGINE_SYMBOLS } = require("./gen3ModuleCompiler");
+const { createSchemaOutputCache } = require("./gen3SchemaCache");
 const nencLogger = require("./nencTerminalLogger");
 
 const BUILTIN_NODE_TYPES = new Set([
@@ -203,6 +204,18 @@ function walkNodes(node, visit) {
 	if (typeof node.type === "string") visit(node);
 	if (Array.isArray(node.children)) for (const child of node.children) walkNodes(child, visit);
 }
+
+function collectSchemaNodeTypes(node, output = new Set()) {
+	if (!node || typeof node !== "object") return output;
+	if (typeof node.type === "string") output.add(String(node.type));
+	if (Array.isArray(node.children)) {
+		for (const child of node.children) collectSchemaNodeTypes(child, output);
+	}
+	if (node.type === "slot" && node.props && node.props.fallback && typeof node.props.fallback === "object") {
+		collectSchemaNodeTypes(node.props.fallback, output);
+	}
+	return output;
+}
 function dispatchTerminalLog(message) {
 	nencLogger.dispatchCompilerLine(message);
 }
@@ -332,7 +345,7 @@ function serializeWorkerValue(value) {
 
 function compileSchemaJobs(jobs, options = {}) {
 	if (!jobs.length) return Promise.resolve([]);
-	const workerCount = 3;
+	const workerCount = Math.min(3, jobs.length);
 	const log = typeof options.log === "function" ? options.log : dispatchTerminalLog;
 	const showWorkerStatus = options.showWorkerStatus !== false;
 
@@ -428,6 +441,16 @@ function compileSchemaJobs(jobs, options = {}) {
 				if (message.type !== "result") return;
 
 				results[job.order] = message.page;
+				if (typeof options.onResult === "function") {
+					try {
+						options.onResult(job, message.page, {
+							durationMs: message.durationMs,
+							nodeCount: message.nodeCount,
+						});
+					} catch {
+						// A cache callback is an optimization and must not fail the compilation.
+					}
+				}
 				if (showWorkerStatus) {
 					nencLogger.finishWorkerTask(slot.index, "compiled " + job.pageId
 						+ " (" + message.durationMs + "ms, " + message.nodeCount + " nodes)");
@@ -493,7 +516,8 @@ async function compileProject(projectRoot, options = {}) {
 		schemaCandidateCountsByFile,
 	});
 	const registered = registeredCustomTypes(files, sourceByPath);
-	const jobs = [];
+	const schemaOutputCache = createSchemaOutputCache(resolvedRoot);
+	const schemaJobs = [];
 	const skipped = [];
 
 	for (const file of files) {
@@ -516,22 +540,61 @@ async function compileProject(projectRoot, options = {}) {
 		const routeId = routePathForFile(resolvedRoot, file);
 		for (let index = 0; index < candidates.length; index++) {
 			const pageId = candidates.length === 1 ? routeId : routeId + "#schema-" + (index + 1);
-			jobs.push({
-				order: jobs.length,
-				taskId: "schema-" + jobs.length,
+			const schema = candidates[index].result.value;
+			const schemaTypes = collectSchemaNodeTypes(schema.root);
+			// A registered component only affects a job whose schema actually uses that type.
+			// This keeps registering an unrelated component from invalidating every route.
+			const customComponentTypes = registered.filter((type) => schemaTypes.has(type));
+			schemaJobs.push({
+				order: schemaJobs.length,
+				taskId: "schema-" + schemaJobs.length,
 				pageId,
 				sourcePath: relative,
-				schema: candidates[index].result.value,
-				customComponentTypes: registered,
+				schema,
+				customComponentTypes,
 			});
 		}
 	}
 
-	const pages = await compileSchemaJobs(jobs, {
+	const pages = new Array(schemaJobs.length);
+	const workerJobs = [];
+	let schemaCacheHitCount = 0;
+	let schemaCacheWriteCount = 0;
+
+	for (const job of schemaJobs) {
+		const fingerprint = schemaOutputCache.fingerprint(job);
+		const cached = schemaOutputCache.read(job, fingerprint);
+		if (cached) {
+			pages[job.order] = cached.page;
+			schemaCacheHitCount += 1;
+			log("DONE REUSED CACHED COMPILED " + job.pageId + " — persistent schema cache hit");
+			continue;
+		}
+		workerJobs.push({
+			...job,
+			outputOrder: job.order,
+			order: workerJobs.length,
+			fingerprint,
+		});
+	}
+
+	const workerPages = await compileSchemaJobs(workerJobs, {
 		log,
 		showWorkerStatus: typeof options.log !== "function",
+		onResult(job, page, metadata) {
+			if (schemaOutputCache.write(job, job.fingerprint, page, metadata)) {
+				schemaCacheWriteCount += 1;
+			} else {
+				log("CACHE WRITE FAILED FOR " + job.pageId + " — continuing without persistent cache");
+			}
+		},
 	});
-	const candidateCount = jobs.length;
+	for (let index = 0; index < workerJobs.length; index++) {
+		pages[workerJobs[index].outputOrder] = workerPages[index];
+	}
+
+	const candidateCount = schemaJobs.length;
+	const schemaCacheMissCount = workerJobs.length;
 	const summary = {
 		scannedSourceFileCount: files.length,
 		routeEntryCount: moduleAnalysis.summary.routeEntryCount,
@@ -542,13 +605,20 @@ async function compileProject(projectRoot, options = {}) {
 		schemaSourceEntryCount: moduleAnalysis.summary.schemaSourceEntryCount,
 		modulePassTimeMs: moduleAnalysis.summary.modulePassTimeMs,
 		schemaCandidateCount: candidateCount,
-		schemaCompilerWorkerCount: jobs.length > 0 ? 3 : 0,
+		schemaCacheHitCount,
+		schemaCacheMissCount,
+		schemaCacheWriteCount,
+		schemaCompilerWorkerCount: Math.min(3, workerJobs.length),
+		schemaCompilerWorkerLimit: 3,
 		compiledPageCount: pages.length,
 		compiledSchemaPageCount: pages.length,
 		skippedPageCount: skipped.length,
 		customComponentTypeCount: new Set(registered.concat(...pages.map((page) => page.customComponents))).size,
 		compilerPassTimeMs: Date.now() - passStartedAt,
 	};
+	log("DONE SCHEMA CACHE — " + schemaCacheHitCount + " hit(s), " + schemaCacheMissCount
+		+ " compile miss(es), " + schemaCacheWriteCount + " output(s) persisted at "
+		+ path.relative(resolvedRoot, schemaOutputCache.cacheDirectory).split(path.sep).join("/"));
 	log("DONE COMPILER PASS — " + summary.analyzedRouteCount + " route entries analyzed, "
 		+ summary.compiledSchemaPageCount + " Engine schema plans, " + summary.engineModuleCount + " Engine modules in "
 		+ summary.compilerPassTimeMs + "ms");
