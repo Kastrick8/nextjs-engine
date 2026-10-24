@@ -47,7 +47,9 @@ function mergeThemeObjects(base: EngineThemeJsonObject, overlay: EngineThemeJson
   for (const key of Object.keys(overlay)) {
     const previous = merged[key];
     const next = overlay[key];
-    merged[key] = isJsonObject(previous) && isJsonObject(next)
+    // Syntax palettes are complete replacements by contract. Inheriting
+    // unspecified token colors from a parent palette would violate that rule.
+    merged[key] = key !== "palette" && isJsonObject(previous) && isJsonObject(next)
       ? mergeThemeObjects(previous, next)
       : next;
   }
