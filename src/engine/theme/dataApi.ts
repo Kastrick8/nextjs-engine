@@ -80,7 +80,10 @@ function cloneAndFreezeJson(value: EngineThemeJsonValue): EngineThemeJsonValue {
 	if (Array.isArray(value)) {
 		return Object.freeze(value.map((item) => cloneAndFreezeJson(item))) as unknown as EngineThemeJsonValue;
 	}
-	const output: Record<string, EngineThemeJsonValue> = Object.create(null);
+	// assertJsonPayload rejects prototype-sensitive keys before cloning, so a
+	// normal JSON object preserves consumer expectations without reintroducing
+	// prototype-pollution inputs.
+	const output: Record<string, EngineThemeJsonValue> = {};
 	for (const [key, child] of Object.entries(value)) output[key] = cloneAndFreezeJson(child);
 	return Object.freeze(output);
 }
