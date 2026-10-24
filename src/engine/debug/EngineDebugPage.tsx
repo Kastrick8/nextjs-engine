@@ -11,7 +11,7 @@ import type { EngineDebugDiagnostic, EngineDebugSource } from "./EngineDebugDiag
 import { installEngineDebugInlineCallout } from "./EngineDebugInlineCallout";
 import { EngineDebugFixEditor } from "./EngineDebugFixEditor";
 import { EngineDebugDynamicRoutePicker } from "./EngineDebugDynamicRoutePicker";
-import { isEngineDebugDynamicRoute, matchesEngineDebugRoutePattern } from "./EngineDebugDynamicRoutes";
+import { inferEngineDebugOverlayRoute, isEngineDebugDynamicRoute, matchesEngineDebugRoutePattern } from "./EngineDebugDynamicRoutes";
 import type {
 	EngineSchedulerDebugSnapshot,
 	EngineSchedulerDebugTask,
@@ -405,8 +405,9 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				message: unknown,
 				detail?: unknown,
 				location?: string,
+				routeOverride?: string | null,
 			) => {
-				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location, route: frameWindow.location.pathname });
+				const diagnostic = createEngineDebugDiagnostic({ source, message, detail, location, route: routeOverride ?? frameWindow.location.pathname });
 				const nextDiagnostics = appendEngineDebugDiagnostics(diagnosticsRef.current, diagnostic);
 				diagnosticsRef.current = nextDiagnostics;
 				setDiagnostics(nextDiagnostics);
@@ -471,7 +472,11 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					if (!text || !/(error|exception|failed|hydration|mismatch|digest)/i.test(text)) continue;
 					if (element.dataset.engineDebugCaptured !== "true") {
 						element.dataset.engineDebugCaptured = "true";
-						reportDiagnostic("next-overlay", "Next.js development error overlay", text, frameWindow.location.pathname);
+						const affectedRoute = inferEngineDebugOverlayRoute(text, pages);
+						reportDiagnostic("next-overlay", "Next.js development error overlay", text, frameWindow.location.pathname, affectedRoute);
+						if (affectedRoute && (affectedRoute === frameWindow.location.pathname || matchesEngineDebugRoutePattern(affectedRoute, frameWindow.location.pathname))) {
+							setPreviewStatus("error");
+						}
 					}
 					// Do not let Next.js' full-screen dev overlay hide the rest of the last
 					// rendered route. Keep the actual diagnostic in the parent Problems panel.

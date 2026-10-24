@@ -177,6 +177,9 @@ try {
 	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/docs/[...slug]", "/docs/api/errors"), true, "catch-all pattern matches nested paths");
 	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/docs/[[...slug]]", "/docs"), true, "optional catch-all matches its base path");
 	assert.equal(dynamicRoutes.buildEngineDebugDynamicRoute("/blog/[slug]", { slug: "hello world" }).path, "/blog/hello%20world", "user-entered route segments are encoded");
+	assert.equal(dynamicRoutes.inferEngineDebugOverlayRoute("Failed to compile /guide", ["/", "/guide"]), "/guide", "Next overlays are attributed to the route they name rather than the preview fallback");
+	assert.equal(dynamicRoutes.inferEngineDebugOverlayRoute("TypeError: boom\\n at Page (./app/guide/page.tsx:12:4)", ["/", "/guide"]), "/guide", "Next stack traces map app page files back to their route");
+	assert.equal(dynamicRoutes.inferEngineDebugOverlayRoute("Failed to compile /guide", ["/"]), "/guide", "explicit overlay paths are retained before route discovery finishes");
 	const pickerSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugDynamicRoutePicker.tsx"), "utf8");
 	const pickerCompile = ts.transpileModule(pickerSource, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } });
 	assert.equal((pickerCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error).length, 0, "dynamic route picker TSX parses cleanly");
@@ -217,6 +220,7 @@ try {
 		"unhandledrejection",
 		"frameWindow.addEventListener(\"error\"",
 		"Next.js development error overlay",
+		"inferEngineDebugOverlayRoute",
 		"data-engine-debug-next-overlay-hidden",
 		"details in EngineDebug Problems",
 		"console.error",

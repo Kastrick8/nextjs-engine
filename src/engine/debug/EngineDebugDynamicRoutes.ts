@@ -71,3 +71,40 @@ export function buildEngineDebugDynamicRoute(pattern: string, values: Record<str
 	}
 	return { path: "/" + output.join("/") };
 }
+
+
+export function inferEngineDebugOverlayRoute(detail: string, knownPatterns: readonly string[] = []): string | null {
+	const text = detail.replace(/\\/g, "/");
+	const trigger = /(?:failed to compile|compilation failed|failed compiling|error compiling|failed to render (?:route|page)|error (?:in|on) route)\s*(?:for\s+)?(?:route\s+)?[:\-]?\s*/i;
+	const triggerMatch = trigger.exec(text);
+	if (triggerMatch) {
+		const tail = text.slice(triggerMatch.index + triggerMatch[0].length);
+		const explicit = tail.match(/^\/[A-Za-z0-9._~!$&'()*+,;=:@%/\[\]-]+/);
+		if (explicit) {
+			const route = explicit[0].replace(/[.,;:]+$/, "");
+			if (route.startsWith("/") && !route.startsWith("/_engine/debug")) return route || "/";
+		}
+	}
+
+	const appFile = text.match(/(?:^|[\s"'(\x60])(?:\.\/)?(?:src\/)?app\/((?:[^/\s"'\x60]+\/)*?)(?:page|layout|route)\.(?:tsx?|jsx?)(?::\d+(?::\d+)?)?/i);
+	if (appFile) {
+		const segments = (appFile[1] ?? "").split("/").filter(Boolean)
+			.filter(segment => !(segment.startsWith("(") && segment.endsWith(")")) && !segment.startsWith("@"));
+		const route = "/" + segments.join("/");
+		if (route !== "/_engine/debug" && !route.startsWith("/_engine/debug/")) return route;
+	}
+
+	const pagesFile = text.match(/(?:^|[\s"'(\x60])(?:\.\/)?(?:src\/)?pages\/([^\s"'\x60]+?)\.(?:tsx?|jsx?|mjs|cjs)(?::\d+(?::\d+)?)?/i);
+	if (pagesFile) {
+		const segments = (pagesFile[1] ?? "").split("/").filter(Boolean);
+		if (segments.some(segment => ["_app", "_document", "_error"].includes(segment.replace(/\.[^.]+$/, "")))) return null;
+		if (segments[segments.length - 1] === "index") segments.pop();
+		const route = "/" + segments.join("/");
+		if (route !== "/_engine/debug" && !route.startsWith("/_engine/debug/")) return route;
+	}
+
+	const matches = knownPatterns
+		.filter(route => route !== "/" && text.includes(route))
+		.sort((left, right) => right.length - left.length);
+	return matches[0] ?? null;
+}

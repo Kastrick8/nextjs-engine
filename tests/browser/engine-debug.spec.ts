@@ -168,6 +168,11 @@ test("EngineDebug keeps unrelated Next.js overlays from obscuring the preview an
 	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
 	await expect(preview.locator("[data-engine-debug-next-overlay-hidden]")).toBeVisible();
 	await expect(preview.getByText("Reasonable fallback available")).toBeVisible();
+	await page.getByRole("tab", { name: /Errors/ }).click();
+	const guideIssue = page.locator(".ed-diagnostic").filter({ hasText: "Failed to compile /guide" });
+	await expect(guideIssue).toBeVisible();
+	await guideIssue.click();
+	await expect(page.getByLabel("Selected diagnostic details")).toContainText("Routes: /guide");
 	const viewport = page.locator(".ed-viewport-scroll");
 	const fit = page.locator(".ed-frame-fit");
 	await expect(fit).toBeVisible();
