@@ -102,6 +102,14 @@ function applyMarkdownThemeToNode(node: SchemaNode, markdownTheme: ResolvedMarkd
 		...themeProps,
 		...originalProps,
 	};
+	if (isThemeRecord(themeProps.prettyPlease) || isThemeRecord(originalProps.prettyPlease)) {
+		// Per-node provider/theme settings override the corresponding shared
+		// options, but an explicitly supplied palette remains a full replacement.
+		nextProps.prettyPlease = {
+			...(isThemeRecord(themeProps.prettyPlease) ? themeProps.prettyPlease : {}),
+			...(isThemeRecord(originalProps.prettyPlease) ? originalProps.prettyPlease : {}),
+		};
+	}
 	if (mergedStyles) nextProps.markdownStyles = mergedStyles;
 
 	return {
