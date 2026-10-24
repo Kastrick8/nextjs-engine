@@ -115,7 +115,7 @@ function validateContext(
 	if (context.existing !== undefined) assertJsonPayload(context.existing, "existing content");
 	if (context.incoming !== undefined) assertJsonPayload(context.incoming, "incoming content");
 	if (context.metadata !== undefined) assertJsonPayload(context.metadata, "metadata");
-	return cloneAndFreezeJson(context) as EngineThemeDataEventContext;
+	return cloneAndFreezeJson(context as unknown as EngineThemeJsonValue) as unknown as EngineThemeDataEventContext;
 }
 
 /**

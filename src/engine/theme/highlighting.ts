@@ -13,7 +13,7 @@ export interface EngineHighlighterProvider {
 	/** Supported language IDs; aliases are normalized before checking. */
 	languages: readonly string[];
 	/** Synchronous tokenization; output is rendered as safe React text spans, never HTML. */
-	highlight(code: string, language: string): readonly EngineHighlighterToken[];
+	highlight(code: string, language: string): readonly EngineHighlighterToken[] | null;
 }
 
 export interface EngineHighlighterProviderInfo {
