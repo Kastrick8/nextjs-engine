@@ -111,6 +111,8 @@ function testPublicThemeApi() {
 		assert.equal(unregisterEngineHighlighterProvider("smoke-provider"), true);
 
 		let allocatedEvent;
+		const existingContext = { label: "Name" };
+		const incomingContext = { icon: "sort" };
 		const dataHandler = (event) => {
 			allocatedEvent = event;
 			return { operation: "append", value: event.context.incoming };
@@ -124,11 +126,17 @@ function testPublicThemeApi() {
 			componentId: "markdown",
 			slotId: "table.header",
 			direction: "left",
-			existing: { label: "Name" },
-			incoming: { icon: "sort" },
+			existing: existingContext,
+			incoming: incomingContext,
 		}), { operation: "append", value: { icon: "sort" } });
 		assert.equal(allocatedEvent.type, "join:left");
 		assert.equal(Object.isFrozen(allocatedEvent), true);
+		assert.equal(Object.isFrozen(allocatedEvent.context), true);
+		assert.equal(Object.isFrozen(allocatedEvent.context.existing), true);
+		existingContext.label = "mutated after dispatch";
+		incomingContext.icon = "changed";
+		assert.equal(allocatedEvent.context.existing.label, "Name", "handler context is isolated from later caller mutation");
+		assert.equal(allocatedEvent.context.incoming.icon, "sort", "nested event payloads are cloned and frozen");
 		assert.throws(() => dispatchEngineThemeDataEvent("join:left", "missing-handler", {
 			themeId: "theme-runtime-smoke.markdown.dark",
 			componentId: "markdown",
@@ -316,6 +324,22 @@ function run() {
 		assert.equal(cleanup.removedCount, 1, "stale artifacts previously owned by the compiler are removed");
 		assert.equal(fs.existsSync(artifactPath), false);
 		assert.equal(fs.existsSync(protectedPath), true, "stale cleanup never deletes files not owned by NENC");
+
+		const symlinkRoot = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-theme-symlink-"));
+		const outsideDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-theme-outside-"));
+		try {
+			fs.mkdirSync(path.join(symlinkRoot, ".nextjs-engine"), { recursive: true });
+			fs.symlinkSync(outsideDirectory, path.join(symlinkRoot, ".nextjs-engine", "gen3"), "dir");
+			assert.throws(() => compileEngineThemeArtifacts(symlinkRoot, [
+				source(path.join(symlinkRoot, "app", "symlink-theme.tsx"),
+					'import { createTheme } from "nextjs-engine"; createTheme({ id: "symlink-theme" });'),
+			], options), /symbolic link/);
+			assert.deepEqual(fs.readdirSync(outsideDirectory), [],
+				"the compiler refuses to write through a symlink outside the project");
+		} finally {
+			fs.rmSync(symlinkRoot, { recursive: true, force: true });
+			fs.rmSync(outsideDirectory, { recursive: true, force: true });
+		}
 
 		console.log("Generation 3 EngineTheme compiler smoke: ok");
 	} finally {

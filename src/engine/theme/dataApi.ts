@@ -75,10 +75,23 @@ function normalizeBinding(binding: string | EngineThemeDataEventBinding): string
 	return id;
 }
 
+function cloneAndFreezeJson(value: EngineThemeJsonValue): EngineThemeJsonValue {
+	if (value === null || typeof value !== "object") return value;
+	if (Array.isArray(value)) {
+		return Object.freeze(value.map((item) => cloneAndFreezeJson(item))) as unknown as EngineThemeJsonValue;
+	}
+	const output: Record<string, EngineThemeJsonValue> = Object.create(null);
+	for (const [key, child] of Object.entries(value)) output[key] = cloneAndFreezeJson(child);
+	return Object.freeze(output);
+}
+
 function validateContext(
 	type: EngineThemeDataEventType,
 	context: EngineThemeDataEventContext,
 ): EngineThemeDataEventContext {
+	// Validate the whole object before reading any field so getters/accessors can
+	// never run as a side effect of dispatching an event.
+	assertJsonPayload(context, "event context");
 	if (!context || typeof context !== "object" || Array.isArray(context)) {
 		throw new TypeError("EngineTheme Data-API event context must be an object.");
 	}
@@ -99,7 +112,7 @@ function validateContext(
 	if (context.existing !== undefined) assertJsonPayload(context.existing, "existing content");
 	if (context.incoming !== undefined) assertJsonPayload(context.incoming, "incoming content");
 	if (context.metadata !== undefined) assertJsonPayload(context.metadata, "metadata");
-	return context;
+	return cloneAndFreezeJson(context) as EngineThemeDataEventContext;
 }
 
 /**
