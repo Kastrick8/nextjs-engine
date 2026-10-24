@@ -79,9 +79,17 @@ function assertJsonData(
 
   state.active.add(object);
   if (Array.isArray(value)) {
+    const keys = Object.keys(value);
+    if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
+      throw new TypeError("EngineTheme arrays cannot have extra properties or sparse entries at " + path + ".");
+    }
     for (let index = 0; index < value.length; index += 1) {
       if (!(index in value)) throw new TypeError("EngineTheme arrays cannot contain holes at " + path + ".");
-      assertJsonData(value[index], path + "[" + index + "]", state, depth + 1);
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !("value" in descriptor) || descriptor.get || descriptor.set) {
+        throw new TypeError("EngineTheme arrays cannot contain accessors at " + path + "[" + index + "].");
+      }
+      assertJsonData(descriptor.value, path + "[" + index + "]", state, depth + 1);
     }
   } else {
     for (const key of Object.keys(value as Record<string, unknown>)) {
@@ -118,6 +126,9 @@ export function createTheme<T extends EngineThemeDefinition>(
     throw new TypeError("createTheme() expects a plain theme definition object.");
   }
 
+  // Validate before reading properties so getters cannot execute during
+  // construction; themes are plain data, not user-defined runtime objects.
+  assertJsonData(definition, "theme", { nodes: 0, active: new Set<object>() }, 0);
   const candidate = definition as Record<string, unknown>;
   if (typeof candidate.id !== "string" || !GROUP_ID_PATTERN.test(candidate.id)) {
     throw new TypeError("createTheme() requires a group ID without dots, such as mycoolthemes.");
@@ -128,7 +139,6 @@ export function createTheme<T extends EngineThemeDefinition>(
     throw new TypeError("EngineTheme scope must be local, global, or remote.");
   }
 
-  assertJsonData(definition, "theme", { nodes: 0, active: new Set<object>() }, 0);
   const normalized = { ...definition, scope } as T & { scope: EngineThemeScope };
 
   let serialized: string;
