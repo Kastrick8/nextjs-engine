@@ -106,6 +106,8 @@ function startCompiler(projectDir) {
 
 	const cleanup = () => {
 		if (child.exitCode === null && !child.killed) child.kill();
+		// On a failed build, onBuildComplete may not run; restore the terminal before exit.
+		nencLogger.clearStatus();
 		removeState(state);
 	};
 	state.cleanup = cleanup;
