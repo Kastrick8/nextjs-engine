@@ -629,23 +629,27 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
 				reportDiagnostic("unhandled-rejection", "Unhandled promise rejection", event.reason, undefined, normalizeDebugRoute(frameWindow.location.pathname));
 			};
-			const originalConsoleError = frameWindow.console.error;
-			const patchedConsoleError: typeof frameWindow.console.error = (...args) => {
+			// Capture the document-specific console object. frame.contentWindow is a WindowProxy
+			// that starts pointing at the next document after navigation; using it in the old
+			// cleanup can accidentally overwrite the new route's console handler.
+			const frameConsole = frameWindow.console;
+			const originalConsoleError = frameConsole.error;
+			const patchedConsoleError: typeof frameConsole.error = (...args) => {
 				const detail = args.map((argument) => redactEngineDebugText(argument, 1_500)).join("\n");
 				const message = typeof args[0] === "string" ? args[0] : detail || "console.error";
 				reportDiagnostic("console", message, detail, undefined, normalizeDebugRoute(frameWindow.location.pathname));
-				originalConsoleError.apply(frameWindow.console, args);
+				originalConsoleError.apply(frameConsole, args);
 			};
 			let consolePatched = false;
 			try {
-				frameWindow.console.error = patchedConsoleError;
+				frameConsole.error = patchedConsoleError;
 				consolePatched = true;
 			} catch {
 				// Some browser realms reject writes to console methods.
 			}
 			if (!consolePatched) {
 				try {
-					Object.defineProperty(frameWindow.console, "error", {
+					Object.defineProperty(frameConsole, "error", {
 						configurable: true,
 						writable: true,
 						value: patchedConsoleError,
@@ -777,13 +781,13 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				frameWindow.removeEventListener("unhandledrejection", handleUnhandledRejection);
 				if (consolePatched) {
 					try {
-						Object.defineProperty(frameWindow.console, "error", {
+						Object.defineProperty(frameConsole, "error", {
 							configurable: true,
 							writable: true,
 							value: originalConsoleError,
 						});
 					} catch {
-						try { frameWindow.console.error = originalConsoleError; } catch { /* Console method is browser-owned. */ }
+						try { frameConsole.error = originalConsoleError; } catch { /* Console method is browser-owned. */ }
 					}
 				}
 				overlayObserver.disconnect();
