@@ -62,6 +62,8 @@ async function main() {
 		"ordinary prose containing backticks must not be rewritten",
 	);
 	assert.equal(slugifyMarkdownHeading("**NAS** layout `v3`"), "nas-layout-v3");
+	assert.equal(slugifyMarkdownHeading("EngineMarkdown showcase"), "engine-markdown-showcase", "heading slugs split camel-case component names");
+	assert.equal(slugifyMarkdownHeading("NASLayout `v3`"), "nas-layout-v3", "acronym boundaries remain readable in heading slugs");
 
 	const githubIcon = resolveEngineFaviconUrl("https://github.com/Kate-alt-69/nextjs-engine?private=do-not-forward", 18);
 	assert.ok(githubIcon.startsWith("https://www.google.com/s2/favicons?"), "external links should resolve through the favicon provider");

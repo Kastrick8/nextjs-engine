@@ -15,7 +15,7 @@ interface EngineDebugSourcePreview {
 }
 
 const TARGET_COUNTS = new WeakMap<HTMLElement, { count: number; previous: string | null }>();
-const SOURCE_LOCATION = /(?:^|[(/])((?:app|pages|src|components|lib|docs)\/[A-Za-z0-9_./@()[\]-]+\.(?:tsx?|jsx?|mjs|cjs|json|css|md)):(\d+)(?::(\d+))?/g;
+const SOURCE_LOCATION = /(?:^|[\s(/])((?:app|pages|src|components|lib|docs)\/[A-Za-z0-9_./@()[\]-]+\.(?:tsx?|jsx?|mjs|cjs|json|css|md)):(\d+)(?::(\d+))?/g;
 const IGNORED_COMPONENTS = new Set(["Error", "Object", "Promise", "Array", "Function", "React", "Next", "Suspense", "Unknown"]);
 
 export function parseEngineDebugSourceLocation(diagnostic: Pick<EngineDebugDiagnostic, "location" | "message" | "detail">): EngineDebugMappedSource | null {

@@ -34,7 +34,7 @@ try {
 		source: "console",
 		message: "Warning: Text content did not match. Server: \"Loading\" Client: \"Ready\"",
 		detail: "at Home (app/page.tsx:14)",
-		location: "/",
+		route: "/",
 		now: 1_000,
 	});
 	assert.equal(hydration.category, "Hydration", "hydration mismatch messages get a dedicated category");
@@ -114,6 +114,13 @@ try {
 	});
 	assert.deepEqual(mappedSource, { path: "app/page.tsx", line: 14, column: 6 },
 		"inline issue markers extract an authoring file and line/column from a mapped stack");
+	const whitespaceMappedSource = parseEngineDebugSourceLocation({
+		location: "",
+		message: "ENGINE_DEBUG_CAPTURE_SMOKE hydration mismatch at app/page.tsx:14:2",
+		detail: "",
+	});
+	assert.deepEqual(whitespaceMappedSource, { path: "app/page.tsx", line: 14, column: 2 },
+		"source locations are parsed even when a diagnostic path follows whitespace rather than a parenthesis");
 	assert.equal(parseEngineDebugSchemaPath({
 		location: "/",
 		message: "EngineError(E001): [schema:root.children[2]] Unknown node type",
@@ -122,8 +129,14 @@ try {
 
 	const {
 		createEngineDebugSourcePreview,
+		createEngineDebugSourceDocument,
+		saveEngineDebugSourceDocument,
 		applyEngineDebugSourcePatch,
 	} = require("../src/engine/debug/EngineDebugSourceRoute.ts");
+	const {
+		getEngineDebugAutoCompletions,
+		getEngineDebugFixSuggestions,
+	} = require("../src/engine/debug/EngineDebugCodeActions.ts");
 	const sourcePreview = createEngineDebugSourcePreview(process.cwd(), "src/engine/debug/EngineDebugDiagnostics.ts", 1);
 	assert.ok(sourcePreview, "development source preview reads an allowed workspace source file");
 	assert.equal(sourcePreview.path, "src/engine/debug/EngineDebugDiagnostics.ts");
@@ -133,6 +146,58 @@ try {
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), ".env.local", 1), null, "source preview rejects hidden environment files");
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), "node_modules/typescript/lib/typescript.js", 1), null, "source preview rejects dependency directories");
 
+	const brokenHookSource = '"use client";\nexport default function Page() { const [count, setCount] = useState(0); return <button onClick={() => setCount(count + 1)}>{count}</button>; }\n';
+	const completions = getEngineDebugAutoCompletions("app/page.tsx", brokenHookSource);
+	const hookCompletion = completions.find((action) => action.id === "react-hooks-import");
+	assert.ok(hookCompletion, "autocomplete detects used but unimported React hooks");
+	assert.match(hookCompletion.replacement, /^"use client";\nimport \{ useState \} from "react";/);
+	assert.match(hookCompletion.beforePreview, /useState/);
+	assert.match(hookCompletion.afterPreview, /from "react"/);
+	const linkCompletion = getEngineDebugAutoCompletions("app/page.tsx", 'export default function Page() { return <Link href="/">Home</Link>; }\n');
+	assert.match(linkCompletion.find((action) => action.id === "next-link-import")?.replacement ?? "", /import Link from "next\/link"/,
+		"Next.js Link autocomplete uses its default import");
+	const hookDiagnostic = {
+		message: "ReferenceError: useState is not defined",
+		detail: "useState was referenced while rendering app/page.tsx",
+		location: "app/page.tsx:1:34",
+		source: "runtime",
+		category: "Runtime",
+	};
+	assert.ok(getEngineDebugFixSuggestions(hookDiagnostic, "app/page.tsx", brokenHookSource).some((action) => action.id === "react-hooks-import"),
+		"Auto-Fix offers a focused import suggestion for a missing React hook");
+	const clientDiagnostic = {
+		message: "useState can only be used in a Client Component",
+		detail: "Add a use client directive to this component",
+		location: "app/page.tsx:1",
+		source: "next-overlay",
+		category: "SSR",
+	};
+	const clientFix = getEngineDebugFixSuggestions(clientDiagnostic, "app/page.tsx", 'export default function Page() { return useState(0); }\n');
+	assert.match(clientFix.find((action) => action.id === "add-use-client")?.replacement ?? "", /^"use client";\n/);
+	const typoDiagnostic = {
+		message: "Cannot find name 'usState'. Did you mean 'useState'?",
+		detail: "",
+		location: "app/page.tsx:3",
+		source: "next-overlay",
+		category: "SSR",
+	};
+	assert.match(getEngineDebugFixSuggestions(typoDiagnostic, "app/page.tsx", "const count = usState(0);\n").find((action) => action.id === "replace-suggested-identifier")?.replacement ?? "", /useState/,
+		"compiler-suggested identifier fixes are proposed in the editor buffer");
+
+
+	const os = require("node:os");
+	const editorRoot = fs.mkdtempSync(path.join(os.tmpdir(), "engine-debug-editor-"));
+	try {
+		fs.mkdirSync(path.join(editorRoot, "app"), { recursive: true });
+		fs.writeFileSync(path.join(editorRoot, "app/page.tsx"), "before\\n", "utf8");
+		const beforeEdit = createEngineDebugSourceDocument(editorRoot, "app/page.tsx");
+		assert.ok(beforeEdit, "editor can load an allowed source file");
+		const savedEdit = saveEngineDebugSourceDocument(editorRoot, beforeEdit.path, beforeEdit.sha256, "after\\n");
+		assert.equal(savedEdit.status, "saved", "editor saves a version-matched file");
+		assert.equal(fs.readFileSync(path.join(editorRoot, "app/page.tsx"), "utf8"), "after\\n");
+		assert.equal(saveEngineDebugSourceDocument(editorRoot, beforeEdit.path, beforeEdit.sha256, "stale").status, "conflict", "stale edits are rejected");
+		assert.equal(saveEngineDebugSourceDocument(editorRoot, "../.env", beforeEdit.sha256, "forbidden").status, "not-found", "editor rejects traversal");
+	} finally { fs.rmSync(editorRoot, { recursive: true, force: true }); }
 	const tempRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "engine-debug-patch-"));
 	try {
 		const fixturePath = path.join(tempRoot, "src", "app", "page.tsx");
@@ -217,15 +282,21 @@ try {
 	assert.match(createPageSource, /process\.env\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
 		"normal Engine pages only mount the inline diagnostics monitor during development");
 	for (const required of [
+		"Source editor",
+		"Search routes",
+		"ResizeObserver",
 		"unhandledrejection",
 		"frameWindow.addEventListener(\"error\"",
+		"summarizeNextOverlay",
+		"dataset.engineDebugCapturedIssue",
+		"inferRouteFromSourcePath",
 		"Next.js development error overlay",
 		"inferEngineDebugOverlayRoute",
 		"data-engine-debug-next-overlay-hidden",
 		"details in EngineDebug Problems",
 		"console.error",
 		"ErrorInspector",
-		"Copy details",
+		"Copy issue details",
 		"ed-activity",
 		"ed-problem-toolbar",
 		"Waiting for Next.js",
@@ -239,6 +310,9 @@ try {
 
 
 	assert.ok(runtimeMonitorSource.includes('url.searchParams.get("__engine_debug") === "1"'), "normal-page monitor skips the dashboard preview to prevent duplicate overlays");
+	assert.ok(runtimeMonitorSource.includes("__NEXT_ENGINE_DEBUG_INLINE_ACTIVE__"), "normal-page instrumentation avoids double-patching console.error");
+	assert.ok(runtimeMonitorSource.includes("scannedOverlayText"), "overlay observer ignores unchanged overlays when callout mutations trigger rescans");
+	assert.ok(runtimeMonitorSource.includes("existingRoute === activeRoute"), "identical issues do not recreate their inline callout on the same route");
 	const inlineCalloutSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugInlineCallout.ts"), "utf8");
 	for (const required of [
 		"data-engine-debug-error-target",

@@ -9,7 +9,7 @@ var callouts = new Map();
 var recent = new Map();
 var MAX_CALLOUTS = 8;
 var handoffKey = "nextjs-engine:debug:diagnostic-handoff";
-var SOURCE_LOCATION = /(?:^|[(/])((?:app|pages|src|components|lib|docs)\\/[A-Za-z0-9_./@()[\\]-]+\\.(?:tsx?|jsx?|mjs|cjs|json|css|md)):(\\d+)(?::(\\d+))?/g;
+var SOURCE_LOCATION = /(?:^|[\s(/])((?:app|pages|src|components|lib|docs)\\/[A-Za-z0-9_./@()[\\]-]+\\.(?:tsx?|jsx?|mjs|cjs|json|css|md)):(\\d+)(?::(\\d+))?/g;
 var SECRET_PATTERNS = [
 	[/\\bBearer\\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [redacted]"],
 	[/\\b(access[_-]?token|refresh[_-]?token|api[_-]?key|secret|password|authorization)\\s*[:=]\\s*([^\\s,;]+)/gi, "$1=[redacted]"],
