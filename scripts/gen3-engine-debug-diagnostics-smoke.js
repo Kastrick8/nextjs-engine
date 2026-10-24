@@ -87,6 +87,7 @@ try {
 	assert.equal(collection.length, 1, "identical issues are coalesced across routes");
 	assert.match(collection[0].detail, /repeat/, "a repeated message can refresh available detail without losing source context");
 	assert.equal(collection[0].occurrences, 2, "merged errors retain their occurrence count");
+	assert.equal(collection[0].repeatCount, 2, "the older workbench counter stays in sync with occurrence totals");
 	assert.deepEqual(collection[0].routes, ["/", "/guide"], "merged errors retain each affected route");
 	assert.equal(engineDebugDiagnosticFingerprint(hydration), engineDebugDiagnosticFingerprint(duplicate), "fingerprints ignore the route that observed an issue");
 	for (let index = 0; index < 205; index++) {

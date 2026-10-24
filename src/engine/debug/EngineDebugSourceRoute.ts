@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
 import { chmodSync, lstatSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { lstatSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Buffer } from "node:buffer";
 
@@ -27,14 +26,15 @@ export interface EngineDebugSourceDocument {
 	totalLines: number;
 }
 
+export type EngineDebugSourcePatchResult =
+	| { ok: true; preview: EngineDebugSourcePreview }
+	| { ok: false; code: "invalid" | "stale" | "unavailable" | "oversized"; error: string };
+
 interface ResolvedSourceFile {
 	actualPath: string;
 	relativePath: string;
 	mode: number;
 }
-export type EngineDebugSourcePatchResult =
-	| { ok: true; preview: EngineDebugSourcePreview }
-	| { ok: false; code: "invalid" | "stale" | "unavailable" | "oversized"; error: string };
 
 function isLoopbackHost(hostHeader: string | null): boolean {
 	if (!hostHeader) return false;
@@ -55,7 +55,6 @@ function safeSegments(file: string): string[] | null {
 }
 
 function resolveSourceFile(rootDirectory: string, file: string): ResolvedSourceFile | null {
-function resolveSafeSourceFile(rootDirectory: string, file: string): { path: string; relativePath: string } | null {
 	const segments = safeSegments(file);
 	if (!segments) return null;
 	try {
@@ -70,7 +69,6 @@ function resolveSafeSourceFile(rootDirectory: string, file: string): { path: str
 		const fileStat = lstatSync(actualPath);
 		if (!fileStat.isFile() || fileStat.size > MAX_SOURCE_BYTES) return null;
 		return { actualPath, relativePath: actualRelative.split(sep).join("/"), mode: fileStat.mode };
-		return { path: actualPath, relativePath: actualRelative.split(sep).join("/") };
 	} catch {
 		return null;
 	}
@@ -88,27 +86,6 @@ export function createEngineDebugSourcePreview(rootDirectory: string, file: stri
 		const startLine = Math.max(1, requestedLine - CONTEXT_LINES);
 		const endLine = Math.min(allLines.length, requestedLine + CONTEXT_LINES);
 		return { path: resolved.relativePath, startLine, highlightLine: requestedLine, totalLines: allLines.length, lines: allLines.slice(startLine - 1, endLine).map((text, index) => ({ number: startLine + index, text })) };
-export function createEngineDebugSourcePreview(
-	rootDirectory: string,
-	file: string,
-	requestedLine: number,
-): EngineDebugSourcePreview | null {
-	if (!Number.isSafeInteger(requestedLine) || requestedLine < 1 || requestedLine > 10_000_000) return null;
-	const target = resolveSafeSourceFile(rootDirectory, file);
-	if (!target) return null;
-	try {
-		const source = readFileSync(target.path, "utf8");
-		const allLines = source.split(/\r?\n/);
-		const line = Math.min(requestedLine, Math.max(1, allLines.length));
-		const startLine = Math.max(1, line - CONTEXT_LINES);
-		const endLine = Math.min(allLines.length, line + CONTEXT_LINES);
-		return {
-			path: target.relativePath,
-			startLine,
-			highlightLine: line,
-			totalLines: allLines.length,
-			lines: allLines.slice(startLine - 1, endLine).map((text, index) => ({ number: startLine + index, text })),
-		};
 	} catch {
 		return null;
 	}
@@ -151,6 +128,13 @@ export function saveEngineDebugSourceDocument(rootDirectory: string, file: strin
 	}
 	const saved = createEngineDebugSourceDocument(rootDirectory, file);
 	return saved ? { status: "saved", document: saved } : { status: "failed" };
+}
+
+
+function resolveSafeSourceFile(rootDirectory: string, file: string): ResolvedSourceFile | null {
+	return resolveSourceFile(rootDirectory, file);
+}
+
 export function applyEngineDebugSourcePatch(
 	rootDirectory: string,
 	file: string,
@@ -175,7 +159,8 @@ export function applyEngineDebugSourcePatch(
 	const target = resolveSafeSourceFile(rootDirectory, file);
 	if (!target) return { ok: false, code: "unavailable", error: "The source file is unavailable or outside the permitted workspace." };
 	try {
-		const source = readFileSync(target.path, "utf8");
+		const source = readFileSync(target.actualPath, "utf8");
+		const sourceSha256 = createHash("sha256").update(source, "utf8").digest("hex");
 		const lineEnding = source.includes("\r\n") ? "\r\n" : "\n";
 		const currentLines = source.split(/\r?\n/);
 		const offset = startLine - 1;
@@ -191,14 +176,24 @@ export function applyEngineDebugSourcePatch(
 		if (Buffer.byteLength(updated, "utf8") > MAX_SOURCE_BYTES) {
 			return { ok: false, code: "oversized", error: "The saved source would exceed the permitted 1 MiB file limit." };
 		}
-		writeFileSync(target.path, updated, "utf8");
-		const nextHighlight = Math.min(Math.max(1, startLine + Math.max(0, highlightLine - startLine)), Math.max(1, updatedLines.length));
-		const preview = createEngineDebugSourcePreview(rootDirectory, target.relativePath, nextHighlight);
-		return preview
-			? { ok: true, preview }
-			: { ok: false, code: "unavailable", error: "The file was saved, but its updated source preview could not be reloaded." };
+		const latest = createEngineDebugSourceDocument(rootDirectory, file);
+		if (!latest || latest.sha256 !== sourceSha256) {
+			return { ok: false, code: "stale", error: "The source file changed while the patch was being applied. Reload it before saving." };
+		}
+		const temporaryPath = target.actualPath + ".engine-debug-patch-" + randomBytes(6).toString("hex") + ".tmp";
+		try {
+			writeFileSync(temporaryPath, updated, { encoding: "utf8", flag: "wx", mode: target.mode & 0o777 });
+			chmodSync(temporaryPath, target.mode & 0o777);
+			renameSync(temporaryPath, target.actualPath);
+		} catch {
+			try { unlinkSync(temporaryPath); } catch { /* Nothing to clean up. */ }
+			return { ok: false, code: "unavailable", error: "The source patch could not be saved atomically." };
+		}
+		const previewLine = Math.min(highlightLine, Math.max(1, updatedLines.length));
+		const preview = createEngineDebugSourcePreview(rootDirectory, file, previewLine);
+		return preview ? { ok: true, preview } : { ok: false, code: "unavailable", error: "The source file was saved but its updated preview could not be generated." };
 	} catch {
-		return { ok: false, code: "unavailable", error: "The source file could not be written. Check workspace permissions and try again." };
+		return { ok: false, code: "unavailable", error: "The source patch could not be applied." };
 	}
 }
 
@@ -245,44 +240,24 @@ export async function POST(request: Request): Promise<Response> {
 	try { payload = JSON.parse(rawBody); } catch { return jsonResponse({ error: "Source edit request must contain valid JSON." }, 400); }
 	if (!payload || typeof payload !== "object") return jsonResponse({ error: "Source edit request is invalid." }, 400);
 	const body = payload as Record<string, unknown>;
-	if (typeof body.file !== "string" || typeof body.content !== "string" || typeof body.expectedSha256 !== "string") return jsonResponse({ error: "file, content, and expectedSha256 are required." }, 400);
-	const result = saveEngineDebugSourceDocument(process.cwd(), body.file, body.expectedSha256, body.content);
-	if (result.status === "not-found") return jsonResponse({ error: "The source file is unavailable or outside the allowed workspace." }, 404);
-	if (result.status === "conflict") return jsonResponse({ error: "This file changed after it was loaded. Reload before saving to avoid overwriting newer changes." }, 409);
-	if (result.status === "too-large") return jsonResponse({ error: "Edited source exceeds the 1 MiB per-file limit." }, 413);
-	if (result.status === "failed") return jsonResponse({ error: "The source file could not be saved atomically." }, 500);
-	return jsonResponse({ ok: true, ...result.document }, 200);
-	if (!isLoopbackHost(request.headers.get("host"))) return jsonResponse({ error: "Source editing is restricted to localhost development." }, 403);
-	const url = new URL(request.url);
-	const origin = request.headers.get("origin");
-	if (!origin || origin !== url.origin) return jsonResponse({ error: "A same-origin request is required to save source edits." }, 403);
-	const fetchSite = request.headers.get("sec-fetch-site");
-	if (fetchSite && fetchSite !== "same-origin") return jsonResponse({ error: "Cross-origin source edits are not allowed." }, 403);
-	if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
-		return jsonResponse({ error: "Source edits must use application/json." }, 415);
+	if (typeof body.file !== "string") return jsonResponse({ error: "A relative source file is required." }, 400);
+
+	if (typeof body.content === "string" && typeof body.expectedSha256 === "string") {
+		const result = saveEngineDebugSourceDocument(process.cwd(), body.file, body.expectedSha256, body.content);
+		if (result.status === "not-found") return jsonResponse({ error: "The source file is unavailable or outside the allowed workspace." }, 404);
+		if (result.status === "conflict") return jsonResponse({ error: "This file changed after it was loaded. Reload before saving to avoid overwriting newer changes." }, 409);
+		if (result.status === "too-large") return jsonResponse({ error: "Edited source exceeds the 1 MiB per-file limit." }, 413);
+		if (result.status === "failed") return jsonResponse({ error: "The source file could not be saved atomically." }, 500);
+		return jsonResponse({ ok: true, ...result.document }, 200);
 	}
-	const contentLength = Number(request.headers.get("content-length") ?? "0");
-	if (Number.isFinite(contentLength) && contentLength > MAX_PATCH_BYTES + 32_768) {
-		return jsonResponse({ error: "The source patch request is too large." }, 413);
-	}
-	let body: unknown;
-	try {
-		const raw = await request.text();
-		if (Buffer.byteLength(raw, "utf8") > MAX_PATCH_BYTES + 32_768) return jsonResponse({ error: "The source patch request is too large." }, 413);
-		body = JSON.parse(raw);
-	} catch {
-		return jsonResponse({ error: "The source patch request is not valid JSON." }, 400);
-	}
-	if (!body || typeof body !== "object") return jsonResponse({ error: "The source patch is invalid." }, 400);
-	const input = body as Record<string, unknown>;
-	if (typeof input.file !== "string") return jsonResponse({ error: "A relative source file is required." }, 400);
+
 	const result = applyEngineDebugSourcePatch(
 		process.cwd(),
-		input.file,
-		Number(input.startLine),
-		Number(input.highlightLine),
-		input.originalLines,
-		input.replacementLines,
+		body.file,
+		Number(body.startLine),
+		Number(body.highlightLine),
+		body.originalLines,
+		body.replacementLines,
 	);
 	if (result.ok) return jsonResponse({ ok: true, preview: result.preview }, 200);
 	const status = result.code === "stale" ? 409 : result.code === "oversized" ? 413 : result.code === "invalid" ? 400 : 404;
