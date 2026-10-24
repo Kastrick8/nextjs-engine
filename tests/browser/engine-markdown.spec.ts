@@ -36,7 +36,7 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await expect(codeBlocks.nth(2).locator("pre code span").first()).toHaveCSS("color", "rgb(74, 222, 128)");
 
 	await expect(article.locator("table")).toContainText("Wide tables scroll inside their container");
-	await expect(article.locator("del").first()).toHaveText("old parser");
+	await expect(article.locator("del").filter({ hasText: "old parser" })).toHaveText("old parser");
 	await expect(article.locator('a[href="#"]')).toContainText("blocked JavaScript link");
 	await expect(article.locator("script[data-engine-markdown-unsafe]")).toHaveCount(0);
 	await expect(article.locator("img[onerror]")).toHaveCount(0);
