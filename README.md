@@ -199,7 +199,7 @@ const withEngine = require("nextjs-engine/plugin")
 module.exports = withEngine({})
 ```
 
-The combined Generation 3 plugin stores compiled provider JSON at `.nextjs-engine/config/.apiconfig.json`. The standalone Generation 2 API plugin keeps `.engine-api-compiled.json` at the project root. Both accept the existing `.EngineAPIConfig/*.api` source format during migration; the JSON is generated output, may contain expanded credentials, and is Git-ignored. See [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md#generation-3--combined-plugin-and-config-path).
+The combined Generation 3 plugin stores compiled provider JSON at `.nextjs-engine/config/.apiconfig.json`. The standalone Generation 2 API plugin keeps `.engine-api-compiled.json` at the project root. Both accept the existing `.EngineAPIConfig/*.api` source format during migration; the JSON is generated output, may contain expanded credentials, and is Git-ignored. See [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md).
 
 Specialized plugin entrypoints remain available for advanced setups:
 
