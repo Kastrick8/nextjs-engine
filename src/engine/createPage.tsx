@@ -132,7 +132,7 @@ function createMarkdownSchema(options: CreateMarkdownPageOptions): PageSchema {
 	};
 }
 
-const MARKDOWN_THEME_PROP_KEYS = new Set([reatePageOptions): NormalizedCreateOptions {
+function normalizeCreateOptions(options: CreatePageOptions): NormalizedCreateOptions {
 	const { config, handlers, slots, mobile, tablet, compiler } = options;
 	if (isSchemaOption(options)) return { schema: options.schema, config, handlers, slots, mobile, tablet, compiler };
 	if (isDirectSchemaOption(options)) {
@@ -284,7 +284,7 @@ export function createPage(options: CreatePageOptions): EnginePageComponent {
 
 export function createComponent(options: CreateComponentOptions): React.FC<EngineComponentProps> {
 	const normalized = normalizeCreateOptions(options);
-	const schema = resolveSchemaTheme(normalized.schema);
+	const schema = resolveEngineThemeSchema(normalized.schema);
 	const { config, handlers, slots, compiler } = normalized;
 	const hasNamedHandlers = handlers !== undefined && Object.keys(handlers).length > 0;
 	const useServerFirstRenderer = compiler?.serverFirst !== false && !hasNamedHandlers;
