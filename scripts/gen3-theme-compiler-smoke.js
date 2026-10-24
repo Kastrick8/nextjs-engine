@@ -14,41 +14,119 @@ const {
 } = require("../src/engine/plugins/gen3ThemeCompiler");
 
 function testPublicThemeApi() {
-	const filePath = path.resolve(__dirname, "../src/engine/theme/createTheme.ts");
-	const sourceText = fs.readFileSync(filePath, "utf8");
-	const transpiled = ts.transpileModule(sourceText, {
-		compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
-		fileName: filePath,
-		reportDiagnostics: true,
-	});
-	const errors = (transpiled.diagnostics || []).filter((item) => item.category === ts.DiagnosticCategory.Error);
-	assert.deepEqual(errors, [], "createTheme source transpiles without syntax diagnostics");
-	const loaded = new Module(filePath, module);
-	loaded.filename = filePath;
-	loaded.paths = Module._nodeModulePaths(path.dirname(loaded.filename));
-	loaded._compile(transpiled.outputText, loaded.filename);
-	const { createTheme, parseEngineThemeId } = loaded.exports;
+	const previousTsExtension = Module._extensions[".ts"];
+	Module._extensions[".ts"] = (loadedModule, filePath) => {
+		const sourceText = fs.readFileSync(filePath, "utf8");
+		const transpiled = ts.transpileModule(sourceText, {
+			compilerOptions: {
+				module: ts.ModuleKind.CommonJS,
+				target: ts.ScriptTarget.ES2020,
+				jsx: ts.JsxEmit.ReactJSX,
+			},
+			fileName: filePath,
+			reportDiagnostics: true,
+		});
+		const errors = (transpiled.diagnostics || []).filter((item) => item.category === ts.DiagnosticCategory.Error);
+		assert.deepEqual(errors, [], filePath + " must transpile without syntax diagnostics");
+		loadedModule._compile(transpiled.outputText, filePath);
+	};
 
-	const definition = createTheme({
-		id: "safe-theme",
-		tokens: { colors: { text: "#fff" } },
-		markdown: { variants: { dark: { codeBackground: "#111" } } },
-	});
-	assert.equal(definition.scope, "local", "scope defaults to local");
-	assert.equal(Object.isFrozen(definition), true, "returned theme group is frozen");
-	assert.equal(Object.isFrozen(definition.tokens.colors), true, "nested theme values are frozen");
-	assert.deepEqual(parseEngineThemeId("mycoolthemes.markdown.1.2.560"), {
-		groupId: "mycoolthemes", componentId: "markdown", subthemes: ["1", "2", "560"],
-	});
-	assert.throws(() => parseEngineThemeId("mycoolthemes.markdown.a.b.c.d"), /at most three subtheme segments/);
-	assert.throws(() => createTheme({ id: "my.theme" }), /group ID without dots/);
-	assert.throws(() => createTheme({ id: "function-theme", markdown: { build: () => true } }), /JSON data/);
+	try {
+		const themePath = path.resolve(__dirname, "../src/engine/theme/createTheme.ts");
+		const resolverPath = path.resolve(__dirname, "../src/engine/theme/resolveTheme.ts");
+		const { createTheme, parseEngineThemeId } = require(themePath);
+		const { resolveEngineThemeSchema } = require(resolverPath);
 
-	let getterCalled = false;
-	const accessorTheme = {};
-	Object.defineProperty(accessorTheme, "id", { enumerable: true, get() { getterCalled = true; return "unsafe"; } });
-	assert.throws(() => createTheme(accessorTheme), /accessors/);
-	assert.equal(getterCalled, false, "accessor validation must not execute the getter");
+		const definition = createTheme({
+			id: "safe-theme",
+			tokens: { colors: { text: "#fff" } },
+			markdown: { variants: { dark: { defaults: { codeBackground: "#111" } } } },
+		});
+		assert.equal(definition.scope, "local", "scope defaults to local");
+		assert.equal(Object.isFrozen(definition), true, "returned theme group is frozen");
+		assert.equal(Object.isFrozen(definition.tokens.colors), true, "nested theme values are frozen");
+		assert.deepEqual(parseEngineThemeId("mycoolthemes.markdown.1.2.560"), {
+			groupId: "mycoolthemes", componentId: "markdown", subthemes: ["1", "2", "560"],
+		});
+		assert.throws(() => parseEngineThemeId("mycoolthemes.markdown.a.b.c.d"), /at most three subtheme segments/);
+		assert.throws(() => createTheme({ id: "my.theme" }), /group ID without dots/);
+		assert.throws(() => createTheme({ id: "function-theme", markdown: { build: () => true } }), /JSON data/);
+
+		let getterCalled = false;
+		const accessorTheme = {};
+		Object.defineProperty(accessorTheme, "id", { enumerable: true, get() { getterCalled = true; return "unsafe"; } });
+		assert.throws(() => createTheme(accessorTheme), /accessors/);
+		assert.equal(getterCalled, false, "accessor validation must not execute the getter");
+
+		createTheme({
+			id: "theme-runtime-smoke",
+			scope: "global",
+			vars: { "--runtime-accent": "#aabbcc" },
+			fonts: ["https://fonts.example.invalid/theme.css"],
+			markdown: {
+				defaults: {
+					codeBackground: "#111111",
+					codeColor: "#eeeeee",
+				},
+				styles: {
+					codeBlock: { borderRadius: "10px", color: "#e0e0e0" },
+				},
+				variants: {
+					dark: {
+						defaults: { codeBackground: "#222222" },
+						styles: { codeBlock: { boxShadow: "0 0 2px #fff" } },
+					},
+				},
+			},
+		});
+		const pageSchema = {
+			theme: { id: "theme-runtime-smoke.markdown.dark" },
+			root: {
+				type: "section",
+				children: [{
+					type: "markdown",
+					props: {
+						content: "test",
+						codeBackground: "#333333",
+						markdownStyles: { codeBlock: { padding: "8px" } },
+					},
+				}],
+			},
+		};
+		const resolvedPage = resolveEngineThemeSchema(pageSchema);
+		assert.equal(resolvedPage.theme.id, "theme-runtime-smoke", "qualified references retain the group theme for CSS/fonts");
+		assert.equal(resolvedPage.theme.vars["--runtime-accent"], "#aabbcc");
+		assert.equal(resolvedPage.theme.fonts.length, 1);
+		const markdownProps = resolvedPage.root.children[0].props;
+		assert.equal(markdownProps.codeBackground, "#333333", "explicit node props beat theme defaults");
+		assert.equal(markdownProps.codeColor, "#eeeeee", "base theme defaults survive variant overrides");
+		assert.equal(markdownProps.markdownStyles.codeBlock.borderRadius, "10px");
+		assert.equal(markdownProps.markdownStyles.codeBlock.boxShadow, "0 0 2px #fff");
+		assert.equal(markdownProps.markdownStyles.codeBlock.padding, "8px", "local style-slot properties merge last");
+
+		const localTheme = createTheme({
+			id: "local-theme-runtime-smoke",
+			scope: "local",
+			markdown: { defaults: { codeColor: "#abcdef" } },
+		});
+		const localPage = resolveEngineThemeSchema({
+			theme: localTheme,
+			root: { type: "markdown", props: { content: "local" } },
+		});
+		assert.equal(localPage.root.props.codeColor, "#abcdef", "a local theme definition can be applied directly");
+
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: { id: "missing-theme.markdown.dark" },
+			root: { type: "markdown", props: { content: "missing" } },
+		}), /not globally registered/);
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: { id: "remote-theme.markdown.dark", sourceUrl: "https://example.invalid/theme.etr" },
+			root: { type: "markdown", props: { content: "remote" } },
+		}), /Remote EngineTheme fetching is not enabled/);
+	} finally {
+		if (previousTsExtension) Module._extensions[".ts"] = previousTsExtension;
+		else delete Module._extensions[".ts"];
+	}
 }
 
 function source(filePath, text) {
