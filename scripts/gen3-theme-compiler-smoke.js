@@ -23,8 +23,8 @@ function testPublicThemeApi() {
 	});
 	const errors = (transpiled.diagnostics || []).filter((item) => item.category === ts.DiagnosticCategory.Error);
 	assert.deepEqual(errors, [], "createTheme source transpiles without syntax diagnostics");
-	const loaded = new Module(filePath.replace(/\\.ts$/, ".js"), module);
-	loaded.filename = filePath.replace(/\\.ts$/, ".js");
+	const loaded = new Module(filePath, module);
+	loaded.filename = filePath;
 	loaded.paths = Module._nodeModulePaths(path.dirname(loaded.filename));
 	loaded._compile(transpiled.outputText, loaded.filename);
 	const { createTheme, parseEngineThemeId } = loaded.exports;
