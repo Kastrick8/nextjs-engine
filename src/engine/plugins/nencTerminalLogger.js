@@ -124,6 +124,9 @@ function formatWorkerStatus(slots) {
 function liveStatusText(state) {
 	const workerStatus = formatWorkerStatus(state.workerSlots);
 	if (workerStatus) return workerStatus;
+	// The compiler worker runs in a child process and sends its already-formatted
+	// worker row over IPC; preserve it over incidental Next.js phase messages.
+	if (state.statuses.workers && state.statuses.workers.message) return state.statuses.workers.message;
 	const hasRouteBatch = state.source === "nextjs" && state.routeBatchTotal > 0 && state.routeBatchStartedAt;
 	const progress = hasRouteBatch ? " · " + formatRouteProgress(state.routeBatchCompleted, state.routeBatchTotal) : "";
 	const elapsed = hasRouteBatch ? " · " + ((Date.now() - state.routeBatchStartedAt) / 1000).toFixed(1) + "s elapsed" : "";
