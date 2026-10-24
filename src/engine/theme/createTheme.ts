@@ -1,5 +1,7 @@
 import type {
   EngineThemeDefinition,
+  EngineThemeJsonObject,
+  EngineThemeJsonValue,
   EngineThemeScope,
 } from "../schema/types";
 
@@ -9,6 +11,110 @@ const MAX_THEME_LENGTH = 512 * 1024;
 const GROUP_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const SEGMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const DANGEROUS_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+
+interface RegisteredTheme {
+  definition: Readonly<EngineThemeDefinition>;
+  canonical: string;
+}
+
+export interface ResolvedEngineThemeGroup {
+  group: Readonly<EngineThemeDefinition>;
+  componentId?: string;
+  components: Record<string, EngineThemeJsonObject>;
+}
+
+const globalThemes = new Map<string, RegisteredTheme>();
+const NON_COMPONENT_KEYS = new Set([
+  "id", "scope", "sourceUrl", "name", "metadata", "version",
+  "vars", "fonts", "globalStyles", "tokens", "components",
+]);
+
+function isJsonObject(value: unknown): value is EngineThemeJsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function canonicalThemeJson(value: EngineThemeJsonValue | EngineThemeDefinition): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map((item) => canonicalThemeJson(item)).join(",") + "]";
+  const record = value as Record<string, EngineThemeJsonValue>;
+  return "{" + Object.keys(record).sort().map((key) =>
+    JSON.stringify(key) + ":" + canonicalThemeJson(record[key])).join(",") + "}";
+}
+
+function mergeThemeObjects(base: EngineThemeJsonObject, overlay: EngineThemeJsonObject): EngineThemeJsonObject {
+  const merged: Record<string, EngineThemeJsonValue> = { ...base };
+  for (const key of Object.keys(overlay)) {
+    const previous = merged[key];
+    const next = overlay[key];
+    merged[key] = isJsonObject(previous) && isJsonObject(next)
+      ? mergeThemeObjects(previous, next)
+      : next;
+  }
+  return merged;
+}
+
+function getGroupComponents(group: Readonly<EngineThemeDefinition>): Record<string, EngineThemeJsonObject> {
+  const components: Record<string, EngineThemeJsonObject> = {};
+  if (isJsonObject(group.components)) {
+    for (const [name, definition] of Object.entries(group.components)) {
+      if (isJsonObject(definition)) components[name] = definition;
+    }
+  }
+  for (const [name, definition] of Object.entries(group)) {
+    if (NON_COMPONENT_KEYS.has(name) || !isJsonObject(definition)) continue;
+    components[name] = definition;
+  }
+  return components;
+}
+
+/**
+ * Resolve an ID-only PageSchema reference against globally registered theme
+ * groups. This is deliberately synchronous and performs no network access.
+ */
+export function resolveRegisteredEngineTheme(id: string): ResolvedEngineThemeGroup {
+  const parsed = parseEngineThemeId(id);
+  const registered = globalThemes.get(parsed.groupId);
+  if (!registered) {
+    throw new Error(
+      "EngineTheme group '" + parsed.groupId + "' is not globally registered. "
+      + "Import its createTheme() definition before creating the page. Remote URL resolution is handled separately.",
+    );
+  }
+  const group = registered.definition;
+  if (group.scope !== "global") {
+    throw new Error("EngineTheme ID references require scope global; local themes must be supplied as theme objects.");
+  }
+
+  if (!parsed.componentId) {
+    return { group, components: getGroupComponents(group) };
+  }
+
+  const groupRecord = group as Record<string, unknown>;
+  const rawComponent = groupRecord[parsed.componentId]
+    ?? (isJsonObject(group.components) ? group.components[parsed.componentId] : undefined);
+  if (!isJsonObject(rawComponent)) {
+    throw new Error("EngineTheme '" + id + "' references missing component '" + parsed.componentId + "'.");
+  }
+
+  let activeVariant: EngineThemeJsonObject = rawComponent;
+  let merged: EngineThemeJsonObject = { ...rawComponent };
+  for (const segment of parsed.subthemes) {
+    const variants = activeVariant.variants;
+    const variant = isJsonObject(variants) ? variants[segment] : undefined;
+    if (!isJsonObject(variant)) {
+      throw new Error("EngineTheme '" + id + "' references missing subtheme '" + segment + "'.");
+    }
+    merged = mergeThemeObjects(merged, variant);
+    activeVariant = variant;
+  }
+  delete merged.variants;
+
+  return {
+    group,
+    componentId: parsed.componentId,
+    components: { [parsed.componentId]: merged },
+  };
+}
 
 export interface ParsedEngineThemeId {
   groupId: string;
@@ -155,5 +261,21 @@ export function createTheme<T extends EngineThemeDefinition>(
   // registered/build-time definition. Themes are generally created once at
   // module initialization, so this bounded copy is cheaper than runtime work.
   const clone = JSON.parse(serialized) as T & { scope: EngineThemeScope };
-  return freezeDeep(clone);
+  const frozen = freezeDeep(clone);
+
+  if (scope === "global") {
+    const canonical = canonicalThemeJson(frozen);
+    const existing = globalThemes.get(frozen.id);
+    if (existing && existing.canonical !== canonical) {
+      throw new Error("EngineTheme group ID '" + frozen.id + "' is already registered with a different definition.");
+    }
+    if (!existing) {
+      globalThemes.set(frozen.id, {
+        definition: frozen as Readonly<EngineThemeDefinition>,
+        canonical,
+      });
+    }
+  }
+
+  return frozen;
 }
