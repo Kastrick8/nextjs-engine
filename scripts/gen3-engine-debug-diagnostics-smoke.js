@@ -77,7 +77,7 @@ try {
 	const duplicate = createEngineDebugDiagnostic({
 		source: "console",
 		message: hydration.message,
-		detail: "repeat",
+		detail: hydration.detail + "\nrepeat",
 		location: "/",
 		route: "/guide",
 		now: 1_500,
