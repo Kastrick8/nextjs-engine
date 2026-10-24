@@ -143,7 +143,15 @@ function createSchemaOutputCache(projectRoot) {
 		try {
 			fs.mkdirSync(path.dirname(file), { recursive: true });
 			fs.writeFileSync(temporary, JSON.stringify(entry), { encoding: "utf8", flag: "wx" });
-			fs.renameSync(temporary, file);
+			try {
+				fs.renameSync(temporary, file);
+			} catch (error) {
+				// Windows can refuse to rename over an existing file. The entry is an
+				// optimization, so remove only this job's old entry and retry atomically.
+				if (!fs.existsSync(file) || !error || !["EEXIST", "EPERM", "ENOTEMPTY"].includes(error.code)) throw error;
+				fs.rmSync(file, { force: true });
+				fs.renameSync(temporary, file);
+			}
 			return true;
 		} catch {
 			try { fs.rmSync(temporary, { force: true }); } catch { /* Cache writes are best-effort. */ }
