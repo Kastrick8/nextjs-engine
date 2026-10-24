@@ -50,6 +50,7 @@ try {
 	const generatedSourceRoute = fs.readFileSync(sourceRouteFile, "utf8");
 	assert.ok(generatedSourceRoute.startsWith(GENERATED_MARKER));
 	assert.match(generatedSourceRoute, /export \{ GET, POST \} from/);
+	assert.equal((generatedSourceRoute.match(/export \{ GET, POST \} from/g) ?? []).length, 1, "generated source route exports the editor handlers exactly once");
 	const generatedRoutesRoute = fs.readFileSync(routesRouteFile, "utf8");
 	assert.ok(generatedRoutesRoute.startsWith(GENERATED_MARKER));
 	assert.match(generatedRoutesRoute, /export \{ GET \} from/);
