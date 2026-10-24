@@ -256,7 +256,7 @@ try {
 	});
 	const editorSyntaxErrors = (editorCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error);
 	assert.equal(editorSyntaxErrors.length, 0, "EngineDebug editor TSX parses cleanly: " + editorSyntaxErrors.map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
-	for (const required of ["EngineDebugFixEditor", "ed-route-search", "Fit preview to available space", "source !== \"next-overlay\"", "ed-selected-detail", "route: routeOverride ?? frameWindow.location.pathname"]) {
+	for (const required of ["EngineDebugDynamicRoutePicker", "inferEngineDebugOverlayRoute", "matchesEngineDebugRoutePattern", "ed-route-search", "ResizeObserver", "source !== \"console\"", "ed-selected-problem", "expectedSha256", "route: route ?? normalizeDebugRoute(frameWindow.location.pathname)"]) {
 		assert.ok(pageSource.includes(required), "dashboard contains " + required);
 	}
 	for (const required of ["Suggest auto-fix", "Apply changes", "originalLines", "replacementLines", "Unapplied changes", "ed-fix-diff"]) assert.ok(editorSource.includes(required), "source editor contains " + required);
