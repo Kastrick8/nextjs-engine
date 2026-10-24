@@ -16,6 +16,7 @@ import React, {
 import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MarkdownProps } from "../schema/types";
+import { getEngineHighlighterColor, highlightEngineCode, normalizeEngineThemeColor } from "../theme/highlighting";
 import { EngineUrlIcon } from "./EngineUrlIcon";
 import {
 	normalizeEngineMarkdownSource,
@@ -68,6 +69,7 @@ interface MarkdownRenderConfig {
 	codeBorderColor: string;
 	codeFontFamily: string;
 	showCodeLanguage: boolean;
+	prettyPlease?: MarkdownProps["prettyPlease"];
 	markdownStyles?: MarkdownProps["markdownStyles"];
 	ansiPalette: EngineAnsiPalette;
 	ansiForeground: string;
@@ -293,18 +295,41 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			const language = codeLanguage(children);
 			const codeChildren = Children.map(children, (child) => {
 				if (!isValidElement<{ style?: CSSProperties; children?: ReactNode }>(child)) return child;
-				const ansiChildren = language?.toLowerCase() === "ansi"
-					? parseEngineAnsi(
-						reactNodeText(child.props.children),
+				const sourceText = reactNodeText(child.props.children);
+				let renderedChildren: ReactNode = child.props.children;
+				if (language?.toLowerCase() === "ansi") {
+					renderedChildren = parseEngineAnsi(
+						sourceText,
 						config.ansiPalette,
 						config.ansiForeground,
 						config.ansiBackground,
 					).map((segment, index) => (
 						<span key={index} style={segment.style}>{segment.text}</span>
-					))
-					: child.props.children;
+					));
+				} else if (language && config.prettyPlease?.mode !== "none") {
+					const tokens = highlightEngineCode(sourceText, language, {
+						provider: config.prettyPlease?.provider,
+						theme: config.prettyPlease?.theme,
+						palette: config.prettyPlease?.palette,
+					});
+					if (tokens) {
+						renderedChildren = tokens.map((token, index) => (
+							<span
+								key={index}
+								className={"e-md-token e-md-token--" + token.kind}
+								style={{
+									color: getEngineHighlighterColor(token.kind, {
+										theme: config.prettyPlease?.theme,
+										palette: config.prettyPlease?.palette,
+										fallbackForeground: config.codeColor,
+									}),
+								}}
+							>{token.text}</span>
+						));
+					}
+				}
 				return cloneElement(child, {
-					children: ansiChildren,
+					children: renderedChildren,
 					style: {
 						...child.props.style,
 						display: "block",
@@ -439,13 +464,14 @@ export function EngineMarkdownRenderer({
 	animationStagger = 50,
 	disablepointformarkdownhash = false,
 	disablepointformarkdownhashhash = false,
-	codeBackground = "#0b1020",
+	codeBackground: codeBackgroundProp,
 	codeColor = "#e6edf3",
 	inlineCodeBackground = "rgba(148,163,184,.14)",
 	inlineCodeColor = headingColor,
 	codeBorderColor = "rgba(148,163,184,.28)",
 	codeFontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
 	showCodeLanguage = true,
+	prettyPlease = { mode: "auto", provider: "engine-lite", theme: "vscode-dark" },
 	"emd_show-url-icon": showUrlIcon = false,
 	"emd_url-icon-size": urlIconSize = "auto",
 	markdownStyles,
@@ -460,6 +486,8 @@ export function EngineMarkdownRenderer({
 	articleId,
 }: EngineMarkdownRendererProps) {
 	const normalizedContent = normalizeEngineMarkdownSource(content);
+	const paletteBackground = normalizeEngineThemeColor(prettyPlease?.palette?.background);
+	const codeBackground = codeBackgroundProp ?? paletteBackground ?? "#0b1020";
 	const renderConfig: MarkdownRenderConfig = {
 		textColor,
 		headingColor,
@@ -481,6 +509,7 @@ export function EngineMarkdownRenderer({
 		codeBorderColor,
 		codeFontFamily,
 		showCodeLanguage,
+		prettyPlease,
 		markdownStyles,
 		ansiPalette,
 		ansiForeground: ansiForeground ?? codeColor,
