@@ -99,7 +99,12 @@ function run() {
 		assert.ok(serverSource.includes('"auth": "account"'));
 		assert.ok(routeSource.startsWith(GENERATED_MARKER));
 		assert.ok(faviconRouteSource.startsWith(GENERATED_MARKER), "favicon route must be protected by the generated-file marker");
-		assert.match(faviconRouteSource, /Downloading private asset: favicon =/);
+		assert.match(faviconRouteSource, /allocateWorkerTask/);
+		assert.match(faviconRouteSource, /target: "ICON:" \+ target\.domain/);
+		assert.match(faviconRouteSource, /readFaviconBytes/);
+		assert.match(faviconRouteSource, /bytesPerSecond/);
+		assert.match(faviconRouteSource, /finishWorkerTask/);
+		assert.match(faviconRouteSource, /downloaded icon:/);
 		assert.match(faviconRouteSource, /nencTerminalLogger\.done/);
 		assert.match(faviconRouteSource, /nencTerminalLogger\.failed/);
 		assert.ok(faviconRouteSource.includes("nencTerminalLogger from "),

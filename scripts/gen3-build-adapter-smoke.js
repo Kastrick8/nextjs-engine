@@ -5,7 +5,17 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+const originalNodeEnv = process.env.NODE_ENV;
+process.env.NODE_ENV = "development";
 const plugin = require("../src/engine/plugins/enginePlugin");
+plugin({}, {});
+const earlyDevelopmentBridge = globalThis[Symbol.for("nextjs-engine.next-output-bridge-state")];
+assert.ok(earlyDevelopmentBridge && typeof earlyDevelopmentBridge.stop === "function",
+	"Next.js 16 development mode is detected from NODE_ENV even when process.argv omits dev");
+earlyDevelopmentBridge.stop();
+if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+else process.env.NODE_ENV = originalNodeEnv;
+
 const adapter = require("../src/engine/plugins/engineBuildAdapter");
 const nencLogger = require("../src/engine/plugins/nencTerminalLogger");
 
@@ -47,8 +57,23 @@ assert.deepEqual(nencLogger.classifyNextBuildLine("  Creating an optimized produ
 	level: "status", message: "NEXT.JS COMPILING APPLICATION", suppressible: true,
 }, "a Next.js build phase is mirrored to the pinned row");
 assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled successfully in 2.1s"), {
-	level: "done", message: "NEXT.JS COMPILED APPLICATION", suppressible: true,
-}, "a complete Next.js compile step becomes a DONE line");
+	level: "done", message: "NEXT.JS COMPILED APPLICATION (2.1s)", suppressible: true,
+}, "a complete Next.js compile step preserves its actual duration");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Finished TypeScript in 1114ms"), {
+	level: "done", message: "FINISHED TYPESCRIPT (1114ms)", suppressible: true,
+}, "completed TypeScript checking preserves Next.js's actual duration");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Collecting page data in 208ms"), {
+	level: "done", message: "COLLECTED PAGE DATA (208ms)", suppressible: true,
+}, "completed page-data collection is emitted as a finished phase");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Generating static pages in 239ms"), {
+	level: "done", message: "GENERATED STATIC PAGES (239ms)", suppressible: true,
+}, "Next.js's compact static-page completion format is recognized");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Finalizing page optimization in 5ms"), {
+	level: "done", message: "FINALIZED PAGE OUTPUTS (5ms)", suppressible: true,
+}, "page optimization completion is distinguished from an active status");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Collecting build traces in 320ms"), {
+	level: "done", message: "COLLECTED BUILD TRACES (320ms)", suppressible: true,
+}, "build-trace completion preserves its actual duration");
 assert.deepEqual(nencLogger.classifyNextBuildLine("  Linting and checking validity of types ..."), {
 	level: "status", message: "NEXT.JS CHECKING TYPES", suppressible: true,
 }, "Next.js type-checking progress is exposed");
@@ -99,6 +124,25 @@ try {
 	process.stdout.write("custom warning that should remain visible\n");
 	assert.ok(passedThrough.some((chunk) => chunk.includes("custom warning that should remain visible")),
 		"unrecognized diagnostics remain untouched");
+
+	const originalIsTTYDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+	try {
+		delete process.env.CI;
+		Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
+		nencLogger.clearStatus("nextjs");
+		passedThrough.length = 0;
+		process.stdout.write("○ Compiling /request, /guide, emd ...\n");
+		assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] Compiling /request, /guide, emd")
+			&& chunk.includes("0/3 routes completed (0%)")),
+			"interactive terminals keep an initial route-progress line in scrollback");
+		passedThrough.length = 0;
+		process.stdout.write("✓ Compiled /request in 1050ms (434 modules)\n");
+		assert.ok(passedThrough.some((chunk) => chunk.includes("1/3 routes completed (33.3%)")),
+			"the live route status advances only when Next.js reports an actual route completion");
+	} finally {
+		if (originalIsTTYDescriptor) Object.defineProperty(process.stdout, "isTTY", originalIsTTYDescriptor);
+		else delete process.stdout.isTTY;
+	}
 } finally {
 	nencLogger.clearStatus();
 	stopOutputBridge();

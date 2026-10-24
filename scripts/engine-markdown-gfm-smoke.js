@@ -146,7 +146,12 @@ async function main() {
 	assert.match(navSource, /emd_show-url-icon/, "EngineNav items must accept favicon props");
 	assert.match(serverSource, /withUrlIcon/, "server-rendered schema links must support favicons");
 	assert.match(iconComponentSource, /referrerPolicy="no-referrer"/, "favicon lookup must not receive a full-page referrer");
-	assert.match(faviconRouteSource, /Downloading private asset: favicon =/);
+	assert.match(faviconRouteSource, /allocateWorkerTask/);
+	assert.match(faviconRouteSource, /target: "ICON:" \+ target\.domain/);
+	assert.match(faviconRouteSource, /readFaviconBytes/);
+	assert.match(faviconRouteSource, /bytesPerSecond/);
+	assert.match(faviconRouteSource, /finishWorkerTask/);
+	assert.match(faviconRouteSource, /downloaded icon:/);
 	assert.match(faviconRouteSource, /nencTerminalLogger\.done/);
 	assert.match(faviconRouteSource, /nencTerminalLogger\.failed/);
 	assert.ok(faviconRouteSource.includes("nencTerminalLogger from "),

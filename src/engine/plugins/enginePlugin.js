@@ -17,7 +17,10 @@ const ENGINE_IMAGE_QUALITIES = Object.freeze([65, 75, 78, 90]);
 
 function installDevelopmentOutputBridge() {
 	const args = process.argv.slice(2);
-	if (!args.some((arg) => arg === "dev") && process.env.NEXT_PHASE !== "phase-development-server") return;
+	const isDevelopment = process.env.NEXT_PHASE === "phase-development-server"
+		|| (process.env.NODE_ENV === "development" && process.env.NEXT_PHASE !== "phase-production-build")
+		|| args.some((arg) => arg === "dev");
+	if (!isDevelopment) return;
 	require("./nencTerminalLogger").installNextBuildOutputBridge({ mode: "dev" });
 }
 

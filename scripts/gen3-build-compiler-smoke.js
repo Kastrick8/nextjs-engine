@@ -17,13 +17,32 @@ const {
 	summarizeNextOutputs,
 } = require("./gen3-build-compiler");
 
-const { formatDoneLine, formatStatusLine } = require("../src/engine/plugins/nencTerminalLogger");
+const {
+	formatDoneLine,
+	formatStatusLine,
+	formatWorkerStatus,
+	formatBytesPerSecond,
+} = require("../src/engine/plugins/nencTerminalLogger");
+const { schemaOutputCachePath } = require("../src/engine/plugins/gen3SchemaCache");
 
 assert.equal(formatDoneLine("COMPILED PAGE : app/page.tsx"), "[NENC] DONE COMPILED PAGE : app/page.tsx");
 assert.ok(formatStatusLine("COMPILING CUSTOM COMPONENT : Notice", 32).startsWith("[NENC] "));
 assert.ok(formatStatusLine("COMPILING CUSTOM COMPONENT : Notice", 32).length <= 31,
 	"the pinned status must fit one terminal row without wrapping");
+assert.equal(formatWorkerStatus([
+	{ operation: "Compiling", target: "/guide", mode: "percent", progress: 43 },
+	{ operation: "Compiling", target: "emd", mode: "percent", progress: 57 },
+	{ operation: "Compiling", target: "ec", mode: "percent", progress: 80 },
+]), "Compiling /guide, emd, ec · (43% - 57% - 80%)",
+"three live compilation workers share one compact status line with independent real progress");
+assert.equal(formatWorkerStatus([
+	{ operation: "Compiling", target: "/guide", mode: "percent", progress: 33.3 },
+	{ operation: "Downloading", target: "ICON:google.com", mode: "rate", bytesPerSecond: 8202 },
+]), "Compiling /guide (33.3%) · Downloading ICON:google.com (8202 B/s)",
+"mixed compilation and icon-download jobs show the correct metric for each worker");
+assert.equal(formatBytesPerSecond(8202), "8202 B/s");
 
+async function main() {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
 try {
 	const banner = [];
@@ -104,7 +123,9 @@ try {
 	assert.equal(printBannerOnce(bannerProject, () => {}), true, "the next build can print after the marker is released");
 	releaseBanner(bannerProject);
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");
-	fs.mkdirSync(pageDirectory, { recursive: true });
+	const emdDirectory = path.join(root, "app", "emd");
+	const ecDirectory = path.join(root, "app", "ec");
+	for (const directory of [pageDirectory, emdDirectory, ecDirectory]) fs.mkdirSync(directory, { recursive: true });
 	fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "engine-build-fixture", version: "1.0.0" }));
 	fs.writeFileSync(path.join(root, "app", "components.tsx"), [
 		'import { registerComponent } from "nextjs-engine";',
@@ -121,29 +142,85 @@ try {
 		'export default createPage({ schema: pageSchema });',
 		"",
 	].join("\n"));
+	const writeSimplePage = (directory, title, nodeType) => fs.writeFileSync(path.join(directory, "page.tsx"), [
+		'import { createPage, defineSchema } from "nextjs-engine";',
+		'const pageSchema = defineSchema({',
+		'\tmeta: { title: ' + JSON.stringify(title) + ' },',
+		'\troot: { type: ' + JSON.stringify(nodeType) + ', props: { content: ' + JSON.stringify(title) + ' } },',
+		'});',
+		'export default createPage({ schema: pageSchema });',
+		"",
+	].join("\n"));
+	writeSimplePage(emdDirectory, "EMD fixture", "markdown");
+	writeSimplePage(ecDirectory, "EC fixture", "canvas");
 
 	const logs = [];
-	const manifest = compileProject(root, { log: (line) => logs.push(line) });
+	const manifest = await compileProject(root, { log: (line) => logs.push(line) });
 
 	assert.equal(manifest.generation, 3, "build manifest identifies the Generation 3 compiler");
-	assert.equal(manifest.summary.compiledPageCount, 1, "a statically defined PageSchema is compiled");
+	assert.equal(manifest.summary.compiledPageCount, 3, "all three statically defined PageSchemas are compiled");
+	assert.equal(manifest.summary.schemaCacheHitCount, 0, "a cold build starts without persistent schema hits");
+	assert.equal(manifest.summary.schemaCacheMissCount, 3, "each page has its own cold cache miss");
+	assert.equal(manifest.summary.schemaCacheWriteCount, 3, "each compiled page persists its own output");
+	assert.equal(manifest.summary.schemaCompilerWorkerCount, 3,
+		"three independent cold schema jobs are compiled concurrently by three workers");
+	assert.equal(manifest.summary.schemaCompilerWorkerLimit, 3, "NENC caps schema compilation concurrency at three workers");
 	assert.equal(manifest.pages[0].id, "/about", "App Router route groups do not leak into route identifiers");
 	assert.ok(manifest.pages[0].customComponents.includes("notice"), "custom schema nodes appear in the page manifest");
 	assert.ok(manifest.pages[0].compiledNodes.some((node) => node.type === "notice" && node.customComponent), "the emitted compiler graph includes custom-component classification");
 	assert.ok(logs.some((line) => line.includes("COMPILING PAGE : app/(marketing)/about/page.tsx")),
 		"route analysis reports the source path in Next.js-style progress output");
-	assert.ok(logs.some((line) => line.includes("DONE COMPILED /about")),
+	assert.ok(logs.some((line) => line.includes("DONE COMPILED /about —")),
 		"schema completion reports the URL route id");
-	assert.ok(logs.some((line) => /NENC ROUTES 0\/1 complete \(0%\)/.test(line)),
-		"route analysis starts at an actual 0 of 1 routes completed");
-	assert.ok(logs.some((line) => /NENC ROUTES 1\/1 complete \(100%\)/.test(line)),
-		"route analysis ends at the actual 1 of 1 routes completed");
+	assert.ok(logs.some((line) => /NENC ROUTES 0\/3 complete \(0%\)/.test(line)),
+		"route analysis starts at an actual 0 of 3 routes completed");
+	assert.ok(logs.some((line) => /NENC ROUTES 3\/3 complete \(100%\)/.test(line)),
+		"route analysis ends at the actual 3 of 3 routes completed");
 	assert.ok(logs.some((line) => line.includes("COMPILING CUSTOM COMPONENT : notice")),
 		"custom components get a dedicated progress status");
-	assert.ok(logs.some((line) => line.startsWith("DONE COMPILER PASS")),
-		"completed compiler work is labeled DONE for the terminal logger");
+	assert.ok(logs.some((line) => line.startsWith("DONE SCHEMA CACHE — 0 hit(s), 3 compile miss(es), 3 output(s) persisted")),
+		"the cold-build cache summary reports actual misses and written outputs");
 	assert.ok(!logs.some((line) => line.includes("nextjs-engine |")),
 		"compiler progress must not use the old product-name pipe prefix");
+
+	const cacheDirectory = path.join(root, ".nextjs-engine", ".cache", "gen3", "schema-output");
+	const cacheFiles = fs.readdirSync(cacheDirectory).filter((name) => name.endsWith(".json")).sort();
+	assert.equal(cacheFiles.length, 3, "each route output uses a separate on-disk cache entry");
+	const initialCacheEntries = new Map(cacheFiles.map((name) => [name, fs.readFileSync(path.join(cacheDirectory, name), "utf8")]));
+
+	logs.length = 0;
+	const cachedManifest = await compileProject(root, { log: (line) => logs.push(line) });
+	assert.deepEqual(cachedManifest.pages, manifest.pages, "a cache hit reconstructs the same manifest pages");
+	assert.equal(cachedManifest.summary.schemaCacheHitCount, 3, "the second pass reuses all unchanged compiled pages");
+	assert.equal(cachedManifest.summary.schemaCacheMissCount, 0, "an unchanged second pass compiles no schema jobs");
+	assert.equal(cachedManifest.summary.schemaCompilerWorkerCount, 0, "a full cache hit does not start idle worker threads");
+	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /about")),
+		"cache hits are visible as reuse, not mislabeled as new compilation");
+	assert.ok(!logs.some((line) => line.startsWith("DONE COMPILED /about —")),
+		"an unchanged page is not recompiled on a warm pass");
+
+	const aboutSource = path.join(pageDirectory, "page.tsx");
+	fs.writeFileSync(aboutSource, fs.readFileSync(aboutSource, "utf8").replace('type: "notice"', 'type: "text"'));
+	logs.length = 0;
+	const partialManifest = await compileProject(root, { log: (line) => logs.push(line) });
+	assert.equal(partialManifest.summary.schemaCacheHitCount, 2, "unchanged EMD and EC schemas remain cache hits");
+	assert.equal(partialManifest.summary.schemaCacheMissCount, 1, "editing /about invalidates only its schema output");
+	assert.equal(partialManifest.summary.schemaCacheWriteCount, 1, "only the edited route's cache entry is updated");
+	assert.equal(partialManifest.summary.schemaCompilerWorkerCount, 1, "only one worker is started for one invalidated schema job");
+	assert.ok(partialManifest.pages.find((page) => page.id === "/about").compiledNodes.some((node) => node.type === "text"),
+		"the changed page output reflects its new schema");
+	assert.ok(logs.some((line) => line.startsWith("DONE COMPILED /about —")),
+		"the changed page is compiled again");
+	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /emd")),
+		"the unchanged EMD schema is reused");
+	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /ec")),
+		"the unchanged EC schema is reused");
+	const finalCacheEntries = new Map(fs.readdirSync(cacheDirectory).filter((name) => name.endsWith(".json")).sort()
+		.map((name) => [name, fs.readFileSync(path.join(cacheDirectory, name), "utf8")]));
+	const changedCacheFiles = [...initialCacheEntries.keys()].filter((name) => initialCacheEntries.get(name) !== finalCacheEntries.get(name));
+	assert.deepEqual(changedCacheFiles, [
+		path.basename(schemaOutputCachePath(root, "app/(marketing)/about/page.tsx", "/about")),
+	], "only the edited /about cache entry changes; /emd and /ec cache files remain byte-for-byte unchanged");
 
 	const inputPath = path.join(root, "worker-manifest.json");
 	fs.writeFileSync(inputPath, JSON.stringify(manifest));
@@ -178,3 +255,9 @@ try {
 } finally {
 	fs.rmSync(root, { recursive: true, force: true });
 }
+}
+
+main().catch((error) => {
+	console.error(error);
+	process.exitCode = 1;
+});

@@ -13,6 +13,7 @@ function getState() {
 			statusSequence: 0,
 			activeRoutes: new Map(),
 			completedRoutes: new Set(),
+			workerSlots: new Array(3).fill(null),
 			routeBatchStartedAt: 0,
 			routeBatchTotal: 0,
 			routeBatchCompleted: 0,
@@ -26,6 +27,9 @@ function getState() {
 	}
 	const state = globalThis[STATE_KEY];
 	if (!(state.completedRoutes instanceof Set)) state.completedRoutes = new Set();
+	if (!Array.isArray(state.workerSlots)) state.workerSlots = new Array(3).fill(null);
+	while (state.workerSlots.length < 3) state.workerSlots.push(null);
+	if (state.workerSlots.length > 3) state.workerSlots.length = 3;
 	if (!Number.isFinite(state.routeBatchTotal)) state.routeBatchTotal = 0;
 	if (!Number.isFinite(state.routeBatchCompleted)) state.routeBatchCompleted = 0;
 	return state;
@@ -94,7 +98,35 @@ function formatRouteProgress(completed, total) {
 	return safeCompleted + "/" + total + " routes completed (" + percent + "%)";
 }
 
+function formatBytesPerSecond(value) {
+	const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
+	return Math.round(safe) + " B/s";
+}
+
+function formatWorkerMetric(slot) {
+	if (slot.mode === "rate") return formatBytesPerSecond(slot.bytesPerSecond);
+	const value = Number.isFinite(slot.progress) ? Math.max(0, Math.min(100, slot.progress)) : 0;
+	const rounded = Math.round(value * 10) / 10;
+	return (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)) + "%";
+}
+
+function formatWorkerStatus(slots) {
+	const active = (Array.isArray(slots) ? slots : []).filter((slot) => slot && slot.target);
+	if (!active.length) return "";
+	const sameOperation = active.every((slot) => slot.operation === active[0].operation);
+	if (sameOperation) {
+		return active[0].operation + " " + active.map((slot) => slot.target).join(", ")
+			+ " · (" + active.map(formatWorkerMetric).join(" - ") + ")";
+	}
+	return active.map((slot) => slot.operation + " " + slot.target + " (" + formatWorkerMetric(slot) + ")").join(" · ");
+}
+
 function liveStatusText(state) {
+	const workerStatus = formatWorkerStatus(state.workerSlots);
+	if (workerStatus) return workerStatus;
+	// The compiler worker runs in a child process and sends its already-formatted
+	// worker row over IPC; preserve it over incidental Next.js phase messages.
+	if (state.statuses.workers && state.statuses.workers.message) return state.statuses.workers.message;
 	const hasRouteBatch = state.source === "nextjs" && state.routeBatchTotal > 0 && state.routeBatchStartedAt;
 	const progress = hasRouteBatch ? " · " + formatRouteProgress(state.routeBatchCompleted, state.routeBatchTotal) : "";
 	const elapsed = hasRouteBatch ? " · " + ((Date.now() - state.routeBatchStartedAt) / 1000).toFixed(1) + "s elapsed" : "";
@@ -147,6 +179,79 @@ function setStatus(message, source = "engine") {
 	}
 }
 
+function publishWorkerStatus() {
+	const state = getState();
+	const status = formatWorkerStatus(state.workerSlots);
+	if (status) setStatus(status, "workers");
+	else clearStatus("workers");
+}
+
+function startWorkerTask(workerIndex, task = {}) {
+	const state = getState();
+	const index = Number(workerIndex);
+	if (!Number.isInteger(index) || index < 0 || index >= 3) return false;
+	if (!task || typeof task.target !== "string" || !task.target.trim()) return false;
+	const mode = task.mode === "rate" ? "rate" : "percent";
+	state.workerSlots[index] = {
+		operation: cleanMessage(task.operation || "Working"),
+		target: cleanMessage(task.target),
+		mode,
+		progress: Number.isFinite(task.progress) ? Math.max(0, Math.min(100, task.progress)) : 0,
+		bytesPerSecond: Number.isFinite(task.bytesPerSecond) ? Math.max(0, task.bytesPerSecond) : 0,
+	};
+	publishWorkerStatus();
+	return true;
+}
+
+function allocateWorkerTask(task = {}) {
+	const state = getState();
+	const index = state.workerSlots.findIndex((slot) => !slot);
+	if (index < 0) return null;
+	return startWorkerTask(index, task) ? index : null;
+}
+
+function updateWorkerTask(workerIndex, update = {}) {
+	const state = getState();
+	const index = Number(workerIndex);
+	if (!Number.isInteger(index) || index < 0 || index >= 3) return false;
+	const slot = state.workerSlots[index];
+	if (!slot) return false;
+	if (slot.mode === "rate" && Number.isFinite(update.bytesPerSecond)) {
+		const nextRate = Math.max(0, update.bytesPerSecond);
+		if (Math.round(nextRate) === Math.round(slot.bytesPerSecond)) return true;
+		slot.bytesPerSecond = nextRate;
+	} else if (slot.mode === "percent" && Number.isFinite(update.progress)) {
+		const nextProgress = Math.max(0, Math.min(100, update.progress));
+		// Publish only when a visible percentage changes; per-node callbacks can be frequent.
+		if (Math.round(nextProgress) === Math.round(slot.progress) && nextProgress < 100) return true;
+		slot.progress = nextProgress;
+	} else {
+		return false;
+	}
+	publishWorkerStatus();
+	return true;
+}
+
+function finishWorkerTask(workerIndex, message) {
+	const state = getState();
+	const index = Number(workerIndex);
+	if (!Number.isInteger(index) || index < 0 || index >= 3 || !state.workerSlots[index]) return false;
+	done(message);
+	state.workerSlots[index] = null;
+	publishWorkerStatus();
+	return true;
+}
+
+function failWorkerTask(workerIndex, message) {
+	const state = getState();
+	const index = Number(workerIndex);
+	if (!Number.isInteger(index) || index < 0 || index >= 3 || !state.workerSlots[index]) return false;
+	failed(message);
+	state.workerSlots[index] = null;
+	publishWorkerStatus();
+	return true;
+}
+
 function writeLine(line) {
 	const state = getState();
 	try {
@@ -196,6 +301,7 @@ function clearStatus(source) {
 		state.statuses = {};
 		state.status = "";
 		state.source = "";
+		state.workerSlots.fill(null);
 	}
 
 	if (state.timer) clearInterval(state.timer);
@@ -270,6 +376,22 @@ function classifyNextBuildLine(line) {
 	if (compiledBatch) {
 		return { level: "compiled-batch", duration: compiledBatch[1] + compiledBatch[2], suppressible: true };
 	}
+	const completedBuildPhase = message.match(/^(?:✓\s*)?(Finished TypeScript|Collecting page data|Generating static pages|Finalizing page optimization|Collecting build traces) in ([\d.]+\s*(?:ms|s))\.?$/i);
+	if (completedBuildPhase) {
+		const phaseLabels = {
+			"finished typescript": "FINISHED TYPESCRIPT",
+			"collecting page data": "COLLECTED PAGE DATA",
+			"generating static pages": "GENERATED STATIC PAGES",
+			"finalizing page optimization": "FINALIZED PAGE OUTPUTS",
+			"collecting build traces": "COLLECTED BUILD TRACES",
+		};
+		const label = phaseLabels[completedBuildPhase[1].toLowerCase()] || completedBuildPhase[1].toUpperCase();
+		return {
+			level: "done",
+			message: label + " (" + completedBuildPhase[2].replace(/\s+/g, "") + ")",
+			suppressible: true,
+		};
+	}
 	const ready = message.match(/^(?:▲\s*)?Ready in\s+([\d.]+\s*(?:ms|s))\.?$/i);
 	if (ready) return { level: "ready", duration: ready[1].replace(/\s+/g, ""), suppressible: true };
 	const request = message.match(/^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)\s+(\S+)\s+(\d{3})\s+in\s+([^()]+?)(?:\s+\(([^)]*)\))?$/i);
@@ -289,8 +411,14 @@ function classifyNextBuildLine(line) {
 	if (/failed to compile|compilation failed|build failed|error occurred prerendering/i.test(message)) {
 		return { level: "failed", message: "NEXT.JS BUILD FAILED", suppressible: true };
 	}
-	if (/compiled successfully(?:\s+in\b|\b)/i.test(message)) {
-		return { level: "done", message: "NEXT.JS COMPILED APPLICATION", suppressible: true };
+	const compiledSuccessfully = message.match(/^(?:✓\s*)?Compiled successfully(?: in ([\d.]+\s*(?:ms|s)))?\.?$/i);
+	if (compiledSuccessfully) {
+		return {
+			level: "done",
+			message: "NEXT.JS COMPILED APPLICATION"
+				+ (compiledSuccessfully[1] ? " (" + compiledSuccessfully[1].replace(/\s+/g, "") + ")" : ""),
+			suppressible: true,
+		};
 	}
 	const staticPages = message.match(/generating static pages\s*\((\d+)\s*\/\s*(\d+)\)(.*)/i);
 	if (staticPages) {
@@ -324,7 +452,7 @@ function classifyNextBuildLine(line) {
 		return { level: "status", message: "NEXT.JS COMPILING MODULES", suppressible: true };
 	}
 	if (/build completed successfully/i.test(message)) {
-		return { level: "done", message: "NEXT.JS BUILD COMPLETED", suppressible: true };
+		return { level: "status", message: "NEXT.JS BUILD FINISHED — FINALIZING ENGINE OUTPUTS", suppressible: true };
 	}
 	return null;
 }
@@ -500,8 +628,9 @@ function installNextBuildOutputBridge(options = {}) {
 				dispatchNextBuildEvent(event);
 				if (!event.suppressible) {
 					output += segment;
-				} else if (!supportsPinnedStatus() && (event.level === "route-start" || event.level === "status")) {
-					// Redirected logs have no live row, so keep normalized progress visible instead of swallowing it.
+				} else if (event.level === "route-start" || (!supportsPinnedStatus() && event.level === "status")) {
+					// Keep the initial observed route batch in scrollback. Interactive terminals also
+					// retain the pinned row, which updates from real Next.js completion events.
 					const visibleMessage = event.level === "route-start" ? liveStatusText(state) : event.message;
 					output += "[NENC] " + visibleMessage + (hasTerminator ? "\n" : "");
 				}
@@ -543,6 +672,14 @@ function installNextBuildOutputBridge(options = {}) {
 module.exports = {
 	cleanMessage,
 	formatRouteProgress,
+	formatBytesPerSecond,
+	formatWorkerMetric,
+	formatWorkerStatus,
+	startWorkerTask,
+	allocateWorkerTask,
+	updateWorkerTask,
+	finishWorkerTask,
+	failWorkerTask,
 	clearStatus,
 	classifyNextBuildLine,
 	dispatchCompilerLine,
