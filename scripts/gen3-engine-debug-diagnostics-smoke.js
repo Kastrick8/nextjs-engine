@@ -207,6 +207,8 @@ try {
 		"normal-page monitor TSX parses cleanly: " + monitorSyntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
 	const schemaRendererSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/core/SchemaRenderer.tsx"), "utf8");
 	assert.ok(schemaRendererSource.includes("NodeErrorBoundary"), "Engine schema nodes are isolated by development render boundaries");
+	assert.ok(schemaRendererSource.includes("DevelopmentNodeElement"), "risky Engine component implementations are deferred until client hydration in development");
+	assert.ok(schemaRendererSource.includes("data-engine-debug-pending"), "server placeholders preserve schema paths while deferring component execution");
 	assert.ok(schemaRendererSource.includes("EngineDebug · component isolated"), "failed Engine nodes have a marked local fallback");
 	const createPageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/createPage.tsx"), "utf8");
 	assert.match(createPageSource, /process\.env\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
