@@ -325,7 +325,7 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 
 	const oldManifest = readJson(manifestPath);
 	const oldFiles = oldManifest && oldManifest.generatedBy === GENERATED_BY && Array.isArray(oldManifest.files)
-		? oldManifest.files.filter((file) => typeof file === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]*.etr$/.test(file))
+		? oldManifest.files.filter((file) => typeof file === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]*\.etr$/.test(file))
 		: [];
 	const nextNames = new Set(artifacts.map((artifact) => artifact.fileName));
 	const result = { artifacts: [], createdCount: 0, updatedCount: 0, unchangedCount: 0, removedCount: 0 };
