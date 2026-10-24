@@ -99,9 +99,13 @@ function run() {
 		assert.ok(serverSource.includes('"auth": "account"'));
 		assert.ok(routeSource.startsWith(GENERATED_MARKER));
 		assert.ok(faviconRouteSource.startsWith(GENERATED_MARKER), "favicon route must be protected by the generated-file marker");
-		assert.match(faviconRouteSource, /\[NENC\] Downloading private asset: favicon =/);
-		assert.match(faviconRouteSource, /\[NENC\] DONE private asset: favicon =/);
-		assert.match(faviconRouteSource, /\[NENC\] FAILED private asset: favicon =/);
+		assert.match(faviconRouteSource, /Downloading private asset: favicon =/);
+		assert.match(faviconRouteSource, /nencTerminalLogger\.done/);
+		assert.match(faviconRouteSource, /nencTerminalLogger\.failed/);
+		assert.ok(faviconRouteSource.includes("nencTerminalLogger from "),
+			"the generated favicon route imports the shared NENC terminal logger");
+		assert.ok(!faviconRouteSource.includes("__ENGINE_NENC_LOGGER_IMPORT__"),
+			"the NENC plugin resolves the logger import in generated route code");
 		assertTypeScriptSyntax(faviconRouteSource, "emd/favicon/route.ts");
 		assert.ok(routeSource.includes('import "../../../src/commands";'));
 		assert.ok(routeSource.includes('from "../../../src/nenc.server"'));

@@ -141,12 +141,14 @@ function writeRoute(routeFile, serverManifestFile, handlerModule, commandFiles) 
 }
 
 
-function writeFaviconRoute(routeFile, helperModule) {
+function writeFaviconRoute(routeFile, helperModule, loggerModule) {
 	const template = fs.readFileSync(FAVICON_ROUTE_TEMPLATE, "utf8");
-	if (!template.includes("__ENGINE_FAVICON_IMPORT__")) {
-		throw new Error("[engine:nenc] EMD favicon route template is missing its import placeholder.");
+	if (!template.includes("__ENGINE_FAVICON_IMPORT__") || !template.includes("__ENGINE_NENC_LOGGER_IMPORT__")) {
+		throw new Error("[engine:nenc] EMD favicon route template is missing an import placeholder.");
 	}
-	const routeSource = template.replace("__ENGINE_FAVICON_IMPORT__", importPath(routeFile, helperModule));
+	const routeSource = template
+		.replace("__ENGINE_FAVICON_IMPORT__", importPath(routeFile, helperModule))
+		.replace("__ENGINE_NENC_LOGGER_IMPORT__", importPath(routeFile, loggerModule));
 	fs.mkdirSync(path.dirname(routeFile), { recursive: true });
 	const temporaryFile = `${routeFile}.tmp-${process.pid}-${Date.now().toString(36)}`;
 	const backupFile = `${routeFile}.backup-${process.pid}-${Date.now().toString(36)}`;
@@ -189,6 +191,7 @@ function compileNENCProject(options) {
 	const routeFile = path.join(appDirectory, NEXT_APP_ENDPOINT_SEGMENT, "command", "route.ts");
 	const faviconRouteFile = path.join(appDirectory, NEXT_APP_ENDPOINT_SEGMENT, "emd", "favicon", "route.ts");
 	const faviconHelperModule = path.resolve(__dirname, "../core/engineUrlIcon.ts");
+	const faviconLoggerModule = path.resolve(__dirname, "nencTerminalLogger.js");
 	assertRouteWritable(faviconRouteFile);
 	if (containsPath(outputDirectory, appDirectory) || commandFiles.some((file) => containsPath(outputDirectory, file))) {
 		throw new Error("[engine:nenc] outputDir cannot contain application or command source files.");
@@ -247,7 +250,7 @@ function compileNENCProject(options) {
 
 	const installedServerFile = path.join(outputDirectory, "server.ts");
 	if (generateRoute) writeRoute(routeFile, installedServerFile, handlerModule, commandFiles);
-	writeFaviconRoute(faviconRouteFile, faviconHelperModule);
+	writeFaviconRoute(faviconRouteFile, faviconHelperModule, faviconLoggerModule);
 	return Object.freeze({
 		manifest,
 		commands: Object.freeze(commands),

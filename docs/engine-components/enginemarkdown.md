@@ -187,17 +187,18 @@ Markdown schema node to show a small favicon before each external HTTP(S) link:
 When NENC is enabled through the combined Engine plugin, the icon is served through its generated same-origin `/_static/emd/favicon` route.
 The server contacts only the fixed Google S2 favicon endpoint, never the linked
 page itself, validates the requested hostname, limits image size, and keeps a
-bounded in-memory byte cache with HTTP cache headers. During development, a
-cache miss prints the actual server download lifecycle at the bottom of the
-terminal:
+bounded in-memory byte cache with HTTP cache headers. During development, the
+current download status stays on the terminal's bottom row; completion is added
+to the normal log stream above it:
 
 ```text
-[NENC] Downloading private asset: favicon = github.com
+[NENC] Downloading private asset: favicon = github.com  (live bottom row)
 [NENC] DONE private asset: favicon = github.com
 ```
 
 Repeated icons use the server cache and do not emit another download pair until
-that cache entry expires.
+that cache entry expires. The live status row is terminal-only; non-TTY output
+keeps readable DONE/FAILED lines without cursor-control sequences.
 
 The same schema keys work on Engine link nodes and linked schema components.
 For a regular React/HTML anchor, use the exported icon component explicitly:

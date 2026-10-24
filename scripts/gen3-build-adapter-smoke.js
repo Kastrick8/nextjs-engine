@@ -7,6 +7,21 @@ const path = require("node:path");
 
 const plugin = require("../src/engine/plugins/enginePlugin");
 const adapter = require("../src/engine/plugins/engineBuildAdapter");
+
+const defaultCacheConfig = plugin.withEngineTurbopackCache({ experimental: { keepUserSetting: true } });
+assert.equal(defaultCacheConfig.experimental.turbopackFileSystemCacheForDev, true,
+	"Engine opts into Next.js Turbopack cache for development");
+assert.equal(defaultCacheConfig.experimental.turbopackFileSystemCacheForBuild, true,
+	"Engine opts into Next.js Turbopack cache for repeat production builds");
+assert.equal(defaultCacheConfig.experimental.keepUserSetting, true, "unrelated Next.js experimental options survive");
+const explicitCacheOptOut = plugin.withEngineTurbopackCache({ experimental: {
+	turbopackFileSystemCacheForDev: false,
+	turbopackFileSystemCacheForBuild: false,
+} });
+assert.equal(explicitCacheOptOut.experimental.turbopackFileSystemCacheForDev, false,
+	"apps can explicitly disable the development cache");
+assert.equal(explicitCacheOptOut.experimental.turbopackFileSystemCacheForBuild, false,
+	"apps can explicitly disable the build cache");
 const originalDelegate = process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER;
 
 async function main() {
