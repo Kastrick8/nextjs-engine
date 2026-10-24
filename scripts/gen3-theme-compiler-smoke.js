@@ -45,6 +45,12 @@ function testPublicThemeApi() {
 			normalizeEngineThemeColor,
 			getEngineHighlighterColor,
 		} = require(path.resolve(__dirname, "../src/engine/theme/highlighting.ts"));
+		const {
+			dispatchEngineThemeDataEvent,
+			listEngineThemeDataHandlers,
+			registerEngineThemeDataHandler,
+			unregisterEngineThemeDataHandler,
+		} = require(path.resolve(__dirname, "../src/engine/theme/dataApi.ts"));
 
 		const definition = createTheme({
 			id: "safe-theme",
@@ -103,6 +109,44 @@ function testPublicThemeApi() {
 			{ kind: "plain", text: '{"ok":true}' },
 		]);
 		assert.equal(unregisterEngineHighlighterProvider("smoke-provider"), true);
+
+		let allocatedEvent;
+		const dataHandler = (event) => {
+			allocatedEvent = event;
+			return { operation: "append", value: event.context.incoming };
+		};
+		registerEngineThemeDataHandler("smoke-theme.table-join", dataHandler);
+		assert.ok(listEngineThemeDataHandlers().includes("smoke-theme.table-join"));
+		assert.deepEqual(dispatchEngineThemeDataEvent("join:left", {
+			handlerId: "smoke-theme.table-join",
+		}, {
+			themeId: "theme-runtime-smoke.markdown.dark",
+			componentId: "markdown",
+			slotId: "table.header",
+			direction: "left",
+			existing: { label: "Name" },
+			incoming: { icon: "sort" },
+		}), { operation: "append", value: { icon: "sort" } });
+		assert.equal(allocatedEvent.type, "join:left");
+		assert.equal(Object.isFrozen(allocatedEvent), true);
+		assert.throws(() => dispatchEngineThemeDataEvent("join:left", "missing-handler", {
+			themeId: "theme-runtime-smoke.markdown.dark",
+			componentId: "markdown",
+			slotId: "table.header",
+		}), /is not registered/);
+		assert.throws(() => dispatchEngineThemeDataEvent("join:left", "smoke-theme.table-join", {
+			themeId: "theme-runtime-smoke.markdown.dark",
+			componentId: "markdown",
+			slotId: "table.header",
+			direction: "right",
+		}), /direction must match/);
+		assert.throws(() => dispatchEngineThemeDataEvent("join:left", "smoke-theme.table-join", {
+			themeId: "theme-runtime-smoke.markdown.dark",
+			componentId: "markdown",
+			slotId: "table.header",
+			incoming: { run: () => true },
+		}), /must be JSON data/);
+		assert.equal(unregisterEngineThemeDataHandler("smoke-theme.table-join"), true);
 
 		createTheme({
 			id: "theme-runtime-smoke",
