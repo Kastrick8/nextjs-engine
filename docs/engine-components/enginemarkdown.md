@@ -184,11 +184,21 @@ Markdown schema node to show a small favicon before each external HTTP(S) link:
   skipped. The resolver sends only the link's origin hostname to the favicon
   lookup, never the full path, query string, or fragment.
 
-The stable favicon lookup URL is reused and is HTTP-cacheable by the browser and
-favicon provider. The component does not download arbitrary linked HTML or
-proxy icon bytes through your Next.js server. This avoids server-side fetching
-of author-controlled destinations; it also means the provider, not the app
-server, owns the upstream favicon cache and its refresh cadence.
+When NENC is enabled through the combined Engine plugin, the icon is served through its generated same-origin `/_static/emd/favicon` route.
+The server contacts only the fixed Google S2 favicon endpoint, never the linked
+page itself, validates the requested hostname, limits image size, and keeps a
+bounded in-memory byte cache with HTTP cache headers. During development, the
+current download status stays on the terminal's bottom row; completion is added
+to the normal log stream above it:
+
+```text
+[NENC] Downloading private asset: favicon = github.com  (live bottom row)
+[NENC] DONE private asset: favicon = github.com
+```
+
+Repeated icons use the server cache and do not emit another download pair until
+that cache entry expires. The live status row is terminal-only; non-TTY output
+keeps readable DONE/FAILED lines without cursor-control sequences.
 
 The same schema keys work on Engine link nodes and linked schema components.
 For a regular React/HTML anchor, use the exported icon component explicitly:

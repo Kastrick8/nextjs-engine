@@ -37,6 +37,7 @@ new Function("module", "exports", "require", ts.transpileModule(iconSource, {
 const {
 	normalizeEngineUrlIconSize,
 	resolveEngineFaviconUrl,
+	resolveEngineFaviconAssetUrl,
 } = iconModule.exports;
 
 async function main() {
@@ -66,6 +67,12 @@ async function main() {
 
 	const githubIcon = resolveEngineFaviconUrl("https://github.com/Kate-alt-69/nextjs-engine?private=do-not-forward", 18);
 	assert.ok(githubIcon.startsWith("https://www.google.com/s2/favicons?"), "external links should resolve through the favicon provider");
+	const proxiedGithubIcon = resolveEngineFaviconAssetUrl("https://github.com/private/path?token=must-not-leak", 18);
+	assert.ok(proxiedGithubIcon.startsWith("/_static/emd/favicon?"), "rendered favicons should use the server asset route");
+	assert.ok(proxiedGithubIcon.includes("domain=github.com"), "the asset route receives only the normalized hostname");
+	assert.ok(proxiedGithubIcon.includes("sz=36"), "the requested icon size should be preserved for the provider");
+	assert.doesNotMatch(proxiedGithubIcon, /private|token|must-not-leak/, "the asset route must not expose the link path or query");
+
 	assert.ok(githubIcon.includes("domain_url=https%3A%2F%2Fgithub.com"), "favicon lookups must use the domain origin");
 	assert.doesNotMatch(githubIcon, /Kate-alt-69|private|do-not-forward/, "favicon lookup must not expose the path or query");
 	assert.equal(
@@ -120,6 +127,7 @@ async function main() {
 	const linkSource = fs.readFileSync(path.join(process.cwd(), "src", "engine", "components", "EngineLink.tsx"), "utf8");
 	const navSource = fs.readFileSync(path.join(process.cwd(), "src", "engine", "components", "EngineNav.tsx"), "utf8");
 	const iconComponentSource = fs.readFileSync(path.join(process.cwd(), "src", "engine", "components", "EngineUrlIcon.tsx"), "utf8");
+	const faviconRouteSource = fs.readFileSync(path.join(process.cwd(), "app", "%5Fstatic", "emd", "favicon", "route.ts"), "utf8");
 	const markdownDocs = fs.readFileSync(path.join(process.cwd(), "docs", "engine-components", "enginemarkdown.md"), "utf8");
 	assert.doesNotMatch(componentSource, /import ReactMarkdown/, "the compatibility adapter must not own the AST implementation");
 	assert.match(componentSource, /EngineMarkdownRenderer/, "direct component imports must retain the shared renderer");
@@ -138,6 +146,13 @@ async function main() {
 	assert.match(navSource, /emd_show-url-icon/, "EngineNav items must accept favicon props");
 	assert.match(serverSource, /withUrlIcon/, "server-rendered schema links must support favicons");
 	assert.match(iconComponentSource, /referrerPolicy="no-referrer"/, "favicon lookup must not receive a full-page referrer");
+	assert.match(faviconRouteSource, /Downloading private asset: favicon =/);
+	assert.match(faviconRouteSource, /nencTerminalLogger\.done/);
+	assert.match(faviconRouteSource, /nencTerminalLogger\.failed/);
+	assert.ok(faviconRouteSource.includes("nencTerminalLogger from "),
+		"the EMD route uses the shared NENC terminal logger");
+	assert.match(faviconRouteSource, /MAX_ICON_BYTES/, "upstream icon bytes must have a size limit");
+
 	assert.match(publicApiSource, /export { EngineUrlIcon }/, "the HTML/JSX favicon component must be exported");
 	assert.match(markdownDocs, /External-link favicons/, "favicon defaults and usage must be documented");
 	assert.match(serverSource, /collector\.add\(ENGINE_MARKDOWN_CSS\)/, "server rendering must collect Markdown CSS without a client effect");

@@ -1,7 +1,7 @@
 import React, { memo, type CSSProperties } from "react";
 import {
 	normalizeEngineUrlIconSize,
-	resolveEngineFaviconUrl,
+	resolveEngineFaviconAssetUrl,
 	type EngineUrlIconSize,
 } from "../core/engineUrlIcon";
 
@@ -14,7 +14,7 @@ export interface EngineUrlIconProps {
 
 /**
  * Small opt-in favicon for an external URL.
- * The domain-only provider request has a stable URL that can be HTTP-cached.
+ * The same-origin asset endpoint downloads and caches icon bytes server-side.
  */
 export const EngineUrlIcon = memo(function EngineUrlIcon({
 	href,
@@ -22,7 +22,7 @@ export const EngineUrlIcon = memo(function EngineUrlIcon({
 	className,
 	style,
 }: EngineUrlIconProps) {
-	const src = resolveEngineFaviconUrl(href, size);
+	const src = resolveEngineFaviconAssetUrl(href, size);
 	if (!src) return null;
 
 	const renderedSize = normalizeEngineUrlIconSize(size);

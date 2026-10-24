@@ -77,6 +77,12 @@ function run() {
 		assert.equal(fs.existsSync(result.clientFile), true);
 		assert.equal(fs.existsSync(result.serverFile), true);
 		assert.equal(fs.existsSync(result.routeFile), true);
+		assert.equal(fs.existsSync(result.faviconRouteFile), true);
+		assert.equal(
+			path.relative(projectRoot, result.faviconRouteFile),
+			path.join("app", NEXT_APP_ENDPOINT_SEGMENT, "emd", "favicon", "route.ts"),
+			"the EMD favicon endpoint must be generated beside the private NENC route",
+		);
 		assert.equal(
 			path.relative(projectRoot, result.routeFile),
 			path.join("app", NEXT_APP_ENDPOINT_SEGMENT, "command", "route.ts"),
@@ -86,11 +92,21 @@ function run() {
 		const clientSource = fs.readFileSync(result.clientFile, "utf8");
 		const serverSource = fs.readFileSync(result.serverFile, "utf8");
 		const routeSource = fs.readFileSync(result.routeFile, "utf8");
+		const faviconRouteSource = fs.readFileSync(result.faviconRouteFile, "utf8");
 		assert.ok(clientSource.startsWith(GENERATED_MARKER));
 		assert.ok(clientSource.includes("NENC_CLIENT_MANIFEST"));
 		assert.ok(!clientSource.includes('"auth"'), "client artifact must not expose server auth policy");
 		assert.ok(serverSource.includes('"auth": "account"'));
 		assert.ok(routeSource.startsWith(GENERATED_MARKER));
+		assert.ok(faviconRouteSource.startsWith(GENERATED_MARKER), "favicon route must be protected by the generated-file marker");
+		assert.match(faviconRouteSource, /Downloading private asset: favicon =/);
+		assert.match(faviconRouteSource, /nencTerminalLogger\.done/);
+		assert.match(faviconRouteSource, /nencTerminalLogger\.failed/);
+		assert.ok(faviconRouteSource.includes("nencTerminalLogger from "),
+			"the generated favicon route imports the shared NENC terminal logger");
+		assert.ok(!faviconRouteSource.includes("__ENGINE_NENC_LOGGER_IMPORT__"),
+			"the NENC plugin resolves the logger import in generated route code");
+		assertTypeScriptSyntax(faviconRouteSource, "emd/favicon/route.ts");
 		assert.ok(routeSource.includes('import "../../../src/commands";'));
 		assert.ok(routeSource.includes('from "../../../src/nenc.server"'));
 		assert.ok(routeSource.includes("handler as POST, handler as OPTIONS"));
@@ -98,6 +114,16 @@ function run() {
 		assertTypeScriptSyntax(clientSource, "client.ts");
 		assertTypeScriptSyntax(serverSource, "server.ts");
 		assertTypeScriptSyntax(routeSource, "route.ts");
+		const lastGoodFaviconRoute = fs.readFileSync(result.faviconRouteFile, "utf8");
+		write(result.faviconRouteFile, "export const GET = customHandler;\\n");
+		assert.throws(() => compileNENCProject({
+			projectRoot,
+			commandFiles: ["src/commands.ts"],
+			handlerModule: "src/nenc.server.ts",
+			seed: "plugin-smoke-seed",
+			buildId: "plugin-smoke-build",
+		}), /Refusing to overwrite the existing route/);
+		write(result.faviconRouteFile, lastGoodFaviconRoute);
 
 		const repeat = compileNENCProject({
 			projectRoot,

@@ -17,6 +17,13 @@ const {
 	summarizeNextOutputs,
 } = require("./gen3-build-compiler");
 
+const { formatDoneLine, formatStatusLine } = require("../src/engine/plugins/nencTerminalLogger");
+
+assert.equal(formatDoneLine("COMPILED PAGE : app/page.tsx"), "[NENC] DONE COMPILED PAGE : app/page.tsx");
+assert.ok(formatStatusLine("COMPILING CUSTOM COMPONENT : Notice", 32).startsWith("[NENC] "));
+assert.ok(formatStatusLine("COMPILING CUSTOM COMPONENT : Notice", 32).length <= 31,
+	"the pinned status must fit one terminal row without wrapping");
+
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
 try {
 	const banner = [];
@@ -125,10 +132,18 @@ try {
 	assert.ok(manifest.pages[0].compiledNodes.some((node) => node.type === "notice" && node.customComponent), "the emitted compiler graph includes custom-component classification");
 	assert.ok(logs.some((line) => line.includes("COMPILING PAGE : app/(marketing)/about/page.tsx")),
 		"route analysis reports the source path in Next.js-style progress output");
-	assert.ok(logs.some((line) => line.includes("COMPILED ENGINE SCHEMA : app/(marketing)/about/page.tsx")),
-		"the static schema pass separately reports successful Engine schema compilation");
+	assert.ok(logs.some((line) => line.includes("DONE COMPILED /about")),
+		"schema completion reports the URL route id");
+	assert.ok(logs.some((line) => /NENC ROUTES 0\/1 complete \(0%\)/.test(line)),
+		"route analysis starts at an actual 0 of 1 routes completed");
+	assert.ok(logs.some((line) => /NENC ROUTES 1\/1 complete \(100%\)/.test(line)),
+		"route analysis ends at the actual 1 of 1 routes completed");
 	assert.ok(logs.some((line) => line.includes("COMPILING CUSTOM COMPONENT : notice")),
-		"custom components get a dedicated Next.js-style progress line");
+		"custom components get a dedicated progress status");
+	assert.ok(logs.some((line) => line.startsWith("DONE COMPILER PASS")),
+		"completed compiler work is labeled DONE for the terminal logger");
+	assert.ok(!logs.some((line) => line.includes("nextjs-engine |")),
+		"compiler progress must not use the old product-name pipe prefix");
 
 	const inputPath = path.join(root, "worker-manifest.json");
 	fs.writeFileSync(inputPath, JSON.stringify(manifest));

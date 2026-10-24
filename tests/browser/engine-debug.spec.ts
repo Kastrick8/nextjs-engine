@@ -135,3 +135,85 @@ test("a normal Engine page can open its inline issue directly in EngineDebug", a
 	await expect(page.getByText(/ENGINE_DEBUG_STANDALONE_CALLOUT/).first()).toBeVisible();
 	await expect(page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true })).toHaveAttribute("aria-current", "page");
 });
+
+
+test("EngineDebug merges repeated problems across routes", async ({ page }) => {
+	await page.goto("/_engine/debug");
+	const previewFrame = page.locator("iframe[title^='Live preview:']");
+	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
+	await preview.locator("body").evaluate(body => {
+		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_DEDUPE_ROUTE_SMOKE: hydration mismatch");
+	});
+	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
+	await expect(preview.locator("body")).toBeVisible();
+	await expect(preview.getByRole("heading", { name: "Reasonable fallback available" })).toBeVisible();
+	await preview.locator("body").evaluate(body => {
+		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_DEDUPE_ROUTE_SMOKE: hydration mismatch");
+	});
+	await page.getByRole("tab", { name: /Errors/ }).click();
+	const issue = page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_DEDUPE_ROUTE_SMOKE" });
+	await expect(issue).toHaveCount(1);
+	await expect(issue).toContainText("×2");
+	await issue.click();
+	await expect(page.getByLabel("Selected diagnostic details")).toContainText("Routes: /");
+	await expect(page.getByLabel("Selected diagnostic details")).toContainText("/engine-compat-test/browser-dialog/fallback");
+	await expect(previewFrame).toBeVisible();
+});
+
+test("EngineDebug keeps unrelated Next.js overlays from obscuring the preview and fits the viewport", async ({ page }) => {
+	await page.goto("/_engine/debug");
+	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
+	const preview = page.frameLocator("iframe[title^='Live preview:']");
+	await expect(preview.getByRole("heading", { name: "Reasonable fallback available" })).toBeVisible();
+	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
+	await preview.locator("body").evaluate(body => {
+		const overlay = body.ownerDocument.createElement("div");
+		overlay.setAttribute("data-nextjs-error-message", "true");
+		overlay.textContent = "Failed to compile /guide";
+		body.append(overlay);
+	});
+	await expect(page.locator(".ed-preview-status")).toHaveText("READY");
+	await expect(preview.locator("[data-engine-debug-next-overlay-hidden]")).toBeVisible();
+	await expect(preview.getByText("Reasonable fallback available")).toBeVisible();
+	await page.getByRole("tab", { name: /Errors/ }).click();
+	const guideIssue = page.locator(".ed-diagnostic").filter({ hasText: "Failed to compile /guide" });
+	await expect(guideIssue).toBeVisible();
+	await guideIssue.click();
+	await expect(page.getByLabel("Selected diagnostic details")).toContainText("Routes: /guide");
+	const viewport = page.locator(".ed-viewport-scroll");
+	const fit = page.locator(".ed-frame-fit");
+	await expect(fit).toBeVisible();
+	const viewportBox = await viewport.boundingBox();
+	const fitBox = await fit.boundingBox();
+	expect(viewportBox).not.toBeNull();
+	expect(fitBox).not.toBeNull();
+	expect(fitBox!.width).toBeLessThanOrEqual(viewportBox!.width);
+	expect(fitBox!.height).toBeLessThanOrEqual(viewportBox!.height);
+	await page.getByRole("button", { name: "Fit preview to available space" }).click();
+	await expect(page.getByText("100%", { exact: true })).toBeVisible();
+});
+
+
+test("EngineDebug opens a dynamic route picker with Next.js paths and custom slug values", async ({ page }) => {
+	await page.route("**/_engine/debug/routes", async route => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				patterns: ["/", "/blog/[slug]", "/docs/[[...slug]]"],
+				staticPaths: ["/", "/blog/hello-world", "/blog/another-post", "/docs", "/docs/api/errors"],
+				dynamicPatterns: ["/blog/[slug]", "/docs/[[...slug]]"],
+			}),
+		});
+	});
+	await page.goto("/_engine/debug");
+	await page.getByRole("button", { name: "/blog/[slug]", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: /Choose a route for \/blog\/\[slug\]/ })).toBeVisible();
+	await page.getByRole("button", { name: "/blog/hello-world" }).click();
+	await expect(page.locator("iframe[title='Live preview: /blog/hello-world']")).toBeVisible();
+	await page.getByRole("button", { name: "/blog/[slug]", exact: true }).click();
+	await page.getByRole("dialog").getByRole("textbox", { name: "slug", exact: true }).fill("special route");
+	await page.getByRole("button", { name: "Preview route" }).click();
+	await expect(page.locator("iframe[title='Live preview: /blog/special%20route']")).toBeVisible();
+});

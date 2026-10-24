@@ -7,6 +7,105 @@ const path = require("node:path");
 
 const plugin = require("../src/engine/plugins/enginePlugin");
 const adapter = require("../src/engine/plugins/engineBuildAdapter");
+const nencLogger = require("../src/engine/plugins/nencTerminalLogger");
+
+assert.equal(nencLogger.formatRouteProgress(0, 3), "0/3 routes completed (0%)");
+assert.equal(nencLogger.formatRouteProgress(1, 3), "1/3 routes completed (33.3%)");
+assert.equal(nencLogger.formatRouteProgress(3, 3), "3/3 routes completed (100%)");
+
+const defaultCacheConfig = plugin.withEngineTurbopackCache({ experimental: { keepUserSetting: true } });
+assert.equal(defaultCacheConfig.experimental.turbopackFileSystemCacheForDev, true,
+	"Engine opts into Next.js Turbopack cache for development");
+assert.equal(defaultCacheConfig.experimental.turbopackFileSystemCacheForBuild, true,
+	"Engine opts into Next.js Turbopack cache for repeat production builds");
+assert.equal(defaultCacheConfig.experimental.keepUserSetting, true, "unrelated Next.js experimental options survive");
+const explicitCacheOptOut = plugin.withEngineTurbopackCache({ experimental: {
+	turbopackFileSystemCacheForDev: false,
+	turbopackFileSystemCacheForBuild: false,
+} });
+assert.equal(explicitCacheOptOut.experimental.turbopackFileSystemCacheForDev, false,
+	"apps can explicitly disable the development cache");
+assert.equal(explicitCacheOptOut.experimental.turbopackFileSystemCacheForBuild, false,
+	"apps can explicitly disable the build cache");
+
+assert.deepEqual(nencLogger.classifyNextBuildLine("○ Compiling /request, /guide, emd ..."), {
+	level: "route-start", routes: ["/request", "/guide", "emd"],
+	message: "Compiling /request, /guide, emd", suppressible: true,
+}, "development route compilation is recognized from actual Next.js output");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled /request in 1050ms (434 modules)"), {
+	level: "route-done", route: "/request", routes: ["/request"], details: "1050ms, 434 modules",
+	duration: "1050ms", message: "compiled /request (1050ms, 434 modules)", suppressible: true,
+}, "route completion preserves Next.js's real duration and module count");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled /request, /guide, emd in 1.2s (560 modules)"), {
+	level: "routes-done", route: "/request", routes: ["/request", "/guide", "emd"], details: "1.2s, 560 modules",
+	duration: "1.2s", message: "compiled /request, /guide, emd (1.2s, 560 modules)", suppressible: true,
+}, "one real compile event can complete a multi-route batch");
+assert.deepEqual(nencLogger.classifyNextBuildLine("GET / 200 in 89ms (compile: 23ms, render: 66ms)"), {
+	level: "request", method: "GET", route: "/", statusCode: 200, compileDuration: "23ms", suppressible: false,
+}, "request completion uses Next.js's actual reported compile duration");
+assert.deepEqual(nencLogger.classifyNextBuildLine("  Creating an optimized production build ..."), {
+	level: "status", message: "NEXT.JS COMPILING APPLICATION", suppressible: true,
+}, "a Next.js build phase is mirrored to the pinned row");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled successfully in 2.1s"), {
+	level: "done", message: "NEXT.JS COMPILED APPLICATION", suppressible: true,
+}, "a complete Next.js compile step becomes a DONE line");
+assert.deepEqual(nencLogger.classifyNextBuildLine("  Linting and checking validity of types ..."), {
+	level: "status", message: "NEXT.JS CHECKING TYPES", suppressible: true,
+}, "Next.js type-checking progress is exposed");
+assert.deepEqual(nencLogger.classifyNextBuildLine("  Generating static pages (3/8) ..."), {
+	level: "status", message: "NEXT.JS GENERATING STATIC PAGES (3/8, 37.5%)", suppressible: true,
+}, "static page progress keeps its current count");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Generating static pages (8/8) in 243ms"), {
+	level: "done", message: "GENERATED STATIC PAGES (8/8, 100%)", suppressible: true,
+}, "finished static-page generation gets a completion line");
+assert.deepEqual(nencLogger.classifyNextBuildLine("Failed to compile."), {
+	level: "failed", message: "NEXT.JS BUILD FAILED", suppressible: true,
+}, "Next.js compile failure is mapped without swallowing other error output");
+assert.equal(nencLogger.classifyNextBuildLine("the compiler emitted a warning"), null,
+	"unrecognized Next.js output is not rewritten");
+
+// Simulate terminal writes so the bridge contract is checked even in CI/non-TTY environments.
+const originalWrite = process.stdout.write;
+const originalCI = process.env.CI;
+const passedThrough = [];
+process.env.CI = "true";
+process.stdout.write = function (chunk) {
+	passedThrough.push(Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk));
+	return true;
+};
+const stopOutputBridge = nencLogger.installNextBuildOutputBridge({ mode: "dev" });
+try {
+	process.stdout.write("  Creating an optimized production build ...\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] NEXT.JS COMPILING APPLICATION")),
+		"recognized status messages remain visible without a pinned TTY row");
+
+	passedThrough.length = 0;
+	process.stdout.write("○ Compiling /request, /guide, emd ...\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] Compiling /request, /guide, emd")
+		&& chunk.includes("0/3 routes completed (0%)")),
+		"route progress cannot silently disappear when the output is redirected");
+
+	passedThrough.length = 0;
+	process.stdout.write("✓ Compiled /request in 1050ms (434 modules)\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] DONE compiled /request (1050ms, 434 modules)")),
+		"route completion emits the actual duration and module count");
+
+	passedThrough.length = 0;
+	process.stdout.write("GET / 200 in 89ms (compile: 23ms, render: 66ms)\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] DONE compiled / — compile 23ms")),
+		"a request log can finish the exact route using Next.js's reported compile duration");
+
+	passedThrough.length = 0;
+	process.stdout.write("custom warning that should remain visible\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("custom warning that should remain visible")),
+		"unrecognized diagnostics remain untouched");
+} finally {
+	nencLogger.clearStatus();
+	stopOutputBridge();
+	process.stdout.write = originalWrite;
+	if (originalCI === undefined) delete process.env.CI;
+	else process.env.CI = originalCI;
+}
 const originalDelegate = process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER;
 
 async function main() {
@@ -42,6 +141,7 @@ async function main() {
 
 		console.log("Generation 3 build adapter smoke: ok");
 	} finally {
+		adapter.stopDevelopmentBridge();
 		if (originalDelegate === undefined) delete process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER;
 		else process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER = originalDelegate;
 		fs.rmSync(root, { recursive: true, force: true });
