@@ -17,23 +17,26 @@ function sha256(value) {
 }
 
 function stableValue(value, ancestors = new WeakSet()) {
-	if (value === undefined) return { $nencType: "undefined" };
+	if (value === undefined) return ["undefined"];
 	if (typeof value === "function") {
 		// Static schema extraction replaces functions with a no-op placeholder.
 		// The source string makes this safe if that policy changes in a later version.
-		return { $nencType: "function", source: Function.prototype.toString.call(value) };
+		return ["function", Function.prototype.toString.call(value)];
 	}
-	if (typeof value === "bigint") return { $nencType: "bigint", value: value.toString() };
-	if (typeof value === "number" && !Number.isFinite(value)) return { $nencType: "number", value: String(value) };
-	if (value === null || typeof value !== "object") return value;
+	if (typeof value === "bigint") return ["bigint", value.toString()];
+	if (typeof value === "number") {
+		if (Object.is(value, -0)) return ["number", "-0"];
+		if (!Number.isFinite(value)) return ["number", String(value)];
+		return ["number", value];
+	}
+	if (value === null) return ["null"];
+	if (typeof value !== "object") return [typeof value, value];
 	if (ancestors.has(value)) throw new TypeError("NENC schema cache fingerprint cannot contain a circular value");
 
 	ancestors.add(value);
 	try {
-		if (Array.isArray(value)) return value.map((entry) => stableValue(entry, ancestors));
-		const result = {};
-		for (const key of Object.keys(value).sort()) result[key] = stableValue(value[key], ancestors);
-		return result;
+		if (Array.isArray(value)) return ["array", value.map((entry) => stableValue(entry, ancestors))];
+		return ["object", Object.keys(value).sort().map((key) => [key, stableValue(value[key], ancestors)])];
 	} finally {
 		ancestors.delete(value);
 	}
@@ -102,8 +105,20 @@ function createSchemaOutputCache(projectRoot) {
 		})));
 	}
 
+	function isSafeCacheDirectory() {
+		try {
+			fs.mkdirSync(cacheDirectory, { recursive: true });
+			const actualRoot = fs.realpathSync(root);
+			const actualCacheDirectory = fs.realpathSync(cacheDirectory);
+			return isWithin(actualRoot, actualCacheDirectory) && actualCacheDirectory !== actualRoot;
+		} catch {
+			return false;
+		}
+	}
+
 	function read(job, expectedFingerprint) {
 		const file = schemaOutputCachePath(root, job.sourcePath, job.pageId);
+		if (!isSafeCacheDirectory() || !isWithin(cacheDirectory, file)) return null;
 		try {
 			const entry = JSON.parse(fs.readFileSync(file, "utf8"));
 			if (
@@ -125,7 +140,7 @@ function createSchemaOutputCache(projectRoot) {
 
 	function write(job, expectedFingerprint, page, metadata = {}) {
 		const file = schemaOutputCachePath(root, job.sourcePath, job.pageId);
-		if (!isWithin(cacheDirectory, file)) return false;
+		if (!isSafeCacheDirectory() || !isWithin(cacheDirectory, file)) return false;
 		const entry = {
 			formatVersion: CACHE_FORMAT_VERSION,
 			fingerprint: expectedFingerprint,
