@@ -649,14 +649,60 @@ export interface PageMeta {
 	viewport?: string;
 }
 
+export type EngineThemeScope = "local" | "global" | "remote";
+
+/** JSON-only data allowed in a portable EngineTheme / .etr artifact. */
+export type EngineThemeJsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| EngineThemeJsonValue[]
+	| { [key: string]: EngineThemeJsonValue };
+
+export type EngineThemeJsonObject = { [key: string]: EngineThemeJsonValue };
+
+/**
+ * EngineTheme supports legacy inline styling fields plus namespaced component
+ * definitions. Component definitions must remain serializable data; runtime
+ * React/Next.js handlers are registered separately and are never embedded in
+ * remote .etr files.
+ */
 export interface EngineTheme {
+	/** Group ID, or a qualified component/subtheme ID when used as a schema reference. */
+	id?: string;
+	scope?: EngineThemeScope;
+	/** Optional explicit URL for a remote .etr artifact. */
+	sourceUrl?: string;
+	name?: string;
+
+	/** Legacy inline theme properties retained for backwards compatibility. */
 	vars?: Record<string, string>;
 	fonts?: string[];
 	globalStyles?: string;
+
+	/** Reusable semantic tokens, such as colors, typography and spacing. */
+	tokens?: EngineThemeJsonObject;
+	/** Component-scoped theme definitions, e.g. markdown, buttons, or canvas. */
+	components?: Record<string, EngineThemeJsonObject>;
+
+	/** Direct component namespaces are supported by createTheme(), e.g. markdown: {...}. */
+	[component: string]: EngineThemeJsonValue | undefined;
+}
+
+/** Input accepted by createTheme(); scope defaults to local. */
+export interface EngineThemeDefinition extends EngineTheme {
+	id: string;
+}
+
+export interface EngineThemeReference {
+	id: string;
+	sourceUrl?: string;
 }
 
 export interface PageSchema {
 	meta?: PageMeta;
+	/** Either legacy inline styles or an ID reference resolved by the theme pipeline. */
 	theme?: EngineTheme;
 	root: SchemaNode;
 }
