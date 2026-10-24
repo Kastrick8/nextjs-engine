@@ -59,9 +59,6 @@ jobs:
         run: |
           node scripts/gen3-nenc-plugin-smoke.js
           node scripts/engine-markdown-gfm-smoke.js
-      - name: Test Generation 3 EngineDebug error diagnostics
-        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
-        run: node scripts/gen3-engine-debug-diagnostics-smoke.js
       - name: Type-check engine
         run: npm run type-check
       - name: Test EngineScroll core and mobile stability
@@ -145,3 +142,9 @@ jobs:
           total_bytes="$(find "$chunk_dir" -type f -name '*.js' -printf '%s\n' | awk '{ total += $1 } END { print total + 0 }')"
           chunk_count="$(find "$chunk_dir" -type f -name '*.js' | wc -l | tr -d ' ')"
           printf 'Total client JavaScript: %.1f KiB across %s chunks\n' "$(awk -v bytes="$total_bytes" 'BEGIN { print bytes / 1024 }')" "$chunk_count"
+
+      # This pre-existing EngineDebug diagnostics smoke currently fails on main-3;
+      # keep it last so it does not hide the independent build/type-check results.
+      - name: Test Generation 3 EngineDebug error diagnostics
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: node scripts/gen3-engine-debug-diagnostics-smoke.js
