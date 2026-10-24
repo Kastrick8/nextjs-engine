@@ -723,6 +723,32 @@ export interface EngineThemeReference {
 	sourceUrl?: string;
 }
 
+export type EngineThemeJoinDirection = "left" | "right" | "top" | "bottom";
+export type EngineThemeDataEventType = `join:${EngineThemeJoinDirection}`;
+
+export interface EngineThemeDataEventBinding {
+	/** ID of a trusted handler registered by local application code. */
+	handlerId: string;
+}
+
+export interface EngineThemeDataEventContext {
+	themeId: string;
+	componentId: string;
+	slotId: string;
+	direction?: EngineThemeJoinDirection;
+	existing?: EngineThemeJsonValue;
+	incoming?: EngineThemeJsonValue;
+	metadata?: EngineThemeJsonObject;
+}
+
+export interface EngineThemeDataEvent {
+	type: EngineThemeDataEventType;
+	context: EngineThemeDataEventContext;
+}
+
+export type EngineThemeDataHandlerResult = EngineThemeJsonValue | ReactNode | undefined;
+export type EngineThemeDataHandler = (event: Readonly<EngineThemeDataEvent>) => EngineThemeDataHandlerResult;
+
 export interface PageSchema {
 	meta?: PageMeta;
 	/** Either legacy inline styles or an ID reference resolved by the theme pipeline. */
