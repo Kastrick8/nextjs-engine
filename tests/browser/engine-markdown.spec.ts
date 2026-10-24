@@ -40,7 +40,7 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await expect(article.locator('a[href="#"]')).toContainText("blocked JavaScript link");
 	await expect(article.locator("script[data-engine-markdown-unsafe]")).toHaveCount(0);
 	await expect(article.locator("img[onerror]")).toHaveCount(0);
-	await expect(article.locator("a[target='_blank'][rel='noopener noreferrer']")).toContainText("the Next.js website");
+	await expect(article.locator("a[target='_blank'][rel='noopener noreferrer']").filter({ hasText: "the Next.js website" })).toContainText("the Next.js website");
 	await expect(article.locator("a > img")).toHaveCount(2);
 
 	const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
