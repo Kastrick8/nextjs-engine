@@ -1,4 +1,26 @@
 import { createPage } from "../../src/engine/createPage";
+import { createTheme } from "../../src/engine/theme/createTheme";
+
+const markdownShowcaseTheme = createTheme({
+	id: "emd-showcase",
+	scope: "global",
+	vars: { "--emd-theme-accent": "#826f9b" },
+	markdown: {
+		defaults: {
+			codeBackground: "#241b38",
+			codeColor: "#f5efff",
+		},
+		styles: {
+			codeBlock: { borderColor: "#826f9b" },
+		},
+		variants: {
+			dark: {
+				defaults: { codeBackground: "#241b38" },
+				styles: { codeBlock: { borderColor: "#826f9b" } },
+			},
+		},
+	},
+});
 
 const MARKDOWN_SHOWCASE = `# EngineMarkdown showcase
 
@@ -100,6 +122,7 @@ This article also applies responsive font family and body sizing, heading scales
 export default createPage({
 	compiler: { pageId: "engine-markdown-test" },
 	schema: {
+		theme: { id: "emd-showcase.markdown.dark" },
 		meta: { title: "EngineMarkdown complete feature showcase" },
 		root: {
 			type: "section",
