@@ -10,6 +10,7 @@ function getState() {
 			source: "",
 			statuses: {},
 			statusSequence: 0,
+			activeRoutes: new Map(),
 			timer: null,
 			rows: 0,
 			active: false,
@@ -204,6 +205,19 @@ function classifyNextBuildLine(line) {
 	const message = cleanMessage(line);
 	if (!message || /^\[NENC\]/i.test(message)) return null;
 
+	const compilingRoutes = message.match(/^(?:[○◯]\s*)?Compiling\s+(.+?)(?:\s*\.{3}|…)?$/i);
+	if (compilingRoutes) {
+		const routes = compilingRoutes[1].replace(/\s*\.{3}$/, "").replace(/…$/, "")
+			.split(/,\s*/).map((route) => route.trim()).filter(Boolean);
+		if (routes.length) return { level: "route-start", routes, message: "Compiling " + routes.join(", "), suppressible: true };
+	}
+	const compiledRoute = message.match(/^(?:✓\s*)?Compiled\s+(.+?)\s+in\s+([\d.]+)\s*(ms|s)(?:\s+\((\d+)\s+modules?\))?$/i);
+	if (compiledRoute) {
+		const duration = compiledRoute[2] + compiledRoute[3];
+		const modules = compiledRoute[4] ? Number(compiledRoute[4]) : null;
+		return { level: "route-done", route: compiledRoute[1].trim(), message: "compiled " + compiledRoute[1].trim() + " (" + duration + (modules === null ? "" : ", " + modules + " modules") + ")", suppressible: true };
+	}
+
 	if (/failed to compile|compilation failed|build failed|error occurred prerendering/i.test(message)) {
 		return { level: "failed", message: "NEXT.JS BUILD FAILED", suppressible: true };
 	}
@@ -217,7 +231,7 @@ function classifyNextBuildLine(line) {
 		if (total > 0 && current >= total && /\bin\s+\d+/i.test(match[3])) {
 			return { level: "done", message: "NEXT.JS GENERATED STATIC PAGES (" + current + "/" + total + ")", suppressible: true };
 		}
-		return { level: "status", message: "NEXT.JS GENERATING STATIC PAGES (" + current + "/" + total + ")", suppressible: true };
+		return { level: "status", message: "NEXT.JS GENERATING STATIC PAGES (" + current + "/" + total + ", " + percent + "%)", suppressible: true };
 	}
 	if (/creating an optimized production build/i.test(message)) {
 		return { level: "status", message: "NEXT.JS COMPILING APPLICATION", suppressible: true };
@@ -264,7 +278,18 @@ function dispatchNextBuildEvent(event) {
 	const state = getState();
 	state.bridgeBusy = true;
 	try {
-		if (event.level === "status") setStatus(event.message, "nextjs");
+		if (event.level === "route-start") {
+			for (const route of event.routes) state.activeRoutes.set(route, Date.now());
+			const routes = [...state.activeRoutes.keys()];
+			setStatus("Compiling " + routes.join(", ") + ". [" + routes.length + " active]", "nextjs");
+		} else if (event.level === "route-done") {
+			state.activeRoutes.delete(event.route);
+			if (state.activeRoutes.size) {
+				const routes = [...state.activeRoutes.keys()];
+				setStatus("Compiling " + routes.join(", ") + ". [" + routes.length + " active]", "nextjs");
+			} else clearStatus("nextjs");
+			done(event.message);
+		} else if (event.level === "status") setStatus(event.message, "nextjs");
 		else if (event.level === "done") done(event.message);
 		else if (event.level === "failed") failed(event.message);
 	} finally {
@@ -316,7 +341,7 @@ function installNextBuildOutputBridge() {
 		}
 	}
 
-	setStatus("NEXT.JS PREPARING PRODUCTION BUILD", "nextjs");
+	setStatus("NEXT.JS STARTING", "nextjs");
 	return function stopNextBuildOutputBridge() {
 		if (stopped) return;
 		stopped = true;

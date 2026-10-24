@@ -24,6 +24,13 @@ assert.equal(explicitCacheOptOut.experimental.turbopackFileSystemCacheForDev, fa
 assert.equal(explicitCacheOptOut.experimental.turbopackFileSystemCacheForBuild, false,
 	"apps can explicitly disable the build cache");
 
+assert.deepEqual(nencLogger.classifyNextBuildLine("○ Compiling /request, /guide, emd ..."), {
+	level: "route-start", routes: ["/request", "/guide", "emd"],
+	message: "Compiling /request, /guide, emd", suppressible: true,
+}, "development route compilation is recognized from actual Next.js output");
+assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled /request in 1050ms (434 modules)"), {
+	level: "route-done", route: "/request", message: "compiled /request (1050ms, 434 modules)", suppressible: true,
+}, "route completion preserves Next.js's real duration and module count");
 assert.deepEqual(nencLogger.classifyNextBuildLine("  Creating an optimized production build ..."), {
 	level: "status", message: "NEXT.JS COMPILING APPLICATION", suppressible: true,
 }, "a Next.js build phase is mirrored to the pinned row");
@@ -34,10 +41,10 @@ assert.deepEqual(nencLogger.classifyNextBuildLine("  Linting and checking validi
 	level: "status", message: "NEXT.JS CHECKING TYPES", suppressible: true,
 }, "Next.js type-checking progress is exposed");
 assert.deepEqual(nencLogger.classifyNextBuildLine("  Generating static pages (3/8) ..."), {
-	level: "status", message: "NEXT.JS GENERATING STATIC PAGES (3/8)", suppressible: true,
+	level: "status", message: "NEXT.JS GENERATING STATIC PAGES (3/8, 37%)", suppressible: true,
 }, "static page progress keeps its current count");
 assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Generating static pages (8/8) in 243ms"), {
-	level: "done", message: "NEXT.JS GENERATED STATIC PAGES (8/8)", suppressible: true,
+	level: "done", message: "GENERATED STATIC PAGES (8/8, 100%)", suppressible: true,
 }, "finished static-page generation gets a completion line");
 assert.deepEqual(nencLogger.classifyNextBuildLine("Failed to compile."), {
 	level: "failed", message: "NEXT.JS BUILD FAILED", suppressible: true,
@@ -58,6 +65,11 @@ const stopOutputBridge = nencLogger.installNextBuildOutputBridge();
 try {
 	process.stdout.write("  Creating an optimized production build ...\n");
 	assert.equal(passedThrough.length, 0, "a recognized transient Next.js phase is not printed as a duplicate line");
+	process.stdout.write("○ Compiling /request, /guide, emd ...\n");
+	assert.equal(passedThrough.length, 0, "route compilation is shown in the live status instead of duplicated as a log");
+	process.stdout.write("✓ Compiled /request in 1050ms (434 modules)\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] DONE compiled /request (1050ms, 434 modules)")),
+		"route completion emits the actual duration and module count");
 
 	process.stdout.write("✓ Compiled successfully in 2.1s\n");
 	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] DONE NEXT.JS COMPILED APPLICATION")),

@@ -8,6 +8,7 @@ const { pathToFileURL } = require("node:url");
 const nencLogger = require("./nencTerminalLogger");
 
 const BUILD_STATE_KEY = Symbol.for("nextjs-engine.gen3-build-adapter-state");
+const DEV_BRIDGE_KEY = Symbol.for("nextjs-engine.next-dev-output-bridge-state");
 const DELEGATE_ADAPTER_ENV = "NEXTJS_ENGINE_DELEGATE_ADAPTER";
 
 function getState() {
@@ -15,6 +16,21 @@ function getState() {
 }
 function setState(value) {
 	globalThis[BUILD_STATE_KEY] = value;
+}
+function startDevelopmentBridge() {
+	if (globalThis[DEV_BRIDGE_KEY]) return globalThis[DEV_BRIDGE_KEY];
+	const stopBridge = nencLogger.installNextBuildOutputBridge();
+	const state = {
+		stop() {
+			stopBridge();
+			nencLogger.clearStatus("nextjs");
+			if (globalThis[DEV_BRIDGE_KEY] === state) delete globalThis[DEV_BRIDGE_KEY];
+			process.removeListener("exit", state.stop);
+		},
+	};
+	globalThis[DEV_BRIDGE_KEY] = state;
+	process.once("exit", state.stop);
+	return state;
 }
 async function loadDelegateAdapter() {
 	const adapterPath = process.env[DELEGATE_ADAPTER_ENV];
@@ -125,7 +141,9 @@ const adapter = {
 			nextConfig = await delegate.modifyConfig(config, context);
 		}
 
-		if (context.phase === "phase-production-build") {
+		if (context.phase === "phase-development-server") {
+			startDevelopmentBridge();
+		} else if (context.phase === "phase-production-build") {
 			startCompiler(process.cwd());
 		}
 		return nextConfig;
@@ -164,5 +182,6 @@ const adapter = {
 
 module.exports = adapter;
 module.exports.startCompiler = startCompiler;
+module.exports.startDevelopmentBridge = startDevelopmentBridge;
 module.exports.loadDelegateAdapter = loadDelegateAdapter;
 module.exports.forwardWorkerLog = forwardWorkerLog;
