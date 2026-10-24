@@ -51,7 +51,7 @@ test("EngineDebug captures preview console errors in its Problems view", async (
 	const capturedDiagnostic = page.locator(".ed-diagnostic").filter({ hasText: "ENGINE_DEBUG_CAPTURE_SMOKE" });
 	await expect(capturedDiagnostic).toHaveCount(1);
 	await expect(capturedDiagnostic).toContainText("Hydration");
-	await expect(capturedDiagnostic).toContainText("2×");
+	await expect(capturedDiagnostic).toContainText("×2");
 	await capturedDiagnostic.click();
 	await expect(page.getByLabel("Source editor")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Auto-complete", exact: true })).toBeVisible();
