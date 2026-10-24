@@ -16,8 +16,10 @@ const previousNodeEnv = process.env.NODE_ENV;
 const modulePath = path.resolve(__dirname, "../src/engine/debug/EngineDebugPage.tsx");
 const isolationModulePath = path.resolve(__dirname, "../src/engine/debug/EngineDebugIsolation.tsx");
 const sourceModulePath = path.resolve(__dirname, "../src/engine/debug/EngineDebugSourceRoute.ts");
+const routesModulePath = path.resolve(__dirname, "../src/engine/debug/EngineDebugRoutesRoute.ts");
 const routeFile = path.join(root, "app", "%5Fengine", "debug", "page.tsx");
 const sourceRouteFile = path.join(root, "app", "%5Fengine", "debug", "source", "route.ts");
+const routesRouteFile = path.join(root, "app", "%5Fengine", "debug", "routes", "route.ts");
 
 function touch(relative) {
 	const filename = path.join(root, relative);
@@ -36,7 +38,7 @@ try {
 
 	assert.deepEqual(discoverEngineDebugPages(root), ["/", "/account", "/docs", "/products"]);
 	process.env.NODE_ENV = "development";
-	const development = prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath });
+	const development = prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath, routesModulePath });
 	assert.equal(development.development, true);
 	assert.deepEqual(development.pages, ["/", "/account", "/docs", "/products"]);
 	const generated = fs.readFileSync(routeFile, "utf8");
@@ -47,9 +49,24 @@ try {
 	assert.doesNotMatch(generated, /_private/);
 	const generatedSourceRoute = fs.readFileSync(sourceRouteFile, "utf8");
 	assert.ok(generatedSourceRoute.startsWith(GENERATED_MARKER));
-	assert.match(generatedSourceRoute, /export \{ GET \} from/);
+	assert.match(generatedSourceRoute, /export \{ GET, POST \} from/);
+	const generatedRoutesRoute = fs.readFileSync(routesRouteFile, "utf8");
+	assert.ok(generatedRoutesRoute.startsWith(GENERATED_MARKER));
+	assert.match(generatedRoutesRoute, /export \{ GET \} from/);
+	const routeCatalogHelper = require("../src/engine/debug/engineDebugRouteCatalog.js");
+	const dynamicFixture = path.join(root, "app", "blog", "[slug]");
+	fs.mkdirSync(dynamicFixture, { recursive: true });
+	fs.writeFileSync(path.join(dynamicFixture, "page.tsx"), "export default function Page() { return null; }", "utf8");
+	const prerenderManifest = path.join(root, ".next", "prerender-manifest.json");
+	fs.mkdirSync(path.dirname(prerenderManifest), { recursive: true });
+	fs.writeFileSync(prerenderManifest, JSON.stringify({ routes: { "/blog/hello-world": {}, "/blog/another-post": {}, "/_engine/debug": {} } }), "utf8");
+	const discoveredCatalog = routeCatalogHelper.discoverEngineDebugRouteCatalog(root);
+	assert.ok(discoveredCatalog.dynamicPatterns.includes("/blog/[slug]"), "route catalog detects dynamic patterns");
+	assert.ok(discoveredCatalog.staticPaths.includes("/blog/hello-world"), "catalog includes concrete routes from Next prerender manifests");
+	assert.ok(discoveredCatalog.staticPaths.includes("/blog/another-post"), "catalog includes every known prerendered route");
+	assert.ok(!discoveredCatalog.staticPaths.includes("/_engine/debug"), "catalog excludes the dashboard itself");
 	assert.equal(
-		prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath }).routeFile,
+		prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath, routesModulePath }).routeFile,
 		routeFile,
 		"generation must be idempotent",
 	);
@@ -70,10 +87,11 @@ try {
 	fs.mkdirSync(staleDevelopmentTypes, { recursive: true });
 	fs.writeFileSync(path.join(staleDevelopmentTypes, "validator.ts"), "import './_engine/debug';\n", "utf8");
 	process.env.NODE_ENV = "production";
-	const production = prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath });
+	const production = prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath, routesModulePath });
 	assert.equal(production.development, false);
 	assert.equal(fs.existsSync(routeFile), false, "production preparation must remove the generated route before route discovery");
 	assert.equal(fs.existsSync(sourceRouteFile), false, "production preparation must remove the development-only source endpoint");
+	assert.equal(fs.existsSync(routesRouteFile), false, "production cleanup must remove the development-only route catalog endpoint");
 	assert.equal(fs.existsSync(staleDevelopmentTypes), false, "production preparation must remove stale development route types");
 
 	fs.mkdirSync(path.dirname(routeFile), { recursive: true });

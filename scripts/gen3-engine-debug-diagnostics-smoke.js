@@ -23,6 +23,7 @@ process.env.NODE_ENV = "development";
 try {
 	const {
 		appendEngineDebugDiagnostics,
+		engineDebugDiagnosticFingerprint,
 		classifyEngineDebugDiagnostic,
 		createEngineDebugDiagnostic,
 		formatEngineDebugDiagnostic,
@@ -76,14 +77,18 @@ try {
 	const duplicate = createEngineDebugDiagnostic({
 		source: "console",
 		message: hydration.message,
-		detail: "repeat",
+		detail: hydration.detail + "\nrepeat",
 		location: "/",
+		route: "/guide",
 		now: 1_500,
 	});
 	let collection = appendEngineDebugDiagnostics([], hydration);
 	collection = appendEngineDebugDiagnostics(collection, duplicate);
-	assert.equal(collection.length, 1, "consecutive duplicate messages are coalesced inside the dedupe window");
-	assert.equal(collection[0].detail, "repeat", "a repeated message can refresh available detail");
+	assert.equal(collection.length, 1, "identical issues are coalesced across routes");
+	assert.match(collection[0].detail, /repeat/, "a repeated message can refresh available detail without losing source context");
+	assert.equal(collection[0].occurrences, 2, "merged errors retain their occurrence count");
+	assert.deepEqual(collection[0].routes, ["/", "/guide"], "merged errors retain each affected route");
+	assert.equal(engineDebugDiagnosticFingerprint(hydration), engineDebugDiagnosticFingerprint(duplicate), "fingerprints ignore the route that observed an issue");
 	for (let index = 0; index < 205; index++) {
 		collection = appendEngineDebugDiagnostics(collection, createEngineDebugDiagnostic({
 			source: "runtime",
@@ -117,6 +122,7 @@ try {
 
 	const {
 		createEngineDebugSourcePreview,
+		applyEngineDebugSourcePatch,
 	} = require("../src/engine/debug/EngineDebugSourceRoute.ts");
 	const sourcePreview = createEngineDebugSourcePreview(process.cwd(), "src/engine/debug/EngineDebugDiagnostics.ts", 1);
 	assert.ok(sourcePreview, "development source preview reads an allowed workspace source file");
@@ -126,6 +132,25 @@ try {
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), "../.env", 1), null, "source preview rejects parent traversal");
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), ".env.local", 1), null, "source preview rejects hidden environment files");
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), "node_modules/typescript/lib/typescript.js", 1), null, "source preview rejects dependency directories");
+
+	const tempRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "engine-debug-patch-"));
+	try {
+		const fixturePath = path.join(tempRoot, "src", "app", "page.tsx");
+		fs.mkdirSync(path.dirname(fixturePath), { recursive: true });
+		const before = 'const label = "before";\nexport {};';
+		fs.writeFileSync(fixturePath, before, "utf8");
+		const saved = applyEngineDebugSourcePatch(tempRoot, "src/app/page.tsx", 1, 1,
+			['const label = "before";', "export {};"], ['const label = "after";', "export {};"]);
+		assert.equal(saved.ok, true, "valid explicit source patches save to the workspace");
+		assert.equal(fs.readFileSync(fixturePath, "utf8"), 'const label = "after";\nexport {};', "patches update only the requested line range");
+		const stale = applyEngineDebugSourcePatch(tempRoot, "src/app/page.tsx", 1, 1,
+			['const label = "before";', "export {};"], ['const label = "wrong";', "export {};"]);
+		assert.equal(stale.ok, false, "patches based on stale source context are rejected");
+		if (!stale.ok) assert.equal(stale.code, "stale", "stale patch responses have a stable code");
+		assert.equal(applyEngineDebugSourcePatch(tempRoot, "../outside.ts", 1, 1, ["x"], ["y"]).ok, false, "patches reject path traversal");
+	} finally {
+		fs.rmSync(tempRoot, { recursive: true, force: true });
+	}
 
 	const pageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugPage.tsx"), "utf8");
 	const pageCompile = ts.transpileModule(pageSource, {
@@ -141,6 +166,35 @@ try {
 	assert.equal(syntaxErrors.length, 0,
 		"EngineDebug TSX parses cleanly: " + syntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
 
+	const dynamicRouteSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugDynamicRoutes.ts"), "utf8");
+	const dynamicRouteCompile = ts.transpileModule(dynamicRouteSource, { reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
+	assert.equal((dynamicRouteCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error).length, 0, "dynamic route helper parses cleanly");
+	const dynamicRoutes = require("../src/engine/debug/EngineDebugDynamicRoutes.ts");
+	assert.equal(dynamicRoutes.isEngineDebugDynamicRoute("/blog/[slug]"), true, "single dynamic route segments trigger the chooser");
+	assert.equal(dynamicRoutes.isEngineDebugDynamicRoute("/docs/[[...slug]]"), true, "optional catch-all route segments trigger the chooser");
+	assert.equal(dynamicRoutes.isEngineDebugDynamicRoute("/about"), false, "static routes open without the dynamic chooser");
+	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/blog/[slug]", "/blog/hello-world"), true, "dynamic route pattern matches concrete slugs");
+	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/docs/[...slug]", "/docs/api/errors"), true, "catch-all pattern matches nested paths");
+	assert.equal(dynamicRoutes.matchesEngineDebugRoutePattern("/docs/[[...slug]]", "/docs"), true, "optional catch-all matches its base path");
+	assert.equal(dynamicRoutes.buildEngineDebugDynamicRoute("/blog/[slug]", { slug: "hello world" }).path, "/blog/hello%20world", "user-entered route segments are encoded");
+	assert.equal(dynamicRoutes.inferEngineDebugOverlayRoute("Failed to compile /guide", ["/", "/guide"]), "/guide", "Next overlays are attributed to the route they name rather than the preview fallback");
+	assert.equal(dynamicRoutes.inferEngineDebugOverlayRoute("TypeError: boom\\n at Page (./app/guide/page.tsx:12:4)", ["/", "/guide"]), "/guide", "Next stack traces map app page files back to their route");
+	assert.equal(dynamicRoutes.inferEngineDebugOverlayRoute("Failed to compile /guide", ["/"]), "/guide", "explicit overlay paths are retained before route discovery finishes");
+	const pickerSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugDynamicRoutePicker.tsx"), "utf8");
+	const pickerCompile = ts.transpileModule(pickerSource, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } });
+	assert.equal((pickerCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error).length, 0, "dynamic route picker TSX parses cleanly");
+	const editorSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugFixEditor.tsx"), "utf8");
+	const editorCompile = ts.transpileModule(editorSource, {
+		reportDiagnostics: true,
+		compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+	});
+	const editorSyntaxErrors = (editorCompile.diagnostics ?? []).filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error);
+	assert.equal(editorSyntaxErrors.length, 0, "EngineDebug editor TSX parses cleanly: " + editorSyntaxErrors.map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
+	for (const required of ["EngineDebugFixEditor", "ed-route-search", "Fit preview to available space", "source !== \"next-overlay\"", "ed-selected-detail", "route: routeOverride ?? frameWindow.location.pathname"]) {
+		assert.ok(pageSource.includes(required), "dashboard contains " + required);
+	}
+	for (const required of ["Suggest auto-fix", "Apply changes", "originalLines", "replacementLines", "Unapplied changes", "ed-fix-diff"]) assert.ok(editorSource.includes(required), "source editor contains " + required);
+
 	const runtimeMonitorSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugRuntimeMonitor.tsx"), "utf8");
 	const monitorCompile = ts.transpileModule(runtimeMonitorSource, {
 		reportDiagnostics: true,
@@ -154,6 +208,11 @@ try {
 	const monitorSyntaxErrors = (monitorCompile.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
 	assert.equal(monitorSyntaxErrors.length, 0,
 		"normal-page monitor TSX parses cleanly: " + monitorSyntaxErrors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n")).join("\\n"));
+	const schemaRendererSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/core/SchemaRenderer.tsx"), "utf8");
+	assert.ok(schemaRendererSource.includes("NodeErrorBoundary"), "Engine schema nodes are isolated by development render boundaries");
+	assert.ok(schemaRendererSource.includes("DevelopmentNodeElement"), "risky Engine component implementations are deferred until client hydration in development");
+	assert.ok(schemaRendererSource.includes("data-engine-debug-pending"), "server placeholders preserve schema paths while deferring component execution");
+	assert.ok(schemaRendererSource.includes("EngineDebug · component isolated"), "failed Engine nodes have a marked local fallback");
 	const createPageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/createPage.tsx"), "utf8");
 	assert.match(createPageSource, /process\.env\.NODE_ENV === "development" && <EngineDebugRuntimeMonitor \/>/,
 		"normal Engine pages only mount the inline diagnostics monitor during development");
@@ -161,6 +220,9 @@ try {
 		"unhandledrejection",
 		"frameWindow.addEventListener(\"error\"",
 		"Next.js development error overlay",
+		"inferEngineDebugOverlayRoute",
+		"data-engine-debug-next-overlay-hidden",
+		"details in EngineDebug Problems",
 		"console.error",
 		"ErrorInspector",
 		"Copy details",
@@ -191,7 +253,12 @@ try {
 		"isLoopbackHost",
 		"FORBIDDEN_SEGMENTS",
 		"MAX_SOURCE_BYTES",
-	]) assert.ok(sourceRouteSource.includes(required), "source preview route includes " + required);
+		"applyEngineDebugSourcePatch",
+		"A same-origin request is required",
+		"writeFileSync(target.path, updated",
+	]) assert.ok(sourceRouteSource.includes(required), "source preview/edit route includes " + required);
+	const debugPluginSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/plugins/engineDebugPlugin.js"), "utf8");
+	assert.ok(debugPluginSource.includes("export { GET, POST }"), "the generated debug source route exports its guarded save handler");
 
 	console.log("Generation 3 EngineDebug diagnostics smoke: ok");
 } finally {
