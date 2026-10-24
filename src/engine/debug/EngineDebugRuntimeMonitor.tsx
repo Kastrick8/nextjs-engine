@@ -13,6 +13,10 @@ export function EngineDebugRuntimeMonitor() {
 	useEffect(() => {
 		const url = new URL(window.location.href);
 		const debugWindow = window as Window & { __NEXT_ENGINE_DEBUG_INLINE_ACTIVE__?: boolean };
+		// Capture this document's console object. `window` can act as a WindowProxy
+		// across navigation, so teardown must not restore an old handler onto the
+		// replacement document's console.
+		const debugConsole = debugWindow.console;
 		// The injected inline runtime script and this React monitor share the same
 		// capture bridge. Only one may patch console.error or they can recursively
 		// capture each other's diagnostic reports in development browsers.
@@ -59,19 +63,19 @@ export function EngineDebugRuntimeMonitor() {
 			report("unhandled-rejection", "Unhandled promise rejection", event.reason, window.location.pathname);
 		};
 
-		const originalConsoleError = window.console.error;
+		const originalConsoleError = debugConsole.error;
 		let consolePatched = false;
-		const patchedConsoleError: typeof window.console.error = (...args) => {
+		const patchedConsoleError: typeof debugConsole.error = (...args) => {
 			const detail = args.map((argument) => redactEngineDebugText(argument, 1_500)).join("\n");
 			report("console", typeof args[0] === "string" ? args[0] : detail || "console.error", detail, window.location.pathname);
-			originalConsoleError.apply(window.console, args);
+			originalConsoleError.apply(debugConsole, args);
 		};
 		try {
-			window.console.error = patchedConsoleError;
+			debugConsole.error = patchedConsoleError;
 			consolePatched = true;
 		} catch {
 			try {
-				Object.defineProperty(window.console, "error", { configurable: true, writable: true, value: patchedConsoleError });
+				Object.defineProperty(debugConsole, "error", { configurable: true, writable: true, value: patchedConsoleError });
 				consolePatched = true;
 			} catch {
 				// Browser-owned console methods may reject replacement; runtime error listeners still work.
@@ -101,10 +105,10 @@ export function EngineDebugRuntimeMonitor() {
 			window.removeEventListener("unhandledrejection", onUnhandledRejection);
 			if (consolePatched) {
 				try {
-					window.console.error = originalConsoleError;
+					debugConsole.error = originalConsoleError;
 				} catch {
 					try {
-						Object.defineProperty(window.console, "error", { configurable: true, writable: true, value: originalConsoleError });
+						Object.defineProperty(debugConsole, "error", { configurable: true, writable: true, value: originalConsoleError });
 					} catch {
 						// Ignore teardown when the browser owns the console method.
 					}
