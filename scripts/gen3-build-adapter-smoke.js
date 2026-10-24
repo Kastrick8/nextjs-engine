@@ -91,6 +91,7 @@ try {
 	assert.ok(passedThrough.some((chunk) => chunk.includes("custom warning that should remain visible")),
 		"unrecognized diagnostics remain untouched");
 } finally {
+	nencLogger.clearStatus();
 	stopOutputBridge();
 	process.stdout.write = originalWrite;
 	if (originalCI === undefined) delete process.env.CI;

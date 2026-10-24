@@ -322,6 +322,14 @@ function writeCallback(args) {
 	return null;
 }
 
+function parseDurationMilliseconds(value) {
+	const match = String(value || "").trim().match(/^([\d.]+)\s*(ms|s)$/i);
+	if (!match) return null;
+	const amount = Number(match[1]);
+	if (!Number.isFinite(amount)) return null;
+	return match[2].toLowerCase() === "s" ? amount * 1000 : amount;
+}
+
 function dispatchNextBuildEvent(event) {
 	const state = getState();
 	state.bridgeBusy = true;
