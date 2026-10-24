@@ -19,7 +19,8 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await expect(article.locator("h3#markdown-showcase-heading-level-three-2")).toBeVisible();
 	await expect(article.locator("strong").first()).toHaveText("complete documented EngineMarkdown feature set");
 	await expect(article.locator("blockquote blockquote")).toContainText("Nested blockquotes work too");
-	await expect(article.getByRole("listitem").filter({ hasText: "Nested item with" })).toBeVisible();
+	// The parent list item inherits its child text, so target the nested matching item.
+	await expect(article.getByRole("listitem").filter({ hasText: "Nested item with" }).last()).toBeVisible();
 	await expect(article.locator('input[type="checkbox"]:checked')).toHaveCount(1);
 	await expect(article.locator('input[type="checkbox"]:not(:checked)')).toHaveCount(1);
 	await expect(article.locator("img[alt='A small EngineMarkdown feature illustration']")).toHaveAttribute("src", "/markdown-demo.svg");
