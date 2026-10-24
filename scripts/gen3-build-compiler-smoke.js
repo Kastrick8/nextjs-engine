@@ -17,13 +17,31 @@ const {
 	summarizeNextOutputs,
 } = require("./gen3-build-compiler");
 
-const { formatDoneLine, formatStatusLine } = require("../src/engine/plugins/nencTerminalLogger");
+const {
+	formatDoneLine,
+	formatStatusLine,
+	formatWorkerStatus,
+	formatBytesPerSecond,
+} = require("../src/engine/plugins/nencTerminalLogger");
 
 assert.equal(formatDoneLine("COMPILED PAGE : app/page.tsx"), "[NENC] DONE COMPILED PAGE : app/page.tsx");
 assert.ok(formatStatusLine("COMPILING CUSTOM COMPONENT : Notice", 32).startsWith("[NENC] "));
 assert.ok(formatStatusLine("COMPILING CUSTOM COMPONENT : Notice", 32).length <= 31,
 	"the pinned status must fit one terminal row without wrapping");
+assert.equal(formatWorkerStatus([
+	{ operation: "Compiling", target: "/guide", mode: "percent", progress: 43 },
+	{ operation: "Compiling", target: "emd", mode: "percent", progress: 57 },
+	{ operation: "Compiling", target: "ec", mode: "percent", progress: 80 },
+]), "Compiling /guide, emd, ec · (43% - 57% - 80%)",
+"three live compilation workers share one compact status line with independent real progress");
+assert.equal(formatWorkerStatus([
+	{ operation: "Compiling", target: "/guide", mode: "percent", progress: 33.3 },
+	{ operation: "Downloading", target: "ICON:google.com", mode: "rate", bytesPerSecond: 8202 },
+]), "Compiling /guide (33.3%) · Downloading ICON:google.com (8202 B/s)",
+"mixed compilation and icon-download jobs show the correct metric for each worker");
+assert.equal(formatBytesPerSecond(8202), "8202 B/s");
 
+async function main() {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
 try {
 	const banner = [];
@@ -123,10 +141,12 @@ try {
 	].join("\n"));
 
 	const logs = [];
-	const manifest = compileProject(root, { log: (line) => logs.push(line) });
+	const manifest = await compileProject(root, { log: (line) => logs.push(line) });
 
 	assert.equal(manifest.generation, 3, "build manifest identifies the Generation 3 compiler");
 	assert.equal(manifest.summary.compiledPageCount, 1, "a statically defined PageSchema is compiled");
+	assert.equal(manifest.summary.schemaCompilerWorkerCount, 3,
+		"schema plans run through a fixed three-worker NENC pool");
 	assert.equal(manifest.pages[0].id, "/about", "App Router route groups do not leak into route identifiers");
 	assert.ok(manifest.pages[0].customComponents.includes("notice"), "custom schema nodes appear in the page manifest");
 	assert.ok(manifest.pages[0].compiledNodes.some((node) => node.type === "notice" && node.customComponent), "the emitted compiler graph includes custom-component classification");
@@ -178,3 +198,9 @@ try {
 } finally {
 	fs.rmSync(root, { recursive: true, force: true });
 }
+}
+
+main().catch((error) => {
+	console.error(error);
+	process.exitCode = 1;
+});
