@@ -202,6 +202,14 @@ function canonicalJson(value) {
 	return "{" + keys.map((key) => JSON.stringify(key) + ":" + canonicalJson(value[key])).join(",") + "}";
 }
 
+function sortJson(value) {
+	if (Array.isArray(value)) return value.map(sortJson);
+	if (!value || typeof value !== "object") return value;
+	const output = {};
+	for (const key of Object.keys(value).sort()) output[key] = sortJson(value[key]);
+	return output;
+}
+
 function sha256(value) {
 	return crypto.createHash("sha256").update(value, "utf8").digest("hex");
 }
@@ -310,7 +318,7 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 		};
 		const digest = sha256(canonicalJson(payload));
 		const artifact = { ...payload, sha256: digest };
-		const content = JSON.stringify(artifact, null, 2) + "\n";
+		const content = JSON.stringify(sortJson(artifact), null, 2) + "\n";
 		if (content.length > MAX_THEME_LENGTH * 2) {
 			throw new Error("[EngineTheme] Compiled .etr artifact is too large for group " + item.theme.id + ".");
 		}
