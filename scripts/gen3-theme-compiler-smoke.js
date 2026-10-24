@@ -36,6 +36,15 @@ function testPublicThemeApi() {
 		const resolverPath = path.resolve(__dirname, "../src/engine/theme/resolveTheme.ts");
 		const { createTheme, parseEngineThemeId } = require(themePath);
 		const { resolveEngineThemeSchema } = require(resolverPath);
+		const {
+			highlightEngineCode,
+			listEngineHighlighterProviders,
+			listEngineHighlighterLanguages,
+			registerEngineHighlighterProvider,
+			unregisterEngineHighlighterProvider,
+			normalizeEngineThemeColor,
+			getEngineHighlighterColor,
+		} = require(path.resolve(__dirname, "../src/engine/theme/highlighting.ts"));
 
 		const definition = createTheme({
 			id: "safe-theme",
@@ -57,6 +66,43 @@ function testPublicThemeApi() {
 		Object.defineProperty(accessorTheme, "id", { enumerable: true, get() { getterCalled = true; return "unsafe"; } });
 		assert.throws(() => createTheme(accessorTheme), /accessors/);
 		assert.equal(getterCalled, false, "accessor validation must not execute the getter");
+
+		const highlighted = highlightEngineCode(
+			"const value: number = 42; // safe",
+			"typescript",
+		);
+		assert.ok(highlighted, "the lightweight provider recognizes TypeScript");
+		assert.equal(highlighted.map((token) => token.text).join(""), "const value: number = 42; // safe",
+			"highlighting preserves every source character");
+		assert.ok(highlighted.some((token) => token.kind === "keyword" && token.text === "const"));
+		assert.ok(highlighted.some((token) => token.kind === "type" && token.text === "number"));
+		assert.ok(highlighted.some((token) => token.kind === "number" && token.text === "42"));
+		assert.ok(highlighted.some((token) => token.kind === "comment" && token.text.includes("safe")));
+		assert.ok(highlightEngineCode("console.log(1)", "nodejs"), "Node.js aliases to the JavaScript grammar");
+		assert.equal(highlightEngineCode("console.log(1)", "ansi"), null, "ANSI is never passed through syntax highlighting");
+		assert.equal(highlightEngineCode("x = 1", "not-a-real-language"), null, "unknown languages fall back to plain text");
+		assert.ok(listEngineHighlighterLanguages().includes("typescript"));
+		assert.ok(listEngineHighlighterProviders().some((provider) => provider.id === "engine-lite"));
+		assert.equal(normalizeEngineThemeColor("#1a2b3c"), "#1a2b3c");
+		assert.equal(normalizeEngineThemeColor("rgb(30, 40, 50)"), "rgb(30, 40, 50)");
+		assert.equal(normalizeEngineThemeColor("color(srgb 0.2 0.4 0.8 / 0.5)"), "color(srgb 0.2 0.4 0.8 / 0.5)");
+		assert.equal(normalizeEngineThemeColor("url(javascript:alert(1))"), undefined);
+		assert.equal(getEngineHighlighterColor("keyword", {
+			theme: "vscode-dark",
+			palette: { foreground: "#fafafa" },
+		}), "#fafafa", "custom palettes replace provider colors for all unspecified categories");
+		const customProvider = {
+			id: "smoke-provider",
+			name: "Smoke Provider",
+			languages: ["json"],
+			highlight: (code) => [{ kind: "plain", text: code }],
+		};
+		registerEngineHighlighterProvider(customProvider);
+		assert.ok(listEngineHighlighterProviders().some((provider) => provider.id === "smoke-provider"));
+		assert.deepEqual(highlightEngineCode('{"ok":true}', "json", { provider: "smoke-provider" }), [
+			{ kind: "plain", text: '{"ok":true}' },
+		]);
+		assert.equal(unregisterEngineHighlighterProvider("smoke-provider"), true);
 
 		createTheme({
 			id: "theme-runtime-smoke",
