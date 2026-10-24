@@ -12,6 +12,7 @@ const MAX_THEME_DEPTH = 32;
 const MAX_THEME_NODES = 10000;
 const MAX_THEME_LENGTH = 512 * 1024;
 const ID_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const RESERVED_IDS = new Set(["__proto__", "prototype", "constructor"]);
 const DANGEROUS_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 
 function isWithin(root, target) {
@@ -145,7 +146,7 @@ function callIdentifier(node) {
 
 function validateTheme(theme) {
 	if (!theme || typeof theme !== "object" || Array.isArray(theme)) throw new Error("createTheme() must receive an object literal");
-	if (typeof theme.id !== "string" || !ID_SEGMENT.test(theme.id)) {
+	if (typeof theme.id !== "string" || !ID_SEGMENT.test(theme.id) || RESERVED_IDS.has(theme.id)) {
 		throw new Error("theme id must be one plain group segment without dots, slashes, or whitespace");
 	}
 	if (theme.scope === undefined) theme.scope = "local";
