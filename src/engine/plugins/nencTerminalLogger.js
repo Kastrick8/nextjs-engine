@@ -270,6 +270,22 @@ function classifyNextBuildLine(line) {
 	if (compiledBatch) {
 		return { level: "compiled-batch", duration: compiledBatch[1] + compiledBatch[2], suppressible: true };
 	}
+	const completedBuildPhase = message.match(/^(?:✓\s*)?(Finished TypeScript|Collecting page data|Generating static pages|Finalizing page optimization|Collecting build traces) in ([\d.]+\s*(?:ms|s))\.?$/i);
+	if (completedBuildPhase) {
+		const phaseLabels = {
+			"finished typescript": "FINISHED TYPESCRIPT",
+			"collecting page data": "COLLECTED PAGE DATA",
+			"generating static pages": "GENERATED STATIC PAGES",
+			"finalizing page optimization": "FINALIZED PAGE OUTPUTS",
+			"collecting build traces": "COLLECTED BUILD TRACES",
+		};
+		const label = phaseLabels[completedBuildPhase[1].toLowerCase()] || completedBuildPhase[1].toUpperCase();
+		return {
+			level: "done",
+			message: label + " (" + completedBuildPhase[2].replace(/\s+/g, "") + ")",
+			suppressible: true,
+		};
+	}
 	const ready = message.match(/^(?:▲\s*)?Ready in\s+([\d.]+\s*(?:ms|s))\.?$/i);
 	if (ready) return { level: "ready", duration: ready[1].replace(/\s+/g, ""), suppressible: true };
 	const request = message.match(/^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)\s+(\S+)\s+(\d{3})\s+in\s+([^()]+?)(?:\s+\(([^)]*)\))?$/i);
@@ -289,8 +305,14 @@ function classifyNextBuildLine(line) {
 	if (/failed to compile|compilation failed|build failed|error occurred prerendering/i.test(message)) {
 		return { level: "failed", message: "NEXT.JS BUILD FAILED", suppressible: true };
 	}
-	if (/compiled successfully(?:\s+in\b|\b)/i.test(message)) {
-		return { level: "done", message: "NEXT.JS COMPILED APPLICATION", suppressible: true };
+	const compiledSuccessfully = message.match(/^(?:✓\s*)?Compiled successfully(?: in ([\d.]+\s*(?:ms|s)))?\.?$/i);
+	if (compiledSuccessfully) {
+		return {
+			level: "done",
+			message: "NEXT.JS COMPILED APPLICATION"
+				+ (compiledSuccessfully[1] ? " (" + compiledSuccessfully[1].replace(/\s+/g, "") + ")" : ""),
+			suppressible: true,
+		};
 	}
 	const staticPages = message.match(/generating static pages\s*\((\d+)\s*\/\s*(\d+)\)(.*)/i);
 	if (staticPages) {
@@ -324,7 +346,7 @@ function classifyNextBuildLine(line) {
 		return { level: "status", message: "NEXT.JS COMPILING MODULES", suppressible: true };
 	}
 	if (/build completed successfully/i.test(message)) {
-		return { level: "done", message: "NEXT.JS BUILD COMPLETED", suppressible: true };
+		return { level: "status", message: "NEXT.JS BUILD FINISHED — FINALIZING ENGINE OUTPUTS", suppressible: true };
 	}
 	return null;
 }
@@ -500,8 +522,9 @@ function installNextBuildOutputBridge(options = {}) {
 				dispatchNextBuildEvent(event);
 				if (!event.suppressible) {
 					output += segment;
-				} else if (!supportsPinnedStatus() && (event.level === "route-start" || event.level === "status")) {
-					// Redirected logs have no live row, so keep normalized progress visible instead of swallowing it.
+				} else if (event.level === "route-start" || (!supportsPinnedStatus() && event.level === "status")) {
+					// Keep the initial observed route batch in scrollback. Interactive terminals also
+					// retain the pinned row, which updates from real Next.js completion events.
 					const visibleMessage = event.level === "route-start" ? liveStatusText(state) : event.message;
 					output += "[NENC] " + visibleMessage + (hasTerminator ? "\n" : "");
 				}

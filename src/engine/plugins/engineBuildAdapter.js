@@ -19,7 +19,7 @@ function setState(value) {
 }
 function startDevelopmentBridge() {
 	if (globalThis[DEV_BRIDGE_KEY]) return globalThis[DEV_BRIDGE_KEY];
-	const stopBridge = nencLogger.installNextBuildOutputBridge();
+	const stopBridge = nencLogger.installNextBuildOutputBridge({ mode: "dev" });
 	const state = {
 		stop() {
 			stopBridge();
@@ -177,6 +177,7 @@ const adapter = {
 		if (typeof delegate?.onBuildComplete === "function") {
 			await delegate.onBuildComplete(context);
 		}
+		if (state) nencLogger.done("NEXT.JS BUILD COMPLETED");
 	},
 };
 
