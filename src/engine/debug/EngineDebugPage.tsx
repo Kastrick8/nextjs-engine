@@ -328,13 +328,6 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 			setPreviewStatus("error");
 			return;
 		}
-		const overlays = frameDocument.querySelectorAll<HTMLElement>(
-			"nextjs-portal, nextjs-error, [data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-message]",
-		);
-		const hasVisibleError = [...overlays].some((element) => {
-			const text = (element.shadowRoot?.textContent || element.innerText || element.textContent || "").trim();
-			return Boolean(text && /(compilation failed|failed to compile|uncaught|hydration|error occurred|module not found|exception)/i.test(text));
-		});
 		// Keep the route visible. Next.js overlays can describe a build failure from another
 		// route; those diagnostics belong in Problems and must not obscure / or unrelated pages.
 		setPreviewStatus("ready");

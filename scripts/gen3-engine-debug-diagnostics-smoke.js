@@ -122,6 +122,7 @@ try {
 
 	const {
 		createEngineDebugSourcePreview,
+		applyEngineDebugSourcePatch,
 	} = require("../src/engine/debug/EngineDebugSourceRoute.ts");
 	const sourcePreview = createEngineDebugSourcePreview(process.cwd(), "src/engine/debug/EngineDebugDiagnostics.ts", 1);
 	assert.ok(sourcePreview, "development source preview reads an allowed workspace source file");
@@ -131,6 +132,25 @@ try {
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), "../.env", 1), null, "source preview rejects parent traversal");
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), ".env.local", 1), null, "source preview rejects hidden environment files");
 	assert.equal(createEngineDebugSourcePreview(process.cwd(), "node_modules/typescript/lib/typescript.js", 1), null, "source preview rejects dependency directories");
+
+	const tempRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "engine-debug-patch-"));
+	try {
+		const fixturePath = path.join(tempRoot, "src", "app", "page.tsx");
+		fs.mkdirSync(path.dirname(fixturePath), { recursive: true });
+		const before = 'const label = "before";\\nexport {};';
+		fs.writeFileSync(fixturePath, before, "utf8");
+		const saved = applyEngineDebugSourcePatch(tempRoot, "src/app/page.tsx", 1, 1,
+			['const label = "before";', "export {};"], ['const label = "after";', "export {};"]);
+		assert.equal(saved.ok, true, "valid explicit source patches save to the workspace");
+		assert.equal(fs.readFileSync(fixturePath, "utf8"), 'const label = "after";\\nexport {};', "patches update only the requested line range");
+		const stale = applyEngineDebugSourcePatch(tempRoot, "src/app/page.tsx", 1, 1,
+			['const label = "before";', "export {};"], ['const label = "wrong";', "export {};"]);
+		assert.equal(stale.ok, false, "patches based on stale source context are rejected");
+		if (!stale.ok) assert.equal(stale.code, "stale", "stale patch responses have a stable code");
+		assert.equal(applyEngineDebugSourcePatch(tempRoot, "../outside.ts", 1, 1, ["x"], ["y"]).ok, false, "patches reject path traversal");
+	} finally {
+		fs.rmSync(tempRoot, { recursive: true, force: true });
+	}
 
 	const pageSource = fs.readFileSync(path.resolve(__dirname, "../src/engine/debug/EngineDebugPage.tsx"), "utf8");
 	const pageCompile = ts.transpileModule(pageSource, {
