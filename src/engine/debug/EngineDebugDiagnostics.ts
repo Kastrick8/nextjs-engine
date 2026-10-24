@@ -134,7 +134,7 @@ export function createEngineDebugDiagnostic(input: {
 	const location = input.location ? redactEngineDebugText(input.location, 500) : undefined;
 	const stableFingerprint = engineDebugDiagnosticFingerprint({ ...classification, message, detail, location });
 	const at = input.now ?? Date.now();
-	const route = routeFromLocation(location);
+	const route = routeFromLocation(input.route) ?? routeFromLocation(location);
 	return {
 		id: "diag-" + hashText(stableFingerprint),
 		at,
