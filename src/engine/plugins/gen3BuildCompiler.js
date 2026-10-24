@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { Worker } = require("node:worker_threads");
 const ts = require("typescript");
 const { analyzeProjectModules, SCHEMA_ENGINE_SYMBOLS } = require("./gen3ModuleCompiler");
 const nencLogger = require("./nencTerminalLogger");
@@ -316,7 +317,139 @@ function readVersion(root) {
 	try { return JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version || "unknown"; }
 	catch { return "unknown"; }
 }
-function compileProject(projectRoot, options = {}) {
+const WORKER_FUNCTION_PLACEHOLDER = "$nencWorkerFunctionPlaceholder";
+
+function serializeWorkerValue(value) {
+	if (typeof value === "function") return { [WORKER_FUNCTION_PLACEHOLDER]: true };
+	if (Array.isArray(value)) return value.map(serializeWorkerValue);
+	if (value && typeof value === "object") {
+		const output = {};
+		for (const [key, entry] of Object.entries(value)) output[key] = serializeWorkerValue(entry);
+		return output;
+	}
+	return value;
+}
+
+function compileSchemaJobs(jobs, options = {}) {
+	if (!jobs.length) return Promise.resolve([]);
+	const workerCount = 3;
+	const log = typeof options.log === "function" ? options.log : dispatchTerminalLog;
+	const showWorkerStatus = options.showWorkerStatus !== false;
+
+	return new Promise((resolve, reject) => {
+		const queue = [...jobs];
+		const results = new Array(jobs.length);
+		const workers = Array.from({ length: workerCount }, () => new Worker(path.join(__dirname, "gen3SchemaWorker.js")));
+		const slots = workers.map((worker, index) => ({ worker, index, job: null, online: false }));
+		let completed = 0;
+		let settled = false;
+
+		function stopWorkers() {
+			return Promise.all(workers.map((worker) => worker.terminate().catch(() => undefined)));
+		}
+
+		function settleSuccess() {
+			if (settled || completed !== jobs.length) return;
+			settled = true;
+			if (showWorkerStatus) nencLogger.clearStatus("workers");
+			stopWorkers().then(() => resolve(results));
+		}
+
+		function fail(error, failedSlot) {
+			if (settled) return;
+			settled = true;
+			for (const slot of slots) {
+				if (!slot.job || !showWorkerStatus) continue;
+				const label = slot.job.pageId;
+				if (slot === failedSlot) {
+					nencLogger.failWorkerTask(slot.index, "compile " + label + " — " + (error instanceof Error ? error.message : String(error)));
+				} else {
+					nencLogger.failWorkerTask(slot.index, "compile " + label + " — worker pool stopped");
+				}
+			}
+			stopWorkers().then(() => reject(error instanceof Error ? error : new Error(String(error))));
+		}
+
+		function dispatch(slot) {
+			if (settled || !slot.online || slot.job) return;
+			const job = queue.shift();
+			if (!job) {
+				settleSuccess();
+				return;
+			}
+			slot.job = job;
+			if (showWorkerStatus) {
+				nencLogger.startWorkerTask(slot.index, {
+					operation: "Compiling",
+					target: job.pageId,
+					mode: "percent",
+					progress: 0,
+				});
+			}
+			try {
+				slot.worker.postMessage({
+					type: "compile",
+					taskId: job.taskId,
+					pageId: job.pageId,
+					sourcePath: job.sourcePath,
+					schema: serializeWorkerValue(job.schema),
+					customComponentTypes: job.customComponentTypes,
+				});
+			} catch (error) {
+				fail(error, slot);
+			}
+		}
+
+		for (const slot of slots) {
+			slot.worker.on("online", () => {
+				slot.online = true;
+				dispatch(slot);
+			});
+			slot.worker.on("message", (message) => {
+				if (settled || !slot.job || !message || message.taskId !== slot.job.taskId) return;
+				const job = slot.job;
+				if (message.type === "progress") {
+					if (showWorkerStatus) nencLogger.updateWorkerTask(slot.index, { progress: message.progress });
+					if (message.customComponent) {
+						const status = "COMPILING CUSTOM COMPONENT : " + message.nodeType
+							+ " (" + job.sourcePath + ":" + (message.nodePath || "root") + ")";
+						if (typeof options.log === "function") log(status);
+						else nencLogger.done(status.replace(/^COMPILING /, "INDEXED "));
+					}
+					return;
+				}
+				if (message.type === "error") {
+					const error = new Error(message.error && message.error.message || "NENC schema worker failed");
+					error.name = message.error && message.error.name || "Error";
+					if (message.error && message.error.stack) error.stack = message.error.stack;
+					fail(error, slot);
+					return;
+				}
+				if (message.type !== "result") return;
+
+				results[job.order] = message.page;
+				if (showWorkerStatus) {
+					nencLogger.finishWorkerTask(slot.index, "compiled " + job.pageId
+						+ " (" + message.durationMs + "ms, " + message.nodeCount + " nodes)");
+				}
+				if (typeof options.log === "function") {
+					log("DONE COMPILED " + job.pageId + " — " + message.nodeCount + " nodes in " + message.durationMs + "ms");
+				}
+				slot.job = null;
+				completed += 1;
+				if (completed === jobs.length) settleSuccess();
+				else dispatch(slot);
+			});
+			slot.worker.on("error", (error) => fail(error, slot));
+			slot.worker.on("exit", (code) => {
+				if (!settled && code !== 0) fail(new Error("NENC schema worker exited with code " + code), slot);
+				else if (!settled && slot.job) fail(new Error("NENC schema worker exited before completing " + slot.job.pageId), slot);
+			});
+		}
+	});
+}
+
+async function compileProject(projectRoot, options = {}) {
 	const passStartedAt = Date.now();
 	const log = typeof options.log === "function" ? options.log : dispatchTerminalLog;
 	const resolvedRoot = path.resolve(projectRoot);
@@ -360,21 +493,18 @@ function compileProject(projectRoot, options = {}) {
 		schemaCandidateCountsByFile,
 	});
 	const registered = registeredCustomTypes(files, sourceByPath);
-	installTypeScriptRequireHook();
-	const compilePage = require(path.join(__dirname, "../compiler/EngineCompiler.ts")).compilePage;
-	const pages = [];
+	const jobs = [];
 	const skipped = [];
-	let candidateCount = 0;
 
 	for (const file of files) {
-		const relative = displayPath(projectRoot, file);
+		const relative = displayPath(resolvedRoot, file);
 		const source = sourceByPath.get(file);
 		const candidates = candidatesByFile.get(file) || [];
 		if (candidates.length === 0) {
 			if (/(^|\/)(page|index)\.(tsx?|jsx?)$/.test(relative) && source.text.includes("createPage")) {
 				skipped.push({
 					sourcePath: relative,
-					pageId: routePathForFile(projectRoot, file),
+					pageId: routePathForFile(resolvedRoot, file),
 					reason: "No statically resolvable Engine schema was found. Next.js retains normal runtime rendering for this route.",
 				});
 				log("SKIPPING STATIC SCHEMA PLAN : " + relative
@@ -383,56 +513,25 @@ function compileProject(projectRoot, options = {}) {
 			continue;
 		}
 
-		const routeId = routePathForFile(projectRoot, file);
+		const routeId = routePathForFile(resolvedRoot, file);
 		for (let index = 0; index < candidates.length; index++) {
-			candidateCount += 1;
 			const pageId = candidates.length === 1 ? routeId : routeId + "#schema-" + (index + 1);
-			const plan = compilePage(candidates[index].result.value, {
+			jobs.push({
+				order: jobs.length,
+				taskId: "schema-" + jobs.length,
 				pageId,
 				sourcePath: relative,
+				schema: candidates[index].result.value,
 				customComponentTypes: registered,
-				onProgress: (event) => logEvent(event, log),
-			});
-			const custom = new Set();
-			const compiledNodes = [];
-			walkNodes(plan.root, (node) => {
-				if (node.customComponent || !BUILTIN_NODE_TYPES.has(String(node.type))) custom.add(String(node.type));
-				compiledNodes.push({
-					id: node.id,
-					path: node.path,
-					type: String(node.type),
-					...(node.name ? { name: node.name } : {}),
-					depth: node.depth,
-					runtime: node.runtime,
-					runtimeReason: node.runtimeReason,
-					workClass: node.workClass,
-					workReason: node.workReason,
-					capabilities: [...node.capabilities],
-					heavy: node.heavy,
-					interactive: node.interactive,
-					customComponent: Boolean(node.customComponent),
-					children: node.children.map((child) => child.id),
-					assets: node.assets.map(({ kind, workClass, priority }) => ({ kind, workClass, priority })),
-				});
-			});
-			pages.push({
-				id: plan.id,
-				sourcePath: relative,
-				summary: plan.summary,
-				compiledNodes,
-				customComponents: [...custom].sort(),
-				assets: plan.assets.map(({ kind, workClass, priority }) => ({ kind, workClass, priority })),
-				capabilities: [...plan.capabilities].sort(),
-				fallbackFeatures: plan.fallbackPlan.features.map(({ feature, importance, strategies }) => ({
-					feature, importance, strategies: strategies.map(({ id, kind, fidelity }) => ({ id, kind, fidelity })),
-				})),
-				diagnostics: plan.diagnostics.map(({ level, code, message, path: nodePath }) => ({
-					level, code, message, ...(nodePath ? { path: nodePath } : {}),
-				})),
 			});
 		}
 	}
 
+	const pages = await compileSchemaJobs(jobs, {
+		log,
+		showWorkerStatus: typeof options.log !== "function",
+	});
+	const candidateCount = jobs.length;
 	const summary = {
 		scannedSourceFileCount: files.length,
 		routeEntryCount: moduleAnalysis.summary.routeEntryCount,
@@ -443,6 +542,7 @@ function compileProject(projectRoot, options = {}) {
 		schemaSourceEntryCount: moduleAnalysis.summary.schemaSourceEntryCount,
 		modulePassTimeMs: moduleAnalysis.summary.modulePassTimeMs,
 		schemaCandidateCount: candidateCount,
+		schemaCompilerWorkerCount: jobs.length > 0 ? 3 : 0,
 		compiledPageCount: pages.length,
 		compiledSchemaPageCount: pages.length,
 		skippedPageCount: skipped.length,
@@ -457,8 +557,8 @@ function compileProject(projectRoot, options = {}) {
 		schemaVersion: 2,
 		generation: 3,
 		compiler: "nextjs-engine",
-		compilerVersion: readVersion(projectRoot),
-		scannedSourceFiles: files.map((file) => displayPath(projectRoot, file)),
+		compilerVersion: readVersion(resolvedRoot),
+		scannedSourceFiles: files.map((file) => displayPath(resolvedRoot, file)),
 		routes: moduleAnalysis.routes,
 		schemaSources: moduleAnalysis.schemaSources,
 		modules: moduleAnalysis.modules,
@@ -581,7 +681,7 @@ function parseArgs(argv) {
 	}
 	return args;
 }
-function runCLI(argv = process.argv.slice(2)) {
+async function runCLI(argv = process.argv.slice(2)) {
 	let bannerOwner = false;
 	let bannerRoot;
 	try {
@@ -594,7 +694,7 @@ function runCLI(argv = process.argv.slice(2)) {
 				bannerOwner = printBannerOnce(root);
 				if (bannerOwner) nencLogger.setStatus("STARTING GENERATION 3 COMPILER PASS ALONGSIDE NEXT.JS");
 			}
-			const manifest = compileProject(root);
+			const manifest = await compileProject(root);
 			nencLogger.setStatus("WRITING COMPILER MANIFEST");
 			atomicWriteJson(path.resolve(args.output), manifest);
 			nencLogger.done("COMPILER MANIFEST WRITTEN — " + manifest.summary.compiledPageCount
@@ -612,7 +712,12 @@ function runCLI(argv = process.argv.slice(2)) {
 		if (bannerOwner && bannerRoot) releaseBanner(bannerRoot);
 	}
 }
-if (require.main === module) process.exitCode = runCLI();
+if (require.main === module) {
+	runCLI().then((code) => { process.exitCode = code; }, (error) => {
+		nencLogger.failed(error instanceof Error ? error.message : String(error));
+		process.exitCode = 1;
+	});
+}
 module.exports = {
 	BUILTIN_NODE_TYPES,
 	compileProject,
