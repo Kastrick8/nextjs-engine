@@ -166,8 +166,12 @@ export type {
 export { validateSchema, validatePageSchema } from "./core/validateSchema";
 export type { ValidationError, ValidationResult } from "./core/validateSchema";
 
+export { createTheme, parseEngineThemeId } from "./theme/createTheme";
+export type { ParsedEngineThemeId } from "./theme/createTheme";
+
 export type {
-	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineConfig,
+	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,
+	EngineThemeScope, EngineThemeJsonValue, EngineThemeJsonObject, EngineConfig,
 	NodeType, BuiltinNodeType, Breakpoint, ResponsiveValue,
 	CpropValue, SelectOption,
 	BoxProps, StackProps, GridProps, TextProps, TextPart, TextVariant,
