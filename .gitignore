@@ -19,3 +19,4 @@ playwright-report/
 certificates/
 /app/%5Fengine/
 /src/app/%5Fengine/
+.nextjs-engine/.cache/
