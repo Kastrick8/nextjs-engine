@@ -222,6 +222,51 @@ function safeResolve(root, relative, label) {
 	return resolved;
 }
 
+function assertNoSymlinkPath(root, target, targetIsDirectory = false) {
+	const resolvedRoot = fs.realpathSync(root);
+	const resolvedTarget = path.resolve(resolvedRoot, path.relative(path.resolve(root), path.resolve(target)));
+	if (!isWithin(resolvedRoot, resolvedTarget) || resolvedTarget === resolvedRoot) {
+		throw new Error("[EngineTheme] Output path must remain inside the project root.");
+	}
+	const relative = path.relative(resolvedRoot, resolvedTarget);
+	let current = resolvedRoot;
+	const segments = relative.split(path.sep).filter(Boolean);
+	for (let index = 0; index < segments.length; index += 1) {
+		current = path.join(current, segments[index]);
+		let stat;
+		try { stat = fs.lstatSync(current); } catch (error) {
+			if (error && error.code === "ENOENT") continue;
+			throw error;
+		}
+		if (stat.isSymbolicLink()) {
+			throw new Error("[EngineTheme] Refusing to read/write through a symbolic link: "
+				+ path.relative(resolvedRoot, current).split(path.sep).join("/"));
+		}
+		const isFinal = index === segments.length - 1;
+		if ((!isFinal || targetIsDirectory) && !stat.isDirectory()) {
+			throw new Error("[EngineTheme] Expected a directory at "
+				+ path.relative(resolvedRoot, current).split(path.sep).join("/") + ".");
+		}
+	}
+}
+
+function ensureDirectoryTree(root, target) {
+	assertNoSymlinkPath(root, target, true);
+	const relative = path.relative(root, target);
+	let current = root;
+	for (const segment of relative.split(path.sep).filter(Boolean)) {
+		current = path.join(current, segment);
+		try { fs.mkdirSync(current); } catch (error) {
+			if (!error || error.code !== "EEXIST") throw error;
+		}
+		const stat = fs.lstatSync(current);
+		if (stat.isSymbolicLink() || !stat.isDirectory()) {
+			throw new Error("[EngineTheme] Refusing unsafe output directory: "
+				+ path.relative(root, current).split(path.sep).join("/"));
+		}
+	}
+}
+
 function readJson(file) {
 	try {
 		return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -262,10 +307,13 @@ function atomicWrite(target, content) {
 }
 
 function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
-	const root = path.resolve(projectRoot);
+	const root = fs.realpathSync(path.resolve(projectRoot));
 	const themeRoot = safeResolve(root, path.join(".nextjs-engine", "gen3", "theme"), "theme output");
 	const cacheRoot = safeResolve(root, path.join(".nextjs-engine", ".cache", "gen3"), "theme cache");
 	const manifestPath = path.join(cacheRoot, "theme-artifacts.json");
+	assertNoSymlinkPath(root, themeRoot, true);
+	assertNoSymlinkPath(root, cacheRoot, true);
+	assertNoSymlinkPath(root, manifestPath, false);
 	const fallbackRoot = path.resolve(__dirname, "../../..");
 	const nextVersion = options.nextjsVersion || readVersion(root, "next", fallbackRoot);
 	const engineVersion = options.engineVersion || readVersion(root, "nextjs-engine", fallbackRoot);
@@ -339,9 +387,15 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 	const result = { artifacts: [], createdCount: 0, updatedCount: 0, unchangedCount: 0, removedCount: 0 };
 	if (artifacts.length === 0 && oldFiles.length === 0 && !oldManifest) return result;
 
+	if (artifacts.length > 0 || oldFiles.length > 0 || oldManifest) {
+		ensureDirectoryTree(root, themeRoot);
+		ensureDirectoryTree(root, cacheRoot);
+	}
+
 	// Validate existing targets before writing any output; never overwrite a
-	// user-owned file placed in the generated theme directory.
+	// user-owned file or symlink placed in the generated theme directory.
 	for (const artifact of artifacts) {
+		assertNoSymlinkPath(root, artifact.path, false);
 		if (!fs.existsSync(artifact.path)) continue;
 		const existing = readJson(artifact.path);
 		if (!existing || existing.format !== ETR_FORMAT || existing.generatedBy !== GENERATED_BY || existing.id !== artifact.id) {
@@ -369,6 +423,7 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 		if (nextNames.has(oldFile)) continue;
 		const target = path.resolve(themeRoot, oldFile);
 		if (!isWithin(themeRoot, target) || path.dirname(target) !== themeRoot) continue;
+		assertNoSymlinkPath(root, target, false);
 		const existing = readJson(target);
 		if (existing && existing.format === ETR_FORMAT && existing.generatedBy === GENERATED_BY) {
 			fs.rmSync(target, { force: true });
