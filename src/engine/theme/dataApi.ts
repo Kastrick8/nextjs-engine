@@ -11,6 +11,7 @@ import { parseEngineThemeId } from "./createTheme";
 
 const HANDLER_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const COMPONENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const RESERVED_IDS = new Set(["prototype", "constructor"]);
 const EVENT_TYPES = new Set<EngineThemeDataEventType>([
 	"join:left",
 	"join:right",
@@ -68,7 +69,7 @@ function assertJsonPayload(value: unknown, label: string): asserts value is Engi
 
 function normalizeBinding(binding: string | EngineThemeDataEventBinding): string {
 	const id = typeof binding === "string" ? binding : binding?.handlerId;
-	if (typeof id !== "string" || !HANDLER_ID.test(id)) {
+	if (typeof id !== "string" || !HANDLER_ID.test(id) || RESERVED_IDS.has(id)) {
 		throw new TypeError("EngineTheme Data-API binding requires a safe, registered handler ID.");
 	}
 	return id;
