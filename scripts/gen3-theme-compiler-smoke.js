@@ -5,12 +5,51 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const Module = require("node:module");
 const ts = require("typescript");
 const {
 	canonicalJson,
 	compileEngineThemeArtifacts,
 	ETR_FORMAT,
 } = require("../src/engine/plugins/gen3ThemeCompiler");
+
+function testPublicThemeApi() {
+	const filePath = path.resolve(__dirname, "../src/engine/theme/createTheme.ts");
+	const sourceText = fs.readFileSync(filePath, "utf8");
+	const transpiled = ts.transpileModule(sourceText, {
+		compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+		fileName: filePath,
+		reportDiagnostics: true,
+	});
+	const errors = (transpiled.diagnostics || []).filter((item) => item.category === ts.DiagnosticCategory.Error);
+	assert.deepEqual(errors, [], "createTheme source transpiles without syntax diagnostics");
+	const loaded = new Module(filePath.replace(/\\.ts$/, ".js"), module);
+	loaded.filename = filePath.replace(/\\.ts$/, ".js");
+	loaded.paths = Module._nodeModulePaths(path.dirname(loaded.filename));
+	loaded._compile(transpiled.outputText, loaded.filename);
+	const { createTheme, parseEngineThemeId } = loaded.exports;
+
+	const definition = createTheme({
+		id: "safe-theme",
+		tokens: { colors: { text: "#fff" } },
+		markdown: { variants: { dark: { codeBackground: "#111" } } },
+	});
+	assert.equal(definition.scope, "local", "scope defaults to local");
+	assert.equal(Object.isFrozen(definition), true, "returned theme group is frozen");
+	assert.equal(Object.isFrozen(definition.tokens.colors), true, "nested theme values are frozen");
+	assert.deepEqual(parseEngineThemeId("mycoolthemes.markdown.1.2.560"), {
+		groupId: "mycoolthemes", componentId: "markdown", subthemes: ["1", "2", "560"],
+	});
+	assert.throws(() => parseEngineThemeId("mycoolthemes.markdown.a.b.c.d"), /at most three subtheme segments/);
+	assert.throws(() => createTheme({ id: "my.theme" }), /group ID without dots/);
+	assert.throws(() => createTheme({ id: "function-theme", markdown: { build: () => true } }), /JSON data/);
+
+	let getterCalled = false;
+	const accessorTheme = {};
+	Object.defineProperty(accessorTheme, "id", { enumerable: true, get() { getterCalled = true; return "unsafe"; } });
+	assert.throws(() => createTheme(accessorTheme), /accessors/);
+	assert.equal(getterCalled, false, "accessor validation must not execute the getter");
+}
 
 function source(filePath, text) {
 	return {
@@ -30,6 +69,7 @@ function verifyDigest(artifact) {
 }
 
 function run() {
+	testPublicThemeApi();
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-theme-smoke-"));
 	try {
 		const themeSource = path.join(root, "app", "theme.tsx");
