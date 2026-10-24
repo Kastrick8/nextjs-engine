@@ -175,7 +175,7 @@ function testPublicThemeApi() {
 		const schemaTemplate = {
 			schema: {
 				type: "stack",
-				props: { direction: "row", gap: "6px", align: "center" },
+				props: { direction: "row", gap: "6px", align: "center", style: { background: "{{codeBackground}}" } },
 				children: [
 					{ type: "slot", props: { name: "leading" } },
 					{ type: "slot", props: { name: "content" } },
@@ -187,6 +187,7 @@ function testPublicThemeApi() {
 			componentId: "markdown",
 			block: "tableHeader",
 			language: "typescript",
+			codeBackground: "#123456",
 			slots: {
 				leading: React.createElement("b", null, "icon"),
 				content: React.createElement("span", null, "Feature"),
@@ -195,6 +196,7 @@ function testPublicThemeApi() {
 		assert.equal(schemaTemplateResult.type, "div", "Engine Schema templates render as safe React elements");
 		assert.equal(schemaTemplateResult.props.style.flexDirection, "row");
 		assert.equal(schemaTemplateResult.props.style.gap, "6px");
+		assert.equal(schemaTemplateResult.props.style.background, "#123456", "schema templates can bind safe block style values");
 		assert.equal(schemaTemplateResult.props.children[2].props.children, "typescript");
 		const fallbackTemplate = renderEngineThemeTemplate({
 			schema: {
@@ -229,6 +231,7 @@ function testPublicThemeApi() {
 				styles: {
 					codeBlock: { borderRadius: "10px", color: "#e0e0e0" },
 				},
+				templates: { tableHeader: { schema: { type: "slot", props: { name: "content" } } } },
 				variants: {
 					dark: {
 						defaults: { codeBackground: "#222222" },
@@ -261,6 +264,7 @@ function testPublicThemeApi() {
 		assert.equal(markdownProps.markdownStyles.codeBlock.borderRadius, "10px");
 		assert.equal(markdownProps.markdownStyles.codeBlock.boxShadow, "0 0 2px #fff");
 		assert.equal(markdownProps.markdownStyles.codeBlock.padding, "8px", "local style-slot properties merge last");
+		assert.equal(markdownProps.themeTemplates.tableHeader.schema.type, "slot", "theme templates reach Markdown props through ID resolution");
 
 		const localTheme = createTheme({
 			id: "local-theme-runtime-smoke",

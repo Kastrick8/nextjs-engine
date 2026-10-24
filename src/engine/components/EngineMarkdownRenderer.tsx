@@ -372,22 +372,23 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					WebkitOverflowScrolling: "touch",
 				}}>{codeChildren}</pre>
 			);
+			const blockStyle = {
+				...sourceAnimationStyle(node, config),
+				margin: 0,
+				minWidth: 0,
+				maxWidth: "100%",
+				border: "1px solid " + config.codeBorderColor,
+				borderRadius: ".75rem",
+				overflow: "hidden" as const,
+				background: config.codeBackground,
+				color: config.codeColor,
+				...config.markdownStyles?.codeBlock,
+			};
 			const fallback = (
 				<figure
 					className={joinClassNames("e-md-code-block", blockClass)}
 					data-language={language}
-					style={{
-						...sourceAnimationStyle(node, config),
-						margin: 0,
-						minWidth: 0,
-						maxWidth: "100%",
-						border: "1px solid " + config.codeBorderColor,
-						borderRadius: ".75rem",
-						overflow: "hidden",
-						background: config.codeBackground,
-						color: config.codeColor,
-						...config.markdownStyles?.codeBlock,
-					}}
+					style={blockStyle}
 				>
 					{languageLabel}
 					{codePre}
@@ -396,6 +397,15 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			return renderEngineThemeTemplate(config.themeTemplates?.codeBlock, {
 				componentId: "markdown",
 				block: "codeBlock",
+				className: joinClassNames("e-md-code-block", blockClass),
+				wrapperStyle: blockStyle,
+				codeBackground: config.codeBackground,
+				codeColor: config.codeColor,
+				codeBorderColor: config.codeBorderColor,
+				codeFontFamily: config.codeFontFamily,
+				textColor: config.textColor,
+				headingColor: config.headingColor,
+				linkColor: config.linkColor,
 				language,
 				label: language,
 				slots: {
@@ -426,6 +436,9 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				componentId: "markdown",
 				block: "tableHeader",
 				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
+				textColor: config.textColor,
+				headingColor: config.headingColor,
+				linkColor: config.linkColor,
 				slots: { content: children, children, label: children, value: children },
 			});
 			return (
@@ -439,6 +452,9 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				componentId: "markdown",
 				block: "tableCell",
 				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
+				textColor: config.textColor,
+				headingColor: config.headingColor,
+				linkColor: config.linkColor,
 				slots: { content: children, children, value: children },
 			});
 			return (

@@ -8,6 +8,8 @@ export interface EngineThemeTemplateContext {
 	themeId?: string;
 	componentId?: string;
 	block?: string;
+	className?: string;
+	wrapperStyle?: CSSProperties;
 	language?: string;
 	label?: string;
 	index?: number;
@@ -268,9 +270,19 @@ function renderCompiledNode(
 			: undefined;
 	const tag = normalizeTag(node.type, props);
 	const elementProps: Record<string, unknown> = {
-		style: compileStyleFromProps(node.type, props, context),
+		style: {
+			...(depth === 0 && context.wrapperStyle ? context.wrapperStyle : {}),
+			...compileStyleFromProps(node.type, props, context),
+		},
 	};
-	if (typeof props.className === "string" && /^[A-Za-z0-9 _-]{0,128}$/.test(props.className)) elementProps.className = props.className;
+	if (depth === 0 && context.block === "codeBlock" && typeof context.language === "string") {
+		elementProps["data-language"] = context.language;
+	}
+	const classNames = [
+		typeof context.className === "string" && /^[A-Za-z0-9 _-]{0,128}$/.test(context.className) ? context.className : "",
+		typeof props.className === "string" && /^[A-Za-z0-9 _-]{0,128}$/.test(props.className) ? props.className : "",
+	].filter(Boolean).join(" ");
+	if (classNames) elementProps.className = classNames;
 	if (typeof props.id === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(props.id)) elementProps.id = props.id;
 	if (typeof props.title === "string" && props.title.length <= 256) elementProps.title = props.title;
 	if (typeof props.role === "string" && /^[A-Za-z][A-Za-z0-9_-]{0,40}$/.test(props.role)) elementProps.role = props.role;

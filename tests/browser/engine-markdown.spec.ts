@@ -36,6 +36,7 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await expect(inheritedThemeBlock).toHaveCount(1);
 	await expect(inheritedThemeBlock).toHaveCSS("background-color", "rgb(36, 27, 56)");
 	await expect(inheritedThemeBlock).toHaveCSS("border-top-color", "rgb(130, 111, 155)");
+	await expect(inheritedThemeBlock).toHaveClass(/emd-themed-code/);
 	await expect(codeBlocks.nth(1).locator("pre code")).toHaveText("<ROOT>/compact/ ├── storage/ └── backup/");
 	await expect(codeBlocks.nth(2)).toHaveAttribute("data-language", "ansi");
 	await expect(codeBlocks.nth(2).locator("pre code")).toContainText("✓ Build complete");

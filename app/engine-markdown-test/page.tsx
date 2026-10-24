@@ -8,7 +8,38 @@ const markdownShowcaseTheme = createTheme({
 	markdown: {
 		defaults: {
 			codeBackground: "#241b38",
+			codeBorderColor: "#826f9b",
 			codeColor: "#f5efff",
+		},
+		templates: {
+			codeBlock: {
+				schema: {
+					type: "stack",
+					props: {
+						as: "figure",
+						className: "emd-themed-code",
+						direction: "column",
+						gap: "0",
+						style: {
+							border: "1px solid {{codeBorderColor}}",
+							borderRadius: "1rem",
+							background: "{{codeBackground}}",
+							color: "{{codeColor}}",
+						},
+					},
+					children: [
+						{ type: "slot", props: { name: "languageLabel" } },
+						{ type: "slot", props: { name: "content" } },
+					],
+				},
+			},
+			tableHeader: {
+				schema: {
+					type: "stack",
+					props: { direction: "row", gap: "0.4rem", align: "center" },
+					children: [{ type: "slot", props: { name: "content" } }],
+				},
+			},
 		},
 		styles: {
 			codeBlock: { borderColor: "#826f9b" },
