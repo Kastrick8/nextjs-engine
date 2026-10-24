@@ -212,7 +212,7 @@ function classifyNextBuildLine(line) {
 		if (routes.length) return { level: "route-start", routes, message: "Compiling " + routes.join(", "), suppressible: true };
 	}
 	const compiledRoute = message.match(/^(?:✓\s*)?Compiled\s+(.+?)\s+in\s+([\d.]+)\s*(ms|s)(?:\s+\((\d+)\s+modules?\))?$/i);
-	if (compiledRoute) {
+	if (compiledRoute && !/^(?:✓\\s*)?Compiled successfully\\b/i.test(message)) {
 		const duration = compiledRoute[2] + compiledRoute[3];
 		const modules = compiledRoute[4] ? Number(compiledRoute[4]) : null;
 		return { level: "route-done", route: compiledRoute[1].trim(), message: "compiled " + compiledRoute[1].trim() + " (" + duration + (modules === null ? "" : ", " + modules + " modules") + ")", suppressible: true };
@@ -224,12 +224,13 @@ function classifyNextBuildLine(line) {
 	if (/compiled successfully(?:\s+in\b|\b)/i.test(message)) {
 		return { level: "done", message: "NEXT.JS COMPILED APPLICATION", suppressible: true };
 	}
-	if (/generating static pages\s*\((\d+)\s*\/\s*(\d+)\)(.*)/i.test(message)) {
-		const match = message.match(/generating static pages\s*\((\d+)\s*\/\s*(\d+)\)(.*)/i);
-		const current = Number(match[1]);
-		const total = Number(match[2]);
-		if (total > 0 && current >= total && /\bin\s+\d+/i.test(match[3])) {
-			return { level: "done", message: "NEXT.JS GENERATED STATIC PAGES (" + current + "/" + total + ")", suppressible: true };
+	const staticPages = message.match(/generating static pages\s*\((\d+)\s*\/\s*(\d+)\)(.*)/i);
+	if (staticPages) {
+		const current = Number(staticPages[1]);
+		const total = Number(staticPages[2]);
+		const percent = total > 0 ? Math.floor((current / total) * 100) : 0;
+		if (total > 0 && current >= total && /\bin\s+\d+/i.test(staticPages[3])) {
+			return { level: "done", message: "GENERATED STATIC PAGES (" + current + "/" + total + ", 100%)", suppressible: true };
 		}
 		return { level: "status", message: "NEXT.JS GENERATING STATIC PAGES (" + current + "/" + total + ", " + percent + "%)", suppressible: true };
 	}
