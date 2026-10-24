@@ -17,6 +17,7 @@ import ReactMarkdown, { type Components, type UrlTransform } from "react-markdow
 import remarkGfm from "remark-gfm";
 import type { MarkdownProps } from "../schema/types";
 import { getEngineHighlighterColor, highlightEngineCode, normalizeEngineThemeColor } from "../theme/highlighting";
+import { renderEngineThemeTemplate } from "../theme/templates";
 import { EngineUrlIcon } from "./EngineUrlIcon";
 import {
 	normalizeEngineMarkdownSource,
@@ -70,6 +71,7 @@ interface MarkdownRenderConfig {
 	codeFontFamily: string;
 	showCodeLanguage: boolean;
 	prettyPlease?: MarkdownProps["prettyPlease"];
+	themeTemplates?: MarkdownProps["themeTemplates"];
 	markdownStyles?: MarkdownProps["markdownStyles"];
 	ansiPalette: EngineAnsiPalette;
 	ansiForeground: string;
@@ -342,7 +344,35 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					},
 				});
 			});
-			return (
+			const languageLabel = language && config.showCodeLanguage ? (
+				<figcaption style={{
+					padding: ".45rem .85rem",
+					borderBottom: "1px solid " + config.codeBorderColor,
+					fontFamily: config.codeFontFamily,
+					fontSize: ".72rem",
+					fontWeight: 800,
+					letterSpacing: ".08em",
+					textTransform: "uppercase",
+					color: "rgba(226,232,240,.72)",
+					...config.markdownStyles?.codeLanguage,
+				}}>{language}</figcaption>
+			) : null;
+			const codePre = (
+				<pre style={{
+					margin: 0,
+					padding: "1rem",
+					overflowX: "auto",
+					overflowY: "hidden",
+					maxWidth: "100%",
+					whiteSpace: "pre",
+					tabSize: 4,
+					fontFamily: config.codeFontFamily,
+					fontSize: ".88rem",
+					lineHeight: 1.65,
+					WebkitOverflowScrolling: "touch",
+				}}>{codeChildren}</pre>
+			);
+			const fallback = (
 				<figure
 					className={joinClassNames("e-md-code-block", blockClass)}
 					data-language={language}
@@ -351,7 +381,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 						margin: 0,
 						minWidth: 0,
 						maxWidth: "100%",
-						border: `1px solid ${config.codeBorderColor}`,
+						border: "1px solid " + config.codeBorderColor,
 						borderRadius: ".75rem",
 						overflow: "hidden",
 						background: config.codeBackground,
@@ -359,34 +389,24 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 						...config.markdownStyles?.codeBlock,
 					}}
 				>
-					{language && config.showCodeLanguage ? (
-						<figcaption style={{
-							padding: ".45rem .85rem",
-							borderBottom: `1px solid ${config.codeBorderColor}`,
-							fontFamily: config.codeFontFamily,
-							fontSize: ".72rem",
-							fontWeight: 800,
-							letterSpacing: ".08em",
-							textTransform: "uppercase",
-							color: "rgba(226,232,240,.72)",
-							...config.markdownStyles?.codeLanguage,
-						}}>{language}</figcaption>
-					) : null}
-					<pre style={{
-						margin: 0,
-						padding: "1rem",
-						overflowX: "auto",
-						overflowY: "hidden",
-						maxWidth: "100%",
-						whiteSpace: "pre",
-						tabSize: 4,
-						fontFamily: config.codeFontFamily,
-						fontSize: ".88rem",
-						lineHeight: 1.65,
-						WebkitOverflowScrolling: "touch",
-					}}>{codeChildren}</pre>
+					{languageLabel}
+					{codePre}
 				</figure>
 			);
+			return renderEngineThemeTemplate(config.themeTemplates?.codeBlock, {
+				componentId: "markdown",
+				block: "codeBlock",
+				language,
+				label: language,
+				slots: {
+					languageLabel,
+					content: codePre,
+					pre: codePre,
+					children: codePre,
+					language,
+					label: language,
+				},
+			}) ?? fallback;
 		},
 		table: ({ node, children }) => (
 			<div
@@ -401,12 +421,32 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				<table style={config.markdownStyles?.table}>{children}</table>
 			</div>
 		),
-		th: ({ node: _node, style, ...props }) => (
-			<th {...props} style={{ ...style, ...config.markdownStyles?.tableHeader }} />
-		),
-		td: ({ node: _node, style, ...props }) => (
-			<td {...props} style={{ ...style, ...config.markdownStyles?.tableCell }} />
-		),
+		th: ({ node: _node, children, style, align, ...props }) => {
+			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableHeader, {
+				componentId: "markdown",
+				block: "tableHeader",
+				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
+				slots: { content: children, children, label: children, value: children },
+			});
+			return (
+				<th {...props} style={{ ...style, ...config.markdownStyles?.tableHeader }}>
+					{themed ?? children}
+				</th>
+			);
+		},
+		td: ({ node: _node, children, style, align, ...props }) => {
+			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableCell, {
+				componentId: "markdown",
+				block: "tableCell",
+				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
+				slots: { content: children, children, value: children },
+			});
+			return (
+				<td {...props} style={{ ...style, ...config.markdownStyles?.tableCell }}>
+					{themed ?? children}
+				</td>
+			);
+		},
 		img: ({ node: _node, src = "", alt = "", className, style, ...props }) => (
 			<img
 				{...props}
@@ -472,6 +512,7 @@ export function EngineMarkdownRenderer({
 	codeFontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
 	showCodeLanguage = true,
 	prettyPlease = { mode: "auto", provider: "engine-lite", theme: "vscode-dark" },
+	themeTemplates,
 	"emd_show-url-icon": showUrlIcon = false,
 	"emd_url-icon-size": urlIconSize = "auto",
 	markdownStyles,
@@ -510,6 +551,7 @@ export function EngineMarkdownRenderer({
 		codeFontFamily,
 		showCodeLanguage,
 		prettyPlease,
+		themeTemplates,
 		markdownStyles,
 		ansiPalette,
 		ansiForeground: ansiForeground ?? codeColor,
