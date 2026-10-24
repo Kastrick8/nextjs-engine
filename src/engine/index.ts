@@ -184,9 +184,18 @@ export type {
 	EngineHighlighterToken,
 } from "./theme/highlighting";
 
+export {
+	registerEngineThemeDataHandler,
+	unregisterEngineThemeDataHandler,
+	listEngineThemeDataHandlers,
+	dispatchEngineThemeDataEvent,
+} from "./theme/dataApi";
+
 export type {
 	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,
 	EngineThemeScope, EngineThemeJsonValue, EngineThemeJsonObject, EngineConfig,
+	EngineThemeJoinDirection, EngineThemeDataEventType, EngineThemeDataEventBinding, EngineThemeDataEventContext,
+	EngineThemeDataEvent, EngineThemeDataHandlerResult, EngineThemeDataHandler,
 	EngineHighlighterTokenKind, EngineMarkdownTokenPalette, EngineMarkdownPrettyPleaseConfig,
 	NodeType, BuiltinNodeType, Breakpoint, ResponsiveValue,
 	CpropValue, SelectOption,
