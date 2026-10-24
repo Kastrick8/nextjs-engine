@@ -286,25 +286,27 @@ Run browser regressions on Chromium, Firefox, and WebKit wherever the repository
 
 ## 13. Current status
 
-Implementation has started on branch feat/enginetheme-foundation.
+Implementation is underway on branch feat/enginetheme-foundation.
 
-### Completed in the initial foundation slice
-- Added the public createTheme() constructor and group/component ID parser.
-- Added serializable theme schema types and public exports.
-- Added static NENC extraction that generates deterministic JSON .etr artifacts with canonical SHA-256, safe filenames, no-overwrite checks, and low-churn writes.
-- Wired theme extraction into the existing Gen 3 source pass, reusing its parsed TypeScript ASTs.
-- Added a focused ETR compiler smoke script and package command.
-- Added documentation for what is implemented versus still pending.
+### Implemented in the current foundation slice
+- Public createTheme() and qualified theme-ID parsing, including the three-subtheme-segment limit.
+- JSON-only theme validation, bounded nesting and size, deep freezing, and in-process global registration.
+- Runtime resolution for direct local theme objects and registered global group/component/subtheme IDs. Markdown defaults and style slots merge with explicit node props taking precedence.
+- Static NENC extraction into deterministic JSON .etr artifacts with canonical SHA-256, bounded input, guarded output paths, no-overwrite checks, and no-rewrite behavior for unchanged outputs.
+- Pretty-please lightweight syntax highlighting with language aliases, provider registration/listing, built-in VS Code-inspired palettes, plain-text fallback, bounded tokenization, and the existing ANSI path preserved.
+- Event-driven Data-API dispatch for join:left/right/top/bottom using registered local handlers. Context is validated as bounded JSON data and copied/frozen before handlers receive it.
+- Updated demo/browser regressions and focused compiler/runtime smoke coverage.
+- Generated .etr output is ignored as build output by default; publication is separate.
+
+### Verification
+- Engine runtime CI passed on commit 61b12759674eedec00e1e71e06a89252958edeaa, including type-check, NENC smoke suites, production build, and its browser tests.
+- Dedicated Chromium, Firefox, and WebKit compatibility jobs passed on that same tested commit.
+- A follow-up safety/documentation commit is staged and will need a new CI run before its result can be claimed.
 
 ### Still pending
-- Runtime resolution/application of ID-based themes and variant inheritance.
-- Pretty-please highlighting/providers and authoritative language palettes.
-- Declarative UI templates and the event-driven Data-API.
-- Remote URL resolution/fetching, compatibility pinning, and remote cache policy.
-- Production font downloading, local asset emission, and font cache handling.
+- Declarative UI-template rendering and integration with table headers/body cells, code blocks, and information blocks.
+- Remote .etr URL mapping, safe retrieval/caching, checksum validation and compatibility checks at resolution time.
+- Production font resolution/download, emitted local assets, CSS URL rewriting, and persistent font cache.
+- Final versioning/refresh rules and complete public docs/migration guidance.
 
-### Verification state
-- GitHub source reads/writes are verified.
-- Local clone/testing was blocked because this environment could not resolve github.com.
-- The smoke test is added but must be run by CI or in a local checkout; do not treat it as passed until a test result confirms it.
-- Keep the implementation incremental and update this section as each phase is completed.
+Remote fetching and production font downloading remain disabled until URL trust policy and cache behavior are implemented and covered by tests. The full plan is not complete while those phases remain open.
