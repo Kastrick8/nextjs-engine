@@ -3,7 +3,7 @@
 //  Engine — SchemaRenderer
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { lazy, memo, Suspense, useEffect, type CSSProperties, type ReactNode } from "react";
+import React, { lazy, memo, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import {
 	BREAKPOINTS,
 	BREAKPOINT_ORDER,
@@ -303,6 +303,56 @@ function NodeRenderer(props: NodeRendererProps) {
 	);
 }
 
+interface DevelopmentNodeElementProps {
+	component: React.ElementType;
+	props: Record<string, unknown>;
+	path: string;
+	nodeType: string;
+	children: ReactNode;
+}
+
+function safePlaceholderStyle(value: unknown): CSSProperties | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	try {
+		const safe: Record<string, string | number> = {};
+		for (const [key, entry] of Object.entries(value as Record<string, unknown>).slice(0, 80)) {
+			if (typeof entry === "string" || (typeof entry === "number" && Number.isFinite(entry))) {
+				safe[key] = entry;
+			}
+		}
+		return safe as CSSProperties;
+	} catch {
+		// A malformed style object must not abort the development route's server render.
+		return undefined;
+	}
+}
+
+function DevelopmentNodeElement({ component: Component, props, path, nodeType, children }: DevelopmentNodeElementProps) {
+	const [clientReady, setClientReady] = useState(false);
+	useEffect(() => setClientReady(true), []);
+
+	if (clientReady) return <Component {...props}>{children}</Component>;
+
+	// Error boundaries cannot catch server-render errors. In dev, avoid running
+	// arbitrary Engine component render functions on the server; keep a safe
+	// DOM shell and children, then instantiate the real component after hydration.
+	return (
+		<div
+			id={typeof props.id === "string" ? props.id : undefined}
+			className={typeof props.className === "string" ? props.className : undefined}
+			style={safePlaceholderStyle(props.style)}
+			role={typeof props.role === "string" ? props.role : undefined}
+			title={typeof props.title === "string" ? props.title : undefined}
+			aria-label={typeof props["aria-label"] === "string" ? props["aria-label"] as string : undefined}
+			data-engine-debug-path={path}
+			data-engine-debug-name={nodeType}
+			data-engine-debug-pending="true"
+		>
+			{children}
+		</div>
+	);
+}
+
 function NodeRendererContent({ node, depth, path }: NodeRendererProps) {
 	const styleCollector = useStyleCollector();
 
@@ -399,7 +449,9 @@ function NodeRendererContent({ node, depth, path }: NodeRendererProps) {
 	const effectiveChildren = hasTreeChildren
 		? renderedChildren
 		: (originalProps.children as ReactNode | undefined) ?? null;
-	const element = <Component {...nodeProps}>{effectiveChildren}</Component>;
+	const element = process.env.NODE_ENV === "development"
+		? <DevelopmentNodeElement component={Component} props={nodeProps} path={path} nodeType={String(node.type)}>{effectiveChildren}</DevelopmentNodeElement>
+		: <Component {...nodeProps}>{effectiveChildren}</Component>;
 	const shaderSurface = hasLayerShader && resolvedDomId
 		? (
 			<Suspense fallback={null}>
