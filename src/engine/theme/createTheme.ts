@@ -142,7 +142,7 @@ export function parseEngineThemeId(id: string): ParsedEngineThemeId {
   }
 
   const segments = id.split(".");
-  if (segments.some((segment) => !SEGMENT_PATTERN.test(segment))) {
+  if (segments.some((segment) => !SEGMENT_PATTERN.test(segment) || DANGEROUS_KEYS.has(segment))) {
     throw new TypeError("Invalid EngineTheme ID: use dot-separated alphanumeric, underscore, or hyphen segments.");
   }
   if (segments.length > 5) {
@@ -244,7 +244,7 @@ export function createTheme<T extends EngineThemeDefinition>(
   // construction; themes are plain data, not user-defined runtime objects.
   assertJsonData(definition, "theme", { nodes: 0, active: new Set<object>() }, 0);
   const candidate = definition as Record<string, unknown>;
-  if (typeof candidate.id !== "string" || !GROUP_ID_PATTERN.test(candidate.id)) {
+  if (typeof candidate.id !== "string" || !GROUP_ID_PATTERN.test(candidate.id) || DANGEROUS_KEYS.has(candidate.id)) {
     throw new TypeError("createTheme() requires a group ID without dots, such as mycoolthemes.");
   }
 
