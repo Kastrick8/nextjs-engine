@@ -580,11 +580,33 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		const frame = iframeRef.current;
 		if (!frame) return;
 		let frameCleanup = () => undefined;
+		let retryConnectTimer: number | null = null;
+		let retryConnectCount = 0;
 		const connect = () => {
-			frameCleanup();
+			if (retryConnectTimer !== null) {
+				window.clearTimeout(retryConnectTimer);
+				retryConnectTimer = null;
+			}
+			const previousCleanup = frameCleanup;
+			frameCleanup = () => undefined;
+			previousCleanup();
 			const frameWindow = frame.contentWindow as DebugSchedulerWindow | null;
 			const frameDocument = frame.contentDocument;
-			if (!frameWindow || !frameDocument || !frameDocument.documentElement || !frameDocument.head) return;
+			if (!frameWindow || !frameDocument) return;
+			if (!frameDocument.documentElement || !frameDocument.head) {
+				// Some browsers report an iframe load while its previous document is
+				// detaching and before the replacement document has a root/head. Retry
+				// briefly on the parent window so the next readable document is wired.
+				if (retryConnectCount < 40) {
+					retryConnectCount += 1;
+					retryConnectTimer = window.setTimeout(() => {
+						retryConnectTimer = null;
+						connect();
+					}, 25);
+				}
+				return;
+			}
+			retryConnectCount = 0;
 			applyDeviceProfile(frameWindow, device);
 			frameDocument.documentElement.dataset.engineDebugOverlay = String(overlay);
 			let overlayStyle = frameDocument.getElementById("__engine_debug_overlay__") as HTMLStyleElement | null;
@@ -799,7 +821,10 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		connect();
 		return () => {
 			frame.removeEventListener("load", connect);
-			frameCleanup();
+			if (retryConnectTimer !== null) window.clearTimeout(retryConnectTimer);
+			const cleanup = frameCleanup;
+			frameCleanup = () => undefined;
+			cleanup();
 		};
 	}, [device, overlay, picker, selectedNode?.id, pages, routePatterns]);
 
