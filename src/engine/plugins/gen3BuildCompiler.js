@@ -132,7 +132,7 @@ function staticValue(expression, vars, seen = new Set()) {
 	}
 	if (ts.isCallExpression(node)) {
 		const name = callName(node);
-		if (["defineSchema", "freezeSchema", "createSchema"].includes(name)
+		if (["defineSchema", "freezeSchema", "createSchema", "createTheme"].includes(name)
 			|| (ts.isPropertyAccessExpression(node.expression) && node.expression.expression.getText() === "Object" && name === "freeze")) {
 			return node.arguments.length ? staticValue(node.arguments[0], vars, seen) : { ok: false, reason: name + " has no argument" };
 		}
