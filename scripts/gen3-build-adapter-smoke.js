@@ -129,7 +129,7 @@ try {
 	try {
 		delete process.env.CI;
 		Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
-		nencLogger.clearStatus();
+		nencLogger.clearStatus("nextjs");
 		passedThrough.length = 0;
 		process.stdout.write("○ Compiling /request, /guide, emd ...\n");
 		assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] Compiling /request, /guide, emd")
