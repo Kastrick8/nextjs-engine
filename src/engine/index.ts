@@ -169,9 +169,25 @@ export type { ValidationError, ValidationResult } from "./core/validateSchema";
 export { createTheme, parseEngineThemeId } from "./theme/createTheme";
 export type { ParsedEngineThemeId } from "./theme/createTheme";
 
+export {
+	registerEngineHighlighterProvider,
+	unregisterEngineHighlighterProvider,
+	listEngineHighlighterProviders,
+	listEngineHighlighterLanguages,
+	highlightEngineCode,
+	normalizeEngineHighlightLanguage,
+	normalizeEngineThemeColor,
+} from "./theme/highlighting";
+export type {
+	EngineHighlighterProvider,
+	EngineHighlighterProviderInfo,
+	EngineHighlighterToken,
+} from "./theme/highlighting";
+
 export type {
 	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,
 	EngineThemeScope, EngineThemeJsonValue, EngineThemeJsonObject, EngineConfig,
+	EngineHighlighterTokenKind, EngineMarkdownTokenPalette, EngineMarkdownPrettyPleaseConfig,
 	NodeType, BuiltinNodeType, Breakpoint, ResponsiveValue,
 	CpropValue, SelectOption,
 	BoxProps, StackProps, GridProps, TextProps, TextPart, TextVariant,
