@@ -311,6 +311,27 @@ export type EngineMarkdownStyleSlot =
 
 export type EngineMarkdownStyles = Partial<Record<EngineMarkdownStyleSlot, CSSProperties>>;
 
+export type EngineHighlighterTokenKind =
+	| "plain" | "keyword" | "string" | "comment" | "number"
+	| "type" | "function" | "property" | "constant" | "operator" | "punctuation";
+
+/** A complete token palette; omitted token categories fall back to foreground. */
+export interface EngineMarkdownTokenPalette extends Partial<Record<EngineHighlighterTokenKind, string>> {
+	foreground?: string;
+	background?: string;
+}
+
+export interface EngineMarkdownPrettyPleaseConfig {
+	/** auto highlights recognized languages; none leaves source code uncolored. */
+	mode?: "auto" | "none";
+	/** engine-lite or a locally registered provider ID. */
+	provider?: string;
+	/** Built-in palette name, currently vscode-dark or vscode-light. */
+	theme?: string;
+	/** An authoritative replacement palette for this Markdown theme/language profile. */
+	palette?: EngineMarkdownTokenPalette;
+}
+
 export interface MarkdownProps extends BaseNodeProps {
 	content?: string;
 	filePath?: string;
@@ -336,6 +357,8 @@ export interface MarkdownProps extends BaseNodeProps {
 	codeBorderColor?: string;
 	codeFontFamily?: string;
 	showCodeLanguage?: boolean;
+	/** Pretty-please syntax highlighting; providers are registered by trusted project code. */
+	prettyPlease?: EngineMarkdownPrettyPleaseConfig;
 	/** Per-element style overrides for reusable documentation themes. */
 	markdownStyles?: EngineMarkdownStyles;
 	/** Custom colors for ANSI 16-color/bright terminal palettes. */
