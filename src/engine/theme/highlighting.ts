@@ -376,6 +376,28 @@ export function normalizeEngineThemeColor(value: unknown): string | undefined {
 
 	return undefined;
 }
+
+export function getEngineHighlighterColor(
+	kind: EngineHighlighterTokenKind,
+	options: {
+		theme?: string;
+		palette?: EngineMarkdownTokenPalette;
+		fallbackForeground?: string;
+	} = {},
+): string {
+	const customPalette = options.palette;
+	const customForeground = normalizeEngineThemeColor(customPalette?.foreground)
+		?? normalizeEngineThemeColor(options.fallbackForeground)
+		?? "#d4d4d4";
+	if (customPalette) {
+		// A custom palette is authoritative: unspecified scopes use its base
+		// foreground and do not inherit provider defaults.
+		return normalizeEngineThemeColor(customPalette[kind]) ?? customForeground;
+	}
+	const builtIn = options.theme === "vscode-light" ? LIGHT_PALETTE : DARK_PALETTE;
+	return normalizeEngineThemeColor(builtIn[kind]) ?? customForeground;
+}
+
 function isValidProvider(value: unknown): value is EngineHighlighterProvider {
 	if (!value || typeof value !== "object") return false;
 	const candidate = value as EngineHighlighterProvider;
