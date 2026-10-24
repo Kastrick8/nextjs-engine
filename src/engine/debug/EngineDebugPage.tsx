@@ -1034,7 +1034,7 @@ function ErrorInspector({
 					{visible.length === 0 ? <div className="ed-empty">No captured problems. Errors are collected from the preview and deduplicated by message, source and location.</div> : visible.map((item) => (
 						<button key={item.id} type="button" className="ed-diagnostic" title={[item.message, (item.routes ?? (item.route ? [item.route] : [])).join(", "), item.location ?? ""].filter(Boolean).join("\n")} aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
 							<span className={"ed-problem-glyph " + item.severity}>{item.severity === "error" ? "●" : "▲"}</span>
-							<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span>{(item.routes?.length ?? 0) > 1 ? <span>{item.routes!.length} routes</span> : item.route && <span>{item.route}</span>}<span>{new Date(item.at).toLocaleTimeString()}</span>{(item.repeatCount ?? 1) > 1 && <span className="ed-repeat">{item.repeatCount}×</span>}</span></span>
+							<span><span className="ed-diagnostic-message">{item.message}</span><span className="ed-diagnostic-meta"><span>{item.category}</span>{(item.routes?.length ?? 0) > 1 ? <span>{item.routes!.length} routes</span> : item.route && <span>{item.route}</span>}<span>{new Date(item.at).toLocaleTimeString()}</span>{(item.repeatCount ?? 1) > 1 && <span className="ed-repeat">×{item.repeatCount}</span>}</span></span>
 						</button>
 					))}
 				</div>
