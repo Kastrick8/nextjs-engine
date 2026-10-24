@@ -473,7 +473,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 					if (element.dataset.engineDebugCaptured !== "true") {
 						element.dataset.engineDebugCaptured = "true";
 						const affectedRoute = inferEngineDebugOverlayRoute(text, pages);
-						reportDiagnostic("next-overlay", "Next.js development error overlay", text, frameWindow.location.pathname, affectedRoute);
+						reportDiagnostic("next-overlay", "Next.js development error overlay", text, affectedRoute ?? frameWindow.location.pathname, affectedRoute);
 						if (affectedRoute && (affectedRoute === frameWindow.location.pathname || matchesEngineDebugRoutePattern(affectedRoute, frameWindow.location.pathname))) {
 							setPreviewStatus("error");
 						}
