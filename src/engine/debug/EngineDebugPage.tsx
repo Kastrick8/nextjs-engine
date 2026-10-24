@@ -333,6 +333,8 @@ export interface EngineDebugPageProps {
 
 export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const lastConnectedFrameDocumentRef = useRef<Document | null>(null);
+	const lastConnectedFrameRouteRef = useRef<string | null>(null);
 	const viewportRef = useRef<HTMLDivElement>(null);
 	const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 	const [fitPreview, setFitPreview] = useState(true);
@@ -580,8 +582,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		const frame = iframeRef.current;
 		if (!frame) return;
 		const expectedRoute = normalizeDebugRoute(selectedPage.split(/[?#]/, 1)[0] || "/");
-		const documentAtEffectStart = frame.contentDocument;
-		let lastObservedDocument = documentAtEffectStart;
+		let lastObservedDocument = frame.contentDocument;
 		let frameCleanup = () => undefined;
 		let retryConnectTimer: number | null = null;
 		let retryConnectCount = 0;
@@ -604,7 +605,11 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				retryConnectCount = 0;
 			}
 			const currentDocumentRoute = normalizeDebugRoute(frameDocument.location.pathname);
-			const staleRouteDocument = frameDocument === documentAtEffectStart && currentDocumentRoute !== expectedRoute;
+			const sameConnectedDocument = frameDocument === lastConnectedFrameDocumentRef.current;
+			const initialBlankDocument = lastConnectedFrameDocumentRef.current === null && frameDocument.location.protocol === "about:";
+			const staleRouteDocument = currentDocumentRoute !== expectedRoute && (
+				(sameConnectedDocument && lastConnectedFrameRouteRef.current !== expectedRoute) || initialBlankDocument
+			);
 			if (!frameDocument.documentElement || !frameDocument.head || staleRouteDocument) {
 				// Some browsers report an iframe load while its previous document is
 				// detaching and before the replacement document has a root/head. Retry
@@ -619,6 +624,8 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 				return;
 			}
 			retryConnectCount = 0;
+			lastConnectedFrameDocumentRef.current = frameDocument;
+			lastConnectedFrameRouteRef.current = expectedRoute;
 			applyDeviceProfile(frameWindow, device);
 			frameDocument.documentElement.dataset.engineDebugOverlay = String(overlay);
 			let overlayStyle = frameDocument.getElementById("__engine_debug_overlay__") as HTMLStyleElement | null;
