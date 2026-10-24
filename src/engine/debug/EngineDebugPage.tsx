@@ -334,7 +334,8 @@ export interface EngineDebugPageProps {
 export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const viewportRef = useRef<HTMLDivElement>(null);
-	const [previewScale, setPreviewScale] = useState(1);
+	const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+	const [fitPreview, setFitPreview] = useState(true);
 	const [routeSearch, setRouteSearch] = useState("");
 	const [routePatterns, setRoutePatterns] = useState<string[]>([...pages]);
 	const [nextStaticPaths, setNextStaticPaths] = useState<string[]>(pages.filter(route => !isEngineDebugDynamicRoute(route)));
@@ -427,15 +428,15 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	useEffect(() => {
 		const viewport = viewportRef.current;
 		if (!viewport) return;
-		const updateScale = () => {
-			const availableWidth = Math.max(1, viewport.clientWidth - 30);
-			const scale = Math.min(1, availableWidth / device.width);
-			setPreviewScale((current) => Math.abs(current - scale) < 0.005 ? current : scale);
+		const measure = () => setViewportSize({ width: viewport.clientWidth, height: viewport.clientHeight });
+		measure();
+		const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+		observer?.observe(viewport);
+		window.addEventListener("resize", measure);
+		return () => {
+			observer?.disconnect();
+			window.removeEventListener("resize", measure);
 		};
-		updateScale();
-		const observer = new ResizeObserver(updateScale);
-		observer.observe(viewport);
-		return () => observer.disconnect();
 	}, [device.width, device.height]);
 
 
@@ -453,6 +454,10 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 		setSelectedNode(null);
 		setDynamicRoutePattern(null);
 	};
+	const previewScale = useMemo(() => {
+		if (!fitPreview || viewportSize.width <= 0 || viewportSize.height <= 0) return 1;
+		return Math.max(0.1, Math.min(1, (viewportSize.width - 30) / device.width, (viewportSize.height - 30) / device.height));
+	}, [device.height, device.width, fitPreview, viewportSize.height, viewportSize.width]);
 	const selectedDiagnostic = useMemo(() => diagnostics.find((item) => item.id === selectedDiagnosticId) ?? null, [diagnostics, selectedDiagnosticId]);
 	const autoFixSuggestions = useMemo(() => sourceDocument && selectedDiagnostic ? getEngineDebugFixSuggestions(selectedDiagnostic, sourceDocument.path, sourceText) : [], [sourceDocument, selectedDiagnostic, sourceText]);
 	const autoCompletions = useMemo(() => sourceDocument ? getEngineDebugAutoCompletions(sourceDocument.path, sourceText) : [], [sourceDocument, sourceText]);
@@ -818,6 +823,8 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 						</label>
 						<button type="button" className="ed-button" aria-pressed={picker} onClick={() => setPicker((value) => !value)}>Pick node</button>
 						<button type="button" className="ed-button" aria-pressed={overlay} onClick={() => setOverlay((value) => !value)}>Runtime boundaries</button>
+						<button type="button" className="ed-button" aria-label="Fit preview to available space" aria-pressed={fitPreview} onClick={() => setFitPreview(value => !value)}>{fitPreview ? "Fit: On" : "Fit: Off"}</button>
+						<span className="ed-fit-label">{Math.round(previewScale * 100)}%</span>
 						<button type="button" className="ed-button" aria-label="Reload preview" title="Reload preview" onClick={reloadPreview}>↻ Reload</button>
 						{previewStatus === "error" && <button type="button" className="ed-button" onClick={() => setTab("Errors")}>View Problems</button>}
 						<span className="ed-spacer" />
