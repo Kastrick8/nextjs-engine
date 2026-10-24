@@ -11,6 +11,7 @@ function getState() {
 			statuses: {},
 			statusSequence: 0,
 			activeRoutes: new Map(),
+			routeBatchStartedAt: 0,
 			timer: null,
 			rows: 0,
 			active: false,
@@ -87,7 +88,10 @@ function paintStatus() {
 		// Keep ordinary stdout/stderr output inside a scroll region that excludes the last row.
 		process.stdout.write("\u001b[1;" + (rows - 1) + "r");
 		process.stdout.write("\u001b[" + (rows - 1) + ";1H");
-		process.stdout.write("\u001b[" + rows + ";1H\u001b[2K" + formatStatusLine(state.status));
+		const liveStatus = state.source === "nextjs" && state.activeRoutes.size && state.routeBatchStartedAt
+			? state.status + " · " + ((Date.now() - state.routeBatchStartedAt) / 1000).toFixed(1) + "s"
+			: state.status;
+		process.stdout.write("\u001b[" + rows + ";1H\u001b[2K" + formatStatusLine(liveStatus));
 		process.stdout.write("\u001b[" + (rows - 1) + ";1H");
 		state.rows = rows;
 		state.active = true;
@@ -280,6 +284,7 @@ function dispatchNextBuildEvent(event) {
 	state.bridgeBusy = true;
 	try {
 		if (event.level === "route-start") {
+			if (state.activeRoutes.size === 0) state.routeBatchStartedAt = Date.now();
 			for (const route of event.routes) state.activeRoutes.set(route, Date.now());
 			const routes = [...state.activeRoutes.keys()];
 			setStatus("Compiling " + routes.join(", ") + ". [" + routes.length + " active]", "nextjs");
@@ -288,7 +293,10 @@ function dispatchNextBuildEvent(event) {
 			if (state.activeRoutes.size) {
 				const routes = [...state.activeRoutes.keys()];
 				setStatus("Compiling " + routes.join(", ") + ". [" + routes.length + " active]", "nextjs");
-			} else clearStatus("nextjs");
+			} else {
+				state.routeBatchStartedAt = 0;
+				clearStatus("nextjs");
+			}
 			done(event.message);
 		} else if (event.level === "status") setStatus(event.message, "nextjs");
 		else if (event.level === "done") done(event.message);
