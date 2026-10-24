@@ -144,9 +144,11 @@ async function main() {
 	assert.match(navSource, /emd_show-url-icon/, "EngineNav items must accept favicon props");
 	assert.match(serverSource, /withUrlIcon/, "server-rendered schema links must support favicons");
 	assert.match(iconComponentSource, /referrerPolicy="no-referrer"/, "favicon lookup must not receive a full-page referrer");
-	assert.match(faviconRouteSource, /\[NENC\] Downloading private asset: favicon =/);
-	assert.match(faviconRouteSource, /\[NENC\] DONE private asset: favicon =/);
-	assert.match(faviconRouteSource, /\[NENC\] FAILED private asset: favicon =/);
+	assert.match(faviconRouteSource, /Downloading private asset: favicon =/);
+	assert.match(faviconRouteSource, /nencTerminalLogger\.done/);
+	assert.match(faviconRouteSource, /nencTerminalLogger\.failed/);
+	assert.ok(faviconRouteSource.includes("nencTerminalLogger from "),
+		"the EMD route uses the shared NENC terminal logger");
 	assert.match(faviconRouteSource, /MAX_ICON_BYTES/, "upstream icon bytes must have a size limit");
 
 	assert.match(publicApiSource, /export { EngineUrlIcon }/, "the HTML/JSX favicon component must be exported");
