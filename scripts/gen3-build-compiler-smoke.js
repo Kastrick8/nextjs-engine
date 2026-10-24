@@ -23,6 +23,7 @@ const {
 	formatWorkerStatus,
 	formatBytesPerSecond,
 } = require("../src/engine/plugins/nencTerminalLogger");
+const { schemaOutputCachePath } = require("../src/engine/plugins/gen3SchemaCache");
 
 assert.equal(formatDoneLine("COMPILED PAGE : app/page.tsx"), "[NENC] DONE COMPILED PAGE : app/page.tsx");
 assert.ok(formatStatusLine("COMPILING CUSTOM COMPONENT : Notice", 32).startsWith("[NENC] "));
@@ -217,8 +218,9 @@ try {
 	const finalCacheEntries = new Map(fs.readdirSync(cacheDirectory).filter((name) => name.endsWith(".json")).sort()
 		.map((name) => [name, fs.readFileSync(path.join(cacheDirectory, name), "utf8")]));
 	const changedCacheFiles = [...initialCacheEntries.keys()].filter((name) => initialCacheEntries.get(name) !== finalCacheEntries.get(name));
-	assert.deepEqual(changedCacheFiles, [changedCacheFiles.find((name) => initialCacheEntries.get(name) !== finalCacheEntries.get(name))],
-		"only one cache file changes when one page schema is edited");
+	assert.deepEqual(changedCacheFiles, [
+		path.basename(schemaOutputCachePath(root, "app/(marketing)/about/page.tsx", "/about")),
+	], "only the edited /about cache entry changes; /emd and /ec cache files remain byte-for-byte unchanged");
 
 	const inputPath = path.join(root, "worker-manifest.json");
 	fs.writeFileSync(inputPath, JSON.stringify(manifest));
