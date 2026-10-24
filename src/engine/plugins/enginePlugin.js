@@ -1,5 +1,6 @@
 "use strict";
 
+const fs = require("node:fs");
 const path = require("node:path");
 
 const withEngineAPI = require("./engineApiPlugin");
@@ -77,13 +78,32 @@ function withEngineTurbopackCache(nextConfig = {}) {
 	};
 }
 
+const GEN3_API_CONFIG_FILE = path.join(".nextjs-engine", "config", ".apiconfig.json");
+const LEGACY_API_CONFIG_FILE = ".engine-api-compiled.json";
+
+function withGeneration3APIConfig(nextConfig = {}, apiOptions = {}) {
+	const hasCustomOutput = typeof apiOptions.outputFile === "string" && apiOptions.outputFile.trim().length > 0;
+	const outputFile = hasCustomOutput ? apiOptions.outputFile : GEN3_API_CONFIG_FILE;
+	// Compile first, then remove the stale root artifact from older combined Gen 3 builds.
+	const configured = withEngineAPI(nextConfig, { ...apiOptions, outputFile });
+	if (!hasCustomOutput) {
+		const legacyOutput = path.resolve(process.cwd(), LEGACY_API_CONFIG_FILE);
+		const currentOutput = path.resolve(process.cwd(), outputFile);
+		if (legacyOutput !== currentOutput && fs.existsSync(legacyOutput) && fs.statSync(legacyOutput).isFile()) {
+			fs.rmSync(legacyOutput, { force: true });
+		}
+	}
+	return configured;
+}
+
+
 function withEngine(nextConfig = {}, pluginOptions = {}) {
 	installDevelopmentOutputBridge();
 	const cacheConfig = withEngineTurbopackCache(nextConfig);
 	const imageConfig = withEngineImageConfig(cacheConfig);
 	const apiOptions = pluginOptions.api || pluginOptions;
 	const shaderOptions = pluginOptions.shader || pluginOptions;
-	const apiConfig = withEngineAPI(imageConfig, apiOptions);
+	const apiConfig = withGeneration3APIConfig(imageConfig, apiOptions);
 	const nencConfig = pluginOptions.nenc ? withEngineNENC(apiConfig, pluginOptions.nenc) : apiConfig;
 	const debugConfig = withEngineDebug(nencConfig, pluginOptions.debug || {});
 	const seoConfig = withEngineSEO(debugConfig, pluginOptions.seo);
@@ -96,6 +116,9 @@ function withEngine(nextConfig = {}, pluginOptions = {}) {
 
 module.exports = withEngine;
 module.exports.withEngine = withEngine;
+module.exports.withGeneration3APIConfig = withGeneration3APIConfig;
+module.exports.GEN3_API_CONFIG_FILE = GEN3_API_CONFIG_FILE;
+module.exports.LEGACY_API_CONFIG_FILE = LEGACY_API_CONFIG_FILE;
 module.exports.withEngineAPI = withEngineAPI;
 module.exports.withEngineDebug = withEngineDebug;
 module.exports.withEngineSEO = withEngineSEO;
