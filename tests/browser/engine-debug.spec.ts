@@ -139,6 +139,7 @@ test("EngineDebug merges repeated problems across routes", async ({ page }) => {
 	});
 	await page.getByRole("button", { name: "/engine-compat-test/browser-dialog/fallback", exact: true }).click();
 	await expect(preview.locator("body")).toBeVisible();
+	await expect(preview.getByRole("heading", { name: "Reasonable fallback available" })).toBeVisible();
 	await preview.locator("body").evaluate(body => {
 		body.ownerDocument.defaultView?.console.error("ENGINE_DEBUG_DEDUPE_ROUTE_SMOKE: hydration mismatch");
 	});

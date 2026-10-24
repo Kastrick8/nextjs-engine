@@ -137,12 +137,12 @@ try {
 	try {
 		const fixturePath = path.join(tempRoot, "src", "app", "page.tsx");
 		fs.mkdirSync(path.dirname(fixturePath), { recursive: true });
-		const before = 'const label = "before";\\nexport {};';
+		const before = 'const label = "before";\nexport {};';
 		fs.writeFileSync(fixturePath, before, "utf8");
 		const saved = applyEngineDebugSourcePatch(tempRoot, "src/app/page.tsx", 1, 1,
 			['const label = "before";', "export {};"], ['const label = "after";', "export {};"]);
 		assert.equal(saved.ok, true, "valid explicit source patches save to the workspace");
-		assert.equal(fs.readFileSync(fixturePath, "utf8"), 'const label = "after";\\nexport {};', "patches update only the requested line range");
+		assert.equal(fs.readFileSync(fixturePath, "utf8"), 'const label = "after";\nexport {};', "patches update only the requested line range");
 		const stale = applyEngineDebugSourcePatch(tempRoot, "src/app/page.tsx", 1, 1,
 			['const label = "before";', "export {};"], ['const label = "wrong";', "export {};"]);
 		assert.equal(stale.ok, false, "patches based on stale source context are rejected");

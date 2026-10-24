@@ -53,6 +53,18 @@ try {
 	const generatedRoutesRoute = fs.readFileSync(routesRouteFile, "utf8");
 	assert.ok(generatedRoutesRoute.startsWith(GENERATED_MARKER));
 	assert.match(generatedRoutesRoute, /export \{ GET \} from/);
+	const routeCatalogHelper = require("../src/engine/debug/engineDebugRouteCatalog.js");
+	const dynamicFixture = path.join(root, "app", "blog", "[slug]");
+	fs.mkdirSync(dynamicFixture, { recursive: true });
+	fs.writeFileSync(path.join(dynamicFixture, "page.tsx"), "export default function Page() { return null; }", "utf8");
+	const prerenderManifest = path.join(root, ".next", "prerender-manifest.json");
+	fs.mkdirSync(path.dirname(prerenderManifest), { recursive: true });
+	fs.writeFileSync(prerenderManifest, JSON.stringify({ routes: { "/blog/hello-world": {}, "/blog/another-post": {}, "/_engine/debug": {} } }), "utf8");
+	const discoveredCatalog = routeCatalogHelper.discoverEngineDebugRouteCatalog(root);
+	assert.ok(discoveredCatalog.dynamicPatterns.includes("/blog/[slug]"), "route catalog detects dynamic patterns");
+	assert.ok(discoveredCatalog.staticPaths.includes("/blog/hello-world"), "catalog includes concrete routes from Next prerender manifests");
+	assert.ok(discoveredCatalog.staticPaths.includes("/blog/another-post"), "catalog includes every known prerendered route");
+	assert.ok(!discoveredCatalog.staticPaths.includes("/_engine/debug"), "catalog excludes the dashboard itself");
 	assert.equal(
 		prepareEngineDebugRoute({ rootDir: root, modulePath, isolationModulePath, sourceModulePath, routesModulePath }).routeFile,
 		routeFile,
