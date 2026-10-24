@@ -22,6 +22,11 @@ export interface EngineHighlighterProviderInfo {
 	languages: string[];
 }
 
+export interface EngineHighlighterThemeInfo {
+	id: string;
+	name: string;
+}
+
 const MAX_CODE_LENGTH = 80_000;
 const MAX_TOKEN_COUNT = 10_000;
 const SAFE_PROVIDER_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
@@ -307,38 +312,70 @@ export function normalizeEngineHighlightLanguage(language: string): string {
  * Accept strict HEX, rgb()/rgba(), and CSS Color 4 sRGB values. Color values
  * remain data and are never interpolated into generated stylesheet text.
  */
+function validColorChannel(value: string, maximum: number): boolean {
+	const trimmed = value.trim();
+	const percentage = trimmed.endsWith("%");
+	const raw = percentage ? trimmed.slice(0, -1).trim() : trimmed;
+	if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(raw)) return false;
+	const number = Number(raw);
+	return Number.isFinite(number) && number >= 0 && number <= (percentage ? 100 : maximum);
+}
+
+function validColorAlpha(value: string): boolean {
+	const trimmed = value.trim();
+	const percentage = trimmed.endsWith("%");
+	const raw = percentage ? trimmed.slice(0, -1).trim() : trimmed;
+	if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(raw)) return false;
+	const number = Number(raw);
+	return Number.isFinite(number) && number >= 0 && number <= (percentage ? 100 : 1);
+}
+
+/**
+ * Accept strict HEX, rgb()/rgba(), and CSS Color 4 sRGB values. Numeric
+ * channels and alpha are range-checked; arbitrary CSS expressions/URLs are
+ * not accepted as palette colors.
+ */
 export function normalizeEngineThemeColor(value: unknown): string | undefined {
 	if (typeof value !== "string" || value.length > 80) return undefined;
 	const color = value.trim();
 	if (/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)) return color;
-	const rgb = /^rgba?\(\s*(?:\d{1,3}%?\s*[, ]\s*){2}\d{1,3}%?(?:\s*[,/]\s*(?:100%|(?:\d{1,3}(?:\.\d+)?%?)|(?:0?\.\d+)))?\s*\)$/i;
-	if (rgb.test(color)) return color;
-	const srgb = /^color\(\s*srgb\s+(?:0(?:\.\d+)?|1(?:\.0+)?|\.\d+)%?\s+(?:0(?:\.\d+)?|1(?:\.0+)?|\.\d+)%?\s+(?:0(?:\.\d+)?|1(?:\.0+)?|\.\d+)%?(?:\s*\/\s*(?:0(?:\.\d+)?|1(?:\.0+)?|\.\d+)%?)?\s*\)$/i;
-	if (srgb.test(color)) return color;
+
+	const rgbMatch = /^rgba?\((.*)\)$/i.exec(color);
+	if (rgbMatch) {
+		const body = rgbMatch[1].trim();
+		let channels: string[];
+		let alpha: string | undefined;
+		if (body.includes(",")) {
+			if (body.includes("/")) return undefined;
+			const parts = body.split(",").map((part) => part.trim());
+			if (parts.length !== 3 && parts.length !== 4) return undefined;
+			channels = parts.slice(0, 3);
+			alpha = parts[3];
+		} else {
+			const parts = body.split(/\s*\/\s*/);
+			if (parts.length > 2) return undefined;
+			channels = parts[0].trim().split(/\s+/);
+			alpha = parts[1]?.trim();
+			if (channels.length !== 3) return undefined;
+		}
+		if (!channels.every((channel) => validColorChannel(channel, 255))) return undefined;
+		if (alpha !== undefined && !validColorAlpha(alpha)) return undefined;
+		return color;
+	}
+
+	const srgbMatch = /^color\(\s*srgb\s+(.+)\)$/i.exec(color);
+	if (srgbMatch) {
+		const parts = srgbMatch[1].trim().split(/\s*\/\s*/);
+		if (parts.length > 2) return undefined;
+		const channels = parts[0].trim().split(/\s+/);
+		if (channels.length !== 3) return undefined;
+		if (!channels.every((channel) => validColorChannel(channel, 1))) return undefined;
+		if (parts[1] !== undefined && !validColorAlpha(parts[1])) return undefined;
+		return color;
+	}
+
 	return undefined;
 }
-
-export function getEngineHighlighterColor(
-	kind: EngineHighlighterTokenKind,
-	options: {
-		theme?: string;
-		palette?: EngineMarkdownTokenPalette;
-		fallbackForeground?: string;
-	} = {},
-): string {
-	const customPalette = options.palette;
-	const customForeground = normalizeEngineThemeColor(customPalette?.foreground)
-		?? normalizeEngineThemeColor(options.fallbackForeground)
-		?? "#d4d4d4";
-	if (customPalette) {
-		// A custom palette is authoritative: unspecified/invalid scopes use its
-		// base foreground, never a provider's default token color.
-		return normalizeEngineThemeColor(customPalette[kind]) ?? customForeground;
-	}
-	const builtIn = options.theme === "vscode-light" ? LIGHT_PALETTE : DARK_PALETTE;
-	return normalizeEngineThemeColor(builtIn[kind]) ?? customForeground;
-}
-
 function isValidProvider(value: unknown): value is EngineHighlighterProvider {
 	if (!value || typeof value !== "object") return false;
 	const candidate = value as EngineHighlighterProvider;
@@ -393,6 +430,14 @@ export function listEngineHighlighterProviders(): EngineHighlighterProviderInfo[
 		.sort((left, right) => left.id.localeCompare(right.id));
 }
 
+const BUILTIN_THEME_INFO: readonly EngineHighlighterThemeInfo[] = Object.freeze([
+	Object.freeze({ id: "vscode-dark", name: "VS Code Dark (lightweight palette)" }),
+	Object.freeze({ id: "vscode-light", name: "VS Code Light (lightweight palette)" }),
+]);
+
+export function listEngineHighlighterThemes(): EngineHighlighterThemeInfo[] {
+	return BUILTIN_THEME_INFO.map((theme) => ({ ...theme }));
+}
 export function listEngineHighlighterLanguages(providerId?: string): string[] {
 	const selected = providerId ? providers.get(providerId) : undefined;
 	if (providerId && !selected) return [];

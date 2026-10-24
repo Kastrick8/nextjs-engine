@@ -40,6 +40,7 @@ function testPublicThemeApi() {
 			highlightEngineCode,
 			listEngineHighlighterProviders,
 			listEngineHighlighterLanguages,
+			listEngineHighlighterThemes,
 			registerEngineHighlighterProvider,
 			unregisterEngineHighlighterProvider,
 			normalizeEngineThemeColor,
@@ -92,7 +93,11 @@ function testPublicThemeApi() {
 		assert.equal(normalizeEngineThemeColor("#1a2b3c"), "#1a2b3c");
 		assert.equal(normalizeEngineThemeColor("rgb(30, 40, 50)"), "rgb(30, 40, 50)");
 		assert.equal(normalizeEngineThemeColor("color(srgb 0.2 0.4 0.8 / 0.5)"), "color(srgb 0.2 0.4 0.8 / 0.5)");
+		assert.equal(normalizeEngineThemeColor("rgb(999, 10, 20)"), undefined, "RGB channels must be in range");
+		assert.equal(normalizeEngineThemeColor("color(srgb 2 0 0)"), undefined, "sRGB channels must be in range");
+		assert.equal(normalizeEngineThemeColor("rgba(10, 20, 30, 200%)"), undefined, "alpha must be in range");
 		assert.equal(normalizeEngineThemeColor("url(javascript:alert(1))"), undefined);
+		assert.deepEqual(listEngineHighlighterThemes().map((theme) => theme.id), ["vscode-dark", "vscode-light"]);
 		assert.equal(getEngineHighlighterColor("keyword", {
 			theme: "vscode-dark",
 			palette: { foreground: "#fafafa" },
@@ -117,6 +122,7 @@ function testPublicThemeApi() {
 			allocatedEvent = event;
 			return { operation: "append", value: event.context.incoming };
 		};
+		assert.throws(() => registerEngineThemeDataHandler("constructor", dataHandler), /cannot be reserved names/);
 		registerEngineThemeDataHandler("smoke-theme.table-join", dataHandler);
 		assert.ok(listEngineThemeDataHandlers().includes("smoke-theme.table-join"));
 		assert.deepEqual(dispatchEngineThemeDataEvent("join:left", {

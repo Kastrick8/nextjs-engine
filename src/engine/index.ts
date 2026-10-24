@@ -174,6 +174,7 @@ export {
 	unregisterEngineHighlighterProvider,
 	listEngineHighlighterProviders,
 	listEngineHighlighterLanguages,
+	listEngineHighlighterThemes,
 	highlightEngineCode,
 	normalizeEngineHighlightLanguage,
 	normalizeEngineThemeColor,
@@ -181,6 +182,7 @@ export {
 export type {
 	EngineHighlighterProvider,
 	EngineHighlighterProviderInfo,
+	EngineHighlighterThemeInfo,
 	EngineHighlighterToken,
 } from "./theme/highlighting";
 

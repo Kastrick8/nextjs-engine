@@ -123,8 +123,8 @@ function validateContext(
  * reference this stable ID, but cannot provide executable handler source.
  */
 export function registerEngineThemeDataHandler(id: string, handler: EngineThemeDataHandler): void {
-	if (typeof id !== "string" || !HANDLER_ID.test(id)) {
-		throw new TypeError("EngineTheme Data-API handler IDs must use safe alphanumeric, dot, underscore, or hyphen segments.");
+	if (typeof id !== "string" || !HANDLER_ID.test(id) || RESERVED_IDS.has(id)) {
+		throw new TypeError("EngineTheme Data-API handler IDs must use safe alphanumeric, dot, underscore, or hyphen segments and cannot be reserved names.");
 	}
 	if (typeof handler !== "function") {
 		throw new TypeError("EngineTheme Data-API handler must be a local function.");

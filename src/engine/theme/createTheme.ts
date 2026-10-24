@@ -57,7 +57,7 @@ function mergeThemeObjects(base: EngineThemeJsonObject, overlay: EngineThemeJson
 }
 
 function getGroupComponents(group: EngineTheme): Record<string, EngineThemeJsonObject> {
-  const components: Record<string, EngineThemeJsonObject> = {};
+  const components: Record<string, EngineThemeJsonObject> = Object.create(null);
   if (isJsonObject(group.components)) {
     for (const [name, definition] of Object.entries(group.components)) {
       if (isJsonObject(definition)) components[name] = definition;
