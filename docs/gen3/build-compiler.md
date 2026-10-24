@@ -6,7 +6,7 @@ The Generation 3 build adapter runs a small Engine-owned analysis pass alongside
 
 The pre-build pass discovers App Router and Pages Router entry files (including route handlers and supported metadata routes), then follows their reachable local imports. Type-only imports, dependency directories, hidden build output, and unrelated Engine modules are not treated as runtime compile jobs. AST reads and module resolution are cached within the pass, and each reached Engine module is indexed once even if many routes import it.
 
-NENC terminal output uses one live status row pinned to the terminal bottom while work is in progress. Completed work is written above it as `[NENC] DONE ...` lines; the current operation is rewritten in place instead of flooding the terminal. On non-interactive output, only completion and failure lines are emitted.
+NENC terminal output uses one live status row pinned to the terminal bottom while work is in progress. Completed work is written above it as [NENC] DONE ... lines; the current operation is rewritten in place. NENC route analysis reports a percentage only because its route count is known before the pass starts. Next.js on-demand route compilation has no public percentage/total, so its live row shows the actual route list and elapsed time instead of an invented percent. When Next.js emits a real count (for example, static pages 3/8), the percentage is calculated from that count. Without an interactive TTY, normalized progress is printed as ordinary log output rather than silently swallowed.
 
 ```text
 [NENC] COMPILING PAGE : app/page.tsx  (live bottom row)

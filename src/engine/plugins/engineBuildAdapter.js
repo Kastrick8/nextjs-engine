@@ -183,5 +183,9 @@ const adapter = {
 module.exports = adapter;
 module.exports.startCompiler = startCompiler;
 module.exports.startDevelopmentBridge = startDevelopmentBridge;
+module.exports.stopDevelopmentBridge = function stopDevelopmentBridge() {
+	const state = globalThis[DEV_BRIDGE_KEY];
+	if (state && typeof state.stop === "function") state.stop();
+};
 module.exports.loadDelegateAdapter = loadDelegateAdapter;
 module.exports.forwardWorkerLog = forwardWorkerLog;

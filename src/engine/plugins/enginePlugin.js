@@ -14,6 +14,12 @@ const {
 
 const ENGINE_IMAGE_QUALITIES = Object.freeze([65, 75, 78, 90]);
 
+function installDevelopmentOutputBridge() {
+	const args = process.argv.slice(2);
+	if (!args.some((arg) => arg === "dev") && process.env.NEXT_PHASE !== "phase-development-server") return;
+	require("./nencTerminalLogger").installNextBuildOutputBridge({ mode: "dev" });
+}
+
 function withEngineImageConfig(nextConfig = {}) {
 	const configuredQualities = Array.isArray(nextConfig.images?.qualities)
 		? nextConfig.images.qualities.filter((quality) => Number.isInteger(quality) && quality >= 1 && quality <= 100)
@@ -72,6 +78,7 @@ function withEngineTurbopackCache(nextConfig = {}) {
 }
 
 function withEngine(nextConfig = {}, pluginOptions = {}) {
+	installDevelopmentOutputBridge();
 	const cacheConfig = withEngineTurbopackCache(nextConfig);
 	const imageConfig = withEngineImageConfig(cacheConfig);
 	const apiOptions = pluginOptions.api || pluginOptions;

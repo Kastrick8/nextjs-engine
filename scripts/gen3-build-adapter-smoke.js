@@ -29,8 +29,12 @@ assert.deepEqual(nencLogger.classifyNextBuildLine("○ Compiling /request, /guid
 	message: "Compiling /request, /guide, emd", suppressible: true,
 }, "development route compilation is recognized from actual Next.js output");
 assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Compiled /request in 1050ms (434 modules)"), {
-	level: "route-done", route: "/request", message: "compiled /request (1050ms, 434 modules)", suppressible: true,
+	level: "route-done", route: "/request", details: "1050ms, 434 modules",
+	message: "compiled /request (1050ms, 434 modules)", suppressible: true,
 }, "route completion preserves Next.js's real duration and module count");
+assert.deepEqual(nencLogger.classifyNextBuildLine("GET / 200 in 89ms (compile: 23ms, render: 66ms)"), {
+	level: "request", method: "GET", route: "/", statusCode: 200, compileDuration: "23ms", suppressible: false,
+}, "request completion uses Next.js's actual reported compile duration");
 assert.deepEqual(nencLogger.classifyNextBuildLine("  Creating an optimized production build ..."), {
 	level: "status", message: "NEXT.JS COMPILING APPLICATION", suppressible: true,
 }, "a Next.js build phase is mirrored to the pinned row");
@@ -41,7 +45,7 @@ assert.deepEqual(nencLogger.classifyNextBuildLine("  Linting and checking validi
 	level: "status", message: "NEXT.JS CHECKING TYPES", suppressible: true,
 }, "Next.js type-checking progress is exposed");
 assert.deepEqual(nencLogger.classifyNextBuildLine("  Generating static pages (3/8) ..."), {
-	level: "status", message: "NEXT.JS GENERATING STATIC PAGES (3/8, 37%)", suppressible: true,
+	level: "status", message: "NEXT.JS GENERATING STATIC PAGES (3/8, 37.5%)", suppressible: true,
 }, "static page progress keeps its current count");
 assert.deepEqual(nencLogger.classifyNextBuildLine("✓ Generating static pages (8/8) in 243ms"), {
 	level: "done", message: "GENERATED STATIC PAGES (8/8, 100%)", suppressible: true,
@@ -61,20 +65,28 @@ process.stdout.write = function (chunk) {
 	passedThrough.push(Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk));
 	return true;
 };
-const stopOutputBridge = nencLogger.installNextBuildOutputBridge();
+const stopOutputBridge = nencLogger.installNextBuildOutputBridge({ mode: "dev" });
 try {
 	process.stdout.write("  Creating an optimized production build ...\n");
-	assert.equal(passedThrough.length, 0, "a recognized transient Next.js phase is not printed as a duplicate line");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] NEXT.JS COMPILING APPLICATION")),
+		"recognized status messages remain visible without a pinned TTY row");
+
+	passedThrough.length = 0;
 	process.stdout.write("○ Compiling /request, /guide, emd ...\n");
-	assert.equal(passedThrough.length, 0, "route compilation is shown in the live status instead of duplicated as a log");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] Compiling /request, /guide, emd")),
+		"route progress cannot silently disappear when the output is redirected");
+
+	passedThrough.length = 0;
 	process.stdout.write("✓ Compiled /request in 1050ms (434 modules)\n");
 	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] DONE compiled /request (1050ms, 434 modules)")),
 		"route completion emits the actual duration and module count");
 
-	process.stdout.write("✓ Compiled successfully in 2.1s\n");
-	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] DONE NEXT.JS COMPILED APPLICATION")),
-		"a recognized Next.js completion becomes a stable NENC DONE line");
+	passedThrough.length = 0;
+	process.stdout.write("GET / 200 in 89ms (compile: 23ms, render: 66ms)\n");
+	assert.ok(passedThrough.some((chunk) => chunk.includes("[NENC] DONE compiled / — compile 23ms")),
+		"a request log can finish the exact route using Next.js's reported compile duration");
 
+	passedThrough.length = 0;
 	process.stdout.write("custom warning that should remain visible\n");
 	assert.ok(passedThrough.some((chunk) => chunk.includes("custom warning that should remain visible")),
 		"unrecognized diagnostics remain untouched");
@@ -84,7 +96,6 @@ try {
 	if (originalCI === undefined) delete process.env.CI;
 	else process.env.CI = originalCI;
 }
-
 const originalDelegate = process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER;
 
 async function main() {
@@ -120,6 +131,7 @@ async function main() {
 
 		console.log("Generation 3 build adapter smoke: ok");
 	} finally {
+		adapter.stopDevelopmentBridge();
 		if (originalDelegate === undefined) delete process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER;
 		else process.env.NEXTJS_ENGINE_DELEGATE_ADAPTER = originalDelegate;
 		fs.rmSync(root, { recursive: true, force: true });

@@ -213,7 +213,7 @@ function logEvent(event, logger = dispatchTerminalLog) {
 		logger("DONE REUSING CACHED ENGINE SCHEMA : " + (event.sourcePath || event.pageId));
 	} else if (event.phase === "page-complete" && event.summary) {
 		const s = event.summary;
-		logger("DONE COMPILED ENGINE SCHEMA : " + (event.sourcePath || event.pageId) + " — " + s.totalNodes
+		logger("DONE COMPILED " + (event.pageId || event.sourcePath) + " — " + s.totalNodes
 			+ " nodes, " + s.clientIslands + " client islands, " + s.assetCount + " assets");
 	}
 }

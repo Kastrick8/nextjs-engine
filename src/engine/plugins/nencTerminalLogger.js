@@ -1,7 +1,8 @@
 "use strict";
 
 const STATE_KEY = Symbol.for("nextjs-engine.nenc-terminal-logger-state");
-const STATUS_REFRESH_MS = 400;
+const BRIDGE_KEY = Symbol.for("nextjs-engine.next-output-bridge-state");
+const STATUS_REFRESH_MS = 350;
 
 function getState() {
 	if (!globalThis[STATE_KEY]) {
@@ -11,6 +12,7 @@ function getState() {
 			statuses: {},
 			statusSequence: 0,
 			activeRoutes: new Map(),
+			completedRoutes: new Set(),
 			routeBatchStartedAt: 0,
 			timer: null,
 			rows: 0,
@@ -20,7 +22,9 @@ function getState() {
 			bridgeBusy: false,
 		};
 	}
-	return globalThis[STATE_KEY];
+	const state = globalThis[STATE_KEY];
+	if (!(state.completedRoutes instanceof Set)) state.completedRoutes = new Set();
+	return state;
 }
 
 function cleanMessage(value) {
@@ -152,6 +156,10 @@ function failed(message) {
 
 function clearStatus(source) {
 	const state = getState();
+	if (source === "nextjs") {
+		state.activeRoutes.clear();
+		state.routeBatchStartedAt = 0;
+	}
 	const effectiveSource = source || (process.env.NENC_LOG_TRANSPORT === "ipc" ? "engine" : undefined);
 	if (sendIPCEvent("clear", "", effectiveSource || "engine")) {
 		delete state.statuses[effectiveSource || "engine"];
@@ -219,7 +227,42 @@ function classifyNextBuildLine(line) {
 	if (compiledRoute && !/^(?:✓\s*)?Compiled successfully\b/i.test(message)) {
 		const duration = compiledRoute[2] + compiledRoute[3];
 		const modules = compiledRoute[4] ? Number(compiledRoute[4]) : null;
-		return { level: "route-done", route: compiledRoute[1].trim(), message: "compiled " + compiledRoute[1].trim() + " (" + duration + (modules === null ? "" : ", " + modules + " modules") + ")", suppressible: true };
+		return {
+			level: "route-done",
+			route: compiledRoute[1].trim(),
+			details: duration + (modules === null ? "" : ", " + modules + " modules"),
+			message: "compiled " + compiledRoute[1].trim() + " (" + duration + (modules === null ? "" : ", " + modules + " modules") + ")",
+			suppressible: true,
+		};
+	}
+
+	const bundled = message.match(/^bundled\s+(.+?)\s*(?:in\s+([\d.]+\s*(?:ms|s)))?\s*(?:\((\d+)\s+modules?\)\s*)?,\s*type checking\.{0,3}$/i);
+	if (bundled) {
+		return {
+			level: "route-typechecking",
+			route: bundled[1].trim(),
+			details: [bundled[2] ? bundled[2].replace(/\s+/g, "") : "", bundled[3] ? bundled[3] + " modules" : ""].filter(Boolean).join(", "),
+			suppressible: true,
+		};
+	}
+	const compiledBatch = message.match(/^(?:✓\s*)?Compiled in\s+([\d.]+)\s*(ms|s)\.?$/i);
+	if (compiledBatch) {
+		return { level: "compiled-batch", duration: compiledBatch[1] + compiledBatch[2], suppressible: true };
+	}
+	const ready = message.match(/^(?:▲\s*)?Ready in\s+([\d.]+\s*(?:ms|s))\.?$/i);
+	if (ready) return { level: "ready", duration: ready[1].replace(/\s+/g, ""), suppressible: true };
+	const request = message.match(/^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)\s+(\S+)\s+(\d{3})\s+in\s+([^()]+?)(?:\s+\(([^)]*)\))?$/i);
+	if (request) {
+		const details = request[5] || "";
+		const compileMatch = details.match(/(?:^|[,;]\s*)compile:\s*([\d.]+\s*(?:ms|s))/i);
+		return {
+			level: "request",
+			method: request[1].toUpperCase(),
+			route: request[2].split("?")[0].split("#")[0],
+			statusCode: Number(request[3]),
+			compileDuration: compileMatch ? compileMatch[1].trim() : "",
+			suppressible: false,
+		};
 	}
 
 	if (/failed to compile|compilation failed|build failed|error occurred prerendering/i.test(message)) {
@@ -232,7 +275,7 @@ function classifyNextBuildLine(line) {
 	if (staticPages) {
 		const current = Number(staticPages[1]);
 		const total = Number(staticPages[2]);
-		const percent = total > 0 ? Math.floor((current / total) * 100) : 0;
+		const percent = total > 0 ? Math.round((current / total) * 1000) / 10 : 0;
 		if (total > 0 && current >= total && /\bin\s+\d+/i.test(staticPages[3])) {
 			return { level: "done", message: "GENERATED STATIC PAGES (" + current + "/" + total + ", 100%)", suppressible: true };
 		}
@@ -285,28 +328,100 @@ function dispatchNextBuildEvent(event) {
 	try {
 		if (event.level === "route-start") {
 			if (state.activeRoutes.size === 0) state.routeBatchStartedAt = Date.now();
-			for (const route of event.routes) state.activeRoutes.set(route, Date.now());
-			const routes = [...state.activeRoutes.keys()];
-			setStatus("Compiling " + routes.join(", ") + ". [" + routes.length + " active]", "nextjs");
+			for (const route of event.routes) {
+				state.activeRoutes.set(route, Date.now());
+				state.completedRoutes.delete(route);
+			}
+			setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
 		} else if (event.level === "route-done") {
 			state.activeRoutes.delete(event.route);
-			if (state.activeRoutes.size) {
-				const routes = [...state.activeRoutes.keys()];
-				setStatus("Compiling " + routes.join(", ") + ". [" + routes.length + " active]", "nextjs");
-			} else {
+			state.completedRoutes.add(event.route);
+			if (state.activeRoutes.size) setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
+			else {
 				state.routeBatchStartedAt = 0;
 				clearStatus("nextjs");
 			}
-			done(event.message);
-		} else if (event.level === "status") setStatus(event.message, "nextjs");
-		else if (event.level === "done") done(event.message);
-		else if (event.level === "failed") failed(event.message);
+			done("compiled " + event.route + (event.details ? " (" + cleanMessage(event.details) + ")" : ""));
+		} else if (event.level === "route-typechecking") {
+			state.activeRoutes.delete(event.route);
+			state.completedRoutes.add(event.route);
+			if (state.activeRoutes.size) setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
+			else {
+				state.routeBatchStartedAt = 0;
+				clearStatus("nextjs");
+			}
+			done("compiled " + event.route + (event.details ? " (" + cleanMessage(event.details) + ")" : ""));
+			setStatus("Type checking " + event.route, "nextjs");
+		} else if (event.level === "compiled-batch") {
+			const active = [...state.activeRoutes.keys()];
+			state.activeRoutes.clear();
+			state.routeBatchStartedAt = 0;
+			delete state.statuses.nextjs;
+			clearStatus("nextjs");
+			for (const route of active) state.completedRoutes.add(route);
+			done(active.length
+				? "compiled " + active.join(", ") + " — batch " + (event.duration || "completed")
+				: "NEXT.JS COMPILATION" + (event.duration ? " (" + event.duration + ")" : ""));
+		} else if (event.level === "request") {
+			const successfulRequest = event.statusCode >= 200 && event.statusCode < 400;
+			const wasActive = state.activeRoutes.has(event.route);
+			const compileMs = parseDurationMilliseconds(event.compileDuration);
+			if (successfulRequest && wasActive) {
+				state.activeRoutes.delete(event.route);
+				state.completedRoutes.add(event.route);
+				if (state.activeRoutes.size) setStatus("Compiling " + [...state.activeRoutes.keys()].join(", "), "nextjs");
+				else {
+					state.routeBatchStartedAt = 0;
+					clearStatus("nextjs");
+				}
+				done("compiled " + event.route + (event.compileDuration ? " — compile " + event.compileDuration : ""));
+			} else if (successfulRequest && event.compileDuration && compileMs !== null && compileMs > 0
+				&& !state.completedRoutes.has(event.route)) {
+				state.completedRoutes.add(event.route);
+				done("compiled " + event.route + " — compile " + event.compileDuration);
+			}
+		} else if (event.level === "status") {
+			setStatus(event.message, "nextjs");
+		} else if (event.level === "ready") {
+			state.activeRoutes.clear();
+			state.routeBatchStartedAt = 0;
+			delete state.statuses.nextjs;
+			clearStatus("nextjs");
+			done("NEXT.JS DEV SERVER READY — " + event.duration);
+		} else if (event.level === "done") {
+			const active = [...state.activeRoutes.keys()];
+			if (active.length) {
+				state.activeRoutes.clear();
+				state.routeBatchStartedAt = 0;
+				delete state.statuses.nextjs;
+				clearStatus("nextjs");
+				for (const route of active) state.completedRoutes.add(route);
+				done("compiled " + active.join(", ") + " — Next.js reported compilation complete");
+			} else {
+				delete state.statuses.nextjs;
+				done(event.message);
+				clearStatus("nextjs");
+			}
+		} else if (event.level === "failed") {
+			const active = [...state.activeRoutes.keys()];
+			state.activeRoutes.clear();
+			state.routeBatchStartedAt = 0;
+			delete state.statuses.nextjs;
+			failed(active.length ? "COMPILE " + active.join(", ") : event.message);
+			clearStatus("nextjs");
+		}
 	} finally {
 		state.bridgeBusy = false;
 	}
 }
+function splitLogSegments(raw) {
+	return raw.match(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$/g) || [raw];
+}
 
-function installNextBuildOutputBridge() {
+function installNextBuildOutputBridge(options = {}) {
+	const existing = globalThis[BRIDGE_KEY];
+	if (existing && typeof existing.stop === "function") return existing.stop;
+
 	const state = getState();
 	const streams = [process.stdout, process.stderr].filter(Boolean);
 	const installed = [];
@@ -318,28 +433,39 @@ function installNextBuildOutputBridge() {
 		const wrappedWrite = function (...args) {
 			const bypass = stopped || state.painting || state.internalWrite || state.bridgeBusy;
 			const raw = bypass ? "" : asText(args[0], args[1]);
-			const normalized = cleanMessage(raw);
-			if (!bypass && raw && !/^\[NENC\]/i.test(normalized)) {
-				const isSingleLine = /(?:\r\n|\r|\n)$/.test(raw)
-					&& !/[\r\n]/.test(raw.replace(/(?:\r\n|\r|\n)+$/, ""));
-				const event = isSingleLine ? classifyNextBuildLine(raw.replace(/(?:\r\n|\r|\n)+$/, "")) : null;
-				if (event) {
-					dispatchNextBuildEvent(event);
-					if (event.suppressible) {
-						const callback = writeCallback(args);
-						if (callback) process.nextTick(callback);
-						return true;
-					}
-				} else if (!isSingleLine) {
-					for (const line of raw.split(/[\r\n]+/)) {
-						const nestedEvent = classifyNextBuildLine(line);
-						if (nestedEvent && nestedEvent.level === "status") dispatchNextBuildEvent(nestedEvent);
-					}
+			if (bypass || !raw || !/[\r\n]$/.test(raw)) return originalWrite.apply(this, args);
+
+			let output = "";
+			let changed = false;
+			for (const segment of splitLogSegments(raw)) {
+				const hasTerminator = /(?:\r\n|\r|\n)$/.test(segment);
+				const event = hasTerminator ? classifyNextBuildLine(segment.replace(/(?:\r\n|\r|\n)+$/, "")) : null;
+				if (!event) {
+					output += segment;
+					continue;
+				}
+
+				changed = true;
+				dispatchNextBuildEvent(event);
+				if (!event.suppressible) {
+					output += segment;
+				} else if (!supportsPinnedStatus() && (event.level === "route-start" || event.level === "status")) {
+					// Redirected logs have no live row, so keep normalized progress visible instead of swallowing it.
+					output += "[NENC] " + event.message + (hasTerminator ? "\n" : "");
 				}
 			}
 
-			const result = originalWrite.apply(this, args);
-			if (!bypass && state.status && supportsPinnedStatus()) paintStatus();
+			if (!changed) return originalWrite.apply(this, args);
+			if (!output) {
+				const callback = writeCallback(args);
+				if (callback) process.nextTick(callback);
+				return true;
+			}
+			const nextArgs = args.slice();
+			if (typeof args[0] === "string") nextArgs[0] = output;
+			else if (Buffer.isBuffer(args[0])) nextArgs[0] = Buffer.from(output, "utf8");
+			const result = originalWrite.apply(this, nextArgs);
+			if (!state.painting && (state.status || state.activeRoutes.size) && supportsPinnedStatus()) paintStatus();
 			return result;
 		};
 		try {
@@ -350,16 +476,18 @@ function installNextBuildOutputBridge() {
 		}
 	}
 
-	setStatus("NEXT.JS STARTING", "nextjs");
-	return function stopNextBuildOutputBridge() {
+	const stop = function stopNextBuildOutputBridge() {
 		if (stopped) return;
 		stopped = true;
 		for (const item of installed) {
 			if (item.stream.write === item.wrappedWrite) item.stream.write = item.originalWrite;
 		}
+		if (globalThis[BRIDGE_KEY]?.stop === stop) delete globalThis[BRIDGE_KEY];
 	};
+	globalThis[BRIDGE_KEY] = { stop };
+	if (supportsPinnedStatus()) setStatus(options.mode === "dev" ? "Next.js dev server starting" : "Next.js build starting", "nextjs");
+	return stop;
 }
-
 module.exports = {
 	cleanMessage,
 	clearStatus,

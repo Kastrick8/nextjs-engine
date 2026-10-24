@@ -574,12 +574,17 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 	}
 	function analyze(routes, schemaSymbolsByFile = new Map(), schemaCandidateCountsByFile = new Map(), schemaSources = []) {
 		const schemaSourceRecords = [];
-		for (const route of routes) {
+		const totalRoutes = routes.length;
+		for (let routeIndex = 0; routeIndex < totalRoutes; routeIndex++) {
+			const route = routes[routeIndex];
 			routeVisited.clear();
 			const started = Date.now();
 			const routeLabel = route.kind === "app-metadata-route" ? "METADATA"
 				: route.kind === "app-route-handler" || route.kind === "pages-api-route" ? "ROUTE" : "PAGE";
-			log("COMPILING " + routeLabel + " : " + route.sourcePath);
+			const completedBeforeRoute = routeIndex;
+			const percentBeforeRoute = totalRoutes ? Math.round((completedBeforeRoute / totalRoutes) * 1000) / 10 : 100;
+			log("COMPILING " + routeLabel + " : " + route.sourcePath + " — NENC ROUTES "
+				+ completedBeforeRoute + "/" + totalRoutes + " complete (" + percentBeforeRoute + "%)");
 			scanProjectFile(route.file, route.routePath);
 			for (const frameworkFile of route.frameworkFiles || []) {
 				scanProjectFile(frameworkFile, route.routePath);
@@ -611,8 +616,11 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 				schemaCandidateCount: Number(options.schemaCandidateCountsByFile?.get(route.file) || 0),
 				analyzedInMilliseconds: Date.now() - started,
 			});
+			const completedRoutes = routeIndex + 1;
+			const completedPercent = totalRoutes ? Math.round((completedRoutes / totalRoutes) * 1000) / 10 : 100;
 			log("DONE COMPILED " + routeLabel + " : " + route.sourcePath
-				+ " — " + moduleNames.length + " Engine modules indexed in "
+				+ " — route " + route.routePath + "; NENC ROUTES " + completedRoutes + "/" + totalRoutes
+				+ " complete (" + completedPercent + "%), " + moduleNames.length + " Engine modules indexed in "
 				+ formatMilliseconds(Date.now() - started) + "; Next.js retains JS/TSX emission");
 		}
 		for (const source of schemaSources) {
