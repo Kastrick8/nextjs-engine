@@ -19,11 +19,11 @@ const MARKDOWN_THEME_PROP_KEYS = new Set([
 	"bodySize", "bodyLineHeight", "headingSizes", "headingIdPrefix",
 	"textAnimation", "blockAnimation", "animationDuration", "animationStagger",
 	"codeBackground", "codeColor", "inlineCodeBackground", "inlineCodeColor",
-	"codeBorderColor", "codeFontFamily", "showCodeLanguage", "ansiPalette",
+	"codeBorderColor", "codeFontFamily", "showCodeLanguage", "prettyPlease", "ansiPalette",
 	"ansiForeground", "ansiBackground", "markdownStyles",
 	"emd_show-url-icon", "emd_url-icon-size",
 ]);
-const THEME_REFERENCE_KEYS = new Set(["id", "scope", "sourceUrl"]);
+const THEME_REFERENCE_KEYS = new Set(["id", "scope", "sourceUrl", "vars", "fonts", "globalStyles"]);
 
 function isThemeRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
