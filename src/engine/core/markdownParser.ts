@@ -4,8 +4,8 @@
 
 const COMPACT_FENCE = /^([ \t]{0,3})(`{3,}|~{3,})([A-Za-z0-9_+.-]+)[ \t]+(.+)$/;
 
-const INFO_DIRECTIVE = /^ {0,3}:::(info|note|tip|warning|danger|success)(?:[ \\t]+(.*?))?[ \\t]*$/i;
-const INFO_DIRECTIVE_CLOSE = /^ {0,3}:::[ \\t]*$/;
+const INFO_DIRECTIVE = /^ {0,3}:::(info|note|tip|warning|danger|success)(?:[ \t]+(.*?))?[ \t]*$/i;
+const INFO_DIRECTIVE_CLOSE = /^ {0,3}:::[ \t]*$/;
 
 /** Convert explicit :::info directives to blockquotes without interpreting them inside fenced code. */
 function expandEngineInfoBlocks(lines: string[]): string[] {
@@ -16,7 +16,7 @@ function expandEngineInfoBlocks(lines: string[]): string[] {
 		const openingFence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
 		if (fence) {
 			output.push(line);
-			const closingFence = /^ {0,3}(`{3,}|~{3,})[ \\t]*$/.exec(line);
+			const closingFence = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
 			if (closingFence && closingFence[1][0] === fence.char && closingFence[1].length >= fence.length) fence = undefined;
 			continue;
 		}
