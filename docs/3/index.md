@@ -53,6 +53,7 @@ These component references describe the implementation on `main-3`. The file pat
 | Video lazy activation and viewport lifecycle | [EngineVideo](../engine-components/enginevideo.md) |
 | Server-first Markdown and URL icons | [EngineMarkdown](../engine-components/enginemarkdown.md) |
 | Navigation | [EngineNav](../engine-components/enginenav.md) |
+| Individual transition-aware links | [EngineLink](../engine-components/enginelink.md) |
 | Device information and adaptive schema patches | [EngineMobile / EngineDevice](../engine-components/enginemobile.md) |
 | Hero layouts and parallax | [EngineHero](../engine-components/enginehero.md) |
 | Forms | [EngineForms](../engine-components/engineforms.md) |
