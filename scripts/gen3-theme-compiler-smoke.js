@@ -48,6 +48,7 @@ function testPublicThemeApi() {
 			unregisterEngineHighlighterProvider,
 			normalizeEngineThemeColor,
 			getEngineHighlighterColor,
+			getEngineHighlighterPalette,
 		} = require(path.resolve(__dirname, "../src/engine/theme/highlighting.ts"));
 		const {
 			dispatchEngineThemeDataEvent,
@@ -119,6 +120,19 @@ function testPublicThemeApi() {
 			theme: "vscode-dark",
 			palette: { foreground: "#fafafa" },
 		}), "#fafafa", "custom palettes replace provider colors for all unspecified categories");
+		const languagePaletteConfig = {
+			palette: { foreground: "#eeeeee" },
+			languagePalettes: {
+				typescript: { foreground: "#cccccc", keyword: "#ff00ff" },
+				javascript: { foreground: "#dddddd" },
+				nodejs: { foreground: "#aaffaa" },
+			},
+		};
+		assert.equal(getEngineHighlighterPalette(languagePaletteConfig, "typescript").foreground, "#cccccc");
+		assert.equal(getEngineHighlighterPalette(languagePaletteConfig, "ts").foreground, "#cccccc", "ts aliases to the TypeScript palette");
+		assert.equal(getEngineHighlighterPalette(languagePaletteConfig, "nodejs").foreground, "#aaffaa", "Node.js can override JavaScript’s grammar palette");
+		assert.equal(getEngineHighlighterPalette(languagePaletteConfig, "javascript").foreground, "#dddddd");
+		assert.equal(getEngineHighlighterPalette(languagePaletteConfig, "python").foreground, "#eeeeee", "unconfigured languages use the shared palette");
 		const customProvider = {
 			id: "smoke-provider",
 			name: "Smoke Provider",
