@@ -36,13 +36,16 @@ These component references describe the implementation on `main-3`. The file pat
 |---|---|
 | Primitives, layouts, slots, custom nodes | [Primitives](../engine-components/primitives.md) |
 | Canvas, retained graphics, SVG, and rendering engines | [EngineCanvas](../engine-components/enginecanvas.md) |
+| Retained Three.js 3D rendering | [Engine3D](../engine-components/engine3d.md) |
 | SVG import/export | [EngineSVG](../engine-components/enginesvg.md) |
 | GPU effects and `.shed` programs | [EngineShader](../engine-components/engineshader.md) |
 | Page/layout transitions and shared morphs | [EngineTransitions+](../engine-components/enginetransitions.md) |
-| Scroll points, timelines, ranges, snapping, and behavior policy | [EngineScroll](../engine-components/enginescroll.md) |
+| Scroll points, timelines, snapping, and behavior policy | [EngineScroll](../engine-components/enginescroll.md) |
+| Explicit scroll interval geometry | [EngineScroll Range](../engine-components/enginescroll-range.md) |
 | Browser capabilities and interactions | [EngineBrowser](../engine-components/enginebrowser.md) |
 | 2D/3D animation | [EngineManim](../engine-components/enginemanim.md) |
-| Images and video | [EngineImage / EngineVideo](../engine-components/engineimage.md) |
+| Image loading and media controls | [EngineImage](../engine-components/engineimage.md) |
+| Video lazy activation and viewport lifecycle | [EngineVideo](../engine-components/enginevideo.md) |
 | Server-first Markdown and URL icons | [EngineMarkdown](../engine-components/enginemarkdown.md) |
 | Navigation | [EngineNav](../engine-components/enginenav.md) |
 | Device information and adaptive schema patches | [EngineMobile / EngineDevice](../engine-components/enginemobile.md) |
