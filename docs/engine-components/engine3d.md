@@ -1,5 +1,7 @@
 # Engine3D retained rendering
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 `Engine3D` is the Three.js-backed renderer used by EngineCanvas graphics mode when `graphics.engine` is `"3d"`.
 
 It is retained-mode: EC node ids are used as renderer identity. Stable mesh/group ids reuse their Three.js objects across frames, while transform and material values update in place.
