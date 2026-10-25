@@ -405,16 +405,17 @@ function fontFormat(extension) {
 	return extension === "woff2" ? "woff2" : extension === "woff" ? "woff" : extension === "ttf" ? "truetype" : "opentype";
 }
 
-function fallbackStylesheetCss(sourceUrls, allowedOrigins) {
+async function fallbackStylesheetCss(sourceUrls, allowedOrigins, trustedBuiltInHosts) {
 	const imports = [];
 	for (const source of sourceUrls) {
 		try {
-			// Fallback imports must obey the same origin allowlist as the build-time
-			// fetch; otherwise a failed validation would silently re-enable the URL
-			// in the browser and bypass the compiler's trust boundary.
+			// Fallback imports must obey the same origin and public-host checks as
+			// build-time fetches; otherwise a rejected origin could still be loaded
+			// by the browser after the compiler fails.
 			const url = normalizeSourceUrl(source, allowedOrigins, "font stylesheet URL");
+			await assertPublicHost(url, trustedBuiltInHosts);
 			imports.push('@import url("' + url.href.replace(/["\\\r\n]/g, "") + '");');
-		} catch { /* Unapproved or invalid origins never reach emitted CSS. */ }
+		} catch { /* Unapproved, local, private, or invalid hosts never reach CSS. */ }
 	}
 	return imports.join("\n") + (imports.length ? "\n" : "");
 }
@@ -584,7 +585,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				+ (error instanceof Error ? error.message : String(error)));
 		}
 		stats.fallbackThemes += 1;
-		const cssContent = fallbackStylesheetCss(sourceUrls, cssOrigins);
+		const cssContent = await fallbackStylesheetCss(sourceUrls, cssOrigins, trustedBuiltInHosts);
 		const cssSha256 = sha256(Buffer.from(cssContent, "utf8"));
 		const entry = {
 			id: themeId,

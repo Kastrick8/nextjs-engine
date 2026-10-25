@@ -581,6 +581,25 @@ async function testPublicThemeApi() {
 			assert.ok(!blockedCss.includes("untrusted.example") && !blockedCss.includes("@import"),
 				"failure fallback never emits a browser @import for an unapproved font origin");
 
+			const previousCssOrigins = process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
+			try {
+				process.env.ENGINE_THEME_FONT_CSS_ORIGINS = "https://127.0.0.1";
+				writeFontFixture("private-font", "https://127.0.0.1/fonts.css");
+				const privateFallback = await compileEngineThemeFonts(fontRoot, [
+					{ id: "private-font", fileName: "private-font.etr" },
+				], {
+					production: true,
+					fetchImpl: async () => { throw new Error("private origin must be rejected before fetch"); },
+				});
+				assert.equal(privateFallback.fallbackThemes, 1);
+				const privateCss = fs.readFileSync(path.join(fontRoot, "public", "nextjs-engine", "fonts", "private-font.css"), "utf8");
+				assert.ok(!privateCss.includes("127.0.0.1") && !privateCss.includes("@import"),
+					"private-host rejection also applies to browser fallback CSS");
+			} finally {
+				if (previousCssOrigins === undefined) delete process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
+				else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousCssOrigins;
+			}
+
 			writeFontFixture("strict-font", "https://fonts.googleapis.com/css2?family=StrictFixture");
 			await assert.rejects(() => compileEngineThemeFonts(fontRoot, [
 				{ id: "strict-font", fileName: "strict-font.etr" },
