@@ -287,7 +287,7 @@ The `/engine-private-search` proving application demonstrates the end-to-end int
 
 The dispatcher verifies origin, replay data, device proof, account session, `catalog.read`, and the command rate policy before creating the private backend resolver. The ordinary HTTP backend receives a server-only bearer credential. The command returns only `id`, `title`, and `category`; database ranking, partition, host, query-plan, and credential-echo fields are discarded.
 
-Automated browser coverage copies the cookie into a second browser context and proves that it fails without the original device key. It also verifies wrong-origin rejection, opaque wire ids, an HttpOnly cookie, and absence of backend credentials/internals from the browser response. See [`private-search-example.md`](./private-search-example.md) for the runnable flow and production substitutions.
+Automated browser coverage copies the cookie into a second browser context and proves that it fails without the original device key. It also verifies wrong-origin rejection, opaque wire ids, an HttpOnly cookie, and absence of backend credentials/internals from the browser response. See [`private-search-example.md`](../gen3/private-search-example.md) for the runnable flow and production substitutions.
 
 ## EngineCORS
 
