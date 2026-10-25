@@ -396,7 +396,8 @@ Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture
 | EngineOverlay | [`docs/engine-components/engineoverlay.md`](./docs/engine-components/engineoverlay.md) |
 | EngineScroll | [`docs/engine-components/enginescroll.md`](./docs/engine-components/enginescroll.md) |
 | Canvas / EC graphics | [`docs/engine-components/enginecanvas.md`](./docs/engine-components/enginecanvas.md) |
-| Styling | [`docs/styling.md`](./docs/styling.md) |
+| Gen 2 styling — simple | [`docs/2/styling.md`](./docs/2/styling.md) |
+| Gen 2 styling — detailed | [`docs/2/styling-detailed.md`](./docs/2/styling-detailed.md) |
 | Runtime/performance | [`docs/runtime-performance.md`](./docs/runtime-performance.md) |
 | APIStatic | [`docs/engine-components/apistatic.md`](./docs/engine-components/apistatic.md) |
 | External APIs | [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md) |
