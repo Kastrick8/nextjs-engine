@@ -135,9 +135,7 @@ Desktop, tablet, phone, and custom profiles control the preview's CSS viewport, 
 
 The simulator does not claim to change physical hardware. In particular, its refresh control changes the Engine debug target and explanation while the live FPS meter continues to report the browser's actual animation cadence.
 
-## Implementation map
 
-This guide documents the current Generation 3 implementation on `main-3`. The [compiler deep dive](../3/compiler-deep-dive.md) provides the public API summary, cache bounds, and build-budget details.
 ## Development inspector data
 
 Inspector contracts live behind the direct development entrypoint `nextjs-engine/debug`; the main browser-safe barrel does not import them. They provide data to the separately owned debug UI without creating a second route or shell:
