@@ -829,19 +829,23 @@ interface EngineDiagnostic {
 `staticClass` converts a `CSSProperties` object into a single CSS class that is injected once into `StyleCollector`. Identical property sets across any number of nodes share the same class name.
 
 ```ts
-import { staticClass } from "@/engine";
+import type { ReactNode } from "react";
+import { staticClass, useEngineContext } from "@/engine";
 
-// Inside your own custom components:
-const layoutClass = staticClass({
-  width:     "100%",
-  maxWidth:  "1200px",
-  marginLeft:  "auto",
-  marginRight: "auto",
-});
-// → "e-s-a1b2c3"  (injected as .e-s-a1b2c3{width:100%;max-width:1200px;...})
-// If another component calls staticClass with the same props, the same class
-// name is returned and no duplicate CSS rule is emitted.
+function CustomFrame({ children }: { children: ReactNode }) {
+  const { styleCollector } = useEngineContext();
+  const layoutClass = staticClass({
+    width: "100%",
+    maxWidth: "1200px",
+    marginLeft: "auto",
+    marginRight: "auto",
+  }, styleCollector);
+
+  return <div className={layoutClass}>{children}</div>;
+}
 ```
+
+Pass the active provider's `styleCollector` to `staticClass` so the rule is emitted by that page/component's collected stylesheet. Calling `staticClass` without a collector uses the low-level global fallback and is not equivalent to registering global CSS with `EngineGlobalStyles`.
 
 Used internally by `EngineSection` (inner content wrapper) and `EngineCard` (cover + content wrappers) to eliminate repeated inline styles across multiple instances of the same component.
 
