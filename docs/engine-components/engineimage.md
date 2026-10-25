@@ -1,5 +1,7 @@
 # EngineImage + EngineVideo
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Schema types: `"image"` and `"video"`.
 
 These components defer network-heavy media until it is near the viewport while
