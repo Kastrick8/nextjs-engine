@@ -311,6 +311,8 @@ async function testPublicThemeApi() {
 			id: "remote-smoke",
 			scope: "remote",
 			name: "Remote smoke theme",
+			vars: { "--remote-accent": "#aabbcc" },
+			fonts: ["/engine-theme-fonts.css"],
 			markdown: {
 				defaults: { codeColor: "#ffeeaa" },
 				variants: { dark: { defaults: { codeBackground: "#121212" } } },
@@ -324,8 +326,12 @@ async function testPublicThemeApi() {
 			createdWith: { nextjs: "16.4.2", nextjsEngine: "3.0.0-alpha.1" },
 			content: remoteContent,
 		};
-		const remoteDigest = crypto.createHash("sha256").update(canonicalJson(remotePayload), "utf8").digest("hex");
-		const remoteText = JSON.stringify({ ...remotePayload, sha256: remoteDigest });
+		const remoteTextFor = (id, content) => {
+			const payload = { ...remotePayload, id, content };
+			const digest = crypto.createHash("sha256").update(canonicalJson(payload), "utf8").digest("hex");
+			return JSON.stringify({ ...payload, sha256: digest });
+		};
+		const remoteText = remoteTextFor("remote-smoke", remoteContent);
 		let remoteFetchCalls = 0;
 		const remoteFetch = async (_url, init) => {
 			remoteFetchCalls += 1;
@@ -343,6 +349,8 @@ async function testPublicThemeApi() {
 		const loadedRemote = await loadRemoteEngineTheme("https://themes.example.invalid/dark.etr", remoteOptions);
 		assert.equal(loadedRemote.scope, "remote");
 		assert.equal(Object.isFrozen(loadedRemote), true, "loaded remote theme definitions are frozen");
+		assert.equal(loadedRemote.vars["--remote-accent"], "#aabbcc");
+		assert.deepEqual(loadedRemote.fonts, ["https://themes.example.invalid/engine-theme-fonts.css"], "remote font URLs are normalized to an allowlisted HTTPS origin");
 		const cacheHit = await loadRemoteEngineTheme("https://themes.example.invalid/dark.etr", remoteOptions);
 		assert.equal(cacheHit, loadedRemote, "repeated loads reuse the in-process cache entry");
 		assert.equal(remoteFetchCalls, 1, "cache hits do not issue another request");
@@ -378,6 +386,31 @@ async function testPublicThemeApi() {
 			}),
 			/version mismatch/,
 		);
+		const unsafeCssContent = { ...remoteContent, id: "remote-unsafe-css", vars: { "--remote-value": "red; background:url(https://evil.invalid/x)" } };
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-css.etr", {
+				...remoteOptions, expectedId: "remote-unsafe-css",
+				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-css", unsafeCssContent), { status: 200, headers: { "content-type": "application/json" } }),
+			}),
+			/unsafe CSS value/,
+		);
+		const unsafeFontContent = { ...remoteContent, id: "remote-unsafe-font", fonts: ["https://evil.invalid/fonts.css"] };
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-font.etr", {
+				...remoteOptions, expectedId: "remote-unsafe-font",
+				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-font", unsafeFontContent), { status: 200, headers: { "content-type": "application/json" } }),
+			}),
+			/font stylesheet origin must be HTTPS and included in allowedOrigins/,
+		);
+		const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-global-styles.etr", {
+				...remoteOptions, expectedId: "remote-unsafe-css-text",
+				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-css-text", unsafeGlobalStylesContent), { status: 200, headers: { "content-type": "application/json" } }),
+			}),
+			/globalStyles are disabled/,
+		);
+
 		assert.ok(getRemoteEngineThemeCacheSize() >= 1);
 		clearRemoteEngineThemeCache();
 		assert.equal(getRemoteEngineThemeCacheSize(), 0, "remote response cache can be cleared");
