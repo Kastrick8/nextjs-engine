@@ -261,15 +261,15 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		),
 		blockquote: ({ node, className, style, children, ...props }) => {
 			const childNodes = Children.toArray(children);
-			const firstChild = childNodes[0];
-			const firstText = firstChild !== undefined ? reactNodeText(firstChild).trim() : "";
+			const markerIndex = childNodes.findIndex((child) => /\[\s*!ENGINE-INFO\s+(info|note|tip|warning|danger|success)\s*\]/i.test(reactNodeText(child)));
+			const firstText = markerIndex >= 0 ? reactNodeText(childNodes[markerIndex]).trim() : "";
 				? reactNodeText(firstChild.props.children).trim()
 				: "";
 			const info = /\[\s*!ENGINE-INFO\s+(info|note|tip|warning|danger|success)\s*\]\s*([\s\S]*)/i.exec(firstText);
 			if (info) {
 				const tone = info[1].toLowerCase();
 				const title = (info[2] ?? "").trim();
-				const bodyNodes = childNodes.slice(1);
+				const bodyNodes = childNodes.filter((_child, index) => index !== markerIndex);
 				const body = bodyNodes.length === 1 ? bodyNodes[0] : bodyNodes;
 				const toneStyle: Record<string, { border: string; background: string }> = {
 					info: { border: "#60a5fa", background: "rgba(59,130,246,.09)" },
