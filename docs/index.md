@@ -162,7 +162,7 @@ Release notes describe the Engine as it existed at that release. They are not th
 | Version | Release notes |
 | --- | --- |
 | v3.0.0-alpha.1 (alpha candidate) | [`NE-v3-0-0-alpha-1.md`](./release/NE-v3-0-0-alpha-1.md) |
-| v2.6.2 | [`NE-v2-6-2.md`](./release/NE-v2-6-2.md) |
+| v2.6.2 (prepared patch) | [`NE-v2-6-2.md`](./release/NE-v2-6-2.md) |
 | v2.6.1 | [`NE-v2-6-1.md`](./release/NE-v2-6-1.md) |
 | v2.6.0 | [`NE-v2-6-0.md`](./release/NE-v2-6-0.md) |
 | v2.5.0 | [`NE-v2-5-0.md`](./release/NE-v2-5-0.md) |
