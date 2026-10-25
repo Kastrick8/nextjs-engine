@@ -5,8 +5,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
-const { pathToFileURL } = require("node:url");
 const nencLogger = require("../plugins/nencTerminalLogger");
+const { importAdapterModule } = require("./delegate-adapter.loader.js");
 
 const BUILD_STATE_KEY = Symbol.for("nextjs-engine.gen3-build-adapter-state");
 const DEV_BRIDGE_KEY = Symbol.for("nextjs-engine.next-dev-output-bridge-state");
@@ -36,7 +36,7 @@ function startDevelopmentBridge() {
 async function loadDelegateAdapter() {
 	const adapterPath = process.env[DELEGATE_ADAPTER_ENV];
 	if (!adapterPath) return null;
-	const imported = await import(pathToFileURL(adapterPath).href);
+	const imported = await importAdapterModule(adapterPath);
 	const adapter = imported.default ?? imported;
 	if (!adapter || typeof adapter !== "object") {
 		throw new Error("[NENC] The application's configured Next.js adapter did not export an adapter object.");
