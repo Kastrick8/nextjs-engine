@@ -6,6 +6,11 @@ If a historical example conflicts with the current TypeScript source or a curren
 
 ---
 
+## Generation-specific documentation
+
+- [Generation 2 (stable 2.x)](./2/index.md) — guides for existing v2 applications.
+- [Generation 3 (alpha)](./3/index.md) — compiler-era simple and detailed guides.
+
 ## Start here
 
 | I want to… | Read |
@@ -13,7 +18,9 @@ If a historical example conflicts with the current TypeScript source or a curren
 | Understand the current Gen 3 stack | [`gen3/overview.md`](./gen3/overview.md) |
 | Learn server-first `createPage()` and the compiler plan | [`gen3/phase-a-b.md`](./gen3/phase-a-b.md) |
 | Learn schemas, props, and general page authoring | [`readme.md`](./readme.md) |
-| Learn styling and responsive props | [`styling.md`](./styling.md) |
+| Learn Gen 3 styling (simple) | [`3/styling.md`](./3/styling.md) |
+| Learn Gen 3 styling internals | [`3/styling-detailed.md`](./3/styling-detailed.md) |
+| Legacy unversioned styling reference | [`styling.md`](./styling.md) |
 | Learn NENC, EngineCookies, sessions, replay/rate policy, and private backends | [`gen3/phase-c-network.md`](./gen3/phase-c-network.md) |
 | Learn compatibility manifests and fallback compilation | [`gen3/phase-d-hardening.md`](./gen3/phase-d-hardening.md) |
 | Understand EngineDebug ephemeral isolation | [`gen3/engine-debug-isolation.md`](./gen3/engine-debug-isolation.md) |
