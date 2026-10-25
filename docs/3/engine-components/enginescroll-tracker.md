@@ -9,7 +9,7 @@ It runs on the existing EngineScroll runtime subscription. It does not attach an
 ## Track the current chapter
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 const chapters = EngineScroll.trackPoints({
 	group: "chapters",
