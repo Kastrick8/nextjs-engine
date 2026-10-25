@@ -1,5 +1,7 @@
 # Engine Primitives
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 > Box, Stack, Grid, Text, Heading, Card, Spacer, Divider, Link, Section, Slot.
 > These are the foundational schema node types available in every page.
 
