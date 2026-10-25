@@ -28,6 +28,7 @@ These docs are maintained against the current `src/engine` implementation.
 | Add scroll points / programmatic scrolling | [`engine-components/enginescroll.md`](./engine-components/enginescroll.md) |
 | Validate/analyze schemas | [`schema-diagnostics.md`](./schema-diagnostics.md) |
 | Build layouts and controls | [`engine-components/primitives.md`](./engine-components/primitives.md) |
+| Use dialogs, drawers, and popovers | [`engine-components/engineoverlay.md`](./engine-components/engineoverlay.md) |
 | Build in-house static APIs | [`engine-components/apistatic.md`](./engine-components/apistatic.md) |
 | Configure/call external APIs | [`engine-components/engineapi.md`](./engine-components/engineapi.md) |
 | Understand current runtime/performance behavior | [`runtime-performance.md`](./runtime-performance.md) |
