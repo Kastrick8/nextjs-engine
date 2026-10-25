@@ -569,6 +569,40 @@ async function testPublicThemeApi() {
 					content: { id, scope: "global", fonts: [sourceUrl] },
 				}));
 			};
+
+			const previousProviderCssOrigins = process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
+			const previousProviderFileOrigins = process.env.ENGINE_THEME_FONT_FILE_ORIGINS;
+			try {
+				process.env.ENGINE_THEME_FONT_CSS_ORIGINS = "https://fonts.fixture.example.com";
+				process.env.ENGINE_THEME_FONT_FILE_ORIGINS = "https://cdn.fixture.example.com";
+				writeFontFixture("provider-font", "https://fonts.fixture.example.com/css?family=Fixture");
+				const providerCss = fakeFontCss.replace("https://fonts.gstatic.com/s/fixture/font.woff2", "https://cdn.fixture.example.com/s/fixture/font.woff2");
+				const providerBuild = await compileEngineThemeFonts(fontRoot, [
+					{ id: "provider-font", fileName: "provider-font.etr" },
+				], {
+					production: true,
+					lookupImpl: async () => [{ address: "93.184.216.34", family: 4 }],
+					fetchImpl: async (url, init) => {
+						assert.equal(init.redirect, "error");
+						if (url === "https://fonts.fixture.example.com/css?family=Fixture") {
+							return new Response(providerCss, { status: 200, headers: { "content-type": "text/css; charset=utf-8" } });
+						}
+					if (url === "https://cdn.fixture.example.com/s/fixture/font.woff2") {
+							return new Response(fakeFontBytes, { status: 200, headers: { "content-type": "font/woff2" } });
+						}
+					throw new Error("Unexpected non-Google provider URL: " + url);
+					},
+				});
+				assert.equal(providerBuild.downloadedFonts, 1, "explicitly allowed non-Google CSS/font origins are compiled locally");
+				const providerLocalCss = fs.readFileSync(path.join(fontRoot, "public", "nextjs-engine", "fonts", "provider-font.css"), "utf8");
+				assert.ok(providerLocalCss.includes("/nextjs-engine/fonts/font-"));
+				assert.ok(!providerLocalCss.includes("fixture.example.com"), "provider CSS emits only local font URLs");
+			} finally {
+				if (previousProviderCssOrigins === undefined) delete process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
+				else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousProviderCssOrigins;
+				if (previousProviderFileOrigins === undefined) delete process.env.ENGINE_THEME_FONT_FILE_ORIGINS;
+				else process.env.ENGINE_THEME_FONT_FILE_ORIGINS = previousProviderFileOrigins;
+			}
 			writeFontFixture("blocked-font", "https://untrusted.example/fonts.css");
 			const blockedFallback = await compileEngineThemeFonts(fontRoot, [
 				{ id: "blocked-font", fileName: "blocked-font.etr" },

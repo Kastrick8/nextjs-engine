@@ -122,7 +122,7 @@ function isPrivateAddress(address) {
 		|| (a === 198 && (b === 18 || b === 19));
 }
 
-async function assertPublicHost(url, trustedBuiltInHosts) {
+async function assertPublicHost(url, trustedBuiltInHosts, lookupImpl) {
 	const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
 	if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")
 		|| hostname.endsWith(".internal") || hostname.endsWith(".test") || hostname.endsWith(".invalid")
@@ -131,7 +131,10 @@ async function assertPublicHost(url, trustedBuiltInHosts) {
 	}
 	if (trustedBuiltInHosts.has(hostname)) return;
 	let records;
-	try { records = await dns.lookup(hostname, { all: true, verbatim: true }); }
+	try {
+		const lookup = typeof lookupImpl === "function" ? lookupImpl : dns.lookup;
+		records = await lookup(hostname, { all: true, verbatim: true });
+	}
 	catch { throw new Error("[EngineTheme fonts] Could not resolve public font host: " + hostname); }
 	if (!records.length || records.some((record) => isPrivateAddress(record.address))) {
 		throw new Error("[EngineTheme fonts] Host resolves to a private or non-public address: " + hostname);
@@ -405,7 +408,7 @@ function fontFormat(extension) {
 	return extension === "woff2" ? "woff2" : extension === "woff" ? "woff" : extension === "ttf" ? "truetype" : "opentype";
 }
 
-async function fallbackStylesheetCss(sourceUrls, allowedOrigins, trustedBuiltInHosts) {
+async function fallbackStylesheetCss(sourceUrls, allowedOrigins, trustedBuiltInHosts, lookupImpl) {
 	const imports = [];
 	for (const source of sourceUrls) {
 		try {
@@ -413,7 +416,7 @@ async function fallbackStylesheetCss(sourceUrls, allowedOrigins, trustedBuiltInH
 			// build-time fetches; otherwise a rejected origin could still be loaded
 			// by the browser after the compiler fails.
 			const url = normalizeSourceUrl(source, allowedOrigins, "font stylesheet URL");
-			await assertPublicHost(url, trustedBuiltInHosts);
+			await assertPublicHost(url, trustedBuiltInHosts, lookupImpl);
 			imports.push('@import url("' + url.href.replace(/["\\\r\n]/g, "") + '");');
 		} catch { /* Unapproved, local, private, or invalid hosts never reach CSS. */ }
 	}
@@ -470,7 +473,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 		const faces = [];
 		for (const source of sourceUrls) {
 			const stylesheetUrl = normalizeSourceUrl(source, cssOrigins, "font stylesheet URL");
-			await assertPublicHost(stylesheetUrl, trustedBuiltInHosts);
+			await assertPublicHost(stylesheetUrl, trustedBuiltInHosts, options.lookupImpl);
 			const fetched = await fetchBounded(stylesheetUrl, {
 				maxBytes: MAX_CSS_BYTES,
 				timeoutMs: options.timeoutMs,
@@ -502,7 +505,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 			if (seenSourceUrls.has(face.sourceUrl)) continue;
 			seenSourceUrls.add(face.sourceUrl);
 			const fontUrl = normalizeSourceUrl(face.sourceUrl, fontOrigins, "font file URL");
-			await assertPublicHost(fontUrl, trustedBuiltInHosts);
+			await assertPublicHost(fontUrl, trustedBuiltInHosts, options.lookupImpl);
 			let asset = !refresh ? fontAssetFromCache(fontUrl.href, manifest, cacheAssetRoot, now, ttlMs) : undefined;
 			if (!asset) {
 				const fetched = await fetchBounded(fontUrl, {
@@ -585,7 +588,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				+ (error instanceof Error ? error.message : String(error)));
 		}
 		stats.fallbackThemes += 1;
-		const cssContent = await fallbackStylesheetCss(sourceUrls, cssOrigins, trustedBuiltInHosts);
+		const cssContent = await fallbackStylesheetCss(sourceUrls, cssOrigins, trustedBuiltInHosts, options.lookupImpl);
 		const cssSha256 = sha256(Buffer.from(cssContent, "utf8"));
 		const entry = {
 			id: themeId,
