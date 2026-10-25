@@ -265,7 +265,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			const firstText = isValidElement<{ children?: ReactNode }>(firstChild)
 				? reactNodeText(firstChild.props.children).trim()
 				: "";
-			const info = /^\\[!ENGINE-INFO (info|note|tip|warning|danger|success)\\]\\s*(.*)$/i.exec(firstText);
+			const info = /^\[!ENGINE-INFO (info|note|tip|warning|danger|success)\]\s*(.*)$/i.exec(firstText);
 			if (info) {
 				const tone = info[1].toLowerCase();
 				const title = (info[2] ?? "").trim();
