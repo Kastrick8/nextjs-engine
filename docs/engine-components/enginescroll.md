@@ -1,5 +1,7 @@
 # EngineScroll — Point, Navigation, Timeline, and Scroll Orchestration
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineScroll (ES) is the Engine's shared scroll runtime. It owns point-based
 navigation, named DOM targets, smooth movement, scroll state, timelines,
 scroll-driven CSS bindings, and optional point snapping.
