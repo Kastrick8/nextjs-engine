@@ -101,8 +101,9 @@ function animClass(kind: AnimKind | undefined): string | undefined {
 
 function textFromReactNode(value: ReactNode, depth = 0): string {
 	if (depth > 16 || value === null || value === undefined || typeof value === "boolean") return "";
-	if (typeof value === "string" || typeof value === "number") return String(value);
-	if (Array.isArray(value)) return value.map((item) => textFromReactNode(item, depth + 1)).join("").slice(0, 512);
+	if (typeof value === "string") return value.slice(0, 512);
+	if (typeof value === "number") return String(value);
+	if (Array.isArray(value)) return value.slice(0, 64).map((item) => textFromReactNode(item, depth + 1)).join("").slice(0, 512);
 	if (isValidElement(value)) return textFromReactNode(value.props.children as ReactNode, depth + 1);
 	return "";
 }

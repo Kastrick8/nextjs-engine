@@ -338,16 +338,73 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 	return prototype === Object.prototype || prototype === null;
 }
 
-function safeDataResultNode(value: unknown): ReactNode {
+interface SafeDataResultState {
+	nodes: number;
+	active: Set<object>;
+}
+
+function boundedDataJson(value: unknown, depth: number, state: SafeDataResultState): string | undefined {
+	state.nodes += 1;
+	if (state.nodes > MAX_TEMPLATE_NODES || depth > MAX_TEMPLATE_DEPTH) return undefined;
+	if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+	if (typeof value === "number") return Number.isFinite(value) ? String(value) : undefined;
+	if (!value || typeof value !== "object" || state.active.has(value)) return undefined;
+	state.active.add(value);
+	try {
+		if (Array.isArray(value)) {
+			const items: string[] = [];
+			for (const item of value.slice(0, MAX_TEMPLATE_NODES)) {
+				const serialized = boundedDataJson(item, depth + 1, state);
+				if (serialized === undefined) return undefined;
+				items.push(serialized);
+			}
+			return "[" + items.join(",") + (value.length > MAX_TEMPLATE_NODES ? ",\"…\"" : "") + "]";
+		}
+		if (!isPlainRecord(value)) return undefined;
+		const entries: string[] = [];
+		let truncated = false;
+		for (const key in value) {
+			if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+			if (entries.length >= MAX_TEMPLATE_NODES) {
+				truncated = true;
+				break;
+			}
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (!descriptor || !("value" in descriptor) || descriptor.get || descriptor.set) return undefined;
+			const serialized = boundedDataJson(descriptor.value, depth + 1, state);
+			if (serialized === undefined) return undefined;
+			entries.push(JSON.stringify(key) + ":" + serialized);
+		}
+		return "{" + entries.join(",") + (truncated ? ',\"…\":true' : "") + "}";
+	} finally {
+		state.active.delete(value);
+	}
+}
+
+function safeDataResultNode(
+	value: unknown,
+	depth = 0,
+	state: SafeDataResultState = { nodes: 0, active: new Set<object>() },
+): ReactNode {
+	state.nodes += 1;
+	if (state.nodes > MAX_TEMPLATE_NODES || depth > MAX_TEMPLATE_DEPTH) return null;
 	if (value === null || value === undefined || typeof value === "boolean") return null;
 	if (typeof value === "string") return value.length <= MAX_TEMPLATE_TEXT ? value : value.slice(0, MAX_TEMPLATE_TEXT);
-	if (typeof value === "number") return String(value);
+	if (typeof value === "number") return Number.isFinite(value) ? String(value) : null;
 	if (isValidElement(value as ReactNode)) return value as ReactNode;
-	if (Array.isArray(value)) return createElement(Fragment, null, Children.toArray(value.slice(0, MAX_TEMPLATE_NODES) as ReactNode));
-	try {
-		const serialized = JSON.stringify(value);
-		return typeof serialized === "string" && serialized.length <= MAX_TEMPLATE_TEXT ? serialized : null;
-	} catch { return null; }
+	if (Array.isArray(value)) {
+		if (state.active.has(value)) return null;
+		state.active.add(value);
+		try {
+			const children = value.slice(0, MAX_TEMPLATE_NODES)
+				.map((item) => safeDataResultNode(item, depth + 1, state));
+			return createElement(Fragment, null, children);
+		} finally {
+			state.active.delete(value);
+		}
+	}
+	const serialized = boundedDataJson(value, depth, state);
+	return typeof serialized === "string" && serialized.length <= MAX_TEMPLATE_TEXT ? serialized : null;
 }
 
 function isTemplateMerge(value: unknown): value is EngineThemeTemplateMerge {
