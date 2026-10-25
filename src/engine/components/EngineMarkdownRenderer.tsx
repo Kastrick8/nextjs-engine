@@ -262,9 +262,6 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		blockquote: ({ node, className, style, children, ...props }) => {
 			const childNodes = Children.toArray(children);
 			const markerIndex = childNodes.findIndex((child) => /\[\s*!ENGINE-INFO\s+(info|note|tip|warning|danger|success)\s*\]/i.test(reactNodeText(child)));
-			const firstText = markerIndex >= 0 ? reactNodeText(childNodes[markerIndex]).trim() : "";
-				? reactNodeText(firstChild.props.children).trim()
-				: "";
 			const info = /\[\s*!ENGINE-INFO\s+(info|note|tip|warning|danger|success)\s*\]\s*([\s\S]*)/i.exec(firstText);
 			if (info) {
 				const tone = info[1].toLowerCase();
