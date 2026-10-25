@@ -1,6 +1,6 @@
 # Generation 3 private-search proving application
 
-The application at `/engine-private-search` is the final Phase C integration proof. It joins the independent EngineCookie, device-proof, NENC, account-session, command-policy, and EngineAPIResolver pieces in one real browser flow.
+The application at `/engine-private-search` demonstrates the complete network/security integration. It joins EngineCookie, device proof, NENC, account sessions, command policy, and EngineAPIResolver in one real browser flow.
 
 ## Run it
 
