@@ -2,7 +2,7 @@
 
 The Gen 3 network/security layer provides EngineCookies, NENC, EngineCORS, command authorization, replay protection, device binding, and the EngineAPIResolver bridge.
 
-## Completed foundation
+## Core network and command-security components
 
 ### EngineCookies + Trust List
 
