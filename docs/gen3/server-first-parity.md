@@ -1,5 +1,7 @@
 # Generation 3 server-first rendering parity
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Generation 3 server-first rendering must preserve the same public schema semantics as
 the compatibility/client renderer. Moving a node from the legacy renderer to
 `EngineServerRenderer` is an execution-boundary optimization, not a styling or
