@@ -106,6 +106,65 @@ After it resolves, schemas can refer to dark-fantasy.markdown.dark by ID. Caller
 Remote themes cannot supply raw globalStyles. Custom properties are limited to safe names/values, and remote font stylesheet links must use HTTPS origins in the same explicit allowlist. These theme font URLs are linked rather than downloaded into local files by this implementation.
 
 
+## Safe block templates and info blocks
+
+Theme templates control structure as well as CSS. They are data-only Engine Schema trees with named slots. A trusted project may register a local React adapter and reference its ID; a remote theme can reference an adapter ID but cannot include its implementation.
+
+~~~ts
+import { createTheme } from "nextjs-engine";
+
+export const darkDocs = createTheme({
+  id: "dark-docs",
+  scope: "global",
+  markdown: {
+    templates: {
+      codeBlock: {
+        schema: {
+          type: "stack",
+          props: { as: "figure", direction: "column", gap: "0" },
+          children: [
+            { type: "slot", props: { name: "languageLabel" } },
+            { type: "slot", props: { name: "content" } }
+          ]
+        }
+      },
+      tableHeader: {
+        schema: {
+          type: "stack",
+          props: { direction: "row", align: "center", gap: "0.4rem" },
+          children: [
+            { type: "slot", props: { name: "leading" } },
+            { type: "slot", props: { name: "content" } }
+          ]
+        }
+      },
+      infoBlock: {
+        schema: {
+          type: "stack",
+          props: { as: "aside", direction: "column", gap: "0.4rem" },
+          children: [
+            { type: "text", props: { content: "{{title}}" } },
+            { type: "slot", props: { name: "content" } }
+          ]
+        }
+      }
+    }
+  }
+});
+~~~
+
+Templates can use slots such as `languageLabel` and `content`, plus context values such as `title`, `tone`, `language`, `label`, and `alignment`. The table-header template composes content inside each semantic `<th>`; the original cell still owns table semantics. Template interpolation is bounded and URL-based CSS, raw HTML, event handlers, and unknown adapter IDs are rejected.
+
+Write an information block with a closing `:::` line:
+
+~~~md
+:::warning Important
+This content is ordinary Markdown inside a themed information block.
+:::
+~~~
+
+Supported tones are `info`, `note`, `tip`, `warning`, `danger`, and `success`. Directives inside fenced code are left unchanged, and an unclosed directive remains literal Markdown.
+
 ## Pretty-please highlighting
 
 EngineMarkdown supports prettyPlease configuration in a theme or as a local Markdown prop:
@@ -120,6 +179,10 @@ prettyPlease: {
     keyword: "#ff85c0",
     string: "#b6f09c",
     comment: "#9a91b8"
+  },
+  languagePalettes: {
+    typescript: { foreground: "#d4d4d4", keyword: "#569cd6" },
+    nodejs: { foreground: "#c5f1c5", keyword: "#a8cc7c" }
   }
 }
 ~~~
@@ -168,6 +231,16 @@ dispatchEngineThemeDataEvent("join:left", "docs.table-join", {
 Initial events are join:left, join:right, join:top, and join:bottom. Dispatch validates context as bounded JSON data, clones/freezes it before calling the handler, rejects missing handler IDs, and never imports code based on a theme-provided ID. Handler implementations remain trusted local code.
 
 Declarative templates now connect to actual code-block wrappers, table headers/data cells, and :::info/:::note/:::tip/:::warning/:::danger/:::success blocks. Templates are restricted Engine Schema trees or locally registered adapters; raw HTML, callbacks, and unregistered adapter IDs are not accepted. Data-API events remain a separate typed handler contract.
+
+## Production font caching
+
+In development, `createTheme()` leaves font stylesheet URLs unchanged; NENC skips font network and disk work entirely.
+
+In production, NENC fetches supported font CSS and font files during the build, emits local files under `public/nextjs-engine/fonts/`, and local/global themes reference the generated `/<escape>nextjs-engine/fonts/<theme-id>.css</escape>` stylesheet. Font filenames include their SHA-256 content hash. The disk cache lives under `.nextjs-engine/.cache/gen3/fonts/`.
+
+The default stylesheet origin is `https://fonts.googleapis.com` and the default font-file origin is `https://fonts.gstatic.com`. Additional exact HTTPS origins can be opted in using `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS` (comma-separated origin URLs; wildcards are not accepted). Redirects, local/private hosts, unexpected content types, oversized files, and unsafe declarations are rejected.
+
+Valid cache entries are reused for seven days by default. Set `ENGINE_THEME_FONT_REFRESH=1` to refresh the stylesheet metadata explicitly. If a source is unavailable and no valid cache exists, the build logs a warning and writes a CSS `@import` fallback to keep the build usable. In that fallback case the browser may still fetch the original stylesheet.
 
 ## Backwards compatibility and verification
 

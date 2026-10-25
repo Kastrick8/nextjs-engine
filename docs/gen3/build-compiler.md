@@ -47,6 +47,19 @@ For statically resolvable `createPage({ schema })` schemas and `defineSchema({..
 
 If a page's schema depends on runtime values, imports, object spreads, computed properties, or arbitrary function execution, Engine skips only static **schema planning** for that page. It still analyzes that route's import graph, and Next.js continues to compile and render the route normally. This is why route-entry count and static-schema-plan count are separate numbers.
 
+
+## EngineTheme font assets
+
+The Gen 3 source pass compiles statically visible `createTheme()` definitions into `.etr` files. When `NODE_ENV=production`, the same pass runs a production-only font compiler after writing those artifacts.
+
+- Theme CSS and font responses use sequential bounded reads, redirects disabled, credentials omitted, timeouts, byte limits, content-type checks, and exact-origin allowlists.
+- Default origins are `fonts.googleapis.com` for stylesheet CSS and `fonts.gstatic.com` for font binaries. Extra origins must be explicitly listed in `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS`.
+- Supported outputs are WOFF2, WOFF, TTF, and OTF. Binary filenames are content-addressed; generated local CSS references only emitted local font files.
+- Cache metadata and source font assets live under `.nextjs-engine/.cache/gen3/fonts/`; emitted files live under `public/nextjs-engine/fonts/`. Existing unrelated files are not overwritten, symlink paths are rejected, and writes use temporary files plus replacement.
+- Valid cache entries are reused for seven days by default. `ENGINE_THEME_FONT_REFRESH=1` explicitly refreshes stylesheet metadata. Development mode skips the entire pass and keeps stylesheet links unchanged.
+- If no valid cache is available and a font source cannot be fetched, NENC logs a warning and creates a CSS `@import` fallback. The build can finish, but the browser may still fetch that original stylesheet.
+
+The font compiler consumes static `.etr` values only; it never evaluates theme code. Remote-scope `.etr` definitions are excluded from local font compilation because the consuming site's remote-origin policy controls their fonts.
 ## Manifest
 
 After Next.js succeeds, the adapter emits `nextjs-engine/compiler-manifest.json` under the configured build output directory. The manifest includes:
