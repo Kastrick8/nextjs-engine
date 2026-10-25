@@ -296,7 +296,7 @@ Implementation is underway on branch `feat/enginetheme-foundation`.
 - Safe declarative Engine Schema templates for code blocks, table headers/cells, and typed info-block syntax; local React adapters are registered by trusted code and never embedded in remote theme data.
 - Typed event-driven Data-API join dispatch for left/right/top/bottom. It allocates events to local handlers and is not a preview/inspection API.
 - Explicit remote `.etr` loader with exact HTTPS origin allowlists, redirect denial, bounded streaming, timeouts/cancellation, checksum/format/version validation, recursive bounded theme-data checks, CSS/network primitive rejection, local/private host rejection, safe CSS-variable/font validation, cache deduplication, and explicit unregister/cache-clear functions.
-- Production-only NENC font compilation in `src/engine/compiler/font/3/compiler.ts` for local/global themes: bounded, allowlisted CSS/font downloads; local WOFF2/WOFF/TTF/OTF assets; content-hashed filenames; disk-cache reuse; explicit refresh; and strict dev-mode skip.
+- Production-only NENC font compilation in `src/engine/compiler/font/3/compiler.ts` for local/global themes: bounded, allowlisted CSS/font downloads; local WOFF2/WOFF/TTF/OTF assets; content-hashed filenames; disk-cache reuse; explicit refresh; strict development-mode skip; configurable cache lifetime; offline cache-only mode; strict build-failure mode; and allowlist-constrained browser fallback.
 - Updated EngineMarkdown demo, docs, and smoke/browser regression coverage.
 
 ### Verification
@@ -309,8 +309,7 @@ Implementation is underway on branch `feat/enginetheme-foundation`.
 
 ### Remaining
 
-- Broader font-provider coverage and lifecycle/update policies beyond the Google Fonts defaults. Explicit origin allowlisting is required for other providers.
+- Add additional provider-specific font CSS fixtures and a live-provider validation matrix; non-Google origins are configurable but must be explicitly allowlisted.
 - Exact VS Code/TextMate grammar parity would require a heavier optional highlighting provider; Engine Lite stays small and dependency-free.
-- More complete migration guidance for multi-component themes and version/update lifecycle.
 
-Remote loading remains explicit and data-only. Theme files do not execute remote code. Font assets are emitted only by the production compiler; if a permitted provider is unavailable and no valid cache exists, a documented stylesheet-import fallback preserves the build but can still load that stylesheet in the browser.
+Remote loading remains explicit and data-only. Theme files do not execute remote code. Font URLs are allowlisted for both compile-time fetching and any browser fallback. Offline builds can reuse verified stale local cache entries but fail on a cache miss; strict failure mode avoids browser-import fallback when local output cannot be produced.

@@ -1,12 +1,12 @@
 # EngineTheme
 
-**Implementation layout:** runtime theme modules live in `src/engine/engineTheme/`, static `.etr` extraction lives in `src/engine/compiler/EngineThemeCompiler.js`, and Next.js hook/link integration remains in `src/engine/plugins/`.
+**Implementation layout:** EngineTheme runtime modules live in `src/engine/component/engineTheme/`. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`.
 
 EngineTheme is the data-only theming layer for Next.js Engine. The current foundation provides a validated createTheme() API, qualified theme IDs, local/global/explicitly preloaded remote theme resolution for Markdown, static NENC .etr generation, lightweight Pretty-please highlighting, safe declarative UI templates, and a typed event-driven Data-API.
 
 ## Module layout
 
-`createTheme()`, ID resolution, highlighting, declarative templates, remote `.etr` loading, font caching, and the event-driven Data-API are implemented in `src/engine/engineTheme/`. `src/engine/compiler/EngineThemeCompiler.js` owns the static NENC compiler pass. The `src/engine/plugins/gen3ThemeCompiler.js` file is only a link from the Next.js build coordinator to that compiler; the plugin directory is not the home of EngineTheme business logic.
+`createTheme()`, ID resolution, highlighting, declarative templates, remote `.etr` loading, font URL policy, and the event-driven Data-API are implemented in `src/engine/component/engineTheme/`. `src/engine/compiler/theme/3/compiler.ts` owns static NENC theme extraction and `.etr` generation; `src/engine/compiler/font/3/compiler.ts` owns production font asset compilation. The `src/engine/plugins/gen3ThemeCompiler.js` file is only a compatibility link to the theme compiler. Runtime theme code and compiler logic do not live in `plugins/`.
 
 ## Define a theme group
 
@@ -74,6 +74,46 @@ The grammar is:
 The limit is three subtheme segments after the component segment. Variants inherit from the prior definition; the resolver merges nested Markdown style slots and defaults. Explicit per-node Markdown props take precedence, and local markdownStyles properties override matching theme style properties.
 
 Local themes can be supplied directly as a theme object. Global themes are registered in-process and can be referenced by ID. Missing global groups or variants produce an error. A remote ID resolves only after loadRemoteEngineTheme() explicitly loads and verifies its .etr artifact; render and module initialization never perform network requests.
+
+## Migration and compatibility
+
+The public import remains `nextjs-engine`; applications should not import the internal `src/engine/component/engineTheme/` files directly. Moving those implementation files does not change the public API.
+
+Existing inline theme objects remain valid:
+
+~~~ts
+createPage({
+  schema: {
+    theme: {
+      vars: { "--docs-accent": "#826f9b" },
+      fonts: ["https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"],
+      globalStyles: ".docs-article { max-width: 72rem; }"
+    },
+    root: { type: "markdown", props: { filePath: "./docs/index.md" } }
+  }
+});
+~~~
+
+To share those settings or introduce component variants, move the definition into `createTheme()` and keep the same values under the group:
+
+~~~ts
+export const docsTheme = createTheme({
+  id: "docs",
+  scope: "global",
+  vars: { "--docs-accent": "#826f9b" },
+  fonts: ["https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"],
+  markdown: {
+    defaults: { linkColor: "var(--docs-accent)" },
+    variants: { compact: { defaults: { bodyLineHeight: 1.6 } } }
+  }
+});
+~~~
+
+Then set the schema's theme reference to `{ id: "docs.markdown.compact" }`. Inline node props still override theme defaults, and local `markdownStyles` overrides matching style slots. Group IDs remain one safe segment; dots separate the component ID and up to three inherited variant segments.
+
+### Updating a remote theme
+
+A generated `.etr` is data, not a live registry entry. Generate it, publish it at an owner-controlled URL, and explicitly load it with `loadRemoteEngineTheme()`. The artifact's Next.js and Engine versions are checked exactly; after upgrading either dependency, regenerate/re-publish the artifact and update the expected versions together. The loader's in-process response cache defaults to five minutes, can be set to zero to refetch on each call, and is bounded to 32 entries. Use `clearRemoteEngineThemeCache()` when an application needs to force revalidation and `unregisterRemoteEngineTheme()` when it no longer trusts a previously loaded group.
 
 ## Generation 3 .etr artifacts
 
@@ -243,7 +283,15 @@ In production, NENC fetches supported font CSS and font files during the build, 
 
 The default stylesheet origin is `https://fonts.googleapis.com` and the default font-file origin is `https://fonts.gstatic.com`. Additional exact HTTPS origins can be opted in using `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS` (comma-separated origin URLs; wildcards are not accepted). Redirects, local/private IPs and local-only hostnames, unexpected content types, oversized files, unsafe font CSS declarations, and remote theme strings containing CSS/network primitives such as `url(...)`, `expression(...)`, or `javascript:` are rejected. Because the allowlist is an explicit trust boundary, configured hostnames should be controlled by the project owner.
 
-Valid cache entries are reused for seven days by default. Set `ENGINE_THEME_FONT_REFRESH=1` to refresh the stylesheet metadata explicitly. If a source is unavailable and no valid cache exists, the build logs a warning and writes a CSS `@import` fallback to keep the build usable. In that fallback case the browser may still fetch the original stylesheet.
+The cache policy is explicit and configurable:
+
+- `ENGINE_THEME_FONT_CACHE_TTL_MS` controls freshness in milliseconds (default `604800000`, maximum 30 days, minimum `0`). The compiler option `cacheTtlMs` overrides the environment value.
+- `ENGINE_THEME_FONT_REFRESH=1` or `forceRefresh: true` bypasses fresh stylesheet and font caches. If refresh fails, a previously verified matching cache may still be reused.
+- `ENGINE_THEME_FONT_OFFLINE=1` (or `offline: true` in the compiler options) disables downloads and requires a valid local cache for each theme. Valid stale entries may be reused offline; a cache miss fails rather than silently introducing a browser network dependency. Offline mode cannot be combined with forced refresh.
+- `ENGINE_THEME_FONT_FAILURE_POLICY=error` makes a build fail when the font source cannot be compiled and no valid previous local output is available. The default `fallback` policy logs a warning and preserves build availability, but its generated `@import` is emitted only for a stylesheet origin that passes the same exact allowlist as build-time fetching. Unapproved origins never get copied into fallback CSS.
+- Extra public providers are supported through exact origins in `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS`. The Google Fonts origins remain enabled by default; additional origins are added to those defaults, not substituted for them. Use only HTTPS origins under your control or explicitly trusted by the project. Wildcards, redirects, local/private hosts, unexpected content types, oversized files, and unsafe CSS remain rejected.
+
+Set the environment variables in the production build environment. The runtime theme API never reads them to fetch fonts, and development mode continues to skip font downloads entirely.
 
 ## Backwards compatibility and verification
 
@@ -258,4 +306,4 @@ npm run build
 npm run test:browser
 ~~~
 
-Remote .etr retrieval is available only through the explicit validated loader above. Production font downloading, local asset emission/CSS rewriting, and persistent font-file caching are still pending; the current font path filters/deduplicates HTTPS or relative stylesheet links and leaves the actual fetch to the browser.
+Remote `.etr` retrieval is available only through the explicit validated loader above. The production compiler downloads allowlisted fonts, emits local CSS/assets, and stores content-verified cache entries; these font operations are skipped in development mode.
