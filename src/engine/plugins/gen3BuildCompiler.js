@@ -7,6 +7,7 @@ const ts = require("typescript");
 const { analyzeProjectModules, SCHEMA_ENGINE_SYMBOLS } = require("./gen3ModuleCompiler");
 const { createSchemaOutputCache } = require("./gen3SchemaCache");
 const { compileEngineThemeArtifacts } = require("./gen3ThemeCompiler");
+const { compileEngineThemeFonts } = require("./gen3ThemeFonts");
 const nencLogger = require("./nencTerminalLogger");
 
 const BUILTIN_NODE_TYPES = new Set([
@@ -517,6 +518,16 @@ async function compileProject(projectRoot, options = {}) {
 		log("DONE ENGINE THEME ARTIFACTS — " + themeBuild.artifacts.length
 			+ " theme group(s), " + themeBuild.createdCount + " created, " + themeBuild.updatedCount
 			+ " updated, " + themeBuild.unchangedCount + " unchanged, " + themeBuild.removedCount + " stale removed");
+	}
+
+	const themeFontBuild = await compileEngineThemeFonts(resolvedRoot, themeBuild.artifacts);
+	if (!themeFontBuild.skipped && themeFontBuild.themeCount > 0) {
+		log("DONE ENGINE THEME FONTS — " + themeFontBuild.themeCount + " theme(s), "
+			+ themeFontBuild.downloadedFonts + " downloaded, " + themeFontBuild.fontAssetsReused + " reused, "
+			+ themeFontBuild.fallbackThemes + " stylesheet fallback(s)");
+		for (const warning of themeFontBuild.warnings) {
+			log("WARN ENGINE THEME FONT " + warning.themeId + " — " + warning.warning);
+		}
 	}
 
 	const moduleAnalysis = analyzeProjectModules(resolvedRoot, {

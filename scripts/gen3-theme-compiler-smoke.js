@@ -39,6 +39,7 @@ async function testPublicThemeApi() {
 		const resolverPath = path.resolve(__dirname, "../src/engine/theme/resolveTheme.ts");
 		const { createTheme, parseEngineThemeId } = require(themePath);
 		const { resolveEngineThemeSchema } = require(resolverPath);
+		const { compileEngineThemeFonts } = require(path.resolve(__dirname, "../src/engine/plugins/gen3ThemeFonts.js"));
 		const { loadRemoteEngineTheme, clearRemoteEngineThemeCache, getRemoteEngineThemeCacheSize, unregisterRemoteEngineTheme } = require(path.resolve(__dirname, "../src/engine/theme/remoteTheme.ts"));
 		const {
 			highlightEngineCode,
@@ -311,6 +312,20 @@ async function testPublicThemeApi() {
 			scope: "local",
 			markdown: { defaults: { codeColor: "#abcdef" } },
 		});
+		const previousNodeEnv = process.env.NODE_ENV;
+		try {
+			process.env.NODE_ENV = "production";
+			const productionFontTheme = createTheme({
+				id: "production-font-theme-smoke",
+				scope: "global",
+				fonts: ["https://fonts.googleapis.com/css2?family=Fixture"],
+			});
+			assert.deepEqual(productionFontTheme.fonts, ["/nextjs-engine/fonts/production-font-theme-smoke.css"],
+				"production local/global themes use the NENC-local stylesheet path");
+		} finally {
+			if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+			else process.env.NODE_ENV = previousNodeEnv;
+		}
 		const localPage = resolveEngineThemeSchema({
 			theme: localTheme,
 			root: { type: "markdown", props: { content: "local" } },
@@ -438,6 +453,63 @@ async function testPublicThemeApi() {
 			theme: { id: "remote-smoke.markdown.dark", scope: "remote" },
 			root: { type: "markdown" },
 		}), /loadRemoteEngineTheme/);
+
+		const fontRoot = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-font-cache-smoke-"));
+		const fontThemeDir = path.join(fontRoot, ".nextjs-engine", "gen3", "theme");
+		fs.mkdirSync(fontThemeDir, { recursive: true });
+		fs.writeFileSync(path.join(fontThemeDir, "font-smoke.etr"), JSON.stringify({
+			id: "font-smoke",
+			content: { id: "font-smoke", scope: "global", fonts: ["https://fonts.googleapis.com/css2?family=Fixture"] },
+		}));
+		const fontUrls = [];
+		const fakeFontCss = "@font-face{font-family:'Fixture';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/fixture/font.woff2) format('woff2');unicode-range:U+0000-00FF;}";
+		const fakeFontBytes = Buffer.from("fake-woff2-fixture-font");
+		const fakeFontFetch = async (url, init) => {
+			fontUrls.push(url);
+			assert.equal(init.redirect, "error");
+			assert.equal(init.credentials, "omit");
+			if (url === "https://fonts.googleapis.com/css2?family=Fixture") {
+				return new Response(fakeFontCss, { status: 200, headers: { "content-type": "text/css; charset=utf-8" } });
+			}
+			if (url === "https://fonts.gstatic.com/s/fixture/font.woff2") {
+				return new Response(fakeFontBytes, { status: 200, headers: { "content-type": "font/woff2" } });
+			}
+			throw new Error("Unexpected fake font URL: " + url);
+		};
+		try {
+			const firstFontBuild = await compileEngineThemeFonts(fontRoot, [
+				{ id: "font-smoke", fileName: "font-smoke.etr" },
+			], { production: true, fetchImpl: fakeFontFetch, cacheTtlMs: 60000 });
+			assert.equal(firstFontBuild.themeCount, 1);
+			assert.equal(firstFontBuild.downloadedFonts, 1);
+			assert.equal(firstFontBuild.fallbackThemes, 0);
+			assert.equal(fontUrls.length, 2, "only the stylesheet and selected font are fetched");
+			const localCssPath = path.join(fontRoot, "public", "nextjs-engine", "fonts", "font-smoke.css");
+			const localCss = fs.readFileSync(localCssPath, "utf8");
+			assert.ok(localCss.includes("/nextjs-engine/fonts/font-"), "generated CSS points at a local content-addressed font");
+			assert.ok(!localCss.includes("fonts.gstatic.com"), "generated CSS no longer points at the external font host");
+			const emittedFont = fs.readdirSync(path.dirname(localCssPath)).find((name) => /^font-[a-f0-9]{64}\.woff2$/.test(name));
+			assert.ok(emittedFont, "font file names use a content hash rather than source names");
+			assert.equal(fs.readFileSync(path.join(path.dirname(localCssPath), emittedFont)).toString(), fakeFontBytes.toString());
+			const secondFontBuild = await compileEngineThemeFonts(fontRoot, [
+				{ id: "font-smoke", fileName: "font-smoke.etr" },
+			], { production: true, fetchImpl: async () => { throw new Error("cache hit must not fetch"); }, cacheTtlMs: 60000 });
+			assert.equal(secondFontBuild.cacheHits, 1);
+			assert.equal(fontUrls.length, 2, "a warm production build does not refetch fonts");
+			const previousNodeEnvForFonts = process.env.NODE_ENV;
+			try {
+				process.env.NODE_ENV = "development";
+				const devFontBuild = await compileEngineThemeFonts(fontRoot, [
+					{ id: "font-smoke", fileName: "font-smoke.etr" },
+				], { fetchImpl: async () => { throw new Error("dev must not fetch"); } });
+				assert.equal(devFontBuild.skipped, true, "development never fetches or writes font assets");
+			} finally {
+				if (previousNodeEnvForFonts === undefined) delete process.env.NODE_ENV;
+				else process.env.NODE_ENV = previousNodeEnvForFonts;
+			}
+		} finally {
+			fs.rmSync(fontRoot, { recursive: true, force: true });
+		}
 
 	} finally {
 		if (previousTsExtension) Module._extensions[".ts"] = previousTsExtension;

@@ -301,7 +301,7 @@ function validCachedFile(root, filename, expectedSha) {
 }
 
 function validThemeCache(entry, themeId, sourceUrls, cacheAssetRoot) {
-	if (!entry || entry.id !== themeId || !Array.isArray(entry.sourceUrls)
+	if (!entry || entry.status === "fallback" || entry.id !== themeId || !Array.isArray(entry.sourceUrls)
 		|| canonicalJson(entry.sourceUrls) !== canonicalJson(sourceUrls)
 		|| typeof entry.cssContent !== "string" || !safePublicCss(entry.cssContent)
 		|| sha256(Buffer.from(entry.cssContent, "utf8")) !== entry.cssSha256
@@ -593,13 +593,14 @@ function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 		const fonts = data && data.content && Array.isArray(data.content.fonts)
 			? data.content.fonts.filter((value) => typeof value === "string" && value.length > 0)
 			: [];
-		if (fonts.length === 0) continue;
+		if (fonts.length === 0 || data.content.scope === "remote") continue;
 		stats.themeCount += 1;
 		if (fonts.length > MAX_STYLE_SHEETS) {
 			throw new Error("[EngineTheme fonts] Theme " + artifact.id + " declares more than " + MAX_STYLE_SHEETS + " font stylesheets.");
 		}
 		const entry = await compileOneTheme(root, data.content, [...new Set(fonts)], manifest, options, stats);
 		nextEntries[artifact.id] = entry;
+		manifest.themes[artifact.id] = entry;
 		if (entry.warning) stats.warnings.push({ themeId: artifact.id, warning: entry.warning });
 	}
 

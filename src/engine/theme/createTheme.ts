@@ -270,6 +270,12 @@ export function createTheme<T extends EngineThemeDefinition>(
   // registered/build-time definition. Themes are generally created once at
   // module initialization, so this bounded copy is cheaper than runtime work.
   const clone = JSON.parse(serialized) as T & { scope: EngineThemeScope };
+  // Production builds emit a local stylesheet for local/global theme groups.
+  // Dev servers and remote themes keep their original links.
+  if (typeof process !== "undefined" && process.env?.NODE_ENV === "production"
+    && scope !== "remote" && Array.isArray(clone.fonts) && clone.fonts.length > 0) {
+    clone.fonts = ["/nextjs-engine/fonts/" + clone.id + ".css"];
+  }
   const frozen = freezeDeep(clone);
 
   if (scope === "global") {

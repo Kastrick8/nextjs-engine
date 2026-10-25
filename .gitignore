@@ -22,3 +22,4 @@ certificates/
 /src/app/%5Fengine/
 .nextjs-engine/.cache/
 .nextjs-engine/gen3/theme/
+/public/nextjs-engine/fonts/
