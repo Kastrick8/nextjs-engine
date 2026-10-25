@@ -91,7 +91,7 @@ The `examples/gen3-private-search` proof connects a browser login and private se
 
 The `/engine-private-search` proving application completes the network/security integration path: a browser-created non-exportable key is registered during login, the server stores only a session-token hash and issues an HttpOnly device-bound cookie, and `EngineCommand.run("privateSearch")` crosses the generated opaque endpoint into a credential-scoped ordinary HTTP backend. Browser regressions verify copied-cookie and wrong-origin rejection plus removal of backend credentials and internal fields from the result.
 
-See `docs/gen3/phase-c-network.md` for the completed security invariants and compatibility/debugging subsystem handoff.
+See `docs/3/networking-credentials-security.md` for the network-security invariants and `docs/3/compatibility-debugging-hardening.md` for browser compatibility and EngineDebug.
 
 ---
 
