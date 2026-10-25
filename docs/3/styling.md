@@ -49,4 +49,4 @@ component defaults < variant defaults < schema props < explicit style={} < requi
 
 Explicit styles override defaults while required runtime behavior, such as disabled controls and open overlays, remains protected.
 
-For breakpoint fallback rules, responsive cache limits, nested at-rules, and StyleCollector ownership, read [Styling — detailed](./styling-detailed.md). For stable 2.x apps, use [Gen 2 styling](../2/styling.md).
+For breakpoint fallback rules, responsive cache limits, nested at-rules, and StyleCollector ownership, read [Styling — detailed](./styling-detailed.md). For stable 2.x apps, use [Gen 2 styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling.md).
