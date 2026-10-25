@@ -301,13 +301,14 @@ Implementation is underway on branch `feat/enginetheme-foundation`.
 
 ### Verification
 
-- Runtime CI and Chromium, Firefox, and WebKit passed on commit `e2d9e94b824b1c033efc039985f8bb9026dad09e` before the directory refactor. The current folder move and link updates are awaiting a fresh CI run.
-- The latest production font integration now has deterministic smoke coverage using mocked stylesheet/font responses, cache reuse, content-hashed output, and development-mode no-network assertions. The current CI jobs must finish before the font integration can be called green.
+- Engine runtime CI passed on commit `9bfa59674d9d347f3bfca4614d390648cf8baf47`: https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40193812216
+- Engine cross-browser compatibility passed on the same commit, with Chromium, Firefox, and WebKit all green: https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40193812178
+- Runtime CI covered the theme compiler smoke, font compiler smoke, NENC build adapter, EngineMarkdown smoke, TypeScript type-check, Gen 3 production build, production bundle budgets, and Generation 3 browser/device/network tests.
+- Font compiler smoke uses mocked stylesheet/font responses to verify content-addressed output, cache reuse, expiry refresh, and development-mode no-network behavior.
 - Local command execution is unavailable through the connected repository workflow in this session; GitHub Actions is the runtime verification source.
 
 ### Remaining
 
-- Run type-check, EngineTheme compiler/font smoke tests, production build, and Chromium/Firefox/WebKit after the directory refactor.
 - Broader font-provider coverage and lifecycle/update policies beyond the Google Fonts defaults. Explicit origin allowlisting is required for other providers.
 - Exact VS Code/TextMate grammar parity would require a heavier optional highlighting provider; Engine Lite stays small and dependency-free.
 - More complete migration guidance for multi-component themes and version/update lifecycle.
