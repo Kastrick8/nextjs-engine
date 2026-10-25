@@ -184,9 +184,9 @@ Adaptive layout is not a license to lower media fidelity. The current contract p
 
 ## Related references
 
-- [Generation 3 overview](./overview.md)
-- [Phase A + B — compiler, server rendering, scheduler](./phase-a-b.md)
-- [Phase C — network and credentials](./phase-c-network.md)
-- [Phase D — compatibility and hardening](./phase-d-hardening.md)
-- [Styling — detailed reference](../3/styling-detailed.md)
+- [Generation 3 overview](../gen3/overview.md)
+- [Phase A + B — compiler, server rendering, scheduler](../gen3/phase-a-b.md)
+- [Phase C — network and credentials](../gen3/phase-c-network.md)
+- [Phase D — compatibility and hardening](../gen3/phase-d-hardening.md)
+- [Styling — detailed reference](./styling-detailed.md)
 - [Gen 2 documentation](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md)
