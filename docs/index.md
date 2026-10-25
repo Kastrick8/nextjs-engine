@@ -8,7 +8,7 @@ If a historical example conflicts with the current TypeScript source or a curren
 
 ## Generation-specific documentation
 
-- [Generation 2 (stable 2.x)](./2/index.md) — guides for existing v2 applications.
+- [Generation 2 (stable 2.x)](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md) — guides for existing v2 applications.
 - [Generation 3 (alpha)](./3/index.md) — compiler-era simple and detailed guides.
 
 ## Start here
