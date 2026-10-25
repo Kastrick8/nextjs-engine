@@ -529,6 +529,18 @@ async function testPublicThemeApi() {
 			], { production: true, fetchImpl: async () => { throw new Error("cache hit must not fetch"); }, cacheTtlMs: 60000 });
 			assert.equal(secondFontBuild.cacheHits, 1);
 			assert.equal(fontUrls.length, 2, "a warm production build does not refetch fonts");
+
+			const offlineBuild = await compileEngineThemeFonts(fontRoot, [
+				{ id: "font-smoke", fileName: "font-smoke.etr" },
+			], {
+				production: true,
+				offline: true,
+				fetchImpl: async () => { throw new Error("offline mode must never fetch"); },
+				cacheTtlMs: 60000,
+			});
+			assert.equal(offlineBuild.cacheHits, 1, "offline mode reuses a valid fresh local cache");
+			assert.equal(fontUrls.length, 2, "offline cache reuse makes no remote requests");
+
 			const fontManifestPath = path.join(fontRoot, ".nextjs-engine", ".cache", "gen3", "fonts", "manifest.json");
 			const expiredManifest = JSON.parse(fs.readFileSync(fontManifestPath, "utf8"));
 			expiredManifest.themes["font-smoke"].updatedAt = 0;
@@ -549,6 +561,59 @@ async function testPublicThemeApi() {
 			} finally {
 				if (previousNodeEnvForFonts === undefined) delete process.env.NODE_ENV;
 				else process.env.NODE_ENV = previousNodeEnvForFonts;
+			}
+
+			const writeFontFixture = (id, sourceUrl) => {
+				fs.writeFileSync(path.join(fontThemeDir, id + ".etr"), JSON.stringify({
+					id,
+					content: { id, scope: "global", fonts: [sourceUrl] },
+				}));
+			};
+			writeFontFixture("blocked-font", "https://untrusted.example/fonts.css");
+			const blockedFallback = await compileEngineThemeFonts(fontRoot, [
+				{ id: "blocked-font", fileName: "blocked-font.etr" },
+			], {
+				production: true,
+				fetchImpl: async () => { throw new Error("unapproved origin must be rejected before fetch"); },
+			});
+			assert.equal(blockedFallback.fallbackThemes, 1);
+			const blockedCss = fs.readFileSync(path.join(fontRoot, "public", "nextjs-engine", "fonts", "blocked-font.css"), "utf8");
+			assert.ok(!blockedCss.includes("untrusted.example") && !blockedCss.includes("@import"),
+				"failure fallback never emits a browser @import for an unapproved font origin");
+
+			writeFontFixture("strict-font", "https://fonts.googleapis.com/css2?family=StrictFixture");
+			await assert.rejects(() => compileEngineThemeFonts(fontRoot, [
+				{ id: "strict-font", fileName: "strict-font.etr" },
+			], {
+				production: true,
+				failurePolicy: "error",
+				fetchImpl: async () => { throw new Error("fixture provider unavailable"); },
+			}), /Strict failure policy rejected theme 'strict-font'/,
+			"strict mode fails the build when no valid cached local font output exists");
+			assert.ok(!fs.existsSync(path.join(fontRoot, "public", "nextjs-engine", "fonts", "strict-font.css")),
+				"strict mode does not create a browser-import fallback stylesheet");
+
+			writeFontFixture("offline-miss", "https://fonts.googleapis.com/css2?family=OfflineMiss");
+			await assert.rejects(() => compileEngineThemeFonts(fontRoot, [
+				{ id: "offline-miss", fileName: "offline-miss.etr" },
+			], {
+				production: true,
+				offline: true,
+				fetchImpl: async () => { throw new Error("offline mode must never fetch"); },
+			}), /Offline mode requires a valid cached local font build for theme 'offline-miss'/,
+			"offline mode rejects missing cache instead of quietly creating a network-dependent fallback");
+
+			const previousFontTtl = process.env.ENGINE_THEME_FONT_CACHE_TTL_MS;
+			try {
+				process.env.ENGINE_THEME_FONT_CACHE_TTL_MS = "invalid";
+				await assert.rejects(() => compileEngineThemeFonts(fontRoot, [
+					{ id: "font-smoke", fileName: "font-smoke.etr" },
+				], { production: true, fetchImpl: fakeFontFetch }),
+				/ENGINE_THEME_FONT_CACHE_TTL_MS must be an integer/,
+				"invalid cache lifetime configuration is rejected explicitly");
+			} finally {
+				if (previousFontTtl === undefined) delete process.env.ENGINE_THEME_FONT_CACHE_TTL_MS;
+				else process.env.ENGINE_THEME_FONT_CACHE_TTL_MS = previousFontTtl;
 			}
 		} finally {
 			fs.rmSync(fontRoot, { recursive: true, force: true });
