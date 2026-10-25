@@ -1,5 +1,7 @@
 # EngineNav
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Schema types: `"nav"` and `"EngineNav"`.
 
 EngineNav renders the navigation shell, logo, items, dropdowns, and mobile hamburger. It also owns `renderEngineAnchor()`, the routing helper shared with EngineLink.
