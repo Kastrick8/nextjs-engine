@@ -237,7 +237,7 @@ async function testPublicThemeApi() {
 		const existingContext = { label: "Name" };
 		const incomingContext = { icon: "sort" };
 		const dataHandler = (event) => {
-			allocatedEvent = event;
+			if (event.type === "join:left") allocatedEvent = event;
 			return { operation: "append", value: event.context.incoming };
 		};
 		assert.throws(() => registerEngineThemeDataHandler("constructor", dataHandler), /cannot be reserved names/);
