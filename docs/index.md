@@ -1,8 +1,8 @@
 # Next.js Engine — Documentation Index
 
-These docs are maintained against the current `src/engine` implementation.
+These unversioned index links are retained for compatibility. The maintained Generation 2 guides live under [`docs/2`](./2/index.md); Generation 3 is a separate alpha documented on [`main-3`](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/index.md).
 
-`DOCUMENT.md` is the large historical/technical reference. When an older example in `DOCUMENT.md` conflicts with a component page here or with the current TypeScript types, prefer the component page and current source types.
+`DOCUMENT.md` is the large historical/technical reference. When an older example in `DOCUMENT.md` conflicts with a maintained versioned component page or the current TypeScript types on that generation's branch, prefer the versioned page and source types.
 
 ---
 
@@ -15,7 +15,7 @@ These docs are maintained against the current `src/engine` implementation.
 
 | I want to… | Read |
 |---|---|
-| Understand what NE is | [`readme.md`](./readme.md) |
+| Understand what NE is | [`readme.md`](./2/readme.md) |
 | Learn schemas / `createPage()` | [`readme.md`](./readme.md) |
 | Learn stable Gen 2 styling | [`2/styling.md`](./2/styling.md) |
 | Learn Gen 2 styling internals | [`2/styling-detailed.md`](./2/styling-detailed.md) |
@@ -92,7 +92,7 @@ cprop: {
 
 It currently ships 20 named presets and shared-element morph support.
 
-Read: [`enginetransitions.md`](./engine-components/enginetransitions.md).
+Read: [`enginetransitions.md`](./2/engine-components/enginetransitions.md).
 
 ### If you want a GPU effect/background
 
@@ -202,7 +202,7 @@ The docs call out future/reserved APIs clearly so examples do not pretend an uni
 | Topic | Documentation |
 |---|---|
 | Release/version history | [`release/index.md`](./release/index.md) |
-| Styling, responsive values, at-rules, pseudo states | [`styling.md`](./styling.md) |
+| Styling, responsive values, at-rules, pseudo states | [`styling.md`](./2/styling.md) |
 | Page/layout transitions and shared morphs | [`2/engine-components/enginetransitions.md`](./2/engine-components/enginetransitions.md) |
 | GPU `.shed` language and surface pipeline | [`2/engine-components/engineshader.md`](./2/engine-components/engineshader.md) |
 | Canvas modes and rendering engines | [`2/engine-components/enginecanvas.md`](./2/engine-components/enginecanvas.md) |
