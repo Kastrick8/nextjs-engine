@@ -1,6 +1,6 @@
 # Generation 3 private login/search proof
 
-This example exercises the complete Phase C path:
+This example exercises the complete Generation 3 network-security flow:
 
 ```text
 browser client
