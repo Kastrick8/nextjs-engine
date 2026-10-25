@@ -1,5 +1,7 @@
 # Generation 3 — Networking, Credentials, and Command Security
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. This is not the stable Gen 2 API contract.
+
 The Gen 3 network/security layer provides EngineCookies, NENC, EngineCORS, command authorization, replay protection, device binding, and the EngineAPIResolver bridge.
 
 ## Core network and command-security components
