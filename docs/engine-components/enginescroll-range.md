@@ -7,7 +7,7 @@ A Range does not attach a scroll listener and does not request animation frames.
 ## Create a range
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 const chapter = EngineScroll.range({
 	start: "#intro",

@@ -10,7 +10,7 @@ scroll-linked interfaces.
 ## Create a director
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 const director = EngineScroll.direct({
 	hero: {

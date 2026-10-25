@@ -37,7 +37,7 @@ The existing `point` field still supplies the point name and, when no explicit
 Manual registration remains available outside normal schema rendering:
 
 ```ts
-import { EngineScrollPointManager } from "@/engine";
+import { EngineScrollPointManager } from "nextjs-engine";
 
 EngineScrollPointManager.registerElement("intro", introElement, {
 	group: "slides",

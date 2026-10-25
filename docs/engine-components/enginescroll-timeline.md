@@ -9,7 +9,7 @@ viewport state, physics, snapping, and programmatic movement.
 ## Create a timeline
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 const timeline = EngineScroll.timeline({
 	start: "#hero",
@@ -228,7 +228,7 @@ timeline.seek(1, {
 ## React
 
 ```tsx
-import { useEngineScrollTimeline } from "@/engine";
+import { useEngineScrollTimeline } from "nextjs-engine";
 
 function HeroProgress() {
 	const timeline = useEngineScrollTimeline({
