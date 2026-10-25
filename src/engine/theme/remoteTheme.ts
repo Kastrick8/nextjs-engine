@@ -101,11 +101,10 @@ function resolveAllowedUrl(input: string, options: LoadRemoteEngineThemeOptions)
 		throw new TypeError("Remote theme URL must be absolute or have an explicit baseUrl.");
 	}
 	if (url.username || url.password || url.hash) throw new TypeError("Remote theme URLs cannot contain credentials or fragments.");
-	const allowHttp = (options as LoadRemoteEngineThemeOptions & { allowHttp?: boolean }).allowHttp === true;
-	if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:")) {
+	if (url.protocol !== "https:") {
 		throw new TypeError("Remote EngineTheme URLs must use HTTPS.");
 	}
-	const allowed = normalizeAllowedOrigins(options.allowedOrigins, allowHttp);
+	const allowed = normalizeAllowedOrigins(options.allowedOrigins, false);
 	if (!allowed.has(url.origin)) {
 		throw new Error("Remote EngineTheme origin '" + url.origin + "' is not in allowedOrigins.");
 	}
