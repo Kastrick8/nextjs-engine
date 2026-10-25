@@ -21,18 +21,21 @@ These docs are maintained against the current `src/engine` implementation.
 | Learn Gen 2 styling internals | [`2/styling-detailed.md`](./2/styling-detailed.md) |
 | Learn about the Gen 3 compiler internals | [Compiler deep dive](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/compiler-deep-dive.md) |
 | Read version/release history | [`release/index.md`](./release/index.md) |
-| Add page/layout transitions | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
-| Write `.shed` GPU effects | [`engine-components/engineshader.md`](./engine-components/engineshader.md) |
-| Draw with Canvas / ECScene / shader mode | [`engine-components/enginecanvas.md`](./engine-components/enginecanvas.md) |
-| Render/import/export SVG from ECScene | [`engine-components/enginesvg.md`](./engine-components/enginesvg.md) |
-| Add scroll points / programmatic scrolling | [`engine-components/enginescroll.md`](./engine-components/enginescroll.md) |
-| Validate/analyze schemas | [`schema-diagnostics.md`](./schema-diagnostics.md) |
-| Build layouts and controls | [`engine-components/primitives.md`](./engine-components/primitives.md) |
-| Use the searchable select control | [`engine-components/customselect.md`](./engine-components/customselect.md) |
-| Use dialogs, drawers, and popovers | [`engine-components/engineoverlay.md`](./engine-components/engineoverlay.md) |
-| Build in-house static APIs | [`engine-components/apistatic.md`](./engine-components/apistatic.md) |
-| Configure/call external APIs | [`engine-components/engineapi.md`](./engine-components/engineapi.md) |
-| Understand current runtime/performance behavior | [`runtime-performance.md`](./runtime-performance.md) |
+| Add page/layout transitions | [`2/engine-components/enginetransitions.md`](./2/engine-components/enginetransitions.md) |
+| Write `.shed` GPU effects | [`2/engine-components/engineshader.md`](./2/engine-components/engineshader.md) |
+| Draw with Canvas / ECScene / shader mode | [`2/engine-components/enginecanvas.md`](./2/engine-components/enginecanvas.md) |
+| Use retained 3D rendering | [`2/engine-components/engine3d.md`](./2/engine-components/engine3d.md) |
+| Render/import/export SVG from ECScene | [`2/engine-components/enginesvg.md`](./2/engine-components/enginesvg.md) |
+| Add scroll points / programmatic scrolling | [`2/engine-components/enginescroll.md`](./2/engine-components/enginescroll.md) |
+| Configure scroll range targets and boundaries | [`2/engine-components/enginescroll-range.md`](./2/engine-components/enginescroll-range.md) |
+| Validate/analyze schemas | [`2/schema-diagnostics.md`](./2/schema-diagnostics.md) |
+| Build layouts and controls | [`2/engine-components/primitives.md`](./2/engine-components/primitives.md) |
+| Use the searchable select control | [`2/engine-components/customselect.md`](./2/engine-components/customselect.md) |
+| Configure lazy video lifecycle | [`2/engine-components/enginevideo.md`](./2/engine-components/enginevideo.md) |
+| Use dialogs, drawers, and popovers | [`2/engine-components/engineoverlay.md`](./2/engine-components/engineoverlay.md) |
+| Build in-house static APIs | [`2/engine-components/apistatic.md`](./2/engine-components/apistatic.md) |
+| Configure/call external APIs | [`2/engine-components/engineapi.md`](./2/engine-components/engineapi.md) |
+| Understand current runtime/performance behavior | [`2/runtime-performance.md`](./2/runtime-performance.md) |
 
 ---
 
@@ -199,14 +202,14 @@ The docs call out future/reserved APIs clearly so examples do not pretend an uni
 |---|---|
 | Release/version history | [`release/index.md`](./release/index.md) |
 | Styling, responsive values, at-rules, pseudo states | [`styling.md`](./styling.md) |
-| Page/layout transitions and shared morphs | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
-| GPU `.shed` language and surface pipeline | [`engine-components/engineshader.md`](./engine-components/engineshader.md) |
-| Canvas modes and rendering engines | [`engine-components/enginecanvas.md`](./engine-components/enginecanvas.md) |
-| SVG geometry/import/export | [`engine-components/enginesvg.md`](./engine-components/enginesvg.md) |
-| Schema validation/analyzer codes and scope | [`schema-diagnostics.md`](./schema-diagnostics.md) |
-| Runtime, lazy behavior, bundle/runtime performance | [`runtime-performance.md`](./runtime-performance.md) |
-| External API providers and resolver auth | [`engine-components/engineapi.md`](./engine-components/engineapi.md) |
-| Static in-house endpoint programs | [`engine-components/apistatic.md`](./engine-components/apistatic.md) |
+| Page/layout transitions and shared morphs | [`2/engine-components/enginetransitions.md`](./2/engine-components/enginetransitions.md) |
+| GPU `.shed` language and surface pipeline | [`2/engine-components/engineshader.md`](./2/engine-components/engineshader.md) |
+| Canvas modes and rendering engines | [`2/engine-components/enginecanvas.md`](./2/engine-components/enginecanvas.md) |
+| SVG geometry/import/export | [`2/engine-components/enginesvg.md`](./2/engine-components/enginesvg.md) |
+| Schema validation/analyzer codes and scope | [`2/schema-diagnostics.md`](./2/schema-diagnostics.md) |
+| Runtime, lazy behavior, bundle/runtime performance | [`2/runtime-performance.md`](./2/runtime-performance.md) |
+| External API providers and resolver auth | [`2/engine-components/engineapi.md`](./2/engine-components/engineapi.md) |
+| Static in-house endpoint programs | [`2/engine-components/apistatic.md`](./2/engine-components/apistatic.md) |
 
 ---
 
