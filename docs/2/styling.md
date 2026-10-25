@@ -45,4 +45,4 @@ cprop: {
 
 This is the usage guide. For at-rules, precedence, responsive behavior, and the v2 hook/resolver implementation, read [Styling — detailed](./styling-detailed.md).
 
-Gen 3 has a separate style compiler; see [Gen 3 styling](../3/styling.md) only if you are evaluating or migrating to the alpha line.
+Gen 3 has a separate style compiler; see [Gen 3 styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/styling.md) only if you are evaluating or migrating to the alpha line.
