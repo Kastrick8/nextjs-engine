@@ -175,6 +175,24 @@ consumer on every pixel.
 Custom EngineProvider breakpoint maps remain supported; each subscriber resolves
 against its own provider configuration while sharing the same browser listener.
 
+The public API is intentionally small:
+
+```tsx
+"use client";
+
+import { useBreakpoint, useMinBreakpoint } from "nextjs-engine";
+
+export function ResponsiveLabel() {
+  const current = useBreakpoint();        // "xs" | "sm" | "md" | "lg" | "xl" | "2xl"
+  const tabletOrLarger = useMinBreakpoint("md");
+
+  return <span>{tabletOrLarger ? "Wide layout" : "Compact layout"} ({current})</span>;
+}
+```
+
+Default breakpoint cutoffs are `sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`, and `2xl: 1536px`; widths below `sm` resolve to `xs`. An `EngineProvider` may override individual breakpoints through `config.breakpoints`; unspecified keys retain their defaults. `useMinBreakpoint(target)` compares the current breakpoint's position in this ordered scale with the requested target.
+
+
 ## Provider context stability
 
 `EngineProvider` uses stable shared empty handler/slot maps when those props are
