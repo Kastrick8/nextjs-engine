@@ -1,5 +1,7 @@
 # EngineOverlay
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 > **Status:** first-class Overlay UI is implemented and available through both schema nodes and direct React exports.
 >
 > **Built-ins:** `dialog`, `drawer`, `popover`
