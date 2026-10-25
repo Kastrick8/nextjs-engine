@@ -161,7 +161,7 @@ assertEngineBuildBudgets(report);
 
 The sample numbers are illustrative. In a real integration, the measurements must come from actual build output; limits are the budget values you choose. Unconfigured metrics are skipped. Each configured metric requires a finite, non-negative measurement and limit. The report includes PASS/FAIL results and optional contributor attribution; `assertEngineBuildBudgets()` throws if any configured limit fails.
 
-The repository's production-proof script reads Next.js build and route manifests and supports application/CI configuration through `ENGINE_BUILD_BUDGETS`; hydrated-island measurements can be supplied through `ENGINE_HYDRATED_ISLANDS`. See [Phase D — Compatibility & Hardening](../gen3/phase-d-hardening.md) for the full integration notes.
+The repository's production-proof script reads Next.js build and route manifests and supports application/CI configuration through `ENGINE_BUILD_BUDGETS`; hydrated-island measurements can be supplied through `ENGINE_HYDRATED_ISLANDS`. See [Compatibility, EngineDebug, and hardening](./compatibility-debugging-hardening.md) for the full integration notes.
 
 ## 8. Static security diagnostics
 
