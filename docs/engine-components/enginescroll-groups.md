@@ -1,5 +1,7 @@
 # EngineScroll Point Groups
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineScroll point groups let one page keep multiple independent navigation and
 snapping sets without creating separate scroll runtimes.
 
