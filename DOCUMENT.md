@@ -1,6 +1,7 @@
 # Next.js Engine — Technical Documentation
 
-> **Last updated:** 2026-06-29
+> **Last updated:** 2026-10-25
+> - **CSS collection accuracy correction** — Marked the old render-count CSS-tier description as historical. The current Gen 2/Gen 3 source uses provider-scoped style collection and only emits global CSS registered through `StyleCollector.addGlobal()`.
 > **Changes in this update:**
 > - **`EngineScrollProvider`** — New `src/engine/core/enginescroll/EngineScrollProvider.tsx`. React context wrapping the EngineScroll runtime. Exports `useEngineScroll()` hook returning `{ move }`. `createPage` now auto-wraps every page in `<EngineScrollProvider>` so scroll is available on all pages without manual setup.
 > - **`EngineScrollURL`** — New `src/engine/core/enginescroll/EngineScrollURL.ts`. Parses and executes the `#-es?` URL protocol. Supports `move`, `offset`, `duration` params. Cleans URL with `history.replaceState()` after execution. `listen()` subscribes to future `hashchange` events.
