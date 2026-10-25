@@ -1,5 +1,5 @@
 import { createPage } from "../../src/engine/createPage";
-import { createTheme } from "../../src/engine/theme/createTheme";
+import { createTheme } from "../../src/engine/engineTheme/createTheme";
 
 const markdownShowcaseTheme = createTheme({
 	id: "emd-showcase",
