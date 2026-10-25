@@ -52,4 +52,4 @@ Post-hydration dynamic rule flushing remains a limitation: application code may 
 - [Simple Gen 3 styling](./styling.md)
 - [Gen 3 overview](../gen3/overview.md)
 - [Compiler and server rendering details](../gen3/phase-a-b.md)
-- [Gen 2 detailed styling](../2/styling-detailed.md)
+- [Gen 2 detailed styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling-detailed.md)
