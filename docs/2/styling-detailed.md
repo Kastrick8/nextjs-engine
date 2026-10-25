@@ -31,5 +31,5 @@ Generated styles use the Engine style collector/provider path. The low-level glo
 ## Related
 
 - [Simple Gen 2 styling](./styling.md)
-- [Gen 3 simple styling](../3/styling.md)
-- [Gen 3 detailed styling](../3/styling-detailed.md)
+- [Gen 3 simple styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/styling.md)
+- [Gen 3 detailed styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/styling-detailed.md)
