@@ -579,6 +579,19 @@ For the `<head>` meta tags to work correctly in App Router, the `EngineHead` out
 
 ---
 
+## Default not-found page
+
+The package exports `DefaultNotFoundPage`, an Engine-rendered 404 page. To wire it explicitly into an App Router project, export it from your app-owned not-found file:
+
+```tsx
+// app/not-found.tsx
+export { DefaultNotFoundPage as default } from "nextjs-engine";
+```
+
+If your app already has its own `app/not-found.tsx`, that app-owned page remains your choice. The exported fallback is a reusable page component, not a command to overwrite an existing route.
+
+---
+
 ## Integrating with Next.js Pages Router
 
 ```ts
