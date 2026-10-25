@@ -41,6 +41,7 @@ The maintained release archive lives under [`docs/release`](./release/index.md).
 
 | Version | Release notes |
 |---|---|
+| v2.6.2 (prepared patch) | [`NE-v2-6-2.md`](./release/NE-v2-6-2.md) |
 | v2.6.1 | [`NE-v2-6-1.md`](./release/NE-v2-6-1.md) |
 | v2.6.0 | [`NE-v2-6-0.md`](./release/NE-v2-6-0.md) |
 | v2.5.0 | [`NE-v2-5-0.md`](./release/NE-v2-5-0.md) |
