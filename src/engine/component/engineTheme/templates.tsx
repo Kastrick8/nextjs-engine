@@ -340,10 +340,14 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 function safeDataResultNode(value: unknown): ReactNode {
 	if (value === null || value === undefined || typeof value === "boolean") return null;
-	if (typeof value === "string" || typeof value === "number") return String(value);
+	if (typeof value === "string") return value.length <= MAX_TEMPLATE_TEXT ? value : value.slice(0, MAX_TEMPLATE_TEXT);
+	if (typeof value === "number") return String(value);
 	if (isValidElement(value as ReactNode)) return value as ReactNode;
-	if (Array.isArray(value)) return createElement(Fragment, null, Children.toArray(value as ReactNode));
-	try { return JSON.stringify(value); } catch { return null; }
+	if (Array.isArray(value)) return createElement(Fragment, null, Children.toArray(value.slice(0, MAX_TEMPLATE_NODES) as ReactNode));
+	try {
+		const serialized = JSON.stringify(value);
+		return typeof serialized === "string" && serialized.length <= MAX_TEMPLATE_TEXT ? serialized : null;
+	} catch { return null; }
 }
 
 function isTemplateMerge(value: unknown): value is EngineThemeTemplateMerge {
@@ -401,7 +405,10 @@ function composeTemplate(
 	wrapperStyle?: CSSProperties,
 ): ReactNode {
 	const children = merge === "prepend" ? [addition, base] : [base, addition];
-	const style = templateLayoutStyle({ ...layout, display: layout?.display ?? "flex", responsive: layout?.responsive ?? true }, placement);
+	// Physical placement is owned by this wrapper. The selected layout display
+	// applies to the additive template itself, not to the flex row/column that
+	// determines which side it occupies.
+	const style = templateLayoutStyle({ ...layout, display: layout?.display === "inline-flex" ? "inline-flex" : "flex", responsive: layout?.responsive ?? true }, placement);
 	return createElement("div", {
 		"data-engine-theme-composition": merge,
 		"data-engine-theme-placement": placement,
