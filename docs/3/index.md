@@ -42,6 +42,11 @@ These component references describe the implementation on `main-3`. The file pat
 | Page/layout transitions and shared morphs | [EngineTransitions+](../engine-components/enginetransitions.md) |
 | Scroll points, timelines, snapping, and behavior policy | [EngineScroll](../engine-components/enginescroll.md) |
 | Explicit scroll interval geometry | [EngineScroll Range](../engine-components/enginescroll-range.md) |
+| Scroll-driven timelines | [EngineScroll Timeline](../engine-components/enginescroll-timeline.md) |
+| Coordinate multiple timelines | [EngineScroll Director](../engine-components/enginescroll-director.md) |
+| Track named point positions | [EngineScroll Point Tracker](../engine-components/enginescroll-tracker.md) |
+| Focus and visibility behavior | [EngineScroll Focus](../engine-components/enginescroll-focus.md) |
+| Named point groups | [EngineScroll Groups](../engine-components/enginescroll-groups.md) |
 | Browser capabilities and interactions | [EngineBrowser](../engine-components/enginebrowser.md) |
 | 2D/3D animation | [EngineManim](../engine-components/enginemanim.md) |
 | Image loading and media controls | [EngineImage](../engine-components/engineimage.md) |
