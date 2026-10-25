@@ -16,7 +16,7 @@ import React, {
 import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MarkdownProps } from "../schema/types";
-import { getEngineHighlighterColor, highlightEngineCode, normalizeEngineThemeColor } from "../theme/highlighting";
+import { getEngineHighlighterColor, getEngineHighlighterPalette, highlightEngineCode, normalizeEngineThemeColor } from "../theme/highlighting";
 import { renderEngineThemeTemplate } from "../theme/templates";
 import { EngineUrlIcon } from "./EngineUrlIcon";
 import {
@@ -355,6 +355,9 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		),
 		pre: ({ node, children }) => {
 			const language = codeLanguage(children);
+			const languagePalette = getEngineHighlighterPalette(config.prettyPlease, language);
+			const blockCodeBackground = normalizeEngineThemeColor(languagePalette?.background) ?? config.codeBackground;
+			const blockCodeColor = normalizeEngineThemeColor(languagePalette?.foreground) ?? config.codeColor;
 			const codeChildren = Children.map(children, (child) => {
 				if (!isValidElement<{ style?: CSSProperties; children?: ReactNode }>(child)) return child;
 				const sourceText = reactNodeText(child.props.children);
@@ -372,7 +375,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					const tokens = highlightEngineCode(sourceText, language, {
 						provider: config.prettyPlease?.provider,
 						theme: config.prettyPlease?.theme,
-						palette: config.prettyPlease?.palette,
+						palette: languagePalette,
 					});
 					if (tokens) {
 						renderedChildren = tokens.map((token, index) => (
@@ -383,7 +386,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 									color: getEngineHighlighterColor(token.kind, {
 										theme: config.prettyPlease?.theme,
 										palette: config.prettyPlease?.palette,
-										fallbackForeground: config.codeColor,
+										fallbackForeground: blockCodeColor,
 									}),
 								}}
 							>{token.text}</span>
@@ -459,8 +462,8 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				block: "codeBlock",
 				className: joinClassNames("e-md-code-block", blockClass),
 				wrapperStyle: blockStyle,
-				codeBackground: config.codeBackground,
-				codeColor: config.codeColor,
+				codeBackground: blockCodeBackground,
+				codeColor: blockCodeColor,
 				codeBorderColor: config.codeBorderColor,
 				codeFontFamily: config.codeFontFamily,
 				textColor: config.textColor,
