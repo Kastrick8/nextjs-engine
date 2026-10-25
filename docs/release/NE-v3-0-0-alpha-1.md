@@ -94,7 +94,7 @@ Validation on merged upstream commit `7c373ffd1d54859dde3a7a1900e823a14264eba2`:
 
 The Engine repository still reports a red Vercel status targeting the `roavio` deployment project. Its build logs were not accessible in this workflow, so that status remains separately unresolved rather than being presented as a failing Engine runtime test. The Engine Actions runtime and browser suites above are green.
 
-Generation 3 remains an alpha candidate. The latest published stable release is `Release-v2.6.2`; `v3.0.0-alpha.1` has not yet been published as an official GitHub Release or tag.
+Generation 3 remains an alpha candidate. The latest published stable release listed by the repository is `Release-v2.5.0`. The v2.6.2 patch is marked prepared in the release archive, and `v3.0.0-alpha.1` has not yet been published as an official GitHub Release or tag.
 
 ## Links
 
