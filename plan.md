@@ -288,25 +288,26 @@ Run browser regressions on Chromium, Firefox, and WebKit wherever the repository
 
 Implementation is underway on branch feat/enginetheme-foundation.
 
-### Implemented in the current foundation slice
+### Implemented in the current foundation
 - Public createTheme() and qualified theme-ID parsing, including the three-subtheme-segment limit.
-- JSON-only theme validation, bounded nesting and size, deep freezing, and in-process global registration.
-- Runtime resolution for direct local theme objects and registered global group/component/subtheme IDs. Markdown defaults and style slots merge with explicit node props taking precedence.
+- JSON-only theme validation, deep freeze, bounded size/depth, in-process global registration, and explicit verified-remote registration.
+- ID-based local/global/previously-loaded remote theme resolution. Markdown defaults and nested variants merge, while explicit node props and local style slots take precedence.
 - Static NENC extraction into deterministic JSON .etr artifacts with canonical SHA-256, bounded input, guarded output paths, no-overwrite checks, and no-rewrite behavior for unchanged outputs.
-- Pretty-please lightweight syntax highlighting with language aliases, provider registration/listing, built-in VS Code-inspired palettes, plain-text fallback, bounded tokenization, and the existing ANSI path preserved.
-- Event-driven Data-API dispatch for join:left/right/top/bottom using registered local handlers. Context is validated as bounded JSON data and copied/frozen before handlers receive it.
-- Updated demo/browser regressions and focused compiler/runtime smoke coverage.
-- Generated .etr output is ignored as build output by default; publication is separate.
+- Pretty-please lightweight tokenization with language aliases, provider registration/listing, built-in VS Code-inspired palettes, language-specific palettes, bounded work, and plain-text fallback; ANSI rendering remains separate.
+- Declarative safe Engine Schema templates for code blocks, table headers/cells, and info blocks, plus locally registered trusted React adapters.
+- Explicit remote ETR loading with exact HTTPS origin allowlists, redirects disabled, bounded streaming reads, response-size caps, timeout/cancellation, checksum/format/version validation, cache/deduplication, and fail-closed behavior.
+- Remote themes cannot supply raw globalStyles; CSS custom properties and font stylesheet origins are constrained. Local/global font hrefs are also filtered, deduplicated, and capped.
+- Typed Data-API join events dispatch only to locally registered handlers with validated, cloned, frozen context.
+- Demo/browser regressions and focused compiler/runtime smoke coverage.
 
 ### Verification
-- Engine runtime CI passed on commit 61b12759674eedec00e1e71e06a89252958edeaa, including type-check, NENC smoke suites, production build, and its browser tests.
-- Dedicated Chromium, Firefox, and WebKit compatibility jobs passed on that same tested commit.
-- A follow-up safety/documentation commit is staged and will need a new CI run before its result can be claimed.
+- Earlier commit 67c7c19c49aef3d338f514c8ce94182a0a3ae626 passed runtime CI and Chromium, Firefox, and WebKit.
+- Info-block rendering, remote loading, font safety, and the latest parser updates are still under CI verification. Don't claim these latest changes as green until current jobs finish.
+- Local clone/testing is unavailable in this session; GitHub Actions is the authoritative runtime check for this branch.
 
 ### Still pending
-- Declarative UI-template rendering and integration with table headers/body cells, code blocks, and information blocks.
-- Remote .etr URL mapping, safe retrieval/caching, checksum validation and compatibility checks at resolution time.
-- Production font resolution/download, emitted local assets, CSS URL rewriting, and persistent font cache.
-- Final versioning/refresh rules and complete public docs/migration guidance.
+- Production font-download-to-local-assets, CSS URL rewriting, and persistent disk cache. The current implementation safely links bounded stylesheet URLs; it does not download and rewrite font files.
+- More complete version/update lifecycle APIs and migration guidance for complex multi-component themes.
+- A richer highlighting provider if exact TextMate/VS Code grammar parity is required. Engine Lite remains deliberately small and dependency-free.
 
-Remote fetching and production font downloading remain disabled until URL trust policy and cache behavior are implemented and covered by tests. The full plan is not complete while those phases remain open.
+Remote theme loading is explicit; no network requests happen during render or module import. Remote .etr files must be hosted with an exact allowlisted origin and matching Next.js/Engine versions. The original plan is not complete while production font downloading and lifecycle work remain open.

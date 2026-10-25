@@ -12,6 +12,7 @@ import type {
 	EngineTheme as EngineThemeConfig,
 } from "./schema/types";
 import { resolveEngineThemeSchema } from "./theme/resolveTheme";
+import { normalizeEngineThemeFontHrefs } from "./theme/fontUrls";
 import { EngineCollectedStyles, EngineProvider } from "./providers/EngineProvider";
 import { EngineScrollProvider } from "./core/enginescroll";
 import { SchemaRenderer } from "./core/SchemaRenderer";
@@ -184,6 +185,7 @@ function stableThemeHash(value: string): string {
 function EngineTheme({ schema }: { schema: PageSchema }) {
 	if (!schema.theme) return null;
 	const { vars, fonts, globalStyles } = schema.theme;
+	const safeFonts = normalizeEngineThemeFontHrefs(fonts);
 	let css = "";
 	if (vars) {
 		const declarations = Object.entries(vars)
@@ -196,7 +198,7 @@ function EngineTheme({ schema }: { schema: PageSchema }) {
 
 	return (
 		<>
-			{fonts?.map((url) => (
+			{safeFonts.map((url) => (
 				<link key={url} rel="stylesheet" href={url} precedence="engine-font" />
 			))}
 			{css && (

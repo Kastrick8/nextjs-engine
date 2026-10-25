@@ -1,8 +1,8 @@
 # EngineTheme
 
-**Status: foundation implemented; template rendering, remote resolution, and production font handling remain pending.**
+**Status: foundation implemented; production font download-to-local-assets and lifecycle refresh remain pending.**
 
-EngineTheme is the data-only theming layer for Next.js Engine. The current foundation provides a validated createTheme() API, qualified theme IDs, local/global theme resolution for Markdown, static NENC .etr generation, lightweight Pretty-please highlighting, and a typed event-driven Data-API.
+EngineTheme is the data-only theming layer for Next.js Engine. The current foundation provides a validated createTheme() API, qualified theme IDs, local/global/explicitly preloaded remote theme resolution for Markdown, static NENC .etr generation, lightweight Pretty-please highlighting, safe declarative UI templates, and a typed event-driven Data-API.
 
 ## Define a theme group
 
@@ -69,7 +69,7 @@ The grammar is:
 
 The limit is three subtheme segments after the component segment. Variants inherit from the prior definition; the resolver merges nested Markdown style slots and defaults. Explicit per-node Markdown props take precedence, and local markdownStyles properties override matching theme style properties.
 
-Local themes can be supplied directly as a theme object. Global themes are registered in-process and can be referenced by ID. Missing global groups or variants produce an error. Remote scope is not fetched or resolved yet; a reference marked remote or carrying sourceUrl fails closed instead of performing an implicit network request.
+Local themes can be supplied directly as a theme object. Global themes are registered in-process and can be referenced by ID. Missing global groups or variants produce an error. A remote ID resolves only after loadRemoteEngineTheme() explicitly loads and verifies its .etr artifact; render and module initialization never perform network requests.
 
 ## Generation 3 .etr artifacts
 
@@ -84,6 +84,27 @@ The artifact is UTF-8 JSON containing a format/version identifier, group ID, gen
 The static compiler resolves literal values and local constants. It rejects dynamic calls, spreads, functions, accessors, computed keys, and unsupported expressions instead of executing them to discover a theme definition. Group IDs are validated before they become filenames. Output writes are atomic, unchanged artifacts are not rewritten, symlinked output paths are rejected, and unrelated files are not overwritten. A manifest under the ignored .nextjs-engine/.cache/ directory records generated artifacts.
 
 Generated .etr output is ignored build output by default. Publishing a remote theme means copying or serving the generated JSON through the owner's endpoint; generating an artifact does not publish it automatically.
+
+## Explicit remote theme loading
+
+Use loadRemoteEngineTheme() only when the application intentionally trusts a remote theme host. The loader requires exact HTTPS origins and expected Next.js/Engine versions, caps the response body, disables redirects and credentials, verifies canonical SHA-256, and caches successful fetches in a small bounded in-process cache.
+
+~~~ts
+import { loadRemoteEngineTheme } from "nextjs-engine";
+
+await loadRemoteEngineTheme("/nextjs-engine/theme/dark-fantasy.etr", {
+  baseUrl: "https://docs.example.com",
+  allowedOrigins: ["https://docs.example.com"],
+  expectedNextjsVersion: "16.4.2",
+  expectedEngineVersion: "3.0.0-alpha.1",
+  expectedId: "dark-fantasy",
+});
+~~~
+
+After it resolves, schemas can refer to dark-fantasy.markdown.dark by ID. Callers can clear the response cache or unregister a verified remote group explicitly. Loader failures (checksum/version mismatch, untrusted origin, redirect, oversized JSON, raw globalStyles, unsafe CSS variables, or unapproved font stylesheet origins) fail closed.
+
+Remote themes cannot supply raw globalStyles. Custom properties are limited to safe names/values, and remote font stylesheet links must use HTTPS origins in the same explicit allowlist. These theme font URLs are linked rather than downloaded into local files by this implementation.
+
 
 ## Pretty-please highlighting
 
@@ -146,7 +167,7 @@ dispatchEngineThemeDataEvent("join:left", "docs.table-join", {
 
 Initial events are join:left, join:right, join:top, and join:bottom. Dispatch validates context as bounded JSON data, clones/freezes it before calling the handler, rejects missing handler IDs, and never imports code based on a theme-provided ID. Handler implementations remain trusted local code.
 
-The UI-template layer that connects these events to actual table/header/code/info-block layout composition is a follow-up phase. This Data-API foundation establishes the event/handler contract; it does not claim that the complete template renderer exists.
+Declarative templates now connect to actual code-block wrappers, table headers/data cells, and :::info/:::note/:::tip/:::warning/:::danger/:::success blocks. Templates are restricted Engine Schema trees or locally registered adapters; raw HTML, callbacks, and unregistered adapter IDs are not accepted. Data-API events remain a separate typed handler contract.
 
 ## Backwards compatibility and verification
 
@@ -161,4 +182,4 @@ npm run build
 npm run test:browser
 ~~~
 
-Remote .etr retrieval and production font caching are intentionally not enabled yet. Those features need separate URL validation, compatibility policy, build/runtime separation, and cache tests before activation.
+Remote .etr retrieval is available only through the explicit validated loader above. Production font downloading, local asset emission/CSS rewriting, and persistent font-file caching are still pending; the current font path filters/deduplicates HTTPS or relative stylesheet links and leaves the actual fetch to the browser.

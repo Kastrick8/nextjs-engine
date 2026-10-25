@@ -59,6 +59,7 @@ async function testPublicThemeApi() {
 		} = require(path.resolve(__dirname, "../src/engine/theme/dataApi.ts"));
 		const React = require("react");
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
+		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/theme/fontUrls.ts"));
 		const {
 			renderEngineThemeTemplate,
 			listEngineThemeTemplateAdapters,
@@ -87,6 +88,15 @@ async function testPublicThemeApi() {
 		assert.throws(() => createTheme(accessorTheme), /accessors/);
 		assert.equal(getterCalled, false, "accessor validation must not execute the getter");
 
+		assert.equal(normalizeEngineThemeFontHref("https://fonts.example.invalid/theme.css"), "https://fonts.example.invalid/theme.css");
+		assert.equal(normalizeEngineThemeFontHref("/fonts/theme.css"), "/fonts/theme.css");
+		assert.equal(normalizeEngineThemeFontHref("//evil.example.invalid/theme.css"), undefined, "protocol-relative font URLs are rejected");
+		assert.equal(normalizeEngineThemeFontHref("http://fonts.example.invalid/theme.css"), undefined, "absolute font stylesheets require HTTPS");
+		assert.equal(normalizeEngineThemeFontHref("javascript:alert(1)"), undefined, "font URLs cannot use executable schemes");
+		assert.deepEqual(normalizeEngineThemeFontHrefs(["/fonts/theme.css", "/fonts/theme.css", "javascript:alert(1)", "https://fonts.example.invalid/theme.css"]), ["/fonts/theme.css", "https://fonts.example.invalid/theme.css"], "font stylesheet lists are filtered and deduplicated");
+		const nestedFenceInfo = normalizeEngineMarkdownSource(":::info Example" + "\n" + "```text" + "\n" + "::: not a closing directive" + "\n" + "```" + "\n" + "Body" + "\n" + ":::");
+		assert.ok(nestedFenceInfo.includes("> ::: not a closing directive"), "a directive inside a nested code fence is not treated as the block close");
+		assert.ok(nestedFenceInfo.includes("> Body"), "text after a nested code fence stays inside the info block");
 		const normalizedInfo = normalizeEngineMarkdownSource(":::warning Build note\nRead this carefully.\n:::");
 		assert.ok(normalizedInfo.includes("> [!ENGINE-INFO warning] Build note"), "info blocks normalize to a safe blockquote marker");
 		assert.ok(normalizedInfo.includes("> Read this carefully."), "info block body remains Markdown text");

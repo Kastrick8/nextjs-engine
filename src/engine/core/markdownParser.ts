@@ -28,7 +28,21 @@ function expandEngineInfoBlocks(lines: string[]): string[] {
 		const directive = INFO_DIRECTIVE.exec(line);
 		if (!directive) { output.push(line); continue; }
 		let close = index + 1;
-		while (close < lines.length && !INFO_DIRECTIVE_CLOSE.test(lines[close])) close += 1;
+		let bodyFence: { char: string; length: number } | undefined;
+		for (; close < lines.length; close += 1) {
+			const bodyLine = lines[close];
+			const bodyFenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(bodyLine);
+			if (bodyFence) {
+				const closingBodyFence = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(bodyLine);
+				if (closingBodyFence && closingBodyFence[1][0] === bodyFence.char && closingBodyFence[1].length >= bodyFence.length) bodyFence = undefined;
+				continue;
+			}
+			if (bodyFenceMatch) {
+				bodyFence = { char: bodyFenceMatch[1][0], length: bodyFenceMatch[1].length };
+				continue;
+			}
+			if (INFO_DIRECTIVE_CLOSE.test(bodyLine)) break;
+		}
 		if (close >= lines.length) { output.push(line); continue; }
 		const tone = directive[1].toLowerCase();
 		const title = (directive[2] ?? "").trim();

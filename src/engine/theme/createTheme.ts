@@ -321,6 +321,7 @@ export function registerLoadedRemoteEngineTheme(
 /** Remove a verified remote group from the in-process registry. */
 export function unregisterLoadedRemoteEngineTheme(id: string): boolean {
   const parsed = parseEngineThemeId(id);
+  if (parsed.componentId !== undefined || parsed.subthemes.length > 0) return false;
   const existing = globalThemes.get(parsed.groupId);
   if (!existing || existing.allowRemote !== true) return false;
   return globalThemes.delete(parsed.groupId);
