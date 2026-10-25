@@ -319,11 +319,22 @@ function loadFontManifest(manifestPath) {
 	return manifest;
 }
 
-function fontAssetFromCache(sourceUrl, manifest, cacheAssetRoot) {
+function isFontAssetFresh(asset, now, ttlMs) {
+	return ttlMs > 0 && typeof asset?.updatedAt === "number"
+		&& Number.isFinite(asset.updatedAt) && now - asset.updatedAt <= ttlMs;
+}
+
+function fontAssetsAreFresh(entry, now, ttlMs) {
+	return Array.isArray(entry?.fontAssets)
+		&& entry.fontAssets.every((asset) => isFontAssetFresh(asset, now, ttlMs));
+}
+
+function fontAssetFromCache(sourceUrl, manifest, cacheAssetRoot, now, ttlMs) {
 	for (const entry of Object.values(manifest.themes)) {
 		if (!entry || !Array.isArray(entry.fontAssets)) continue;
 		for (const asset of entry.fontAssets) {
-			if (asset.sourceUrl === sourceUrl && validCachedFile(cacheAssetRoot, asset.cacheFileName, asset.sha256)) return asset;
+			if (asset.sourceUrl === sourceUrl && isFontAssetFresh(asset, now, ttlMs)
+				&& validCachedFile(cacheAssetRoot, asset.cacheFileName, asset.sha256)) return asset;
 		}
 	}
 	return undefined;
@@ -393,7 +404,8 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 	const trustedBuiltInHosts = new Set(["fonts.googleapis.com", "fonts.gstatic.com"]);
 
 	if (!refresh && previous && previous.sourceKey === sourceKey && now - previous.updatedAt <= ttlMs
-		&& validThemeCache(previous, themeId, sourceUrls, cacheAssetRoot)) {
+		&& validThemeCache(previous, themeId, sourceUrls, cacheAssetRoot)
+		&& fontAssetsAreFresh(previous, now, ttlMs)) {
 		const publicEntry = { ...previous, cssFileName };
 		writePublicAssets(root, publicFontRoot, cacheAssetRoot, publicEntry, previous);
 		stats.cacheHits += 1;
@@ -440,7 +452,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 			seenSourceUrls.add(face.sourceUrl);
 			const fontUrl = normalizeSourceUrl(face.sourceUrl, fontOrigins, "font file URL");
 			await assertPublicHost(fontUrl, trustedBuiltInHosts);
-			let asset = !refresh ? fontAssetFromCache(fontUrl.href, manifest, cacheAssetRoot) : undefined;
+			let asset = !refresh ? fontAssetFromCache(fontUrl.href, manifest, cacheAssetRoot, now, ttlMs) : undefined;
 			if (!asset) {
 				const fetched = await fetchBounded(fontUrl, {
 					maxBytes: MAX_FONT_BYTES,
@@ -464,7 +476,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				const cacheFile = path.join(cacheAssetRoot, cacheFileName);
 				if (!fs.existsSync(cacheFile)) atomicWrite(root, cacheFile, fetched.bytes);
 				else if (sha256(fs.readFileSync(cacheFile)) !== digest) throw new Error("[EngineTheme fonts] Font cache hash mismatch.");
-				asset = { sourceUrl: fontUrl.href, sha256: digest, fileName: filename, cacheFileName, extension, bytes: fetched.bytes.byteLength };
+				asset = { sourceUrl: fontUrl.href, sha256: digest, fileName: filename, cacheFileName, extension, bytes: fetched.bytes.byteLength, updatedAt: Date.now() };
 				stats.downloadedFonts += 1;
 				stats.downloadedBytes += fetched.bytes.byteLength;
 			} else {
