@@ -199,6 +199,15 @@ export {
 	listEngineThemeTemplateAdapters,
 	renderEngineThemeTemplate,
 } from "./theme/templates";
+
+export {
+	loadRemoteEngineTheme,
+	clearRemoteEngineThemeCache,
+	getRemoteEngineThemeCacheSize,
+	unregisterRemoteEngineTheme,
+} from "./theme/remoteTheme";
+export type { EngineThemeArtifact, LoadRemoteEngineThemeOptions } from "./theme/remoteTheme";
+
 export type {
 	EngineThemeTemplateAdapter,
 	EngineThemeTemplateContext,
