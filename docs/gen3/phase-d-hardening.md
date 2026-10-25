@@ -138,14 +138,9 @@ Desktop, tablet, phone, and custom profiles control the preview's CSS viewport, 
 
 The simulator does not claim to change physical hardware. In particular, its refresh control changes the Engine debug target and explanation while the live FPS meter continues to report the browser's actual animation cadence.
 
-## Phase D implementation order
+## Phase D implementation map
 
-1. D.11–D.15 remaining compiler explanations and EngineDebug diagnostics;
-2. D.16–D.17 incremental compilation and HMR integration;
-3. D.18 build budgets;
-4. D.19 static security diagnostics;
-5. D.20 production tree-shaking proofs;
-6. D.21–D.22 device, network, browser, torture, and visual tests.
+The sections below describe the current Generation 3 implementation surface represented on `main-3`; the numbered D labels preserve the original development sequence, not a claim that every item is still pending. The compiler inspector details, dependency-aware artifact graph, optional build budgets, static security diagnostics, production tree-shaking proof, and compatibility test matrix are documented in the sections below. See [the compiler deep dive](../3/compiler-deep-dive.md) for the current public API and explicit cache/build-budget limits.
 ## D.11–D.15 — Development inspector data
 
 Inspector contracts live behind the direct development entrypoint `nextjs-engine/debug`; the main browser-safe barrel does not import them. They provide data to the separately owned debug UI without creating a second route or shell:
