@@ -11,6 +11,7 @@ const MAX_STYLE_SHEETS = 16;
 const MAX_CSS_BYTES = 512 * 1024;
 const MAX_FONT_BYTES = 12 * 1024 * 1024;
 const MAX_TOTAL_FONT_BYTES = 64 * 1024 * 1024;
+const MAX_TOTAL_BUILD_FONT_BYTES = 128 * 1024 * 1024;
 const MAX_FONT_ASSETS_PER_THEME = 128;
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -89,7 +90,7 @@ function readJson(target) {
 
 function parseOrigins(envName, defaults) {
 	const configured = (process.env[envName] || "").split(",").map((part) => part.trim()).filter(Boolean);
-	const values = configured.length > 0 ? configured : defaults;
+	const values = [...defaults, ...configured];
 	const origins = new Set();
 	for (const value of values) {
 		if (value.includes("*")) throw new TypeError("[EngineTheme fonts] " + envName + " does not accept wildcards.");
@@ -367,7 +368,15 @@ function fontFormat(extension) {
 }
 
 function fallbackStylesheetCss(sourceUrls) {
-	return sourceUrls.map((url) => '@import url("' + url.replace(/["\\\r\n]/g, "") + '");').join("\n") + "\n";
+	const imports = [];
+	for (const source of sourceUrls) {
+		try {
+			const url = new URL(source);
+			if (url.protocol !== "https:" || url.username || url.password || url.hash) continue;
+			imports.push('@import url("' + url.href.replace(/["\\\r\n]/g, "") + '");');
+		} catch { /* Invalid values do not become CSS. */ }
+	}
+	return imports.join("\n") + "\n";
 }
 
 async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats) {
@@ -444,7 +453,8 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				const extension = extensionFromUrl(fontUrl) || extensionFromType(fetched.contentType);
 				if (!FONT_EXTENSIONS.has(extension)) throw new Error("[EngineTheme fonts] Unsupported font file type from " + fontUrl.origin + ".");
 				totalBytes += fetched.bytes.byteLength;
-				if (fetched.bytes.byteLength === 0 || totalBytes > MAX_TOTAL_FONT_BYTES) {
+				if (fetched.bytes.byteLength === 0 || totalBytes > MAX_TOTAL_FONT_BYTES
+					|| stats.downloadedBytes + fetched.bytes.byteLength > MAX_TOTAL_BUILD_FONT_BYTES) {
 					throw new Error("[EngineTheme fonts] Theme font payload exceeds the total size limit.");
 				}
 				const digest = sha256(fetched.bytes);
@@ -456,6 +466,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				else if (sha256(fs.readFileSync(cacheFile)) !== digest) throw new Error("[EngineTheme fonts] Font cache hash mismatch.");
 				asset = { sourceUrl: fontUrl.href, sha256: digest, fileName: filename, cacheFileName, extension, bytes: fetched.bytes.byteLength };
 				stats.downloadedFonts += 1;
+				stats.downloadedBytes += fetched.bytes.byteLength;
 			} else {
 				asset = { ...asset };
 				stats.fontAssetsReused += 1;
@@ -580,6 +591,7 @@ async function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 		fallbackThemes: 0,
 		staleCacheHits: 0,
 		cacheHits: 0,
+		downloadedBytes: 0,
 		warnings: [],
 	};
 	const seenThemes = new Set();
