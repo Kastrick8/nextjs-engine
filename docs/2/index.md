@@ -23,13 +23,16 @@ Use these pages for the code maintained on `main-2`. Generation 3 is a separate 
 |---|---|
 | Primitives and layouts | [Primitives](./engine-components/primitives.md) |
 | Canvas and graphics | [EngineCanvas](./engine-components/enginecanvas.md) |
+| Retained 3D rendering | [Engine3D](./engine-components/engine3d.md) |
 | SVG scene rendering | [EngineSVG](./engine-components/enginesvg.md) |
 | GPU effects and `.shed` programs | [EngineShader](./engine-components/engineshader.md) |
 | Page/layout transitions | [EngineTransitions+](./engine-components/enginetransitions.md) |
 | Scroll points and timelines | [EngineScroll](./engine-components/enginescroll.md) |
+| Scroll ranges and boundaries | [EngineScroll Range](./engine-components/enginescroll-range.md) |
 | Browser helpers | [EngineBrowser](./engine-components/enginebrowser.md) |
 | 2D/3D animation | [EngineManim](./engine-components/enginemanim.md) |
 | Images and video | [EngineImage and EngineVideo](./engine-components/engineimage.md) |
+| Video viewport lifecycle | [EngineVideo](./engine-components/enginevideo.md) |
 | Markdown rendering | [EngineMarkdown](./engine-components/enginemarkdown.md) |
 | Navigation | [EngineNav](./engine-components/enginenav.md) |
 | Adaptive layout and device info | [EngineMobile and EngineDevice](./engine-components/enginemobile.md) |
