@@ -346,7 +346,7 @@ The goal is one public authoring path with basic and advanced modes—not a seco
 
 ### Illustrative API shape
 
-The following is a design sketch for the future custom-component API, not code that should be copied as an implemented contract. `createTheme()` and its Markdown theme/variant resolution already exist; `defineComponent()`, custom-component `theme` bindings and the sample prop/slot schema are still proposals.
+The following is a design sketch for the future custom-component API, not code that should be copied as an implemented contract. `createTheme()` and its Markdown theme/variant resolution already exist; the advanced `createComponent()` mode, custom-component theme bindings and the sample prop/slot schema are still proposals.
 
 ~~~tsx
 import {
