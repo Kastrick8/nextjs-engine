@@ -16,6 +16,7 @@ const MAX_TOTAL_BUILD_FONT_BYTES = 128 * 1024 * 1024;
 const MAX_FONT_ASSETS_PER_THEME = 128;
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_CSS_ORIGINS = ["https://fonts.googleapis.com"];
 const DEFAULT_FONT_ORIGINS = ["https://fonts.gstatic.com"];
 const SAFE_THEME_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
@@ -152,6 +153,31 @@ function normalizeSourceUrl(input, allowedOrigins, label) {
 function clampInteger(value, fallback, minimum, maximum) {
 	if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
 	return Math.max(minimum, Math.min(maximum, Math.floor(value)));
+}
+
+function resolveCacheTtlMs(options) {
+	if (typeof options.cacheTtlMs === "number") {
+		return clampInteger(options.cacheTtlMs, DEFAULT_CACHE_TTL_MS, 0, MAX_CACHE_TTL_MS);
+	}
+	const configured = process.env.ENGINE_THEME_FONT_CACHE_TTL_MS;
+	if (configured === undefined || configured.trim() === "") return DEFAULT_CACHE_TTL_MS;
+	const parsed = Number(configured);
+	if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+		throw new TypeError("[EngineTheme fonts] ENGINE_THEME_FONT_CACHE_TTL_MS must be an integer from 0 to " + MAX_CACHE_TTL_MS + ".");
+	}
+	return clampInteger(parsed, DEFAULT_CACHE_TTL_MS, 0, MAX_CACHE_TTL_MS);
+}
+
+function resolveFailurePolicy(options) {
+	const configured = options.failurePolicy ?? process.env.ENGINE_THEME_FONT_FAILURE_POLICY ?? "fallback";
+	if (configured !== "fallback" && configured !== "error") {
+		throw new TypeError("[EngineTheme fonts] failurePolicy must be 'fallback' or 'error'.");
+	}
+	return configured;
+}
+
+function isOffline(options) {
+	return options.offline === true || process.env.ENGINE_THEME_FONT_OFFLINE === "1";
 }
 
 async function readResponseBytes(response, maxBytes, allowedType, label) {
@@ -379,16 +405,18 @@ function fontFormat(extension) {
 	return extension === "woff2" ? "woff2" : extension === "woff" ? "woff" : extension === "ttf" ? "truetype" : "opentype";
 }
 
-function fallbackStylesheetCss(sourceUrls) {
+function fallbackStylesheetCss(sourceUrls, allowedOrigins) {
 	const imports = [];
 	for (const source of sourceUrls) {
 		try {
-			const url = new URL(source);
-			if (url.protocol !== "https:" || url.username || url.password || url.hash) continue;
+			// Fallback imports must obey the same origin allowlist as the build-time
+			// fetch; otherwise a failed validation would silently re-enable the URL
+			// in the browser and bypass the compiler's trust boundary.
+			const url = normalizeSourceUrl(source, allowedOrigins, "font stylesheet URL");
 			imports.push('@import url("' + url.href.replace(/["\\\r\n]/g, "") + '");');
-		} catch { /* Invalid values do not become CSS. */ }
+		} catch { /* Unapproved or invalid origins never reach emitted CSS. */ }
 	}
-	return imports.join("\n") + "\n";
+	return imports.join("\n") + (imports.length ? "\n" : "");
 }
 
 async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats) {
@@ -397,15 +425,36 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 	const publicFontRoot = path.join(root, "public", "nextjs-engine", "fonts");
 	const previous = manifest.themes[themeId];
 	const now = Date.now();
-	const ttlMs = clampInteger(options.cacheTtlMs, DEFAULT_CACHE_TTL_MS, 0, 30 * 24 * 60 * 60 * 1000);
+	const ttlMs = resolveCacheTtlMs(options);
 	const refresh = options.forceRefresh === true || process.env.ENGINE_THEME_FONT_REFRESH === "1";
+	const offline = isOffline(options);
+	const failurePolicy = resolveFailurePolicy(options);
 	const sourceKey = sha256(Buffer.from(canonicalJson(sourceUrls), "utf8"));
 	const cssFileName = themeId + ".css";
 	const cacheCssRoot = path.join(root, ".nextjs-engine", ".cache", "gen3", "fonts", "css");
 	const trustedBuiltInHosts = new Set(["fonts.googleapis.com", "fonts.gstatic.com"]);
 
-	if (!refresh && previous && previous.sourceKey === sourceKey && now - previous.updatedAt <= ttlMs
-		&& validThemeCache(previous, themeId, sourceUrls, cacheAssetRoot)
+	if (offline && refresh) {
+		throw new Error("[EngineTheme fonts] Offline mode cannot be combined with ENGINE_THEME_FONT_REFRESH=1 or forceRefresh.");
+	}
+
+	const previousCacheIsValid = previous && previous.sourceKey === sourceKey
+		&& validThemeCache(previous, themeId, sourceUrls, cacheAssetRoot);
+
+	if (offline) {
+		if (!previousCacheIsValid) {
+			throw new Error("[EngineTheme fonts] Offline mode requires a valid cached local font build for theme '" + themeId + "'.");
+		}
+		const cacheIsFresh = now - previous.updatedAt <= ttlMs && fontAssetsAreFresh(previous, now, ttlMs);
+		const cachedEntry = { ...previous, cssFileName };
+		writePublicAssets(root, publicFontRoot, cacheAssetRoot, cachedEntry, previous);
+		if (cacheIsFresh) stats.cacheHits += 1;
+		else stats.staleCacheHits += 1;
+		stats.fontAssetsReused += previous.fontAssets.length;
+		return cachedEntry;
+	}
+
+	if (!refresh && previousCacheIsValid && now - previous.updatedAt <= ttlMs
 		&& fontAssetsAreFresh(previous, now, ttlMs)) {
 		const publicEntry = { ...previous, cssFileName };
 		writePublicAssets(root, publicFontRoot, cacheAssetRoot, publicEntry, previous);
@@ -414,9 +463,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 		return publicEntry;
 	}
 
+	const cssOrigins = parseOrigins("ENGINE_THEME_FONT_CSS_ORIGINS", DEFAULT_CSS_ORIGINS);
+	const fontOrigins = parseOrigins("ENGINE_THEME_FONT_FILE_ORIGINS", DEFAULT_FONT_ORIGINS);
 	try {
-		const cssOrigins = parseOrigins("ENGINE_THEME_FONT_CSS_ORIGINS", DEFAULT_CSS_ORIGINS);
-		const fontOrigins = parseOrigins("ENGINE_THEME_FONT_FILE_ORIGINS", DEFAULT_FONT_ORIGINS);
 		const faces = [];
 		for (const source of sourceUrls) {
 			const stylesheetUrl = normalizeSourceUrl(source, cssOrigins, "font stylesheet URL");
@@ -523,15 +572,19 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 		stats.fontAssetsWritten += fontAssets.length;
 		return entry;
 	} catch (error) {
-		if (previous && previous.sourceKey === sourceKey && validThemeCache(previous, themeId, sourceUrls, cacheAssetRoot)) {
+		if (previousCacheIsValid) {
 			const staleEntry = { ...previous, cssFileName };
 			writePublicAssets(root, publicFontRoot, cacheAssetRoot, staleEntry, previous);
 			stats.staleCacheHits += 1;
 			stats.fontAssetsReused += previous.fontAssets.length;
 			return staleEntry;
 		}
+		if (failurePolicy === "error") {
+			throw new Error("[EngineTheme fonts] Strict failure policy rejected theme '" + themeId + "': "
+				+ (error instanceof Error ? error.message : String(error)));
+		}
 		stats.fallbackThemes += 1;
-		const cssContent = fallbackStylesheetCss(sourceUrls);
+		const cssContent = fallbackStylesheetCss(sourceUrls, cssOrigins);
 		const cssSha256 = sha256(Buffer.from(cssContent, "utf8"));
 		const entry = {
 			id: themeId,
