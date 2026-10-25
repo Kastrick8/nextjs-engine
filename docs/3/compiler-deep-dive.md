@@ -2,7 +2,7 @@
 
 > **GENERATION 3 · ALPHA** · Source of truth: `main-3`.
 >
-> This guide documents implemented compiler/runtime code. EngineTheme/`createTheme()` is intentionally not covered here while its separate `plan.md` remains planning-only.
+> This guide documents the compiler/runtime behavior implemented on the source branch.
 
 ## What the compiler does
 
@@ -100,7 +100,7 @@ For each artifact the graph fingerprints its input and records dependency keys. 
 The exported helpers are:
 
 - `compileEngineArtifact(descriptor, compile)` — reuse an unchanged artifact or call the supplied compiler callback.
-- `fingerprintEngineArtifact(value)` — produce a stable fingerprint for the input value.
+- `fingerprintEngineArtifact(value)` — produce the artifact graph's input fingerprint (function inputs use in-process identity tracking).
 - `invalidateEngineArtifacts({ kind, id })` — invalidate matching artifacts and their dependents; called with no selector, it clears the graph.
 - `inspectEngineArtifactGraph()` — inspect fingerprints, dependencies, hit counts, and rebuild counts. This inspector throws in production and is development-only.
 
@@ -157,7 +157,6 @@ Adaptive layout is not a license to lower media fidelity. The current contract p
 - The Engine compiler produces the Engine execution plan; Next.js still owns its own build and route compilation.
 - The artifact graph is bounded and dependency-aware, but it is not a persistent cache of the whole Next.js build.
 - Security diagnostics are not a replacement for real authentication, authorization, runtime input validation, or server-side secrets management.
-- EngineTheme and `createTheme()` are outside the scope of this guide until their separately tracked plan is implemented.
 
 ## Related references
 
