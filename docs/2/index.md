@@ -43,8 +43,8 @@ These component documents are copied from the `main-2` documentation tree and ma
 
 ## Release history and other references
 
-- [Main documentation index](../index.md)
-- [Release notes](../release/index.md)
-- [Technical reference](../../DOCUMENT.md)
+- [Main documentation index](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/index.md)
+- [Release notes](https://github.com/Kate-alt-69/nextjs-engine/tree/main-2/docs/release)
+- [Technical reference](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/DOCUMENT.md)
 
 Prefer current `main-2` implementation and tests when a historical example conflicts with the current v2 types or component docs.
