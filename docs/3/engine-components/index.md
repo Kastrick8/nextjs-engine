@@ -1,8 +1,8 @@
 # Generation 3 Component Reference
 
-> **GENERATION 3 · ALPHA** · Source branch: \`main-3\`. These guides describe the 3.x pre-release contract. They are not the stable Generation 2 API.
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. These guides describe the 3.x pre-release contract. They are not the stable Generation 2 API.
 
-Use this index to navigate the current Gen 3 component documentation. The source files are under \`docs/3/engine-components/\`; the older \`docs/engine-components/\` paths remain compatibility copies for existing links.
+Use this index to navigate the current Gen 3 component documentation. The source files are under `docs/3/engine-components/`; the older `docs/engine-components/` paths remain compatibility copies for existing links.
 
 ## UI, content and application components
 
