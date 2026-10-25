@@ -45,26 +45,28 @@ Ordinary generated CSS is not retained as a process-wide cross-request cache: ea
 
 ## Low-level style helpers
 
-The public package also exports low-level helpers for custom React components:
+The public package exports `staticClass` and `mediaClass` for advanced custom-component code. Prefer schema responsive props for ordinary responsive styles.
 
-```ts
-import { staticClass, mediaClass } from "nextjs-engine";
+```tsx
+import type { ReactNode } from "react";
+import { staticClass, useEngineContext } from "nextjs-engine";
 
-const layoutClass = staticClass({
-  display: "grid",
-  gap: "1rem",
-});
+export function CustomFrame({ children }: { children: ReactNode }) {
+  const { styleCollector } = useEngineContext();
+  const layoutClass = staticClass({
+    display: "grid",
+    gap: "1rem",
+    maxWidth: "1200px",
+    marginInline: "auto",
+  }, styleCollector);
 
-const responsiveClass = mediaClass(
-  { display: "block" },
-  ["768px", { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }],
-);
+  return <div className={layoutClass}>{children}</div>;
+}
 ```
 
-- `staticClass(style, collector?)` converts a CSS style object into a reusable generated class and registers its CSS with the supplied collector. If omitted, the low-level global collector is used.
-- `mediaClass(base, ...breakpoints)` creates a class with base declarations plus `min-width` media overrides. Each breakpoint argument is a tuple of a CSS length string and a `CSSProperties` object. It currently registers through the low-level global collector.
-
-These are low-level helpers for custom-component code, not replacements for normal Engine schema styling. Prefer responsive props for ordinary responsive layout so the active page's provider-scoped collector owns the CSS. `EngineGlobalStyles()` emits only CSS explicitly registered with `StyleCollector.addGlobal()`; it does not sweep up all CSS from these helpers or from provider collectors.
+- `staticClass(style, collector?)` compiles a CSS style object to a generated class. Inside an Engine-managed component, pass `useEngineContext().styleCollector` so the rule is registered in the stylesheet emitted by that provider.
+- `mediaClass(base, ...breakpoints)` creates a class with base declarations and `min-width` media overrides. Its current public signature has no collector parameter and registers through the low-level global fallback. Do not assume it joins the active provider stylesheet automatically; for ordinary component-scoped responsive styles, use responsive schema props instead.
+- `EngineGlobalStyles()` emits only CSS explicitly registered through `StyleCollector.addGlobal()`. It does not sweep up provider-collected CSS or turn the low-level global fallback into global CSS.
 
 ## Client-side style reconciliation
 
