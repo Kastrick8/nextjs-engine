@@ -1,8 +1,10 @@
-# Styling Contract
+# Styling Contract — Generation 2 (Legacy Path)
 
-This page documents the styling behavior implemented by `usePropStyles()` and
-the current schema types. It is the canonical reference for engine shorthands,
-responsive values, direct CSS passthrough, and `style` at-rules.
+> **GENERATION 2 · STABLE 2.x** · Source branch: `main-2`.
+>
+> This unversioned page remains for older links. For the maintained Gen 2 guides, use [Styling — simple](./2/styling.md) or [Styling — detailed](./2/styling-detailed.md). The dedicated Gen 3 implementation is documented separately on `main-3`.
+
+This page describes the Gen 2 `usePropStyles()` hook and schema types: Engine shorthands, responsive values, direct CSS passthrough, and `style` at-rules.
 
 ## Responsive values
 
@@ -278,8 +280,18 @@ The exported low-level `globalStyleCollector` remains a compatibility fallback
 for helpers used outside an `EngineProvider`. Built-in engine rendering does not
 use it as the normal page/request collector.
 
-The remaining style-runtime limitation is **post-hydration dynamic rule
-flushing**: if application code generates a brand-new responsive/pseudo rule on
-the client after hydration, collector ownership is correct but stylesheet DOM
-flushing is still primarily server-oriented. A future client flusher should add
-only newly generated rules and must not duplicate the complete SSR stylesheet.
+## Client-side style reconciliation
+
+The current provider path includes `EngineCollectedStyles`, which subscribes to
+the nearest `StyleCollector`. When new rules are added after hydration, the
+collector schedules a notification and the style component reconciles its CSS
+snapshot. It first adopts the existing server-emitted style text when present,
+so the initial client render can match SSR before subscription updates are
+applied.
+
+This behavior depends on styles being registered with the relevant provider's
+collector. For `staticClass(style, collector)`, pass the active
+`useEngineContext().styleCollector` rather than relying on the low-level global
+fallback. The public `mediaClass(base, ...breakpoints)` helper currently has no
+collector parameter and registers with that global fallback; for normal
+component-scoped responsive styles, prefer schema responsive props.

@@ -4,10 +4,13 @@
 
 Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, graphics, API, motion, and browser plumbing in every app, NE lets you describe UI as typed schema objects and routes that schema through shared Engine systems.
 
-**Current development / release target:** **NE v2.6.1**  
-**Latest stability notes:** [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md)  
+**Current development / release target:** **NE v2.6.2 (prepared patch)**  
+**Latest prepared stability notes:** [`docs/release/NE-v2-6-2.md`](./docs/release/NE-v2-6-2.md)  
+**Previous stability notes:** [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md)  
 **Latest major feature notes:** [`docs/release/NE-v2-6-0.md`](./docs/release/NE-v2-6-0.md)  
 **Latest published GitHub release:** [NE v2.5.0](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.5.0)
+
+> The v2.6.2 notes are marked prepared/ready for release in the release archive; they are not evidence of a published GitHub Release.
 
 > v2.6.x is the Shader + Motion + Scroll + Overlay generation of NE. v2.6.1 focuses on React 19 hydration, App Router stability, primitive style correctness, routing consistency, and regression coverage.
 
@@ -396,7 +399,8 @@ Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture
 | EngineOverlay | [`docs/engine-components/engineoverlay.md`](./docs/engine-components/engineoverlay.md) |
 | EngineScroll | [`docs/engine-components/enginescroll.md`](./docs/engine-components/enginescroll.md) |
 | Canvas / EC graphics | [`docs/engine-components/enginecanvas.md`](./docs/engine-components/enginecanvas.md) |
-| Styling | [`docs/styling.md`](./docs/styling.md) |
+| Gen 2 styling — simple | [`docs/2/styling.md`](./docs/2/styling.md) |
+| Gen 2 styling — detailed | [`docs/2/styling-detailed.md`](./docs/2/styling-detailed.md) |
 | Runtime/performance | [`docs/runtime-performance.md`](./docs/runtime-performance.md) |
 | APIStatic | [`docs/engine-components/apistatic.md`](./docs/engine-components/apistatic.md) |
 | External APIs | [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md) |

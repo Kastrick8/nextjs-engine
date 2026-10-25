@@ -1,6 +1,7 @@
 # Next.js Engine — Technical Documentation
 
-> **Last updated:** 2026-06-29
+> **Last updated:** 2026-10-25
+> - **CSS collection accuracy correction** — Marked the old render-count CSS-tier description as historical. The current Gen 2/Gen 3 source uses provider-scoped style collection and only emits global CSS registered through `StyleCollector.addGlobal()`.
 > **Changes in this update:**
 > - **`EngineScrollProvider`** — New `src/engine/core/enginescroll/EngineScrollProvider.tsx`. React context wrapping the EngineScroll runtime. Exports `useEngineScroll()` hook returning `{ move }`. `createPage` now auto-wraps every page in `<EngineScrollProvider>` so scroll is available on all pages without manual setup.
 > - **`EngineScrollURL`** — New `src/engine/core/enginescroll/EngineScrollURL.ts`. Parses and executes the `#-es?` URL protocol. Supports `move`, `offset`, `duration` params. Cleans URL with `history.replaceState()` after execution. `listen()` subscribes to future `hashchange` events.
@@ -25,7 +26,7 @@
 > **Changes in previous update:**
 > - **Core Component Additions** — New `EngineLink` (transition-aware), `EngineHero` (layout variants), `EngineSuspense` (loading presets), and `EngineForms` suite (Form, Input, etc).
 > - **`EngineAPIResolver`** — Declarative networking class for centralized fetch orchestration with multi-tier overrides and native auth support.
-> - **CSS Tier System** — `StyleCollector` now classifies every CSS block into one of three tiers based on how many page renders have used it: **Global** (10+ renders, or explicitly marked — layout/header CSS), **Group** (3–9 renders — shared across several pages), **Local** (1–2 renders — page-unique). Output order is always Global → Group → Local. `EngineGlobalStyles` component exported for `layout.tsx` injection of early global CSS.
+> - **Legacy CSS Tier System (historical)** — Earlier code described automatic Global / Group / Local tiers based on render counts. This is not the current `main-2` or `main-3` StyleCollector contract; see the explicit accuracy note in the section below.
 > - **Image optimization** — `next.config.js` now routes images through AVIF → WebP → original format automatically. `EngineImage` gains `qualityPreset` ("performance" 65 / "balanced" 75 / "sharp" 90), per-viewport `qualityMobile`/`qualityDesktop` fields, smarter `sizes` auto-generation, resolution-aware placeholder shimmer, and `imageRendering` browser hint prop.
 > - **`sides` prop** — new per-side spacing system. `sides: [1,2,3,4]` where 1=top 2=left 3=right 4=bottom. Pair with `sideDistance` and `sideType` ("margin" | "padding").
 > - **`vars` prop** — set CSS custom properties (`--var: value`) inline on any element. Cascades to all children.
@@ -1400,9 +1401,11 @@ Add this to `tsconfig.json` for clean imports:
 
 ---
 
-## CSS Tier System
+## CSS Tier System — Historical Implementation
 
-The engine automatically classifies every CSS block into one of three tiers based on how many page renders have used it. Output order is always **Global → Group → Local** so the cascade is correct.
+> **Accuracy note (current source checked 2026-10-25):** The automatic render-count promotion described in this historical section is not implemented by the current `StyleCollector` on `main-2` or `main-3`. Current generated CSS is collected by the nearest `EngineProvider` and deduplicated inside that collector. `EngineGlobalStyles()` emits only CSS explicitly registered through `StyleCollector.addGlobal()`; it does not automatically gather provider-collected CSS. See the versioned styling guides under `docs/2` and `docs/3` for the current contracts.
+
+The tier model below is preserved as historical context, not current API behavior. Earlier versions described automatic classification into Global, Group, and Local tiers based on render counts.
 
 ```
  Tier        Threshold           Typical source
