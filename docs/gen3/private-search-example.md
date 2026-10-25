@@ -1,5 +1,7 @@
 # Generation 3 private-search proving application
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 The application at `/engine-private-search` demonstrates the complete network/security integration. It joins EngineCookie, device proof, NENC, account sessions, command policy, and EngineAPIResolver in one real browser flow.
 
 ## Run it
