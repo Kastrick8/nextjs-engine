@@ -1,5 +1,7 @@
 # Generation 3 — Compatibility, EngineDebug, and Hardening
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. This is not the stable Gen 2 API contract.
+
 >
 
 This guide explains how the Generation 3 compiler records browser requirements, chooses fallback behavior, exposes development diagnostics, and validates compatibility, performance budgets, and security rules.
