@@ -189,3 +189,12 @@ The automated matrix covers desktop, phone, and tablet viewports; 60, 90, 120, 1
 Adaptive pressure never reduces image, video, Canvas, Shader, or geometry resolution. It may change layout, postpone dynamic work, pause invisible work, or adjust animation timing.
 
 The production invariant remains strict: debug surfaces are absent from `next build` and `next start`, while unused feature runtimes do not enter route bundles.
+
+
+## Related guides
+
+- [Compiler, rendering, and runtime](./compiler-rendering-runtime.md)
+- [Compiler deep dive](./compiler-deep-dive.md)
+- [Networking, credentials, and command security](./networking-credentials-security.md)
+- [EngineDebug route isolation](../gen3/engine-debug-isolation.md)
+- [Generation 3 overview](../gen3/overview.md)
