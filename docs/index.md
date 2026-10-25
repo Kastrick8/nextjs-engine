@@ -16,13 +16,14 @@ If a historical example conflicts with the current TypeScript source or a curren
 | I want to… | Read |
 | --- | --- |
 | Understand the current Gen 3 stack | [`gen3/overview.md`](./gen3/overview.md) |
-| Learn server-first `createPage()` and the compiler plan | [`gen3/phase-a-b.md`](./gen3/phase-a-b.md) |
+| Learn server-first `createPage()` and the compiler plan | [`3/compiler-rendering-runtime.md`](./3/compiler-rendering-runtime.md) |
+| Understand detailed compiler internals, artifact caching, build budgets, and security checks | [`3/compiler-deep-dive.md`](./3/compiler-deep-dive.md) |
 | Learn schemas, props, and general page authoring | [`readme.md`](./readme.md) |
 | Learn Gen 3 styling (simple) | [`3/styling.md`](./3/styling.md) |
 | Learn Gen 3 styling internals | [`3/styling-detailed.md`](./3/styling-detailed.md) |
 | Legacy unversioned styling reference | [`styling.md`](./styling.md) |
-| Learn NENC, EngineCookies, sessions, replay/rate policy, and private backends | [`gen3/phase-c-network.md`](./gen3/phase-c-network.md) |
-| Learn compatibility manifests and fallback compilation | [`gen3/phase-d-hardening.md`](./gen3/phase-d-hardening.md) |
+| Learn NENC, EngineCookies, sessions, replay/rate policy, and private backends | [`3/networking-credentials-security.md`](./3/networking-credentials-security.md) |
+| Learn compatibility manifests and fallback compilation | [`3/compatibility-debugging-hardening.md`](./3/compatibility-debugging-hardening.md) |
 | Understand EngineDebug ephemeral isolation | [`gen3/engine-debug-isolation.md`](./gen3/engine-debug-isolation.md) |
 | Generate metadata, sitemaps, robots, JSON-LD, and social previews | [`engine-components/engineseo.md`](./engine-components/engineseo.md) |
 | Generate Google/Bing/Yandex-aware XML sitemaps | [`engine-components/engineseo-provider-sitemaps.md`](./engine-components/engineseo-provider-sitemaps.md) |
@@ -72,6 +73,8 @@ Read [`gen3/overview.md`](./gen3/overview.md) first if you are starting a new pa
 | Page and layout transitions | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
 | Heroes | [`engine-components/enginehero.md`](./engine-components/enginehero.md) |
 | Forms | [`engine-components/engineforms.md`](./engine-components/engineforms.md) |
+| Searchable styled select | [`engine-components/customselect.md`](./engine-components/customselect.md) |
+| Individual transition-aware links | [`engine-components/enginelink.md`](./engine-components/enginelink.md) |
 | Markdown | [`engine-components/enginemarkdown.md`](./engine-components/enginemarkdown.md) |
 | Suspense/loading surfaces | [`engine-components/enginesuspense.md`](./engine-components/enginesuspense.md) |
 | Overlay/dialog/drawer/popover | [`engine-components/engineoverlay.md`](./engine-components/engineoverlay.md) |
@@ -113,6 +116,7 @@ EngineManim
 | EngineScroll | [`engine-components/enginescroll.md`](./engine-components/enginescroll.md) |
 | EngineManim | [`engine-components/enginemanim.md`](./engine-components/enginemanim.md) |
 | EngineImage / EngineVideo | [`engine-components/engineimage.md`](./engine-components/engineimage.md) |
+| EngineVideo viewport lifecycle | [`engine-components/enginevideo.md`](./engine-components/enginevideo.md) |
 
 EngineTransitions+ and EngineShader remain separate responsibilities. Transition presets such as `pixel`, `liquid`, and `dissolve` are transition animations, not `.shed` framebuffer passes.
 
@@ -122,12 +126,12 @@ EngineTransitions+ and EngineShader remain separate responsibilities. Transition
 
 | Topic | Documentation |
 | --- | --- |
-| Scheduler + server-first compiler | [`gen3/phase-a-b.md`](./gen3/phase-a-b.md) |
+| Scheduler + server-first compiler | [`3/compiler-rendering-runtime.md`](./3/compiler-rendering-runtime.md) |
 | Browser capabilities | [`engine-components/enginebrowser.md`](./engine-components/enginebrowser.md) |
 | Device/adaptive layout | [`engine-components/enginemobile.md`](./engine-components/enginemobile.md) |
 | Runtime/lazy/performance behavior | [`runtime-performance.md`](./runtime-performance.md) |
 | Schema validation and diagnostics | [`schema-diagnostics.md`](./schema-diagnostics.md) |
-| Compatibility/fallback compiler | [`gen3/phase-d-hardening.md`](./gen3/phase-d-hardening.md) |
+| Compatibility/fallback compiler | [`3/compatibility-debugging-hardening.md`](./3/compatibility-debugging-hardening.md) |
 | EngineDebug ephemeral workbench isolation | [`gen3/engine-debug-isolation.md`](./gen3/engine-debug-isolation.md) |
 
 For styling-only responsive differences, prefer responsive schema values/CSS. Use EngineViewport or request-time adaptive compilation only when behavior or structure genuinely depends on live/request device state.
@@ -140,7 +144,7 @@ For styling-only responsive differences, prefer responsive schema values/CSS. Us
 | --- | --- |
 | External API resolver and auth | [`engine-components/engineapi.md`](./engine-components/engineapi.md) |
 | Static in-house endpoint programs | [`engine-components/apistatic.md`](./engine-components/apistatic.md) |
-| NENC / EngineCookies / sessions / device proof | [`gen3/phase-c-network.md`](./gen3/phase-c-network.md) |
+| NENC / EngineCookies / sessions / device proof | [`3/networking-credentials-security.md`](./3/networking-credentials-security.md) |
 | Private-search end-to-end example | [`gen3/private-search-example.md`](./gen3/private-search-example.md) |
 
 Browser-safe command/cookie APIs belong in `nextjs-engine/network`. Request-aware dispatch, CORS, session policy, and private backend helpers belong in `nextjs-engine/server`.
@@ -158,7 +162,7 @@ Release notes describe the Engine as it existed at that release. They are not th
 | Version | Release notes |
 | --- | --- |
 | v3.0.0-alpha.1 (alpha candidate) | [`NE-v3-0-0-alpha-1.md`](./release/NE-v3-0-0-alpha-1.md) |
-| v2.6.2 | [`NE-v2-6-2.md`](./release/NE-v2-6-2.md) |
+| v2.6.2 (prepared patch) | [`NE-v2-6-2.md`](./release/NE-v2-6-2.md) |
 | v2.6.1 | [`NE-v2-6-1.md`](./release/NE-v2-6-1.md) |
 | v2.6.0 | [`NE-v2-6-0.md`](./release/NE-v2-6-0.md) |
 | v2.5.0 | [`NE-v2-5-0.md`](./release/NE-v2-5-0.md) |

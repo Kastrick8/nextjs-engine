@@ -1,5 +1,7 @@
 # EngineVideo viewport lifecycle
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 `EngineVideo` delays media activation until the wrapper enters its configured preload margin. The default margin is `800px 0px`, so the browser can prepare the media shortly before it is needed.
 
 ## One-time source activation

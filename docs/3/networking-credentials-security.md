@@ -1,11 +1,10 @@
-# Generation 3 Phase C — Network and credential runtime
+# Generation 3 — Networking, Credentials, and Command Security
 
-> Branch: `main-3`  
-> Status: complete — secure dispatcher, portable proof, real Next.js application, and security regressions
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. This is not the stable Gen 2 API contract.
 
-Phase C owns the secure application/network layer described by the Gen 3 master plan: EngineCookies, NENC, EngineCORS, command authorization, replay protection, device binding, and the EngineAPIResolver bridge.
+The Gen 3 network/security layer provides EngineCookies, NENC, EngineCORS, command authorization, replay protection, device binding, and the EngineAPIResolver bridge.
 
-## Completed foundation
+## Core network and command-security components
 
 ### EngineCookies + Trust List
 
@@ -268,7 +267,7 @@ Commands are responsible for returning an intentional public result. Returning a
 
 ## Private login/search proving application
 
-[`examples/gen3-private-search`](../../examples/gen3-private-search) closes Phase C with a runnable application path rather than an isolated dispatcher fixture. Its browser client creates a non-exportable device key, signs `account.login` through `EngineCommand.run()`, receives a host-only session cookie, and then executes the permission-protected `catalog.privateSearch` command through the same opaque endpoint.
+[`examples/gen3-private-search`](../../examples/gen3-private-search) demonstrates the complete command-security flow in a runnable application rather than an isolated dispatcher fixture. Its browser client creates a non-exportable device key, signs `account.login` through `EngineCommand.run()`, receives a host-only session cookie, and then executes the permission-protected `catalog.privateSearch` command through the same opaque endpoint.
 
 The server handler owns the private backend URL and bearer token. Login credentials reach the ordinary HTTP backend only through a server-scoped resolver. The application retains only the SHA-256 hash of the random session token and binds that session to the submitted public device identity. Private search adds the authenticated account id server-side and whitelists only result `id` and `title` fields before responding.
 
@@ -286,17 +285,17 @@ The included store and rate limiters are intentionally in-memory for a focused p
 
 ## Real private-search application
 
-The `/engine-private-search` proving application closes the Phase C integration gate. Its login route registers a browser-created public device identity, stores only the session-token hash, and issues a host-only `Secure`, `HttpOnly`, `SameSite=Strict` cookie. The browser then signs `EngineCommand.run("privateSearch")` with its non-exportable key and sends one opaque `/_static/command` request.
+The `/engine-private-search` proving application demonstrates the end-to-end integration. Its login route registers a browser-created public device identity, stores only the session-token hash, and issues a host-only `Secure`, `HttpOnly`, `SameSite=Strict` cookie. The browser then signs `EngineCommand.run("privateSearch")` with its non-exportable key and sends one opaque `/_static/command` request.
 
 The dispatcher verifies origin, replay data, device proof, account session, `catalog.read`, and the command rate policy before creating the private backend resolver. The ordinary HTTP backend receives a server-only bearer credential. The command returns only `id`, `title`, and `category`; database ranking, partition, host, query-plan, and credential-echo fields are discarded.
 
-Automated browser coverage copies the cookie into a second browser context and proves that it fails without the original device key. It also verifies wrong-origin rejection, opaque wire ids, an HttpOnly cookie, and absence of backend credentials/internals from the browser response. See [`private-search-example.md`](./private-search-example.md) for the runnable flow and production substitutions.
+Automated browser coverage copies the cookie into a second browser context and proves that it fails without the original device key. It also verifies wrong-origin rejection, opaque wire ids, an HttpOnly cookie, and absence of backend credentials/internals from the browser response. See [`private-search-example.md`](../gen3/private-search-example.md) for the runnable flow and production substitutions.
 
 ## EngineCORS
 
 The server-only CORS helper provides exact-origin handling, preflight responses, `Vary: Origin`, allowed method/header configuration, and rejects credentialed wildcard CORS.
 
-## Phase C invariants
+## Security invariants
 
 ```text
 ONE network endpoint
@@ -312,5 +311,3 @@ Authorization still comes from:
 session + EngineCookie + origin + trust + nonce + signature + rate policy
 ```
 
-## Next implementation phase
-Phase C is complete. Phase D begins with the used-feature manifest, compatibility fallback compiler, older-browser rendering path, compatibility dialog, and development-only `/_engine/debug` inspection surface.

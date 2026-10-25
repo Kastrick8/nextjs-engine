@@ -1,5 +1,7 @@
 # Generation 3 server-first rendering parity
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Generation 3 server-first rendering must preserve the same public schema semantics as
 the compatibility/client renderer. Moving a node from the legacy renderer to
 `EngineServerRenderer` is an execution-boundary optimization, not a styling or
@@ -88,5 +90,5 @@ Engine CSS can be reconciled after the client adopts the exact server snapshot.
 
 `scripts/gen3-server-first-parity-smoke.js` verifies the shared style compiler,
 primitive precedence, nested at-rules, slot fallback graph compilation, and the
-React 19 stylesheet contract. The normal Generation 3 Phase A/B CI job runs this
+React 19 stylesheet contract. The normal Generation 3 compiler/runtime CI job runs this
 smoke before type-checking and the optimized Next.js integration build.

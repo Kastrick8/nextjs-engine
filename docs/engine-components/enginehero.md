@@ -1,5 +1,7 @@
 # EngineHero
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Schema type: `"hero"`.
 
 EngineHero is the page-banner primitive. It supports centered, split, and

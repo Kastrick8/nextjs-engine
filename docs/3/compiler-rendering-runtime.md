@@ -1,6 +1,8 @@
-# Next.js Engine 3 — Phase A + Phase B
+# Generation 3 — Compiler, Rendering, and Runtime
 
-> Development branch: `main-3`
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. This is not the stable Gen 2 API contract.
+
+> Source branch: `main-3`
 >
 > This document describes the Generation 3 compiler/runtime foundation that is
 > implemented on this branch. It is not part of the v2.6.2 runtime contract.
@@ -18,7 +20,7 @@ When the visible scene still cannot meet the delivered frame cadence after
 waste is removed, the scene keeps its intended visual output and runs at the
 frame rate the device can actually sustain.
 
-## Phase A — compiler and server-first rendering
+## Compiler and server-first rendering
 
 ### EngineCompiler
 
@@ -48,7 +50,7 @@ console.log(plan.summary.clientIslands);
 console.log(plan.featureManifest.uses);
 ```
 
-`plan.capabilities` remains a compact compatibility alias derived from the richer Phase D used-feature manifest.
+`plan.capabilities` remains a compact compatibility alias derived from the richer compatibility used-feature manifest.
 
 ### Runtime classification
 
@@ -149,7 +151,18 @@ client renderer merely because it was created with `createComponent()`.
 compiler/runtime APIs remain in the normal package barrel; request-aware server
 helpers stay out of client imports.
 
-## Phase B — Scheduler
+### Default not-found page
+
+The package exports `DefaultNotFoundPage`, the Engine-rendered 404 page. An App Router application can wire it explicitly:
+
+```tsx
+// app/not-found.tsx
+export { DefaultNotFoundPage as default } from "nextjs-engine";
+```
+
+This page is built from an Engine schema and follows the generation's normal rendering path. Keep an existing app-owned `app/not-found.tsx` when the project needs a custom not-found experience.
+
+## Shared work scheduler
 
 ### Work states
 
@@ -227,7 +240,7 @@ low-level `useEngineCanvas()` facade.
 The scheduler can monitor Canvas/Shader frame delivery, postpone speculative
 work, and adjust timing while leaving DPR and visual fidelity alone.
 
-## Phase B — automatic phone/tablet layout compilation
+## Adaptive phone and tablet layout compilation
 
 `createPage()` accepts separate phone and tablet policies:
 
@@ -302,7 +315,7 @@ base schema
 Use `props.adaptive = "keep"` on a node to opt that node out of automatic
 adaptation.
 
-## Phase B — EngineModel and viewport runtime
+## EngineModel and viewport runtime
 
 `EngineModel` provides observable application state without forcing unrelated
 schema branches to become client-owned. The compiler marks only nodes that
@@ -321,7 +334,7 @@ Core operations include:
 height, scale, orientation, offsets, and keyboard inset. This avoids every
 mobile-aware component owning its own resize listener.
 
-## Compatibility while Gen 3 is under development
+## Compatibility with stable Gen 2
 
 - v2.6.2 remains isolated on `main`.
 - Generation 3 work stays on `main-3`.
@@ -335,13 +348,13 @@ mobile-aware component owning its own resize listener.
 
 `main-3` CI runs:
 
-- Phase A/B architecture contract smoke;
+- compiler/runtime architecture contract smoke;
 - compiler graph runtime smoke;
 - adaptive compiler runtime smoke;
 - normal TypeScript validation;
 - optimized Next.js integration build;
 - the existing v2 compatibility/runtime tests;
-- Phase C tests when those sources are present on the branch.
+- network-security regression tests when those sources are present on the branch.
 
 The adaptive tests explicitly verify that image quality and Canvas DPR settings
 survive phone compilation unchanged.

@@ -6,7 +6,8 @@ Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, 
 
 **Current development track:** **NE v3.0.0-alpha.1 (Generation 3, prerelease candidate)**  
 **Generation 3 release notes:** [`docs/release/NE-v3-0-0-alpha-1.md`](./docs/release/NE-v3-0-0-alpha-1.md)  
-**Latest published v2 release:** [NE v2.6.2](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.6.2)  
+**Latest published stable release:** [NE v2.5.0](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.5.0)  
+**Latest prepared v2 patch notes:** [NE v2.6.2](./docs/release/NE-v2-6-2.md)  
 **Current Gen 3 branch:** [`main-3`](https://github.com/Kate-alt-69/nextjs-engine/tree/main-3)
 
 > Generation 3 is a substantial, compiler-first and server-first architectural update from Generation 2. It is still an alpha track, not the stable 2.x contract. Keep existing production apps on their validated release line until their Gen 3 migration has been tested.
@@ -223,9 +224,9 @@ module.exports = withEngine({}, {
 
 The portable [`examples/gen3-private-search`](./examples/gen3-private-search) proof and runnable `/engine-private-search` workspace route connect browser login, device-signed NENC transport, a hashed device-bound session, a server-only private backend resolver, permission-authorized search, and response sanitization. CI also rejects request replay, copied cookies used by another device key, and proofs signed for another origin.
 
-See [`docs/gen3/phase-c-network.md`](./docs/gen3/phase-c-network.md) for the completed Phase C security model and invariants.
+See [`docs/3/networking-credentials-security.md`](./docs/3/networking-credentials-security.md) for the network security model, command authorization, replay protection, and security invariants.
 
-Phase D compatibility work compiles a frozen per-page used-feature manifest and ordered fallback plan. It records only capabilities the schema needs, resolves native/runtime/rendering fallbacks against browser support, and keeps best-effort legacy content separate from full client runtime support. `createPage()` automatically recommends a browser update only when a required, actually used feature has no viable fallback; decorative nodes can opt out with `compatibility: "optional"`. See [`docs/gen3/phase-d-hardening.md`](./docs/gen3/phase-d-hardening.md).
+The compatibility subsystem compiles a frozen per-page used-feature manifest and ordered fallback plan. It records only capabilities the schema needs, resolves native/runtime/rendering fallbacks against browser support, and keeps best-effort legacy content separate from full client runtime support. `createPage()` automatically recommends a browser update only when a required, actually used feature has no viable fallback; decorative nodes can opt out with `compatibility: "optional"`. See [`docs/3/compatibility-debugging-hardening.md`](./docs/3/compatibility-debugging-hardening.md).
 
 During `next dev`, the combined plugin also provides an EngineDebug workbench at `/_engine/debug`. It includes a route explorer and live preview, compiler-node picker, runtime-boundary overlay, scheduler state feed, and device/viewport simulator. The generated debug route is removed before production route discovery and CI verifies that it is absent from `next build` output; it is not an authenticated or hidden production endpoint.
 Generation 3 EngineSEO turns an Engine page or dedicated JSON-style schema into Next.js metadata, canonical/OpenGraph/Twitter tags, Google/Bing verification, sitemap and robots outputs, safe JSON-LD, and dynamic `ImageResponse` cards. Automatic sitemaps include trustworthy per-route Git modification dates by default, with explicit dates for CMS content and an opt-in build-time mode. Social previews can use a custom image, a generated banner, or a real website screenshot captured through the Node-only helper. See [`docs/engine-components/engineseo.md`](./docs/engine-components/engineseo.md).
@@ -425,11 +426,15 @@ Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture
 | EngineOverlay | [`docs/engine-components/engineoverlay.md`](./docs/engine-components/engineoverlay.md) |
 | EngineScroll | [`docs/engine-components/enginescroll.md`](./docs/engine-components/enginescroll.md) |
 | Canvas / EC graphics | [`docs/engine-components/enginecanvas.md`](./docs/engine-components/enginecanvas.md) |
-| Styling | [`docs/styling.md`](./docs/styling.md) |
+| Gen 3 styling — simple | [`docs/3/styling.md`](./docs/3/styling.md) |
+| Gen 3 styling — detailed | [`docs/3/styling-detailed.md`](./docs/3/styling-detailed.md) |
+| Gen 3 compiler internals | [`docs/3/compiler-deep-dive.md`](./docs/3/compiler-deep-dive.md) |
 | Runtime/performance | [`docs/runtime-performance.md`](./docs/runtime-performance.md) |
 | APIStatic | [`docs/engine-components/apistatic.md`](./docs/engine-components/apistatic.md) |
 | External APIs | [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md) |
 | Diagnostics | [`docs/schema-diagnostics.md`](./docs/schema-diagnostics.md) |
+
+The unversioned [`docs/styling.md`](./docs/styling.md) path is retained for old links; use the explicitly versioned Gen 3 guide above.
 
 `DOCUMENT.md` is the large technical/history reference. For recently changed behavior, prefer the current TypeScript types and focused docs when an old historical section disagrees.
 

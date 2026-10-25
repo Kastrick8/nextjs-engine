@@ -1,5 +1,7 @@
 # Runtime & Performance Notes
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. For stable Gen 2 behavior, use [`docs/2/runtime-performance.md`](./2/runtime-performance.md).
+
 This page documents performance behavior that is true in the current source.
 It is not a promise that every schema is automatically fast; expensive custom
 callbacks, huge scenes, media, and application code can still dominate runtime.
@@ -117,6 +119,53 @@ large lazy lists from multiplying identical native observers.
 `once: true` unregisters only the intersected element after its first hit; it does
 not disconnect the shared observer while other elements still depend on it.
 
+### Public viewport hooks
+
+`useInView()` is exported from `nextjs-engine` for custom React components. It returns `{ ref, inView, entry }` and accepts these options:
+
+| Option | Default | Purpose |
+|---|---|---|
+| `rootMargin` | `"200px 0px"` | Expand/shrink the observer root |
+| `threshold` | `0` | Intersection ratio or list of ratios |
+| `once` | `true` | Stop observing this element after its first intersection |
+| `root` | `null` | Optional scroll-container element |
+| `initialInView` | `false` | Start as visible; useful for eager/above-the-fold content |
+
+```tsx
+"use client";
+
+import { useInView } from "nextjs-engine";
+
+export function RevealOnView() {
+  const { ref, inView, entry } = useInView<HTMLElement>({
+    rootMargin: "200px 0px",
+    once: true,
+  });
+
+  return (
+    <section ref={ref} data-in-view={inView} data-ratio={entry?.intersectionRatio}>
+      {inView ? "Ready to show" : "Preparing"}
+    </section>
+  );
+}
+```
+
+Convenience hooks are also exported:
+
+- `useImageInView(priority = false)` observes 400px before entry and unobserves after the first hit.
+- `useSectionInView(eager = false)` observes 600px before entry and unobserves after the first hit.
+- `useVisibleInView()` uses no root margin, a 0.1 threshold, and continues tracking enter/leave transitions.
+
+The hooks pool native `IntersectionObserver` instances with the same root, root margin, and threshold. When `IntersectionObserver` is unavailable, the current implementation marks the hook as in-view rather than leaving the content permanently hidden.
+
+### LazyMount and LazySection
+
+`LazyMount` and `LazySection` are public component exports. Both accept `children`, `height`, `width`, `aspectRatio`, `skeleton`, `rootMargin` (default `"600px 0px"`), `eager`, `className`, and `style`. A custom `skeleton` replaces the built-in shimmer placeholder; numeric width/height values are interpreted as pixels.
+
+`LazySection` additionally accepts `contentVisibility` (default `true`) and `containIntrinsicHeight`. When content visibility is enabled, it uses `content-visibility: auto` and defaults the intrinsic height to the provided height or `500px`. Set `contentVisibility={false}` when that behavior is not suitable for the section.
+
+Generation 3 `LazyMount` routes mount preparation through `EngineScheduler`. It activates when the scheduler marks the node critical or visible, or near the viewport without frame pressure; this allows lazy work to share the Engine's scheduling policy.
+
 ## Responsive hook listener ownership
 
 All `useBreakpoint()` / `useMinBreakpoint()` instances share one passive window
@@ -127,6 +176,24 @@ consumer on every pixel.
 
 Custom EngineProvider breakpoint maps remain supported; each subscriber resolves
 against its own provider configuration while sharing the same browser listener.
+
+The public API is intentionally small:
+
+```tsx
+"use client";
+
+import { useBreakpoint, useMinBreakpoint } from "nextjs-engine";
+
+export function ResponsiveLabel() {
+  const current = useBreakpoint();        // "xs" | "sm" | "md" | "lg" | "xl" | "2xl"
+  const tabletOrLarger = useMinBreakpoint("md");
+
+  return <span>{tabletOrLarger ? "Wide layout" : "Compact layout"} ({current})</span>;
+}
+```
+
+Default breakpoint cutoffs are `sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`, and `2xl: 1536px`; widths below `sm` resolve to `xs`. An `EngineProvider` may override individual breakpoints through `config.breakpoints`; unspecified keys retain their defaults. `useMinBreakpoint(target)` compares the current breakpoint's position in this ordered scale with the requested target.
+
 
 ## Provider context stability
 
@@ -234,16 +301,21 @@ remains as a compatibility fallback for low-level helpers invoked outside an
 `EngineProvider`; built-in page rendering does not use it as the normal request
 collector.
 
-### Remaining style-runtime limitation
+### Client-side generated stylesheet updates
 
-Dynamic generated CSS created **after hydration** is still primarily collected
-rather than incrementally flushed into the live DOM stylesheet. The ownership
-problem is fixed, but a future client-side flusher must append only new rules,
-avoid render-time DOM side effects, and avoid duplicating the complete SSR
-stylesheet.
+The current provider path includes `EngineCollectedStyles`, which subscribes to
+the nearest `StyleCollector`. New styles registered with that collector after
+hydration schedule a notification, and the style component reconciles its CSS
+snapshot. It adopts existing server-emitted CSS first when present, then updates
+after mount so the initial client render can match SSR.
 
-This is separate from server-render concurrency: provider-scoped SSR collection
-is isolated now.
+This relies on styles being registered to the provider collector that owns the
+rendered subtree. `staticClass(style, collector)` accepts an explicit collector;
+custom React components should pass the active
+`useEngineContext().styleCollector` rather than relying on the low-level
+global fallback. The public `mediaClass(base, ...breakpoints)` helper does not
+currently accept a collector argument and writes to the global fallback. For
+ordinary component-scoped responsive styles, prefer schema responsive props.
 
 ## Measuring instead of guessing
 

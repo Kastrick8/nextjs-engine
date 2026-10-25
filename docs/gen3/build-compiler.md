@@ -1,5 +1,7 @@
 # Generation 3 build compiler
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 The Generation 3 build adapter runs a small Engine-owned analysis pass alongside Next.js. It does not replace, patch, or reconstruct the Next.js/Turbopack compiler. Next.js remains responsible for TypeScript/TSX transformation, React Server Component boundaries, bundling, chunk splitting, route rendering, and final JavaScript/CSS output.
 
 ## Performance-first route and module pass
@@ -91,4 +93,4 @@ The manifest excludes full source files, complete source schemas, arbitrary comp
 
 If an application already configured a Next.js adapter, `withEngine()` chains its `modifyConfig` and `onBuildComplete` callbacks through the Engine adapter.
 
-The Generation 3 CI lane runs the phase A/B contracts, the build-compiler and module-compiler smoke tests, type-checking, and the Next.js production build.
+The Generation 3 CI lane runs the compiler/runtime contracts, build-compiler and module-compiler smoke tests, type-checking, and the Next.js production build.

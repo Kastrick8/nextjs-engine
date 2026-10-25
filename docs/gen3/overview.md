@@ -1,6 +1,6 @@
 # Generation 3 — Overview
 
-> Branch: `main-3`
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
 >
 > This is the current Next.js Engine architecture. Start here before reading the older v1/v2 release notes or the large historical `DOCUMENT.md` reference.
 
@@ -214,9 +214,9 @@ The standalone Generation 2 API plugin keeps its legacy default: `.EngineAPIConf
 
 | Goal | Document |
 | --- | --- |
-| Compiler, server rendering, scheduler, adaptive layout | [`phase-a-b.md`](./phase-a-b.md) |
-| NENC, EngineCookies, device proof, sessions, private backends | [`phase-c-network.md`](./phase-c-network.md) |
-| Used-feature manifests, fallbacks, legacy durability | [`phase-d-hardening.md`](./phase-d-hardening.md) |
+| Compiler, server rendering, scheduler, adaptive layout | [`../3/compiler-rendering-runtime.md`](../3/compiler-rendering-runtime.md) |
+| NENC, EngineCookies, device proof, sessions, private backends | [`../3/networking-credentials-security.md`](../3/networking-credentials-security.md) |
+| Used-feature manifests, fallbacks, legacy durability | [`../3/compatibility-debugging-hardening.md`](../3/compatibility-debugging-hardening.md) |
 | Metadata, sitemap, robots, JSON-LD, and social previews | [`../engine-components/engineseo.md`](../engine-components/engineseo.md) |
 | End-to-end device-bound private-search example | [`private-search-example.md`](./private-search-example.md) |
 | Schema/style/component APIs | [`../readme.md`](../readme.md) and [`../engine-components/`](../engine-components/) |

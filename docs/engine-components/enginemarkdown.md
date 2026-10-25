@@ -1,5 +1,7 @@
 # EngineMarkdown
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Schema type: `"markdown"`.
 
 EngineMarkdown is a safe AST-backed renderer for documentation, legal pages,

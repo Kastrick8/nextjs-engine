@@ -1,5 +1,7 @@
 # Next.js Engine — Developer Reference
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. For the stable 2.x contract, use the versioned guides under [`docs/2`](./2/index.md).
+
 > Core concepts, schema system, PROP vs CPROP, createPage API.
 > For component-specific APIs see `engine-components/`.
 
@@ -624,55 +626,42 @@ Add this to `tsconfig.json` for clean imports:
 
 ---
 
-## CSS Tier System
+## Style collection and global CSS
 
-The engine automatically classifies every CSS block into one of three tiers based on how many page renders have used it. Output order is always **Global → Group → Local** so the cascade is correct.
+The current implementation does **not** promote CSS into Global, Group, and Local tiers based on how many times a page has rendered. That tier description belongs to an older implementation and is retained only in historical material.
 
+Current behavior is simpler:
+
+- Generated styles are collected by the nearest `EngineProvider`. Each page/component boundary owns its collector, and exact CSS blocks are deduplicated inside it.
+- `EngineGlobalStyles()` emits only CSS explicitly registered through `StyleCollector.addGlobal()`. It does not automatically emit all styles collected by providers.
+- The exported `globalStyleCollector` is a compatibility fallback for low-level helpers used outside an Engine provider. Built-in page rendering normally uses provider-scoped collectors.
+
+### Register truly global CSS
+
+```ts
+import { globalStyleCollector } from "@/engine/core/StyleCollector";
+
+globalStyleCollector.addGlobal(":root { --brand: #9bcf3a; }");
 ```
- Tier        Threshold           Typical source
- ──────────  ──────────────────  ─────────────────────────────────────────
- Global      10+ renders OR      Engine baseline, theme vars, layout,
-             explicit call       header, footer — CSS on EVERY page
- Group       3–9 renders         Shared components used on several pages,
-                                 repeated responsive configs
- Local       1–2 renders         Page-specific overrides, one-off values
-```
 
-Tiers are **mutually exclusive** — Global CSS does not appear in Group or Local.
-
-### Using EngineGlobalStyles in layout.tsx
+Then render `EngineGlobalStyles` in the root layout to emit the explicitly registered global stylesheet:
 
 ```tsx
-// app/layout.tsx
 import { EngineGlobalStyles } from "@/engine";
 
 export default function RootLayout({ children }) {
   return (
     <html>
-      <head>
-        <EngineGlobalStyles />  {/* ← injects Global-tier CSS early */}
-      </head>
+      <head><EngineGlobalStyles /></head>
       <body>{children}</body>
     </html>
   );
 }
 ```
 
-`EngineGlobalStyles` outputs whatever CSS is currently in the Global tier of the cross-render registry. On a cold start it's empty (harmless). After a full SSG build or several dev-server navigations the Global tier is populated with all commonly-shared CSS.
+If no global CSS has been explicitly registered, `EngineGlobalStyles()` returns `null`. For ordinary responsive/pseudo-state styles, use the normal schema props and style collector rather than treating the global helper as a cache of all rendered CSS.
 
-### Explicitly marking CSS as Global
-
-```ts
-import { globalStyleCollector } from "@/engine/core/StyleCollector";
-
-// Force a CSS block to Global — never demoted
-globalStyleCollector.addGlobal(`:root { --brand: #9bcf3a; }`);
-```
-
----
-
----
-
+For details about the implementation on each release line, read the generation-specific styling references under `docs/2` or `docs/3`.
 ## cprop — Custom CSS Props
 
 `cprop` exposes pseudo-class states and direct CSS on any engine node.
@@ -842,19 +831,23 @@ interface EngineDiagnostic {
 `staticClass` converts a `CSSProperties` object into a single CSS class that is injected once into `StyleCollector`. Identical property sets across any number of nodes share the same class name.
 
 ```ts
-import { staticClass } from "@/engine";
+import type { ReactNode } from "react";
+import { staticClass, useEngineContext } from "@/engine";
 
-// Inside your own custom components:
-const layoutClass = staticClass({
-  width:     "100%",
-  maxWidth:  "1200px",
-  marginLeft:  "auto",
-  marginRight: "auto",
-});
-// → "e-s-a1b2c3"  (injected as .e-s-a1b2c3{width:100%;max-width:1200px;...})
-// If another component calls staticClass with the same props, the same class
-// name is returned and no duplicate CSS rule is emitted.
+function CustomFrame({ children }: { children: ReactNode }) {
+  const { styleCollector } = useEngineContext();
+  const layoutClass = staticClass({
+    width: "100%",
+    maxWidth: "1200px",
+    marginLeft: "auto",
+    marginRight: "auto",
+  }, styleCollector);
+
+  return <div className={layoutClass}>{children}</div>;
+}
 ```
+
+Pass the active provider's `styleCollector` to `staticClass` so the rule is emitted by that page/component's collected stylesheet. Calling `staticClass` without a collector uses the low-level global fallback and is not equivalent to registering global CSS with `EngineGlobalStyles`.
 
 Used internally by `EngineSection` (inner content wrapper) and `EngineCard` (cover + content wrappers) to eliminate repeated inline styles across multiple instances of the same component.
 

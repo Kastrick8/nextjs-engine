@@ -1,5 +1,7 @@
 # EngineSEO
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineSEO is the Generation 3 schema-driven bridge to Next.js 16 metadata, crawler routes, structured data, and social previews. It can infer basic page metadata from an Engine `PageSchema`, or accept a dedicated JSON-style `EngineSEOSchema` when a site needs exact control.
 
 SEO makes a page understandable and presentable to crawlers and link unfurlers. It does not guarantee a ranking or click increase.

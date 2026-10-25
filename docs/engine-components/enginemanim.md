@@ -1,5 +1,7 @@
 # EngineManim — 2D & 3D Animation
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineManim provides a Manim-style 2D canvas runtime and a separate Three.js
 GLTF/GLB/OBJ renderer with clip/DSL bone animation.
 
