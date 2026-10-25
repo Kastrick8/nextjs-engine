@@ -1,4 +1,4 @@
-import type { EngineHighlighterTokenKind, EngineMarkdownTokenPalette } from "../schema/types";
+import type { EngineHighlighterTokenKind, EngineMarkdownPrettyPleaseConfig, EngineMarkdownTokenPalette } from "../schema/types";
 export type { EngineHighlighterTokenKind } from "../schema/types";
 
 export interface EngineHighlighterToken {
@@ -335,6 +335,33 @@ function validColorAlpha(value: string): boolean {
  * channels and alpha are range-checked; arbitrary CSS expressions/URLs are
  * not accepted as palette colors.
  */
+const NODE_LANGUAGE_IDS = new Set(["node", "nodejs", "node.js"]);
+
+/** Resolve an explicit per-language palette before the shared fallback palette. */
+export function getEngineHighlighterPalette(
+	config: EngineMarkdownPrettyPleaseConfig | undefined,
+	language: string | undefined,
+): EngineMarkdownTokenPalette | undefined {
+	if (!config) return undefined;
+	const palettes = config.languagePalettes;
+	if (palettes && language) {
+		const rawLanguage = String(language).trim().toLowerCase().replace(/^language-/, "");
+		const exact = palettes[rawLanguage];
+		if (exact && typeof exact === "object") return exact;
+		const canonical = normalizeEngineHighlightLanguage(rawLanguage);
+		if (NODE_LANGUAGE_IDS.has(rawLanguage)) {
+			const nodePalette = palettes.nodejs ?? palettes["node.js"] ?? palettes.node;
+			if (nodePalette && typeof nodePalette === "object") return nodePalette;
+		}
+		const canonicalPalette = palettes[canonical];
+		if (canonicalPalette && typeof canonicalPalette === "object") return canonicalPalette;
+		for (const [key, palette] of Object.entries(palettes)) {
+			if (NODE_LANGUAGE_IDS.has(key.toLowerCase())) continue;
+			if (normalizeEngineHighlightLanguage(key) === canonical && palette && typeof palette === "object") return palette;
+		}
+	}
+	return config.palette;
+}
 export function normalizeEngineThemeColor(value: unknown): string | undefined {
 	if (typeof value !== "string" || value.length > 80) return undefined;
 	const color = value.trim();
