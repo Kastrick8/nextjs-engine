@@ -2,7 +2,9 @@
 
 > **Scope:** Combined historical technical reference covering both generations. Use the maintained Gen 2 and Gen 3 indexes for the current generation-specific contract; older implementation notes below may be superseded.
 
-> **Last updated:** 2026-10-25
+> **Last updated:** 2026-10-26
+> - **Versioned documentation audit** — The maintained navigation roots are [`docs/2/index.md`](./docs/2/index.md) and [`docs/3/index.md`](./docs/3/index.md). Public examples now use the package entry point where appropriate; unsupported `RawComponentRenderer` / `type: "raw"` examples were removed from canonical and compatibility component guides. EngineTheme and `.etr` are implemented by merged PR #45; see [`docs/3/engine-components/enginetheme.md`](./docs/3/engine-components/enginetheme.md).
+> - **Windows native SWC / Turbopack troubleshooting** — The Gen 3 compatibility guide now separates native SWC-load failures, WASM fallback, and Turbopack's native-binding requirement, with a supported recovery checklist: [`docs/3/compatibility-debugging-hardening.md`](./docs/3/compatibility-debugging-hardening.md).
 > - **CSS collection accuracy correction** — Marked the old render-count CSS-tier description as historical. The current Gen 2/Gen 3 source uses provider-scoped style collection and only emits global CSS registered through `StyleCollector.addGlobal()`.
 > - **Generation 3 alpha candidate and EngineDebug preview lifecycle** — Prepared `3.0.0-alpha.1` candidate notes describing the compiler-first/server-first architectural shift from Generation 2. EngineDebug now has an accessible WAITING overlay with indeterminate progress, a persistent WAITING/READY/ERROR status, reload and Problems actions, plus regression coverage for the pending-preview state. The candidate is not a published GitHub Release; the latest published stable release remains v2.5.0; v2.6.2 is a prepared patch, not a published GitHub Release.
 > **Changes in this update:**
