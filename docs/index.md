@@ -16,7 +16,7 @@ These unversioned index links are retained for compatibility. The maintained Gen
 | I want to… | Read |
 |---|---|
 | Understand what NE is | [`readme.md`](./2/readme.md) |
-| Learn schemas / `createPage()` | [`readme.md`](./readme.md) |
+| Learn schemas / `createPage()` | [`readme.md`](./2/readme.md) |
 | Learn stable Gen 2 styling | [`2/styling.md`](./2/styling.md) |
 | Learn Gen 2 styling internals | [`2/styling-detailed.md`](./2/styling-detailed.md) |
 | Learn about the Gen 3 compiler internals | [Compiler deep dive](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/compiler-deep-dive.md) |
@@ -118,7 +118,7 @@ Then:
 }
 ```
 
-Read: [`engineshader.md`](./engine-components/engineshader.md).
+Read: [`engineshader.md`](./2/engine-components/engineshader.md).
 
 ### If you want your own drawing/scene
 
@@ -136,7 +136,7 @@ Use **EngineCanvas**.
 }
 ```
 
-Read: [`enginecanvas.md`](./engine-components/enginecanvas.md).
+Read: [`enginecanvas.md`](./2/engine-components/enginecanvas.md).
 
 ### If you want SVG output from an ECScene
 
@@ -149,7 +149,7 @@ graphics: {
 }
 ```
 
-Read: [`enginesvg.md`](./engine-components/enginesvg.md).
+Read: [`enginesvg.md`](./2/engine-components/enginesvg.md).
 
 ---
 
@@ -177,23 +177,23 @@ The docs call out future/reserved APIs clearly so examples do not pretend an uni
 
 | Component / system | Documentation | Summary |
 |---|---|---|
-| Primitives | [`primitives.md`](./engine-components/primitives.md) | Box, Stack, Grid, Text, Heading, Button, Card, Section, Slot |
-| EngineCanvas | [`enginecanvas.md`](./engine-components/enginecanvas.md) | callback mode, EC graphics engines, adaptive DPR, EngineShader mode |
-| EngineSVG | [`enginesvg.md`](./engine-components/enginesvg.md) | retained SVG renderer, EC topology, SVG import/export |
-| EngineShader | [`engineshader.md`](./engine-components/engineshader.md) | `.shed` language, compiler, GPU surfaces, stages, render graph, scheduling |
-| EngineTransitions+ | [`enginetransitions.md`](./engine-components/enginetransitions.md) | 20 page/layout presets, shared morphs, programmatic transitions |
-| EngineScroll | [`enginescroll.md`](./engine-components/enginescroll.md) | point navigation, URL protocol, one-RAF scheduler |
-| EngineBrowser | [`enginebrowser.md`](./engine-components/enginebrowser.md) | browser capabilities and interaction APIs |
-| EngineManim | [`enginemanim.md`](./engine-components/enginemanim.md) | 2D animation and demand-driven Three.js 3D model animation |
-| EngineImage / Video | [`engineimage.md`](./engine-components/engineimage.md) | viewport-aware media and responsive image quality |
-| EngineMarkdown | [`enginemarkdown.md`](./engine-components/enginemarkdown.md) | Markdown rendering and heading anchors |
-| EngineNav | [`enginenav.md`](./engine-components/enginenav.md) | navigation bar, normal/animated routing pipeline, menus |
-| EngineHero | [`enginehero.md`](./engine-components/enginehero.md) | centered/split/full-bleed heroes, backgrounds, parallax |
-| EngineSuspense | [`enginesuspense.md`](./engine-components/enginesuspense.md) | loading fallbacks and suspense helpers |
-| EngineForms | [`engineforms.md`](./engine-components/engineforms.md) | native form primitives and named handlers |
-| EngineAPI | [`engineapi.md`](./engine-components/engineapi.md) | HTTP request resolver, auth, `.api` provider configuration |
-| APIStatic | [`apistatic.md`](./engine-components/apistatic.md) | `data/endpoint/**/*.route`, endpoint DSL, discovery manifest, static resolver facade |
-| EngineMobile / Device | [`enginemobile.md`](./engine-components/enginemobile.md) | server schema patching and device detection |
+| Primitives | [`primitives.md`](./2/engine-components/primitives.md) | Box, Stack, Grid, Text, Heading, Button, Card, Section, Slot |
+| EngineCanvas | [`enginecanvas.md`](./2/engine-components/enginecanvas.md) | callback mode, EC graphics engines, adaptive DPR, EngineShader mode |
+| EngineSVG | [`enginesvg.md`](./2/engine-components/enginesvg.md) | retained SVG renderer, EC topology, SVG import/export |
+| EngineShader | [`engineshader.md`](./2/engine-components/engineshader.md) | `.shed` language, compiler, GPU surfaces, stages, render graph, scheduling |
+| EngineTransitions+ | [`enginetransitions.md`](./2/engine-components/enginetransitions.md) | 20 page/layout presets, shared morphs, programmatic transitions |
+| EngineScroll | [`enginescroll.md`](./2/engine-components/enginescroll.md) | point navigation, URL protocol, one-RAF scheduler |
+| EngineBrowser | [`enginebrowser.md`](./2/engine-components/enginebrowser.md) | browser capabilities and interaction APIs |
+| EngineManim | [`enginemanim.md`](./2/engine-components/enginemanim.md) | 2D animation and demand-driven Three.js 3D model animation |
+| EngineImage / Video | [`engineimage.md`](./2/engine-components/engineimage.md) | viewport-aware media and responsive image quality |
+| EngineMarkdown | [`enginemarkdown.md`](./2/engine-components/enginemarkdown.md) | Markdown rendering and heading anchors |
+| EngineNav | [`enginenav.md`](./2/engine-components/enginenav.md) | navigation bar, normal/animated routing pipeline, menus |
+| EngineHero | [`enginehero.md`](./2/engine-components/enginehero.md) | centered/split/full-bleed heroes, backgrounds, parallax |
+| EngineSuspense | [`enginesuspense.md`](./2/engine-components/enginesuspense.md) | loading fallbacks and suspense helpers |
+| EngineForms | [`engineforms.md`](./2/engine-components/engineforms.md) | native form primitives and named handlers |
+| EngineAPI | [`engineapi.md`](./2/engine-components/engineapi.md) | HTTP request resolver, auth, `.api` provider configuration |
+| APIStatic | [`apistatic.md`](./2/engine-components/apistatic.md) | `data/endpoint/**/*.route`, endpoint DSL, discovery manifest, static resolver facade |
+| EngineMobile / Device | [`enginemobile.md`](./2/engine-components/enginemobile.md) | server schema patching and device detection |
 
 ---
 
