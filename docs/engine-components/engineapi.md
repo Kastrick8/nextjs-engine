@@ -1,5 +1,7 @@
 # EngineAPIResolver
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Engine networking has two related but separate systems:
 
 - **`EngineAPIResolver`** — normal HTTP requests, auth, config cascading, and `.EngineAPIConfig/*.api` provider configuration.
