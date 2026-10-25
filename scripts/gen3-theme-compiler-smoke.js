@@ -206,7 +206,7 @@ function testPublicThemeApi() {
 			},
 		}, {});
 		assert.equal(fallbackTemplate.props.style.background, undefined, "template CSS URLs are dropped");
-		assert.equal(fallbackTemplate.props.children, "literal <script> text", "template text is kept as text, never raw HTML");
+		assert.deepEqual(fallbackTemplate.props.children, ["literal <script> text"], "template text stays in React children and is never interpreted as raw HTML");
 		assert.equal(renderEngineThemeTemplate({
 			schema: { type: "box", props: { dangerouslySetInnerHTML: { __html: "x" } } },
 		}, {}), undefined, "raw HTML and dangerous props invalidate a template");
