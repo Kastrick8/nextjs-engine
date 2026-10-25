@@ -285,7 +285,7 @@ The live font script validates Google Fonts and Bunny Fonts using real HTTPS/DNS
 
 ## 13. Current status
 
-The EngineTheme implementation is complete on branch `feat/enginetheme-foundation`. Previously open provider and TextMate items now have implementation and executable verification paths.
+The EngineTheme implementation is complete on `main-3` through merged PR #45. The `.etr` compiler/loader, remote validation, Engine Lite/optional highlighter adapter, templates/Data-API, and production font pipeline are existing implemented scope—not future work. The remaining sections below propose new custom-component/overlay integration and EnginePlugin work.
 
 ### Implemented in the current foundation
 
@@ -316,7 +316,7 @@ The remaining font-provider and full-grammar work is implemented rather than def
 Remote loading remains explicit and data-only. Theme files do not execute remote code. Font URLs are allowlisted for compile-time downloads and any browser fallback. Offline builds can reuse verified stale local cache entries but fail on a cache miss; strict failure mode avoids browser-import fallback when local output cannot be produced.
 ## 14. Custom UI components, registry integration, and EngineTheme bindings
 
-This section is a separate proposal for a future custom-component authoring path. The EngineTheme work recorded above is implemented; the distinct `defineComponent()` authoring API and its generic registry/theme binding remain open design work. This proposal does not mean EngineTheme itself is unfinished.
+This section proposes a future custom-component authoring path on top of the already implemented EngineTheme system. The General API entry point is `createComponent()`, not a new `nextjs-engine/api` facade. The API must remain approachable for basic schema composition while gaining a typed advanced path for trusted custom component implementations, registry integration, props/slots, and theme bindings. Exact overload/options shape remains open; existing calls must stay compatible.
 
 ### What exists today on `main-3`
 
@@ -331,18 +331,18 @@ These facts mean the pieces are adjacent, but a stable custom-component contract
 
 ### Recommended API boundary
 
-Do not repurpose the existing `createComponent(schema)` call to mean something different. Keep it backward-compatible for composing schema trees, and introduce a distinct authoring API—provisionally `defineComponent()`—for trusted custom React components. A separately named API is easier to type, explain, and maintain than a heavily overloaded function.
+Treat `createComponent()` as the single public General API entry point for both basic and advanced component authoring. Preserve the existing schema-composition calls exactly. Add a clearly discriminated advanced option shape for trusted custom React component definitions instead of requiring a separate public `defineComponent()` entry point or a second General API facade. The public surface can use internal helpers to stay maintainable, but the user-facing path should be discoverable through `createComponent()`.
 
 The proposed responsibilities are:
 
-1. **`createTheme()`** defines reusable theme data: shared tokens, a component's default appearance, named variants, and safe declarative templates.
-2. **`defineComponent()`** describes a custom component's stable ID, prop contract, trusted local React implementation/adapter, supported slots, and optional default theme reference.
-3. **`registerComponent()` / component registry** makes that definition available to a schema-rendering context. Existing direct registry calls remain supported as a low-level compatibility path.
-4. **`createComponent()`** continues to compose a schema-backed React component. It may accept an optional theme context/reference for the schema it wraps, but should not silently become the custom React-component factory.
-5. **`defineSchema()` / `PageSchema`** references registered node types and selects theme IDs/variants without embedding executable component code.
+1. **`createComponent()` — General API entry point.** Keep the current schema-backed composition mode and add an advanced, typed mode for declaring a custom component's stable ID, trusted local React implementation, prop contract, supported slots, and optional EngineTheme reference. The options must distinguish these modes clearly; exact syntax and return type remain open.
+2. **`createTheme()`** continues to define reusable, validated theme data: shared tokens, component namespaces, variants and safe declarative templates. Its `.etr` generation/loading contract is already implemented by PR #45 and is not part of this proposal's unfinished work.
+3. **`registerComponent()` / component registry** remains the low-level compatibility mechanism that makes a trusted React component available as a schema-node type. The higher-level `createComponent()` path should make custom authoring simpler and less error-prone.
+4. **`defineSchema()` / `PageSchema`** references registered node types and selects theme IDs/variants without embedding executable component code.
+5. **EnginePlugin** lets an explicitly enabled project plugin compose/register extensions using `createComponent()` and existing public Engine APIs, subject to declared extension points.
 6. **Data-API** describes supported events and declarative composition behavior. It must not become a generic JavaScript execution hook.
 
-Names and exact type shapes are provisional until the API review. The important contract is the separation of *defining code*, *registering a component*, *selecting its theme*, and *composing schema data*.
+The goal is one public authoring path with basic and advanced modes—not a second General API barrel, not a duplicate theme compiler, and not a requirement to import private Engine source files.
 
 ### Illustrative API shape
 
@@ -351,7 +351,6 @@ The following is a design sketch for the future custom-component API, not code t
 ~~~tsx
 import {
   createTheme,
-  defineComponent,
   registerComponent,
   defineSchema,
   createComponent,
@@ -377,7 +376,8 @@ export const siteTheme = createTheme({
 });
 
 // Trusted application code owns the actual behavior and accessibility.
-export const CustomLink = defineComponent({
+export const CustomLink = createComponent({
+  mode: "custom",
   id: "site-link",
   component: SiteLinkImplementation,
   props: linkPropsSchema,
@@ -452,8 +452,8 @@ The implemented EngineTheme Data-API already provides typed `join:left`, `join:r
 
 ### Suggested implementation order and acceptance criteria
 
-1. Finalize the public type model and backward-compatibility tests for the existing `createComponent(schema)` and direct `registerComponent(type, component)` APIs.
-2. Implement the custom component descriptor/authoring API and a safe registry integration path, including app/request isolation decisions.
+1. Finalize a typed, discriminated `createComponent()` contract that preserves existing schema-composition calls and supports advanced custom component authoring; add backward-compatibility tests plus direct `registerComponent(type, component)` tests.
+2. Implement the advanced `createComponent()` path and safe registry integration, including app/request isolation decisions.
 3. Add component theme IDs and variant resolution to schema validation and the shared theme resolver.
 4. Implement the custom link example as the first registered custom component, with keyboard/accessibility and URL-safety tests.
 5. Connect the declarative Data-API contract only for explicitly supported events and slots.
@@ -474,7 +474,7 @@ Acceptance criteria:
 
 ### Decisions still open
 
-- Whether the final public factory name is `defineComponent()`, `createCustomComponent()`, or another unambiguous name.
+- The exact `createComponent()` option discriminator and whether advanced custom definitions return a React component directly or a typed descriptor that is explicitly registered.
 - Whether custom definitions register immediately or return a descriptor that is explicitly registered.
 - Whether `createComponent()` accepts an optional theme reference for schema composition, and the exact placement of that option.
 - The final typed prop-schema format and how named slots/children serialize through `SchemaNode`.
@@ -482,17 +482,15 @@ Acceptance criteria:
 - Exact custom-link props and whether theme IDs live in a reserved schema field or validated component props.
 - Any additional custom-component event list and how those events interact with the existing local-handler/slot contract.
 
-## 15. General API and EnginePlugin system
+## 15. EnginePlugin system (General API through `createComponent()`)
 
-This proposal expands Nextjs Engine from a collection of public helpers into a deliberate extension platform. The General API/EnginePlugin system is a separate future proposal, not an instruction to implement it now. EngineTheme itself is implemented as described in Section 13; any future extension system must preserve its public contracts and existing compatibility boundaries.
+This proposal adds the EnginePlugin host while treating `createComponent()` as the existing public General API entry point. It does not propose a separate `nextjs-engine/api` facade, a duplicate EngineTheme system, or any reimplementation of the `.etr` work completed in PR #45. This remains planning-only; preserve existing public contracts and compatibility.
 
 ### Goal and terminology
 
-Provide one discoverable General API through which first-party modules, custom UI/theme packages, and compatible third-party packages can integrate with supported parts of Nextjs Engine. Add an EnginePlugin host that loads trusted project plugin files and lets those plugins contribute to declared extension points.
+Keep the basic and advanced workload discoverable through `createComponent()` and the existing public Engine exports. Add an EnginePlugin host that loads enabled, trusted project plugin files and lets them contribute through declared extension points. The design should remain approachable for a simple themed component while also supporting advanced custom integrations.
 
-The design should be approachable for a basic use case and expressive enough for advanced integrations:
-
-- **General API** is the stable public facade for supported Engine capabilities and extension contracts. It provides one consistent route into the Engine workload without requiring packages to import private files from `src/engine/`.
+- **`createComponent()` / General API** is the public authoring/composition entry point. It should expose simple schema usage and a typed advanced custom-component mode without requiring imports from private files under `src/engine/`.
 - **EnginePlugin** is an opted-in integration module that declares its identity, compatibility, requested capabilities, target extension points, setup behavior, and optional lifecycle handlers.
 - **Extension point** is a named, typed, versioned integration surface explicitly published by a package. A plugin can connect only to extension points the target package exposes and the host allows.
 - **Adapter package** is a regular package that provides a small plugin or adapter module to connect its own functionality to Engine. The package may document how users install it and enable the corresponding local plugin.
@@ -500,17 +498,14 @@ The design should be approachable for a basic use case and expressive enough for
 
 Do not treat “General API” as permission to import or mutate every implementation detail. The API should make the workload discoverable while preserving stable boundaries, separate server/build/browser concerns, and clearly mark experimental or internal surfaces.
 
-### Proposed public entry points
+### Public API boundary
 
-Names and package exports are provisional until the export map and versioning policy are reviewed.
+- `nextjs-engine` remains the consumer-facing package import. `createComponent()` is the intended General API entry point; do not add a separate `nextjs-engine/api` facade as part of this plan.
+- `nextjs-engine/plugin` may expose plugin-author helpers such as `defineEnginePlugin` and narrowly scoped host types. Build/server-only plugin loading must not enter client bundles.
+- Existing server-only exports remain isolated under the established `nextjs-engine/server` boundary.
+- An experimental namespace can be considered only for genuinely unstable extension contracts; it is not a prerequisite for the initial plugin host.
 
-- `nextjs-engine`: preserve the existing consumer-facing public API and backwards compatibility.
-- `nextjs-engine/api`: stable, typed General API contracts and supported capability facades for packages integrating with Engine.
-- `nextjs-engine/plugin`: plugin author helpers and types such as `defineEnginePlugin`; host-side loader APIs should be explicitly server/build-only and must not be imported into client components.
-- `nextjs-engine/server`: continue to contain server-only APIs; never make server-only capabilities transitively available from the browser-safe root or API entry point.
-- `nextjs-engine/experimental`: optional staging surface for contracts that are not yet stable, if the project wants to publish them before graduation.
-
-The General API should group capabilities by domain instead of exposing one undifferentiated object full of private methods. Candidate domains include components/registry, themes, schema, Data-API, Markdown/rendering, compiler/build, assets, diagnostics, runtime profiles, and framework adapters. Each domain must explicitly declare its environment, mutability, stability, and version contract. The existing public exports are the compatibility baseline, not a reason to re-export every internal module.
+Keep domains such as components/registry, themes, schema, Data-API, Markdown/rendering, compiler/build, assets, diagnostics, runtime profiles, and framework adapters organized and typed underneath `createComponent()`'s authoring contract and the existing public exports. Internal code may use separate modules, but the user-facing API should not fragment into multiple competing entry points.
 
 ### Extension ownership: no hooks into null
 
@@ -565,30 +560,36 @@ The plugin loader must settle the JavaScript/TypeScript module contract before i
 This is a design sketch, not an implemented or finalized signature:
 
 ~~~ts
+import { createComponent, createTheme } from "nextjs-engine";
 import { defineEnginePlugin } from "nextjs-engine/plugin";
+
+const acmeTheme = createTheme({
+  id: "acme-site",
+  scope: "global",
+  components: {
+    link: {
+      defaults: { color: "var(--acme-link)" },
+      variants: { quiet: { textDecoration: "none" } },
+    },
+  },
+});
 
 export default defineEnginePlugin({
   id: "acme-site-theme",
   apiVersion: "^1",
   engineVersion: "^3",
-  targets: ["engine.theme.define", "engine.component.register"],
-  capabilities: ["theme.define", "component.register"],
+  targets: ["engine.component.register", "engine.theme.bind"],
+  capabilities: ["component.register", "theme.bind"],
   setup(api) {
-    const theme = api.themes.define({
-      id: "acme-site",
-      components: {
-        link: {
-          defaults: { color: "var(--acme-link)" },
-          variants: { quiet: { textDecoration: "none" } },
-        },
-      },
-    });
-
-    api.components.register({
+    const AcmeLink = createComponent({
+      mode: "custom",
       id: "acme-link",
-      component: AcmeLink,
-      theme: theme.component("link"),
+      component: AcmeLinkImplementation,
+      props: linkPropsSchema,
+      slots: ["children"],
+      theme: "acme-site.link",
     });
+    api.components.register("acme-link", AcmeLink);
   },
 });
 ~~~
@@ -606,7 +607,7 @@ Do not force a beginner to write hooks, compiler passes, or low-level adapters j
 
 ### General API responsibilities and extension boundaries
 
-The General API should provide a consistent set of typed facades that map to existing subsystem APIs and future subsystem contracts:
+The `createComponent()` contract and plugin-scoped integration context should map to existing subsystem APIs and future extension contracts without exposing raw internals:
 
 - **Components:** define a custom component descriptor, validate its props/slots, register it under an application-owned ID, and preserve built-in registrations unless explicit replacement is supported by a deliberate override policy.
 - **Themes:** create and extend theme data, reference tokens and component variants, and resolve the theme through the same shared resolver proposed in Section 14.
@@ -672,7 +673,7 @@ A third-party package should integrate through a small public adapter rather tha
 ### Suggested implementation phases
 
 1. **Inventory and contract map:** inspect package/export boundaries, all existing registries, compiler phase entry points, theme/schema/Markdown/Data-API integrations, current config conventions, and server/client separation. Classify every candidate extension point as stable, experimental, or internal. Do not decide on names from assumptions alone.
-2. **General API design:** agree on public subpaths, stable types, capability names, compatibility/version policy, context ownership, and how existing root exports map to the new facade. Preserve old APIs while gradually routing supported extensibility through shared contracts.
+2. **`createComponent()` contract design:** agree on the basic/advanced mode discriminator, custom-component type/props/slot contract, theme binding, capability vocabulary, context ownership, and backward-compatibility rules. Keep the General API on the existing public entry point rather than introducing a second facade.
 3. **Plugin manifest and configuration:** define the manifest, project plugin location, recognized filename convention, allow-list/discovery policy, .js/.ts module strategy, compatibility validation, diagnostics, and developer inspection output.
 4. **Host and lifecycle:** implement discovery/loading, capability-scoped API construction, dependency ordering, idempotent registration, error handling, context isolation, cleanup, and HMR behavior.
 5. **First end-to-end Engine use case:** create a plugin that registers a custom component and extends EngineTheme using the shared resolver from Section 14. Start with a custom link variant, prove safe URL/accessibility behavior, and keep theme styling separate from link behavior.
@@ -696,7 +697,7 @@ A third-party package should integrate through a small public adapter rather tha
 
 ### Decisions still open
 
-- Final public names and export map: whether the facade is named `EngineGeneralAPI`, what lives at `nextjs-engine/api`, and which helpers live at `nextjs-engine/plugin`.
+- Final `createComponent()` advanced-mode options/return contract and the minimal `nextjs-engine/plugin` helper surface; no standalone `nextjs-engine/api` facade is planned.
 - Whether plugin discovery is explicit-config-only, recognized-pattern auto-discovery after global opt-in, or a supported combination.
 - Minimum Node.js/toolchain requirements and the supported module/transpilation strategy for `.js` and `.ts` plugins.
 - Final manifest shape, package metadata convention, capability vocabulary, and whether permissions are grouped by risk or by API domain.
