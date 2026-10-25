@@ -1,5 +1,7 @@
 # EngineShader (ESH)
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineShader is Next.js Engine's compiled GPU-surface system.
 
 The human-authored language uses `.shed` files. NE compiles those files during development/build into small runtime artifacts that the browser can load without parsing the source language again.
