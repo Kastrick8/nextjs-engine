@@ -538,31 +538,13 @@ clear, or consistent cross-browser styling.
 
 ---
 
-## raw
+## Custom React components in schema
 
-Escape hatch — renders an arbitrary React component directly inside the schema
-tree. Use when a component can't be expressed as schema nodes and registering
-it via `registerComponent` isn't appropriate (e.g. a third-party widget).
+The current public API does not export `RawComponentRenderer`, and this generation's schema renderer does not provide a built-in `raw` node type. Older examples using `type: "raw"` with a React component/function inside `props` do not match the current schema contract; a component function is not ordinary serializable schema data.
 
-```ts
-import { RawComponentRenderer } from "@/engine";
+Use one of the supported integration paths instead:
 
-// Register once at module level
-import MyThirdPartyChart from "some-chart-library";
+- **Reusable named node:** define a trusted React component in application code and register it with `registerComponent("chart-widget", ChartWidget)`. Schema then refers to `type: "chart-widget"` and passes ordinary validated props.
+- **Page-specific React content:** declare a named `slot` node in the schema and supply the React element through the page/component `slots` option. This keeps the React element in application code instead of embedding it in schema data.
 
-{
-  type: "raw",
-  props: {
-    component: MyThirdPartyChart,
-    // All other props are forwarded to the component
-    data:    [...],
-    width:   "100%",
-    height:  400,
-    theme:   "dark",
-  },
-}
-```
-
-`raw` bypasses the registry lookup entirely — `component` must be a valid
-React component. For reusable custom nodes, use `registerComponent` instead
-so your component is addressable by type string everywhere in the schema.
+See the [Custom Components guide](../readme.md#custom-components) for the current registration contract.
