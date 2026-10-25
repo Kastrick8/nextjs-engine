@@ -35,6 +35,8 @@ export interface LoadRemoteEngineThemeOptions {
 	cacheTtlMs?: number;
 	/** Optional injectable fetcher for tests/controlled transports. */
 	fetchImpl?: typeof fetch;
+	/** Optional caller cancellation signal. */
+	signal?: AbortSignal;
 }
 
 interface CacheEntry {
