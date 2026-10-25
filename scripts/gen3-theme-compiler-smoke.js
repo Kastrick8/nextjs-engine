@@ -85,10 +85,10 @@ function testPublicThemeApi() {
 		assert.throws(() => createTheme(accessorTheme), /accessors/);
 		assert.equal(getterCalled, false, "accessor validation must not execute the getter");
 
-		const normalizedInfo = normalizeEngineMarkdownSource(":::warning Build note\\nRead this carefully.\\n:::");
+		const normalizedInfo = normalizeEngineMarkdownSource(":::warning Build note\nRead this carefully.\n:::");
 		assert.ok(normalizedInfo.includes("> [!ENGINE-INFO warning] Build note"), "info blocks normalize to a safe blockquote marker");
 		assert.ok(normalizedInfo.includes("> Read this carefully."), "info block body remains Markdown text");
-		const fencedInfo = normalizeEngineMarkdownSource("```text\\n:::info this is code\\n```");
+		const fencedInfo = normalizeEngineMarkdownSource("```text\n:::info this is code\n```");
 		assert.ok(fencedInfo.includes(":::info this is code"), "directives inside code fences remain code");
 
 		const highlighted = highlightEngineCode(
