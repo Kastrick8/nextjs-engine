@@ -19,9 +19,9 @@ This is the curated starting point for the current Gen 3 implementation. Some lo
 
 | Topic | Guide |
 |---|---|
-| Compiler, server rendering, work classes, scheduler, EngineModel, and EngineViewport | [Phase A + B](../gen3/phase-a-b.md) |
-| NENC, EngineCookies, device proof, sessions, permissions, and private backends | [Phase C — networking](../gen3/phase-c-network.md) |
-| Used-feature manifests, browser fallbacks, EngineDebug, build budgets, and hardening | [Phase D — compatibility and hardening](../gen3/phase-d-hardening.md) |
+| Compiler, server rendering, work classes, scheduler, EngineModel, and EngineViewport | [Compiler, rendering, and runtime](./compiler-rendering-runtime.md) |
+| NENC, EngineCookies, device proof, sessions, permissions, and private backends | [Networking, credentials, and command security](./networking-credentials-security.md) |
+| Used-feature manifests, browser fallbacks, EngineDebug, build budgets, and hardening | [Compatibility, EngineDebug, and hardening](./compatibility-debugging-hardening.md) |
 | EngineDebug route isolation and preview behavior | [EngineDebug isolation](../gen3/engine-debug-isolation.md) |
 | Server-first/client-render parity and shared style behavior | [Server-first parity](../gen3/server-first-parity.md) |
 | Full device-bound login/private-search example | [Private-search example](../gen3/private-search-example.md) |
