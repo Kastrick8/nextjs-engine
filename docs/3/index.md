@@ -14,6 +14,7 @@ This is the curated starting point for the current Gen 3 implementation. Canonic
 | Understand style compilation and collection | [Styling — detailed](./styling-detailed.md) |
 | Understand compiler/runtime internals, artifact caching, build budgets, and security checks | [Compiler deep dive](./compiler-deep-dive.md) |
 | Understand the compiler and server-first rendering model | [Gen 3 overview](../gen3/overview.md) |
+| Browse the complete versioned component catalog | [Component reference](./engine-components/index.md) |
 
 ## Compiler, rendering, and runtime
 
