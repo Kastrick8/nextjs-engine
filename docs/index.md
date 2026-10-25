@@ -17,6 +17,7 @@ If a historical example conflicts with the current TypeScript source or a curren
 | --- | --- |
 | Understand the current Gen 3 stack | [`gen3/overview.md`](./gen3/overview.md) |
 | Learn server-first `createPage()` and the compiler plan | [`gen3/phase-a-b.md`](./gen3/phase-a-b.md) |
+| Understand detailed compiler internals, artifact caching, build budgets, and security checks | [`3/compiler-deep-dive.md`](./3/compiler-deep-dive.md) |
 | Learn schemas, props, and general page authoring | [`readme.md`](./readme.md) |
 | Learn Gen 3 styling (simple) | [`3/styling.md`](./3/styling.md) |
 | Learn Gen 3 styling internals | [`3/styling-detailed.md`](./3/styling-detailed.md) |
