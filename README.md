@@ -6,7 +6,8 @@ Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, 
 
 **Current development track:** **NE v3.0.0-alpha.1 (Generation 3, prerelease candidate)**  
 **Generation 3 release notes:** [`docs/release/NE-v3-0-0-alpha-1.md`](./docs/release/NE-v3-0-0-alpha-1.md)  
-**Latest published v2 release:** [NE v2.6.2](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.6.2)  
+**Latest published stable release:** [NE v2.5.0](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.5.0)  
+**Latest prepared v2 patch notes:** [NE v2.6.2](./docs/release/NE-v2-6-2.md)  
 **Current Gen 3 branch:** [`main-3`](https://github.com/Kate-alt-69/nextjs-engine/tree/main-3)
 
 > Generation 3 is a substantial, compiler-first and server-first architectural update from Generation 2. It is still an alpha track, not the stable 2.x contract. Keep existing production apps on their validated release line until their Gen 3 migration has been tested.
