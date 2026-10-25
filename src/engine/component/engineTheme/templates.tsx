@@ -346,7 +346,8 @@ interface SafeDataResultState {
 function boundedDataJson(value: unknown, depth: number, state: SafeDataResultState): string | undefined {
 	state.nodes += 1;
 	if (state.nodes > MAX_TEMPLATE_NODES || depth > MAX_TEMPLATE_DEPTH) return undefined;
-	if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+	if (value === null || typeof value === "boolean") return JSON.stringify(value);
+	if (typeof value === "string") return JSON.stringify(value.length <= MAX_TEMPLATE_TEXT ? value : value.slice(0, MAX_TEMPLATE_TEXT));
 	if (typeof value === "number") return Number.isFinite(value) ? String(value) : undefined;
 	if (!value || typeof value !== "object" || state.active.has(value)) return undefined;
 	state.active.add(value);
@@ -369,6 +370,7 @@ function boundedDataJson(value: unknown, depth: number, state: SafeDataResultSta
 				truncated = true;
 				break;
 			}
+			if (key.length > MAX_TEMPLATE_TEXT) return undefined;
 			const descriptor = Object.getOwnPropertyDescriptor(value, key);
 			if (!descriptor || !("value" in descriptor) || descriptor.get || descriptor.set) return undefined;
 			const serialized = boundedDataJson(descriptor.value, depth + 1, state);
