@@ -2,7 +2,7 @@ import { Children, cloneElement, createElement, Fragment, isValidElement, type C
 import type {
 	EngineThemeTemplateDefinition,
 	EngineThemeTemplateNodeType,
-} from "../schema/types";
+} from "../../schema/types";
 
 export interface EngineThemeTemplateContext {
 	themeId?: string;

@@ -1,6 +1,6 @@
 # EngineTheme / createTheme / Pretty-please — Implementation Plan
 
-**Status:** Implementation in progress on feat/enginetheme-foundation; phases are being delivered incrementally.  
+**Status:** Implementation in progress on `feat/enginetheme-foundation`; compiler and runtime module boundaries are being applied.  
 **Repository:** Kate-alt-69/nextjs-engine  
 **Baseline inspected:** main-3, 2026-10-24
 
@@ -205,8 +205,8 @@ Inspect scripts/gen3-prepare-production.js and the existing production-build hoo
 | src/engine/compiler/EngineServerRenderer.tsx | Integrate theme-driven Markdown into server-first output without unnecessary client hydration. |
 | src/engine/core/markdownParser.ts | Preserve ANSI; add only language/color normalization that belongs here. |
 | src/engine/compiler/EngineCompiler.ts | Check whether theme references/assets must be represented in compiler graph or dependencies. |
-| src/engine/plugins/gen3BuildCompiler.js | Coordinate theme discovery/build and ETR generation or invoke a focused theme compiler. |
-| src/engine/plugins/gen3SchemaCache.js | Include theme inputs in the correct cache fingerprints/invalidation paths if applicable. |
+| src/engine/compiler/build.compiler.ts | Coordinate theme discovery/build and ETR generation or invoke a focused theme compiler. |
+| src/engine/compiler/schema-cache.compiler.js | Include theme inputs in the correct cache fingerprints/invalidation paths if applicable. |
 | src/engine/plugins/nencPlugin.js | Review integration boundary; retain command-manifest responsibility. |
 | scripts/gen3-prepare-production.js | Review production asset integration for font compilation. |
 | app/engine-markdown-test/page.tsx | Extend demo with theme IDs, highlighting, palettes, templates and information blocks. |
@@ -216,7 +216,7 @@ Inspect scripts/gen3-prepare-production.js and the existing production-build hoo
 | package.json and existing lockfile, if present | Add only a justified highlighter dependency and focused smoke-test command after evaluation. |
 | .gitignore | Decide explicitly how generated .etr artifacts are tracked or published; currently .nextjs-engine/.cache/ is ignored, not the whole theme output directory. |
 
-Proposed runtime module area: src/engine/engineTheme/ for public construction/types, ID resolution, remote ETR loading, event dispatch, provider registry, templates, and font cache helpers. Static ETR compilation belongs in src/engine/compiler/EngineThemeCompiler.js. Keep src/engine/plugins/ focused on Next.js hooks/adapters and links to compiler modules.
+Proposed runtime module area: src/engine/component/engineTheme/ for public construction/types, ID resolution, remote ETR loading, event dispatch, provider registry, templates, and font cache helpers. Static ETR compilation belongs in src/engine/compiler/theme/3/compiler.ts. Keep src/engine/plugins/ focused on Next.js hooks/adapters and links to compiler modules.
 
 ## 9. Implementation phases
 
@@ -291,12 +291,12 @@ Implementation is underway on branch `feat/enginetheme-foundation`.
 ### Implemented in the current foundation
 
 - Public `createTheme()` with local/global/remote scope, safe one-segment group IDs, three-level subtheme depth, JSON-only validation, deep freezing, and ID-based resolution.
-- NENC `.etr` artifacts with deterministic JSON/SHA-256, protected output paths, atomic writes, and stale-artifact tracking; static compiler logic is in `src/engine/compiler/EngineThemeCompiler.js`, reached through a thin plugin adapter.
+- NENC `.etr` artifacts with deterministic JSON/SHA-256, protected output paths, atomic writes, and stale-artifact tracking; static compiler logic is in `src/engine/compiler/theme/3/compiler.ts`, reached through a thin plugin adapter.
 - Pretty-please lightweight highlighting, provider/language/theme discovery, authoritative custom palettes, and per-language palettes including TypeScript versus Node.js.
 - Safe declarative Engine Schema templates for code blocks, table headers/cells, and typed info-block syntax; local React adapters are registered by trusted code and never embedded in remote theme data.
 - Typed event-driven Data-API join dispatch for left/right/top/bottom. It allocates events to local handlers and is not a preview/inspection API.
 - Explicit remote `.etr` loader with exact HTTPS origin allowlists, redirect denial, bounded streaming, timeouts/cancellation, checksum/format/version validation, recursive bounded theme-data checks, CSS/network primitive rejection, local/private host rejection, safe CSS-variable/font validation, cache deduplication, and explicit unregister/cache-clear functions.
-- Production-only NENC font compilation in `src/engine/engineTheme/EngineThemeFontCompiler.js` for local/global themes: bounded, allowlisted CSS/font downloads; local WOFF2/WOFF/TTF/OTF assets; content-hashed filenames; disk-cache reuse; explicit refresh; and strict dev-mode skip.
+- Production-only NENC font compilation in `src/engine/compiler/font/3/compiler.ts` for local/global themes: bounded, allowlisted CSS/font downloads; local WOFF2/WOFF/TTF/OTF assets; content-hashed filenames; disk-cache reuse; explicit refresh; and strict dev-mode skip.
 - Updated EngineMarkdown demo, docs, and smoke/browser regression coverage.
 
 ### Verification

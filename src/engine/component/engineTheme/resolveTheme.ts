@@ -3,7 +3,7 @@ import type {
 	EngineThemeJsonObject,
 	PageSchema,
 	SchemaNode,
-} from "../schema/types";
+} from "../../schema/types";
 import {
 	getEngineThemeComponentDefinitions,
 	resolveRegisteredEngineTheme,

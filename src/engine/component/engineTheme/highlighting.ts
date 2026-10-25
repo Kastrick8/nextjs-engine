@@ -1,5 +1,5 @@
-import type { EngineHighlighterTokenKind, EngineMarkdownPrettyPleaseConfig, EngineMarkdownTokenPalette } from "../schema/types";
-export type { EngineHighlighterTokenKind } from "../schema/types";
+import type { EngineHighlighterTokenKind, EngineMarkdownPrettyPleaseConfig, EngineMarkdownTokenPalette } from "../../schema/types";
+export type { EngineHighlighterTokenKind } from "../../schema/types";
 
 export interface EngineHighlighterToken {
 	kind: EngineHighlighterTokenKind;

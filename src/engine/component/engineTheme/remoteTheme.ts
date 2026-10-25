@@ -1,4 +1,4 @@
-import type { EngineThemeDefinition } from "../schema/types";
+import type { EngineThemeDefinition } from "../../schema/types";
 import {
 	registerLoadedRemoteEngineTheme,
 	unregisterLoadedRemoteEngineTheme,

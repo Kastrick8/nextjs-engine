@@ -4,7 +4,7 @@ import type {
   EngineThemeJsonValue,
   EngineThemeScope,
   EngineTheme,
-} from "../schema/types";
+} from "../../schema/types";
 
 const MAX_THEME_DEPTH = 32;
 const MAX_THEME_NODES = 10_000;

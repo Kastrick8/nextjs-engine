@@ -11,9 +11,9 @@ import type {
 	MarkdownProps,
 	EngineTheme as EngineThemeConfig,
 } from "./schema/types";
-import { resolveEngineThemeSchema } from "./engineTheme/resolveTheme";
-import { normalizeEngineThemeFontHrefs } from "./engineTheme/fontUrls";
-import { flattenEngineThemeTokens, normalizeEngineThemeVariables } from "./engineTheme/tokens";
+import { resolveEngineThemeSchema } from "./component/engineTheme/resolveTheme";
+import { normalizeEngineThemeFontHrefs } from "./component/engineTheme/fontUrls";
+import { flattenEngineThemeTokens, normalizeEngineThemeVariables } from "./component/engineTheme/tokens";
 import { EngineCollectedStyles, EngineProvider } from "./providers/EngineProvider";
 import { EngineScrollProvider } from "./core/enginescroll";
 import { SchemaRenderer } from "./core/SchemaRenderer";
