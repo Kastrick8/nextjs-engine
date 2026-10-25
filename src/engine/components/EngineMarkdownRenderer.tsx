@@ -290,6 +290,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				const themed = renderEngineThemeTemplate(config.themeTemplates?.infoBlock, {
 					themeId: config.themeId,
 					componentId: "markdown",
+					block: "infoBlock",
 					dataApiContext: { existing: { title: title ?? "", tone }, incoming: { text: textFromReactNode(body).slice(0, 256) } },
 					tone,
 					title,
@@ -474,6 +475,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			return renderEngineThemeTemplate(config.themeTemplates?.codeBlock, {
 				themeId: config.themeId,
 				componentId: "markdown",
+				block: "codeBlock",
 				dataApiContext: { existing: { language: language ?? "text" } },
 				className: joinClassNames("e-md-code-block", blockClass),
 				wrapperStyle: blockStyle,
@@ -513,6 +515,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableHeader, {
 				themeId: config.themeId,
 				componentId: "markdown",
+				block: "tableHeader",
 				dataApiContext: { existing: { text: textFromReactNode(children).slice(0, 256) }, metadata: { alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : "start") } },
 				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
 				textColor: config.textColor,
@@ -530,6 +533,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableCell, {
 				themeId: config.themeId,
 				componentId: "markdown",
+				block: "tableCell",
 				dataApiContext: { existing: { text: textFromReactNode(children).slice(0, 256) }, metadata: { alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : "start") } },
 				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
 				textColor: config.textColor,
