@@ -343,9 +343,49 @@ export interface EngineThemeTemplateNode {
 	children?: Array<EngineThemeTemplateNode | string>;
 }
 
+export type EngineThemeTemplatePlacement = "left" | "right" | "top" | "bottom";
+export type EngineThemeTemplateMerge = "replace" | "append" | "prepend" | "wrap";
+
+/** Bounded layout options for a template root or an additional template part. */
+export interface EngineThemeTemplateLayout {
+	display?: "block" | "inline" | "flex" | "inline-flex" | "grid";
+	direction?: "row" | "column" | "row-reverse" | "column-reverse";
+	align?: "start" | "center" | "end" | "stretch" | "baseline";
+	justify?: "start" | "center" | "end" | "between" | "around" | "evenly";
+	gap?: string | number;
+	order?: number;
+	wrap?: boolean;
+	/** Flex wrapping or grid auto-fit/minmax for narrow containers. */
+	responsive?: boolean;
+	/** Explicit grid columns, used when display is grid and responsive is false. */
+	columns?: string;
+	/** Responsive grid minimum column width; defaults to 16rem. */
+	minColumnWidth?: string;
+}
+
+/** Events are dispatched only to handlers registered by trusted project code. */
+export interface EngineThemeTemplateDataApiBinding {
+	handlerId: string;
+	event: EngineThemeDataEventType;
+	slotId?: string;
+	/** Bounded JSON defaults; render-context values take precedence. */
+	existing?: EngineThemeJsonValue;
+	incoming?: EngineThemeJsonValue;
+	metadata?: EngineThemeJsonObject;
+}
+
+export interface EngineThemeTemplateOptions {
+	/** Physical side of a composed template part. append: right/bottom; prepend: left/top. */
+	placement?: EngineThemeTemplatePlacement;
+	/** wrap preserves existing content slots; replacement/additive modes are explicit. */
+	merge?: EngineThemeTemplateMerge;
+	layout?: EngineThemeTemplateLayout;
+	dataApi?: EngineThemeTemplateDataApiBinding;
+}
+
 export type EngineThemeTemplateDefinition =
-	| { schema: EngineThemeTemplateNode; adapterId?: never }
-	| { adapterId: string; schema?: never };
+	| (EngineThemeTemplateOptions & { schema: EngineThemeTemplateNode; adapterId?: never })
+	| (EngineThemeTemplateOptions & { adapterId: string; schema?: never });
 
 export interface EngineMarkdownThemeTemplates {
 	/** Wrap a fenced code block; slots include languageLabel and content (the PRE). */
@@ -387,6 +427,8 @@ export interface MarkdownProps extends BaseNodeProps {
 	prettyPlease?: EngineMarkdownPrettyPleaseConfig;
 	/** Safe declarative templates or registered local adapters for Markdown sub-blocks. */
 	themeTemplates?: EngineMarkdownThemeTemplates;
+	/** Internal EngineTheme group ID propagated for template Data-API context. */
+	engineThemeId?: string;
 	/** Per-element style overrides for reusable documentation themes. */
 	markdownStyles?: EngineMarkdownStyles;
 	/** Custom colors for ANSI 16-color/bright terminal palettes. */
@@ -774,7 +816,13 @@ export interface EngineThemeDataEvent {
 	context: EngineThemeDataEventContext;
 }
 
-export type EngineThemeDataHandlerResult = EngineThemeJsonValue | ReactNode | undefined;
+/** A handler may return a bounded composition instruction for a theme template. */
+export interface EngineThemeDataCompositionResult {
+	operation: EngineThemeTemplateMerge;
+	value?: EngineThemeJsonValue | ReactNode;
+}
+
+export type EngineThemeDataHandlerResult = EngineThemeJsonValue | ReactNode | EngineThemeDataCompositionResult | undefined;
 export type EngineThemeDataHandler = (event: Readonly<EngineThemeDataEvent>) => EngineThemeDataHandlerResult;
 
 export interface PageSchema {

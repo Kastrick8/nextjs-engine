@@ -7,6 +7,7 @@ import {
 export interface EngineThemeArtifact {
 	format: "nextjs-engine-theme";
 	formatVersion: 1;
+	schemaVersion: 1;
 	generatedBy: "NENC";
 	id: string;
 	createdWith: {
@@ -212,8 +213,8 @@ async function readBoundedResponse(response: Response, limit: number): Promise<s
 function validateArtifactShape(value: unknown): asserts value is EngineThemeArtifact {
 	if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Remote .etr artifact must be a JSON object.");
 	const artifact = value as Record<string, unknown>;
-	if (artifact.format !== "nextjs-engine-theme" || artifact.formatVersion !== 1 || artifact.generatedBy !== "NENC") {
-		throw new Error("Remote .etr artifact format/version is not supported by this EngineTheme loader.");
+	if (artifact.format !== "nextjs-engine-theme" || artifact.formatVersion !== 1 || artifact.schemaVersion !== 1 || artifact.generatedBy !== "NENC") {
+		throw new Error("Remote .etr artifact format, envelope version, or theme schema version is not supported by this EngineTheme loader.");
 	}
 	if (typeof artifact.id !== "string" || !SAFE_ID.test(artifact.id)) {
 		throw new TypeError("Remote .etr artifact has an invalid group ID.");

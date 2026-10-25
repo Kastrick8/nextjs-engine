@@ -1,8 +1,15 @@
 import { Children, cloneElement, createElement, Fragment, isValidElement, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import type {
+	EngineThemeDataEventContext,
+	EngineThemeDataEventType,
+	EngineThemeJsonObject,
 	EngineThemeTemplateDefinition,
+	EngineThemeTemplateLayout,
+	EngineThemeTemplateMerge,
 	EngineThemeTemplateNodeType,
+	EngineThemeTemplatePlacement,
 } from "../../schema/types";
+import { dispatchEngineThemeDataEvent } from "./dataApi";
 
 export interface EngineThemeTemplateContext {
 	themeId?: string;
@@ -16,6 +23,7 @@ export interface EngineThemeTemplateContext {
 	alignment?: string;
 	tone?: string;
 	title?: string;
+	dataApiContext?: Pick<EngineThemeDataEventContext, "existing" | "incoming" | "metadata">;
 	[key: string]: unknown;
 	slots?: Readonly<Record<string, ReactNode>>;
 }
@@ -53,7 +61,7 @@ const ALLOWED_STYLE_KEYS = new Set([
 
 const SAFE_SLOTS = new Set([
 	"content", "children", "label", "language", "languageLabel", "title", "icon",
-	"footer", "leading", "trailing", "existing", "incoming", "body", "pre",
+	"footer", "leading", "trailing", "existing", "incoming", "body", "pre", "dataResult",
 ]);
 
 interface CompiledTemplateNode {
@@ -324,10 +332,84 @@ export function listEngineThemeTemplateAdapters(): string[] {
 	return [...templateAdapters.keys()].sort();
 }
 
-/**
- * Render an Engine Schema template safely. Invalid templates return undefined
- * so the Markdown renderer can keep its built-in layout as a fallback.
- */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+}
+
+function safeDataResultNode(value: unknown): ReactNode {
+	if (value === null || value === undefined || typeof value === "boolean") return null;
+	if (typeof value === "string" || typeof value === "number") return String(value);
+	if (isValidElement(value as ReactNode)) return value as ReactNode;
+	if (Array.isArray(value)) return createElement(Fragment, null, Children.toArray(value as ReactNode));
+	try { return JSON.stringify(value); } catch { return null; }
+}
+
+function isTemplateMerge(value: unknown): value is EngineThemeTemplateMerge {
+	return value === "replace" || value === "append" || value === "prepend" || value === "wrap";
+}
+
+function templateLayoutStyle(layout?: EngineThemeTemplateLayout, placement?: EngineThemeTemplatePlacement): CSSProperties {
+	const style: Record<string, string | number | undefined> = {};
+	if (layout?.display) style.display = layout.display;
+	const direction = placement
+		? (placement === "left" || placement === "right" ? "row" : "column")
+		: layout?.direction;
+	if (direction) style.flexDirection = direction;
+	if (layout?.align) style.alignItems = layout.align === "start" ? "flex-start" : layout.align === "end" ? "flex-end" : layout.align;
+	if (layout?.justify) {
+		const justify: Record<string, string> = {
+			start: "flex-start", center: "center", end: "flex-end",
+			between: "space-between", around: "space-around", evenly: "space-evenly",
+		};
+		style.justifyContent = justify[layout.justify];
+	}
+	if (typeof layout?.gap === "number" && Number.isFinite(layout.gap) && layout.gap >= 0 && layout.gap <= 256) {
+		style.gap = layout.gap;
+	} else if (typeof layout?.gap === "string" && layout.gap.length <= 64
+		&& /^[0-9A-Za-z.%(), _+-]+$/.test(layout.gap) && !/url|expression|javascript/i.test(layout.gap)) {
+		style.gap = layout.gap;
+	}
+	if (typeof layout?.order === "number" && Number.isInteger(layout.order) && layout.order >= -100 && layout.order <= 100) style.order = layout.order;
+	if (layout?.wrap || layout?.responsive) style.flexWrap = "wrap";
+	if (layout?.responsive) {
+		style.minWidth = 0;
+		if (layout.display === "grid") {
+			const min = typeof layout.minColumnWidth === "string" && /^[0-9A-Za-z.%_-]{1,32}$/.test(layout.minColumnWidth) ? layout.minColumnWidth : "16rem";
+			style.gridTemplateColumns = "repeat(auto-fit, minmax(min(100%, " + min + "), 1fr))";
+		}
+	} else if (layout?.display === "grid" && typeof layout.columns === "string" && /^[0-9A-Za-z ().,%/_-]{1,64}$/.test(layout.columns)) {
+		style.gridTemplateColumns = layout.columns;
+	}
+	return style as CSSProperties;
+}
+
+function applyTemplateLayout(node: ReactNode, layout?: EngineThemeTemplateLayout): ReactNode {
+	const style = templateLayoutStyle(layout);
+	if (!Object.keys(style).length || node === null || node === undefined) return node;
+	if (isValidElement<{ style?: CSSProperties }>(node)) return cloneElement(node, { style: { ...node.props.style, ...style } });
+	return createElement("div", { style }, node);
+}
+
+function composeTemplate(
+	base: ReactNode,
+	addition: ReactNode,
+	merge: "append" | "prepend",
+	placement: EngineThemeTemplatePlacement,
+	layout?: EngineThemeTemplateLayout,
+	wrapperStyle?: CSSProperties,
+): ReactNode {
+	const children = merge === "prepend" ? [addition, base] : [base, addition];
+	const style = templateLayoutStyle({ ...layout, display: layout?.display ?? "flex", responsive: layout?.responsive ?? true }, placement);
+	return createElement("div", {
+		"data-engine-theme-composition": merge,
+		"data-engine-theme-placement": placement,
+		style: { minWidth: 0, ...(wrapperStyle ?? {}), ...style },
+	}, children);
+}
+
+/** Render a declarative template. wrap preserves existing slot behavior. */
 export function renderEngineThemeTemplate(
 	definition: EngineThemeTemplateDefinition | undefined,
 	context: EngineThemeTemplateContext,
@@ -344,10 +426,70 @@ export function renderEngineThemeTemplate(
 		compiled = compileTemplate(definition);
 	}
 	if (compiled.error) return undefined;
+
+	let merge: EngineThemeTemplateMerge = definition.merge ?? "wrap";
+	let placement: EngineThemeTemplatePlacement | undefined = definition.placement;
+	const slots: Record<string, ReactNode> = { ...(context.slots ?? {}) };
+	if (definition.dataApi) {
+		const binding = definition.dataApi;
+		const eventType = binding.event as EngineThemeDataEventType;
+		const direction = eventType.slice("join:".length) as EngineThemeDataEventContext["direction"];
+		const supplied = context.dataApiContext ?? {};
+		const metadata: EngineThemeJsonObject = {
+			...(binding.metadata ?? {}),
+			...(supplied.metadata ?? {}),
+			...(typeof context.block === "string" ? { block: context.block } : {}),
+			...(typeof context.language === "string" ? { language: context.language } : {}),
+			...(typeof context.title === "string" ? { title: context.title } : {}),
+			...(typeof context.label === "string" ? { label: context.label } : {}),
+			...(typeof context.tone === "string" ? { tone: context.tone } : {}),
+		};
+		const existing = supplied.existing !== undefined ? supplied.existing : binding.existing;
+		const incoming = supplied.incoming !== undefined ? supplied.incoming : binding.incoming;
+		const eventContext: EngineThemeDataEventContext = {
+			themeId: context.themeId ?? "engine-markdown",
+			componentId: context.componentId ?? "markdown",
+			slotId: binding.slotId ?? context.block ?? "content",
+			direction,
+			...(existing !== undefined ? { existing } : {}),
+			...(incoming !== undefined ? { incoming } : {}),
+			...(Object.keys(metadata).length ? { metadata } : {}),
+		};
+		const dispatched = dispatchEngineThemeDataEvent(eventType, binding.handlerId, eventContext);
+		if (isPlainRecord(dispatched) && isTemplateMerge(dispatched.operation) && Object.prototype.hasOwnProperty.call(dispatched, "value")) {
+			merge = dispatched.operation;
+			slots.dataResult = safeDataResultNode(dispatched.value);
+		} else {
+			slots.dataResult = safeDataResultNode(dispatched);
+		}
+	}
+	if ((merge === "append" || merge === "prepend") && !placement) placement = merge === "append" ? "bottom" : "top";
+	if (placement && merge !== "append" && merge !== "prepend") throw new TypeError("EngineTheme template placement is only valid with merge 'append' or 'prepend'.");
+	if (merge === "append" && placement !== "right" && placement !== "bottom") throw new TypeError("EngineTheme template merge 'append' requires placement 'right' or 'bottom'.");
+	if (merge === "prepend" && placement !== "left" && placement !== "top") throw new TypeError("EngineTheme template merge 'prepend' requires placement 'left' or 'top'.");
+	if (merge === "replace" || merge === "append" || merge === "prepend") {
+		delete slots.content;
+		delete slots.children;
+	}
+	const templateContext = { ...context, slots };
+	let themed: ReactNode;
 	if (typeof definition.adapterId === "string") {
 		const adapter = templateAdapters.get(definition.adapterId);
-		return adapter ? createElement(adapter, context) : undefined;
+		if (!adapter) return undefined;
+		themed = createElement(adapter, templateContext);
+	} else {
+		if (!compiled.node) return undefined;
+		themed = renderCompiledNode(compiled.node, templateContext, 0, "theme-template");
 	}
-	if (!compiled.node) return undefined;
-	return renderCompiledNode(compiled.node, context, 0, "theme-template");
+	if (merge === "append" || merge === "prepend") {
+		return composeTemplate(
+			context.slots?.content ?? context.slots?.children ?? null,
+			applyTemplateLayout(themed, definition.layout),
+			merge,
+			placement!,
+			definition.layout,
+			context.wrapperStyle,
+		);
+	}
+	return applyTemplateLayout(themed, definition.layout);
 }

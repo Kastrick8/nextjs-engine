@@ -50,9 +50,13 @@ function mergeThemeObjects(base: EngineThemeJsonObject, overlay: EngineThemeJson
     const next = overlay[key];
     // Syntax palettes are complete replacements by contract. Inheriting
     // unspecified token colors from a parent palette would violate that rule.
-    merged[key] = key !== "palette" && isJsonObject(previous) && isJsonObject(next)
-      ? mergeThemeObjects(previous, next)
-      : next;
+    // Language maps merge by ID, but a selected language palette replaces its
+    // parent palette wholesale instead of inheriting stale token colors.
+    merged[key] = key === "languagePalettes" && isJsonObject(previous) && isJsonObject(next)
+      ? { ...previous, ...next }
+      : key !== "palette" && key !== "languagePalettes" && isJsonObject(previous) && isJsonObject(next)
+        ? mergeThemeObjects(previous, next)
+        : next;
   }
   return merged;
 }

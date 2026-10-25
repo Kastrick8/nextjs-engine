@@ -150,6 +150,24 @@ async function testPublicThemeApi() {
 		assert.equal(getEngineHighlighterPalette(languagePaletteConfig, "nodejs").foreground, "#aaffaa", "Node.js can override JavaScript’s grammar palette");
 		assert.equal(getEngineHighlighterPalette(languagePaletteConfig, "javascript").foreground, "#dddddd");
 		assert.equal(getEngineHighlighterPalette(languagePaletteConfig, "python").foreground, "#eeeeee", "unconfigured languages use the shared palette");
+
+		createTheme({
+			id: "theme-palette-inheritance-smoke",
+			scope: "global",
+			markdown: {
+				defaults: { prettyPlease: { languagePalettes: { typescript: { foreground: "#cccccc", keyword: "#ff00ff" } } } },
+				variants: { dark: { defaults: { prettyPlease: { languagePalettes: { typescript: { foreground: "#aabbcc" } } } } },
+			},
+		});
+		const inheritedPalettePage = resolveEngineThemeSchema({
+			theme: { id: "theme-palette-inheritance-smoke.markdown.dark" },
+			root: { type: "markdown", props: { content: "palette" } },
+		});
+		assert.deepEqual(
+			inheritedPalettePage.root.props.prettyPlease.languagePalettes.typescript,
+			{ foreground: "#aabbcc" },
+			"variant language palettes replace the selected language palette wholesale",
+		);
 		const customProvider = {
 			id: "smoke-provider",
 			name: "Smoke Provider",
@@ -220,6 +238,12 @@ async function testPublicThemeApi() {
 			incoming: incomingContext,
 		}), { operation: "append", value: { icon: "sort" } });
 		assert.equal(allocatedEvent.type, "join:left");
+		for (const direction of ["right", "top", "bottom"]) {
+			const dispatched = dispatchEngineThemeDataEvent("join:" + direction, "smoke-theme.table-join", {
+				themeId: "theme-runtime-smoke.markdown.dark", componentId: "markdown", slotId: "table.header", direction,
+			});
+			assert.deepEqual(dispatched, { operation: "append", value: undefined }, "join:" + direction + " remains supported");
+		}
 		assert.equal(Object.isFrozen(allocatedEvent), true);
 		assert.equal(Object.isFrozen(allocatedEvent.context), true);
 		assert.equal(Object.isFrozen(allocatedEvent.context.existing), true);
@@ -296,6 +320,61 @@ async function testPublicThemeApi() {
 		const adapterElement = renderEngineThemeTemplate({ adapterId: "smoke.markdown.header" }, { label: "custom" });
 		assert.equal(adapterElement.type, localAdapter, "only the explicitly registered local adapter is returned");
 		assert.equal(unregisterEngineThemeTemplateAdapter("smoke.markdown.header"), true);
+
+		registerEngineThemeDataHandler("smoke.template.composition", (event) => ({
+			operation: "append",
+			value: event.context.incoming && event.context.incoming.label === "Sort" ? "Sort" : "Fallback",
+		}));
+		const composedTemplate = renderEngineThemeTemplate({
+			merge: "append",
+			placement: "right",
+			layout: { display: "flex", gap: "6px", responsive: true },
+			dataApi: { handlerId: "smoke.template.composition", event: "join:right", slotId: "table.header" },
+			schema: {
+				type: "stack",
+				props: { direction: "row", gap: "4px" },
+				children: [{ type: "slot", props: { name: "dataResult" } }],
+			},
+		}, {
+			themeId: "theme-runtime-smoke",
+			componentId: "markdown",
+			block: "tableHeader",
+			slots: { content: React.createElement("span", null, "Name") },
+			dataApiContext: { existing: { label: "Name" }, incoming: { label: "Sort" }, metadata: { column: 0 } },
+		});
+		assert.equal(composedTemplate.type, "div");
+		assert.equal(composedTemplate.props["data-engine-theme-composition"], "append");
+		assert.equal(composedTemplate.props["data-engine-theme-placement"], "right");
+		assert.equal(composedTemplate.props.style.flexDirection, "row");
+		function composedText(node) {
+			if (node === null || node === undefined || typeof node === "boolean") return "";
+			if (typeof node === "string" || typeof node === "number") return String(node);
+			if (Array.isArray(node)) return node.map(composedText).join("");
+			return React.isValidElement(node) ? composedText(node.props.children) : "";
+		}
+		assert.equal(composedText(composedTemplate), "NameSort", "append places existing content before the Data-API result");
+
+		const prependedTemplate = renderEngineThemeTemplate({
+			merge: "prepend",
+			placement: "top",
+			layout: { display: "flex", direction: "column", gap: "4px", responsive: true },
+			schema: { type: "text", props: { content: "Leading label" } },
+		}, { slots: { content: "Original body" } });
+		assert.equal(prependedTemplate.props["data-engine-theme-composition"], "prepend");
+		assert.equal(prependedTemplate.props["data-engine-theme-placement"], "top");
+		assert.equal(composedText(prependedTemplate), "Leading labelOriginal body",
+			"prepend puts the additional template physically before existing content");
+
+		const replacedTemplate = renderEngineThemeTemplate({
+			merge: "replace",
+			schema: { type: "text", props: { content: "Replacement body" } },
+		}, { slots: { content: "Original body" } });
+		assert.equal(composedText(replacedTemplate), "Replacement body",
+			"replace does not inject the original content slot into the replacement template");
+		assert.throws(() => renderEngineThemeTemplate({
+			merge: "append", placement: "left", schema: { type: "slot", props: { name: "dataResult" } },
+		}, { slots: { content: "x" } }), /requires placement 'right' or 'bottom'/);
+		assert.equal(unregisterEngineThemeDataHandler("smoke.template.composition"), true);
 		assert.equal(renderEngineThemeTemplate({ adapterId: "missing.remote.adapter" }, {}), undefined, "unregistered adapters fail closed");
 
 		createTheme({
@@ -394,6 +473,7 @@ async function testPublicThemeApi() {
 		const remotePayload = {
 			format: "nextjs-engine-theme",
 			formatVersion: 1,
+			schemaVersion: 1,
 			generatedBy: "NENC",
 			id: "remote-smoke",
 			createdWith: { nextjs: "16.4.2", nextjsEngine: "3.0.0-alpha.1" },
@@ -419,6 +499,19 @@ async function testPublicThemeApi() {
 			expectedId: "remote-smoke",
 			fetchImpl: remoteFetch,
 		};
+
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.com/unsupported-schema.etr", {
+				...remoteOptions,
+				expectedId: "remote-smoke",
+				fetchImpl: async () => new Response(JSON.stringify({
+					...remotePayload,
+					schemaVersion: 2,
+				}), { status: 200, headers: { "content-type": "application/json" } }),
+			}),
+			/schema version is not supported/,
+			"unsupported theme-schema versions are rejected before registration",
+		);
 		const loadedRemote = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", remoteOptions);
 		assert.equal(loadedRemote.scope, "remote");
 		assert.equal(Object.isFrozen(loadedRemote), true, "loaded remote theme definitions are frozen");
@@ -793,6 +886,7 @@ async function run() {
 		const artifact = readArtifact(artifactPath);
 		assert.equal(artifact.format, ETR_FORMAT);
 		assert.equal(artifact.formatVersion, 1);
+		assert.equal(artifact.schemaVersion, 1, "ETR exposes the theme schema version independently of the envelope version");
 		assert.equal(artifact.generatedBy, "NENC");
 		assert.equal(artifact.id, "dark-fantasy");
 		assert.equal(artifact.createdWith.nextjs, "16.4.2");

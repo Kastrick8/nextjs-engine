@@ -59,6 +59,10 @@ The implementation is split by responsibility rather than placed in the plugin d
 
 Place runtime EngineTheme logic under `src/engine/component/engineTheme/` and compiler implementation under `src/engine/compiler/`. Reserve `src/engine/plugins/` for Next.js integration hooks, adapters, and linking.
 
+## EngineTheme .etr version and integrity contract
+
+NENC emits deterministic UTF-8 JSON under `.nextjs-engine/gen3/theme/<theme-id>.etr`. The envelope separates `formatVersion` (the .etr container shape) from `schemaVersion` (the EngineTheme definition contract); both currently equal `1`. It also records `generatedBy: "NENC"`, the group ID, `createdWith.nextjs`, `createdWith.nextjsEngine`, and the JSON theme definition. `sha256` is calculated over canonical JSON for the complete envelope excluding the `sha256` property itself. The remote loader requires an exact allowlisted HTTPS origin, checks the expected framework/Engine versions, verifies the digest, rejects unsupported envelope or schema versions, and only then registers the data. SHA-256 detects corruption; it is not a publisher signature or proof of origin. Remote themes remain owner-hosted data and never execute theme-supplied code.
+
 ## EngineTheme font assets
 
 The Gen 3 source pass compiles statically visible `createTheme()` definitions into `.etr` files. When `NODE_ENV=production`, the same pass runs a production-only font compiler after writing those artifacts.

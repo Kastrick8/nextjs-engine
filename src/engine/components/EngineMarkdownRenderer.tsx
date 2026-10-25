@@ -50,6 +50,7 @@ type AnimKind = "none" | "fade-in" | "slide-up";
 type PositionedNode = { position?: { start?: { line?: number } } };
 
 interface MarkdownRenderConfig {
+	themeId?: string;
 	textColor: string;
 	headingColor: string;
 	linkColor: string;
@@ -96,6 +97,14 @@ function joinClassNames(...names: Array<string | undefined>): string | undefined
 function animClass(kind: AnimKind | undefined): string | undefined {
 	if (!kind || kind === "none") return undefined;
 	return kind === "slide-up" ? "e-md-anim-slide" : "e-md-anim-fade";
+}
+
+function textFromReactNode(value: ReactNode, depth = 0): string {
+	if (depth > 16 || value === null || value === undefined || typeof value === "boolean") return "";
+	if (typeof value === "string" || typeof value === "number") return String(value);
+	if (Array.isArray(value)) return value.map((item) => textFromReactNode(item, depth + 1)).join("").slice(0, 512);
+	if (isValidElement(value)) return textFromReactNode(value.props.children as ReactNode, depth + 1);
+	return "";
 }
 
 function sourceAnimationStyle(node: PositionedNode | undefined, config: MarkdownRenderConfig): CSSProperties {
@@ -278,8 +287,10 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					danger: { border: "#fb7185", background: "rgba(244,63,94,.09)" },
 				};
 				const themed = renderEngineThemeTemplate(config.themeTemplates?.infoBlock, {
+					themeId: config.themeId,
 					componentId: "markdown",
-					block: "infoBlock",
+					11283
+					dataApiContext: { existing: { title: title ?? "", tone }, incoming: { text: textFromReactNode(body).slice(0, 256) } },
 					tone,
 					title,
 					label: title,
@@ -461,8 +472,10 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				</figure>
 			);
 			return renderEngineThemeTemplate(config.themeTemplates?.codeBlock, {
+				themeId: config.themeId,
 				componentId: "markdown",
-				block: "codeBlock",
+				17190
+				dataApiContext: { existing: { language: language ?? "text" } },
 				className: joinClassNames("e-md-code-block", blockClass),
 				wrapperStyle: blockStyle,
 				codeBackground: blockCodeBackground,
@@ -499,8 +512,10 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		),
 		th: ({ node: _node, children, style, align, ...props }) => {
 			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableHeader, {
+				themeId: config.themeId,
 				componentId: "markdown",
-				block: "tableHeader",
+				18362
+				dataApiContext: { existing: { text: textFromReactNode(children).slice(0, 256) }, metadata: { alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : "start") } },
 				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
 				textColor: config.textColor,
 				headingColor: config.headingColor,
@@ -515,8 +530,10 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		},
 		td: ({ node: _node, children, style, align, ...props }) => {
 			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableCell, {
+				themeId: config.themeId,
 				componentId: "markdown",
-				block: "tableCell",
+				19239
+				dataApiContext: { existing: { text: textFromReactNode(children).slice(0, 256) }, metadata: { alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : "start") } },
 				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
 				textColor: config.textColor,
 				headingColor: config.headingColor,
@@ -571,6 +588,7 @@ export interface EngineMarkdownRendererProps extends MarkdownProps {
 
 export function EngineMarkdownRenderer({
 	content = "",
+	engineThemeId,
 	textColor = "#30475f",
 	headingColor = "#07111f",
 	linkColor = "#12304c",
@@ -612,6 +630,7 @@ export function EngineMarkdownRenderer({
 	const paletteBackground = normalizeEngineThemeColor(prettyPlease?.palette?.background);
 	const codeBackground = codeBackgroundProp ?? paletteBackground ?? "#0b1020";
 	const renderConfig: MarkdownRenderConfig = {
+		themeId: engineThemeId,
 		textColor,
 		headingColor,
 		linkColor,

@@ -8,6 +8,7 @@ const ts = require("typescript");
 
 const ETR_FORMAT = "nextjs-engine-theme";
 const ETR_FORMAT_VERSION = 1;
+const ETR_SCHEMA_VERSION = 1;
 const GENERATED_BY = "NENC";
 const MAX_THEME_DEPTH = 32;
 const MAX_THEME_NODES = 10000;
@@ -361,6 +362,7 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 		const payload = {
 			format: ETR_FORMAT,
 			formatVersion: ETR_FORMAT_VERSION,
+			schemaVersion: ETR_SCHEMA_VERSION,
 			generatedBy: GENERATED_BY,
 			id: item.theme.id,
 			createdWith: { nextjs: nextVersion, nextjsEngine: engineVersion },
@@ -449,4 +451,5 @@ module.exports = {
 	compileEngineThemeArtifacts,
 	ETR_FORMAT,
 	ETR_FORMAT_VERSION,
+	ETR_SCHEMA_VERSION,
 };

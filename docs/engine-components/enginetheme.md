@@ -123,7 +123,7 @@ NENC extracts statically resolvable createTheme({...}) calls during its Gen 3 so
 .nextjs-engine/gen3/theme/<theme-id>.etr
 ~~~
 
-The artifact is UTF-8 JSON containing a format/version identifier, group ID, generator metadata, the Next.js and Engine versions used to create it, the definition in content, and a SHA-256 digest of canonical JSON excluding the digest field itself.
+The artifact is UTF-8 JSON containing the format identifier, `formatVersion` for the envelope, `schemaVersion` for the theme-definition contract, group ID, generator metadata, the Next.js and Engine versions used to create it, the definition in `content`, and a SHA-256 digest of canonical JSON excluding the digest field itself. The loader rejects unsupported envelope or theme-schema versions before registering the definition.
 
 The static compiler resolves literal values and local constants. It rejects dynamic calls, spreads, functions, accessors, computed keys, and unsupported expressions instead of executing them to discover a theme definition. Group IDs are validated before they become filenames. Output writes are atomic, unchanged artifacts are not rewritten, symlinked output paths are rejected, and unrelated files are not overwritten. A manifest under the ignored .nextjs-engine/.cache/ directory records generated artifacts.
 
@@ -196,7 +196,7 @@ export const darkDocs = createTheme({
 });
 ~~~
 
-Templates can use slots such as `languageLabel` and `content`, plus context values such as `title`, `tone`, `language`, `label`, and `alignment`. Declare element order in the schema tree and use `stack` or `grid` layout props to choose placement; the table-header template composes content inside each semantic `<th>`, while the original cell still owns table semantics. Template interpolation is bounded and URL-based CSS, raw HTML, event handlers, and unknown adapter IDs are rejected.
+Templates can use slots such as `languageLabel`, `content`, `children`, and `dataResult`, plus context values such as `title`, `tone`, `language`, `label`, and `alignment`. The default `merge: "wrap"` keeps the original content slots inside the template. `merge: "replace"` renders a replacement without injecting the original `content`/`children` slots. `merge: "append"` and `merge: "prepend"` render the original content and template as siblings; `placement: "right" | "bottom"` is valid for append, and `placement: "left" | "top"` is valid for prepend. Placement decides physical layout, independently of which element supplies the template. `layout` offers bounded flex/grid alignment, gap, order and responsive wrapping/auto-fit without requiring a styling dependency. Template interpolation is bounded and URL-based CSS, raw HTML, event handlers, and unknown adapter IDs are rejected.
 
 Write an information block with a closing `:::` line:
 
@@ -285,12 +285,10 @@ import {
   dispatchEngineThemeDataEvent
 } from "nextjs-engine";
 
-registerEngineThemeDataHandler("docs.table-join", (event) => {
-  return {
-    operation: "append",
-    incoming: event.context.incoming ?? null
-  };
-});
+registerEngineThemeDataHandler("docs.table-join", (event) => ({
+  operation: "append",
+  value: event.context.incoming ?? "sorted"
+}));
 
 dispatchEngineThemeDataEvent("join:left", "docs.table-join", {
   themeId: "dark-fantasy.markdown.dark",
@@ -302,9 +300,23 @@ dispatchEngineThemeDataEvent("join:left", "docs.table-join", {
 });
 ~~~
 
-Initial events are join:left, join:right, join:top, and join:bottom. Dispatch validates context as bounded JSON data, clones/freezes it before calling the handler, rejects missing handler IDs, and never imports code based on a theme-provided ID. Handler implementations remain trusted local code.
+Initial events are `join:left`, `join:right`, `join:top`, and `join:bottom`. Dispatch validates context as bounded JSON data, clones/freezes it before calling the handler, rejects missing handler IDs, and never imports code based on a theme-provided ID. Handler implementations remain trusted local code.
 
-Declarative templates now connect to actual code-block wrappers, table headers/data cells, and :::info/:::note/:::tip/:::warning/:::danger/:::success blocks. Templates are restricted Engine Schema trees or locally registered adapters; raw HTML, callbacks, and unregistered adapter IDs are not accepted. Data-API events remain a separate typed handler contract.
+A template can bind a handler and inject its result into `dataResult`:
+
+~~~ts
+const tableHeader = {
+  merge: "append",
+  placement: "right",
+  layout: { display: "flex", direction: "row", gap: "0.35rem", responsive: true },
+  dataApi: { handlerId: "docs.table-join", event: "join:right", slotId: "table.header" },
+  schema: { type: "slot", props: { name: "dataResult" } }
+};
+~~~
+
+For that binding, the template renderer supplies a bounded `existing` value and metadata such as block/language/tone when available; a binding may provide JSON `existing`, `incoming`, and `metadata` defaults. A handler can return `{ operation: "append", value: ... }` or another supported composition operation to choose the composition and value. Without that shape, the whole handler result is exposed as `dataResult`. Data-API handlers are synchronous render-time transforms: keep them deterministic and side-effect-free; do not write application state or perform I/O during the call.
+
+Declarative templates connect to actual code-block wrappers, table headers/data cells, and `:::info`/`:::note`/`:::tip`/`:::warning`/`:::danger`/`:::success` blocks. Templates are restricted Engine Schema trees or locally registered adapters; raw HTML, callbacks, and unregistered adapter IDs are not accepted.
 
 ## Production font caching
 

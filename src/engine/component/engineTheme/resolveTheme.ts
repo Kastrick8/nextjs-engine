@@ -54,7 +54,7 @@ function pickMarkdownThemeProps(value: unknown): Record<string, unknown> {
 	return result;
 }
 
-function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject): {
+function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject, themeId?: string): {
 	props: Record<string, unknown>;
 	styles?: Record<string, unknown>;
 } {
@@ -65,6 +65,7 @@ function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject): {
 		...pickMarkdownThemeProps(definition),
 		...pickMarkdownThemeProps(defaults),
 		...pickMarkdownThemeProps(explicitProps),
+		...(themeId ? { engineThemeId: themeId } : {}),
 	};
 	const styleParts = [
 		definition.styles,
@@ -189,7 +190,10 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 		return resolvedCssTheme === theme ? schema : { ...schema, theme: resolvedCssTheme };
 	}
 
-	const resolvedMarkdownTheme = resolveMarkdownThemeDefinition(markdownTheme);
+	const resolvedMarkdownTheme = resolveMarkdownThemeDefinition(
+		markdownTheme,
+		typeof resolvedCssTheme.id === "string" ? resolvedCssTheme.id.split(".")[0] : undefined,
+	);
 	const hasMarkdownDefaults = Object.keys(resolvedMarkdownTheme.props).length > 0
 		|| resolvedMarkdownTheme.styles !== undefined;
 	return {
