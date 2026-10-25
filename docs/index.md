@@ -1,191 +1,30 @@
-# Next.js Engine — Documentation Index
+# Nextjs Engine Documentation
 
-These docs follow the current `main-3` implementation unless a page explicitly describes an older release.
+Choose docs for the generation your project actually uses. The names and styling syntax overlap, but the rendering/compiler implementation differs.
 
-If a historical example conflicts with the current TypeScript source or a current component page, prefer the current source and current component page.
+## Choose your generation
 
----
+| | Generation 2 | Generation 3 |
+| --- | --- | --- |
+| Version line | Stable v2.6.2 / `main-2` | Alpha v3.0.0-alpha.1 / `main-3` |
+| Main model | Schema renderer + component registry | Compiler-produced execution plan + server-first renderer |
+| Use it for | Existing v2 applications and maintenance | Evaluating or building against the Gen 3 alpha runtime |
+| Start here | [Gen 2 overview](./2/index.md) | [Gen 3 overview](./3/index.md) |
+| First page | [Gen 2 getting started](./2/getting-started.md) | [Gen 3 getting started](./3/getting-started.md) |
+| Styling basics | [Gen 2 styling](./2/styling.md) | [Gen 3 styling](./3/styling.md) |
+| Styling implementation | [Gen 2 detailed style contract](./2/detailed/styling-contract.md) | [Gen 3 detailed style contract](./3/detailed/styling-contract.md) |
+| Components | [Gen 2 component reference](./2/components/index.md) | [Gen 3 component reference](./3/components/index.md) |
+| Advanced internals | [Gen 2 architecture](./2/detailed/architecture.md) | [Gen 3 compiler internals](./3/detailed/compiler-internals.md) |
 
-## Generation-specific documentation
+## How the levels work
 
-- [Generation 2 (stable 2.x)](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md) — guides for existing v2 applications.
-- [Generation 3 (alpha)](./3/index.md) — compiler-era simple and detailed guides.
+- **Simple guides** focus on the task and the small set of APIs most readers need first.
+- **Detailed references** explain the implementation, generated output, supported cases, edge cases, limits, and relevant source files.
+- **Component references** describe component-specific props and behavior in more depth.
+- **Release notes** are historical and describe a particular release; they do not override the current source-backed guide.
 
-## Start here
+## Fact-check and version rule
 
-| I want to… | Read |
-| --- | --- |
-| Understand the current Gen 3 stack | [`gen3/overview.md`](./gen3/overview.md) |
-| Learn server-first `createPage()` and the compiler plan | [`gen3/phase-a-b.md`](./gen3/phase-a-b.md) |
-| Learn schemas, props, and general page authoring | [`readme.md`](./readme.md) |
-| Learn Gen 3 styling (simple) | [`3/styling.md`](./3/styling.md) |
-| Learn Gen 3 styling internals | [`3/styling-detailed.md`](./3/styling-detailed.md) |
-| Legacy unversioned styling reference | [`styling.md`](./styling.md) |
-| Learn NENC, EngineCookies, sessions, replay/rate policy, and private backends | [`gen3/phase-c-network.md`](./gen3/phase-c-network.md) |
-| Learn compatibility manifests and fallback compilation | [`gen3/phase-d-hardening.md`](./gen3/phase-d-hardening.md) |
-| Understand EngineDebug ephemeral isolation | [`gen3/engine-debug-isolation.md`](./gen3/engine-debug-isolation.md) |
-| Generate metadata, sitemaps, robots, JSON-LD, and social previews | [`engine-components/engineseo.md`](./engine-components/engineseo.md) |
-| Generate Google/Bing/Yandex-aware XML sitemaps | [`engine-components/engineseo-provider-sitemaps.md`](./engine-components/engineseo-provider-sitemaps.md) |
-| Run the device-bound private-search proof | [`gen3/private-search-example.md`](./gen3/private-search-example.md) |
-| Read release history | [`release/index.md`](./release/index.md) |
-| Read the large historical technical reference | [`../DOCUMENT.md`](../DOCUMENT.md) |
+The Generation 2 docs are sourced from `main-2` (package version `2.6.2`). The Generation 3 docs are sourced from `main-3` (package version `3.0.0-alpha.1`). Component pages and detailed references include explicit generation labels. When an implementation claim matters, check the source branch named at the top of that page. The archived combined reference is preserved under [docs/archive](./archive/combined-reference-before-split.md), but it mixes eras and is **not** the current API contract.
 
----
-
-## Generation 3 stack
-
-```text
-schema
-	↓
-compilePage()
-	↓
-execution plan
-	├─ static / server / client ownership
-	├─ critical / visible / near / deferred / idle / sleeping work
-	├─ used-feature manifest
-	├─ fallback plan
-	├─ assets
-	└─ diagnostics
-	↓
-EngineServerRenderer
-	↓
-small client islands only where browser behavior is required
-	↓
-EngineScheduler + EngineViewport + EngineModel
-	↓
-optional EngineCommand / NENC / EngineCookies / EngineServer boundary
-```
-
-The normal Gen 3 page entrypoint is `createPage()`; a separate Gen 3 factory is not required.
-
-Read [`gen3/overview.md`](./gen3/overview.md) first if you are starting a new page or migrating a v2 page.
-
----
-
-## Page and UI authoring
-
-| Topic | Documentation |
-| --- | --- |
-| Schema primitives | [`engine-components/primitives.md`](./engine-components/primitives.md) |
-| Styling / responsive values | [`styling.md`](./styling.md) |
-| Navigation | [`engine-components/enginenav.md`](./engine-components/enginenav.md) |
-| Page and layout transitions | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
-| Heroes | [`engine-components/enginehero.md`](./engine-components/enginehero.md) |
-| Forms | [`engine-components/engineforms.md`](./engine-components/engineforms.md) |
-| Markdown | [`engine-components/enginemarkdown.md`](./engine-components/enginemarkdown.md) |
-| Suspense/loading surfaces | [`engine-components/enginesuspense.md`](./engine-components/enginesuspense.md) |
-| Overlay/dialog/drawer/popover | [`engine-components/engineoverlay.md`](./engine-components/engineoverlay.md) |
-| SEO, crawler routes, JSON-LD, and social previews | [`engine-components/engineseo.md`](./engine-components/engineseo.md) |
-| Search-engine-specific XML sitemaps | [`engine-components/engineseo-provider-sitemaps.md`](./engine-components/engineseo-provider-sitemaps.md) |
-
----
-
-## Graphics and motion
-
-Use the system that owns the job instead of forcing everything through one renderer.
-
-```text
-EngineTransitions+
-	→ page/layout state changes
-
-EngineScroll
-	→ scroll-driven movement and named points
-
-EngineCanvas
-	→ retained/immediate graphics surface
-
-EngineSVG
-	→ SVG rendering/import/export for ECScene
-
-EngineShader
-	→ compiled GPU effects and .shed programs
-
-EngineManim
-	→ higher-level animation/model choreography
-```
-
-| System | Documentation |
-| --- | --- |
-| EngineCanvas | [`engine-components/enginecanvas.md`](./engine-components/enginecanvas.md) |
-| EngineSVG | [`engine-components/enginesvg.md`](./engine-components/enginesvg.md) |
-| EngineShader | [`engine-components/engineshader.md`](./engine-components/engineshader.md) |
-| EngineTransitions+ | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
-| EngineScroll | [`engine-components/enginescroll.md`](./engine-components/enginescroll.md) |
-| EngineManim | [`engine-components/enginemanim.md`](./engine-components/enginemanim.md) |
-| EngineImage / EngineVideo | [`engine-components/engineimage.md`](./engine-components/engineimage.md) |
-
-EngineTransitions+ and EngineShader remain separate responsibilities. Transition presets such as `pixel`, `liquid`, and `dissolve` are transition animations, not `.shed` framebuffer passes.
-
----
-
-## Browser/runtime systems
-
-| Topic | Documentation |
-| --- | --- |
-| Scheduler + server-first compiler | [`gen3/phase-a-b.md`](./gen3/phase-a-b.md) |
-| Browser capabilities | [`engine-components/enginebrowser.md`](./engine-components/enginebrowser.md) |
-| Device/adaptive layout | [`engine-components/enginemobile.md`](./engine-components/enginemobile.md) |
-| Runtime/lazy/performance behavior | [`runtime-performance.md`](./runtime-performance.md) |
-| Schema validation and diagnostics | [`schema-diagnostics.md`](./schema-diagnostics.md) |
-| Compatibility/fallback compiler | [`gen3/phase-d-hardening.md`](./gen3/phase-d-hardening.md) |
-| EngineDebug ephemeral workbench isolation | [`gen3/engine-debug-isolation.md`](./gen3/engine-debug-isolation.md) |
-
-For styling-only responsive differences, prefer responsive schema values/CSS. Use EngineViewport or request-time adaptive compilation only when behavior or structure genuinely depends on live/request device state.
-
----
-
-## Network and backend systems
-
-| Topic | Documentation |
-| --- | --- |
-| External API resolver and auth | [`engine-components/engineapi.md`](./engine-components/engineapi.md) |
-| Static in-house endpoint programs | [`engine-components/apistatic.md`](./engine-components/apistatic.md) |
-| NENC / EngineCookies / sessions / device proof | [`gen3/phase-c-network.md`](./gen3/phase-c-network.md) |
-| Private-search end-to-end example | [`gen3/private-search-example.md`](./gen3/private-search-example.md) |
-
-Browser-safe command/cookie APIs belong in `nextjs-engine/network`. Request-aware dispatch, CORS, session policy, and private backend helpers belong in `nextjs-engine/server`.
-
-NENC is optional. Do not enable it merely because it exists; use it when the application has commands that benefit from the compiled single-endpoint boundary.
-
----
-
-## Release history and compatibility
-
-The maintained release archive lives under [`docs/release`](./release/index.md).
-
-Release notes describe the Engine as it existed at that release. They are not the API contract for `main-3`.
-
-| Version | Release notes |
-| --- | --- |
-| v3.0.0-alpha.1 (alpha candidate) | [`NE-v3-0-0-alpha-1.md`](./release/NE-v3-0-0-alpha-1.md) |
-| v2.6.2 | [`NE-v2-6-2.md`](./release/NE-v2-6-2.md) |
-| v2.6.1 | [`NE-v2-6-1.md`](./release/NE-v2-6-1.md) |
-| v2.6.0 | [`NE-v2-6-0.md`](./release/NE-v2-6-0.md) |
-| v2.5.0 | [`NE-v2-5-0.md`](./release/NE-v2-5-0.md) |
-| v2.0.0 | [`NE-v2-0-0.md`](./release/NE-v2-0-0.md) |
-| v1.0.0 | [`NE-v1-0-0.md`](./release/NE-v1-0-0.md) |
-
----
-
-## Abbreviations
-
-| Abbreviation | Module |
-| --- | --- |
-| EC | EngineCanvas |
-| ESVG | EngineSVG |
-| ESH | EngineShader |
-| ET | EngineTransitions+ |
-| ES | EngineScroll |
-| EB | EngineBrowser |
-| EM | EngineManim |
-| EMD | EngineMarkdown |
-| EN | EngineNav |
-| EH | EngineHero |
-| ESU | EngineSuspense |
-| EF | EngineForms |
-| EA | EngineAPI |
-| EAS | APIStatic |
-| EMO | EngineMobile |
-| ED | EngineDevice |
-| NENC | Next.js Engine Network Commands |
-| ESEO | EngineSEO |
+Avoid copying an example from one generation into the other without checking the target generation's index and migration notes.

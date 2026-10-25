@@ -1,8 +1,10 @@
-# Styling — Generation 3 (Simple Guide)
+# Generation 3 — Styling Basics
 
-> **GENERATION 3 · ALPHA** · Source of truth: `main-3`.
+> **Generation:** 3 · **Version:** v3.0.0-alpha.1 · **Level:** Simple guide
 
-## Style a node
+Gen 3 keeps familiar Engine styling props—responsive values, regular CSS properties, `style`, and `cprop`—but moves style transformation into a dedicated compiler module.
+
+## Basic styling
 
 ```ts
 {
@@ -18,19 +20,18 @@
 }
 ```
 
-## Make it responsive
+## Responsive layout
 
 ```ts
 props: {
-  px: { xs: "1rem", md: "2rem" },
-  columns: { xs: 1, md: 2, lg: 3 },
-  bg: { xs: "#111827", md: "#030712" },
+  px: { xs: 16, md: 32 },
+  bg: { xs: "#111827", lg: "#030712" },
 }
 ```
 
-Responsive values compile to CSS variables and media-query rules. The browser selects the matching breakpoint; normal responsive style props do not need a JavaScript resize loop.
+Responsive values compile to CSS custom properties and media-query rules. For these ordinary style props, the browser selects the matching breakpoint; the Engine does not need a JavaScript resize loop.
 
-## Hover and focus
+## Hover and focus styles
 
 ```ts
 cprop: {
@@ -39,14 +40,12 @@ cprop: {
 }
 ```
 
-Supported pseudo-state bags compile to CSS classes.
-
 ## Style precedence
 
 ```text
-component defaults < variant defaults < schema props < explicit style={} < required runtime state
+component defaults < derived/variant styles < schema props < explicit style={} < required runtime state
 ```
 
-Explicit styles override defaults while required runtime behavior, such as disabled controls and open overlays, remains protected.
+Explicit styles override ordinary component defaults, while required runtime styles can stay in control when needed for behavior (such as a disabled button or open overlay).
 
-For breakpoint fallback rules, responsive cache limits, nested at-rules, and StyleCollector ownership, read [Styling — detailed](./styling-detailed.md). For stable 2.x apps, use [Gen 2 styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling.md).
+For responsive fallback behavior, supported at-rules, pseudo-states, caching, and collector ownership, see the [detailed styling contract](./detailed/styling-contract.md).
