@@ -51,7 +51,7 @@ The standard approach in most React apps is to read `window.innerWidth` and cond
 
 ### How the Engine Does It
 
-Every `ResponsiveValue<T>` prop is resolved at render time into a CSS custom property with `@media` query overrides. The browser handles all switching in CSS — zero JS involvement at runtime.
+Responsive style props whose component types accept `ResponsiveValue<T>` are resolved into CSS custom properties with `@media` query overrides. The browser selects the matching value in CSS, so ordinary responsive styling does not require a JavaScript resize listener per node. The exact responsive surface is defined by the current component/schema types; not every prop is a responsive style prop.
 
 ```ts
 // You write this in your schema:
@@ -68,7 +68,7 @@ props: {
 style={{ paddingLeft: "var(--e-px-a1b2)", paddingRight: "var(--e-px-a1b2)" }}
 ```
 
-The component itself never reads the viewport. It never re-renders on resize. The CSS does everything.
+For these style values, the CSS media query selects the active value without a per-node viewport check. Other component behavior, application state, or explicit viewport-aware features may still respond to resize and cause renders.
 
 ### Responsive Values
 
@@ -251,19 +251,18 @@ Handlers are provided at the `createPage` level and referenced in schema nodes b
 export default createPage({
   schema: MySchema,
   handlers: {
-    openModal: () => setModalOpen(true),
-    trackCta:  () => analytics.track("cta_clicked"),
+    trackCta: () => analytics.track("cta_clicked"),
   },
 });
 
 // In schema:
 {
   type: "button",
-  props: { label: "Open", onClick: "openModal" }
+  props: { label: "Continue", onClick: "trackCta" }
 }
 ```
 
-Because handlers are defined outside the schema object, they can close over React state from a parent component if needed.
+Handlers are ordinary trusted JavaScript functions referenced by name from schema data. JavaScript closure rules still apply: a module-level `createPage()` call cannot capture state that exists only inside an unrelated parent component. For interaction state owned by a React component, use a client component or slot with that state in its own scope, or deliberately construct the page/handler in a scope that owns the state and fits the intended render lifecycle.
 
 ---
 
@@ -425,7 +424,7 @@ Runtime slots can be passed with `<SiteChrome slots={{ sidebar: <Sidebar /> }}>.
 
 ```ts
 import path from "node:path";
-import { createPage, defineSchema } from "@/engine";
+import { createPage, defineSchema } from "nextjs-engine";
 
 export default createPage({
   schema: defineSchema({
@@ -450,7 +449,7 @@ export default createPage({
 For simple document-style pages, use the compact Markdown page form:
 
 ```ts
-import { createPage } from "@/engine";
+import { createPage } from "nextjs-engine";
 
 export default createPage({
   meta: {
@@ -469,15 +468,13 @@ export default createPage({
 
 ---
 
----
-
 ## defineSchema
 
 Use `defineSchema` to define schemas in separate files with full TypeScript type-checking:
 
 ```ts
 // schemas/home.schema.ts
-import { defineSchema } from "@/engine";
+import { defineSchema } from "nextjs-engine";
 
 export const HomeSchema = defineSchema({
   meta: { title: "Home" },
@@ -487,13 +484,11 @@ export const HomeSchema = defineSchema({
 
 ```ts
 // app/page.tsx
-import { createPage } from "@/engine";
+import { createPage } from "nextjs-engine";
 import { HomeSchema } from "@/schemas/home.schema";
 
 export default createPage({ schema: HomeSchema });
 ```
-
----
 
 ---
 
@@ -516,7 +511,7 @@ The engine output is a standard React function component. Use it as a default ex
 
 ```ts
 // app/page.tsx
-import { createPage } from "@/engine";
+import { createPage } from "nextjs-engine";
 export default createPage({ schema: HomeSchema });
 ```
 
@@ -541,35 +536,16 @@ If your app already has its own `app/not-found.tsx`, that app-owned page remains
 
 ```ts
 // pages/index.tsx
-import { createPage } from "@/engine";
+import { createPage } from "nextjs-engine";
 export default createPage({ schema: HomeSchema });
 export const getStaticProps = async () => ({ props: {} });
 ```
 
 ---
 
-## Module Aliases
+## Optional repository-local module aliases
 
-Add this to `tsconfig.json` for clean imports:
-
-```json
-{
-  "compilerOptions": {
-    "paths": {
-      "@/engine": ["./src/engine/index.ts"],
-      "@/engine/*": ["./src/engine/*"]
-    }
-  }
-}
-```
-
----
-
----
-
-## Module Aliases
-
-Add this to `tsconfig.json` for clean imports:
+These aliases are only a convenience for working from a source checkout. Applications consuming the package should use imports from `nextjs-engine` as shown above; they do not need this mapping. Add it to `tsconfig.json` only if your own project intentionally maps these aliases:
 
 ```json
 {
@@ -581,8 +557,6 @@ Add this to `tsconfig.json` for clean imports:
   }
 }
 ```
-
----
 
 ---
 
@@ -624,7 +598,7 @@ element's `className`. No JavaScript event handlers are used — it is pure CSS.
 ### cpropClass utility
 
 ```tsx
-import { cpropClass } from "@/engine";
+import { cpropClass } from "nextjs-engine";
 
 // In your own custom components:
 function MyComponent({ cprop, className, ...props }) {
@@ -633,8 +607,6 @@ function MyComponent({ cprop, className, ...props }) {
   return <div className={mergedClass} {...props} />;
 }
 ```
-
----
 
 ---
 
@@ -683,12 +655,10 @@ All pseudo-states are compiled to CSS classes and injected via StyleCollector �
 
 ---
 
----
-
 ## Schema Validation
 
 ```ts
-import { validatePageSchema, validateSchema } from "@/engine";
+import { validatePageSchema, validateSchema } from "nextjs-engine";
 
 // In your page or CI:
 const result = validatePageSchema(mySchema);
@@ -703,14 +673,12 @@ Each `ValidationError` has: `{ path: string, message: string, level: "error" | "
 
 ---
 
----
-
 ## Static Schema Analyzer
 
 `schemaAnalyzer` is a build-time / dev-time static analysis tool. Unlike `validateSchema` (which throws on hard errors at runtime), the analyzer collects all diagnostics in one pass and returns them as structured objects — suitable for CI pipelines, editor integrations, or dev-server overlays.
 
 ```ts
-import { analyzeSchema, isSchemaValid } from "@/engine";
+import { analyzeSchema, isSchemaValid } from "nextjs-engine";
 
 const result = analyzeSchema(MySchema);
 
@@ -756,15 +724,13 @@ interface EngineDiagnostic {
 
 ---
 
----
-
 ## `staticClass` — Deduplicated CSS Classes
 
 `staticClass` converts a `CSSProperties` object into a single CSS class that is injected once into `StyleCollector`. Identical property sets across any number of nodes share the same class name.
 
 ```ts
 import type { ReactNode } from "react";
-import { staticClass, useEngineContext } from "@/engine";
+import { staticClass, useEngineContext } from "nextjs-engine";
 
 function CustomFrame({ children }: { children: ReactNode }) {
   const { styleCollector } = useEngineContext();
@@ -785,14 +751,12 @@ Used internally by `EngineSection` (inner content wrapper) and `EngineCard` (cov
 
 ---
 
----
-
 ## Metadata Integration (SEO)
 
 ```ts
 // app/some-page/page.tsx
 import type { Metadata } from "next";
-import { generateEngineMetadata } from "@/engine";
+import { generateEngineMetadata } from "nextjs-engine";
 import { myPageSchema } from "./schema";
 
 export async function generateMetadata(): Promise<Metadata> {
