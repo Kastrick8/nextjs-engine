@@ -6,13 +6,19 @@ These docs are maintained against the current `src/engine` implementation.
 
 ---
 
+## Generation-specific documentation
+
+- [Generation 2 (stable 2.x)](./2/index.md) — simple and detailed guides.
+- [Generation 3 (alpha)](./3/index.md) — compiler-era guides for evaluation/migration.
+
 ## Start here
 
 | I want to… | Read |
 |---|---|
 | Understand what NE is | [`readme.md`](./readme.md) |
 | Learn schemas / `createPage()` | [`readme.md`](./readme.md) |
-| Learn styling and responsive props | [`styling.md`](./styling.md) |
+| Learn stable Gen 2 styling | [`2/styling.md`](./2/styling.md) |
+| Learn Gen 2 styling internals | [`2/styling-detailed.md`](./2/styling-detailed.md) |
 | Read version/release history | [`release/index.md`](./release/index.md) |
 | Add page/layout transitions | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
 | Write `.shed` GPU effects | [`engine-components/engineshader.md`](./engine-components/engineshader.md) |
