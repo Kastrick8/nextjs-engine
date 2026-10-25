@@ -267,8 +267,8 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			if (info) {
 				const tone = info[1].toLowerCase();
 				const title = (info[2] ?? "").trim();
-				const bodyNodes = childNodes.filter((_child, index) => index !== markerIndex);
-				const body = bodyNodes.length === 1 ? bodyNodes[0] : bodyNodes;
+				const bodyNodes = Children.toArray(childNodes.filter((_child, index) => index !== markerIndex));
+				const body = bodyNodes;
 				const toneStyle: Record<string, { border: string; background: string }> = {
 					info: { border: "#60a5fa", background: "rgba(59,130,246,.09)" },
 					note: { border: "#94a3b8", background: "rgba(148,163,184,.09)" },
