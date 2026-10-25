@@ -1,5 +1,7 @@
 # Generation 3 — Compiler, Rendering, and Runtime
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. This is not the stable Gen 2 API contract.
+
 > Source branch: `main-3`
 >
 > This document describes the Generation 3 compiler/runtime foundation that is
