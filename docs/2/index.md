@@ -29,6 +29,11 @@ Use these pages for the code maintained on `main-2`. Generation 3 is a separate 
 | Page/layout transitions | [EngineTransitions+](./engine-components/enginetransitions.md) |
 | Scroll points and timelines | [EngineScroll](./engine-components/enginescroll.md) |
 | Scroll ranges and boundaries | [EngineScroll Range](./engine-components/enginescroll-range.md) |
+| Scroll-driven timelines | [EngineScroll Timeline](./engine-components/enginescroll-timeline.md) |
+| Coordinate multiple timelines | [EngineScroll Director](./engine-components/enginescroll-director.md) |
+| Track named point positions | [EngineScroll Point Tracker](./engine-components/enginescroll-tracker.md) |
+| Focus and visibility behavior | [EngineScroll Focus](./engine-components/enginescroll-focus.md) |
+| Named point groups | [EngineScroll Groups](./engine-components/enginescroll-groups.md) |
 | Browser helpers | [EngineBrowser](./engine-components/enginebrowser.md) |
 | 2D/3D animation | [EngineManim](./engine-components/enginemanim.md) |
 | Images and video | [EngineImage and EngineVideo](./engine-components/engineimage.md) |
