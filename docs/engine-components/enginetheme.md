@@ -133,7 +133,6 @@ export const darkDocs = createTheme({
           type: "stack",
           props: { direction: "row", align: "center", gap: "0.4rem" },
           children: [
-            { type: "slot", props: { name: "leading" } },
             { type: "slot", props: { name: "content" } }
           ]
         }
@@ -153,7 +152,7 @@ export const darkDocs = createTheme({
 });
 ~~~
 
-Templates can use slots such as `languageLabel` and `content`, plus context values such as `title`, `tone`, `language`, `label`, and `alignment`. The table-header template composes content inside each semantic `<th>`; the original cell still owns table semantics. Template interpolation is bounded and URL-based CSS, raw HTML, event handlers, and unknown adapter IDs are rejected.
+Templates can use slots such as `languageLabel` and `content`, plus context values such as `title`, `tone`, `language`, `label`, and `alignment`. Declare element order in the schema tree and use `stack` or `grid` layout props to choose placement; the table-header template composes content inside each semantic `<th>`, while the original cell still owns table semantics. Template interpolation is bounded and URL-based CSS, raw HTML, event handlers, and unknown adapter IDs are rejected.
 
 Write an information block with a closing `:::` line:
 
@@ -236,7 +235,7 @@ Declarative templates now connect to actual code-block wrappers, table headers/d
 
 In development, `createTheme()` leaves font stylesheet URLs unchanged; NENC skips font network and disk work entirely.
 
-In production, NENC fetches supported font CSS and font files during the build, emits local files under `public/nextjs-engine/fonts/`, and local/global themes reference the generated `/<escape>nextjs-engine/fonts/<theme-id>.css</escape>` stylesheet. Font filenames include their SHA-256 content hash. The disk cache lives under `.nextjs-engine/.cache/gen3/fonts/`.
+In production, NENC fetches supported font CSS and font files during the build, emits local files under `public/nextjs-engine/fonts/`, and local/global themes reference the generated `/nextjs-engine/fonts/<theme-id>.css` stylesheet. Font filenames include their SHA-256 content hash. The disk cache lives under `.nextjs-engine/.cache/gen3/fonts/`.
 
 The default stylesheet origin is `https://fonts.googleapis.com` and the default font-file origin is `https://fonts.gstatic.com`. Additional exact HTTPS origins can be opted in using `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS` (comma-separated origin URLs; wildcards are not accepted). Redirects, local/private hosts, unexpected content types, oversized files, and unsafe declarations are rejected.
 
