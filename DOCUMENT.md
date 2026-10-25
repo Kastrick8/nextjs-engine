@@ -1,6 +1,7 @@
 # Next.js Engine — Technical Documentation
 
-> **Last updated:** 2026-10-24
+> **Last updated:** 2026-10-25
+> - **CSS collection accuracy correction** — Marked the old render-count CSS-tier description as historical. The current Gen 2/Gen 3 source uses provider-scoped style collection and only emits global CSS registered through `StyleCollector.addGlobal()`.
 > - **Generation 3 alpha candidate and EngineDebug preview lifecycle** — Prepared `3.0.0-alpha.1` candidate notes describing the compiler-first/server-first architectural shift from Generation 2. EngineDebug now has an accessible WAITING overlay with indeterminate progress, a persistent WAITING/READY/ERROR status, reload and Problems actions, plus regression coverage for the pending-preview state. The candidate is not a published GitHub Release; the latest published stable release remains v2.6.2.
 > **Changes in this update:**
 > - **Generation 3 EngineAPI config placement** — The combined Gen 3 plugin compiles provider JSON to `.nextjs-engine/config/.apiconfig.json` and removes stale root `.engine-api-compiled.json` output when using the default path. The standalone Generation 2 API plugin retains `.engine-api-compiled.json`; older sections below that describe the root artifact are historical Gen 2 behavior. `.EngineAPIConfig/*.api` remains the source format during this migration. See `docs/gen3/overview.md` and `docs/engine-components/engineapi.md`.
