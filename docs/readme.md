@@ -62,65 +62,39 @@ export default createPage({ schema });
 
 ## Responsive System
 
-### The Problem with JS-based Responsive
+Generation 3 responsive props are resolved to CSS variables and media rules by the shared style compiler. Ordinary responsive styling does not require a JavaScript resize listener or a hydration-time breakpoint hook.
 
-The standard approach in most React apps is to read `window.innerWidth` and conditionally apply styles. This causes:
+The default named breakpoints are:
 
-- Layout shifts on load (JS hasn't run yet when HTML paints)
-- Re-renders on every resize
-- Hydration mismatches (server sees no width, client sees real width)
+| Key | Minimum viewport width |
+|---|---:|
+| xs | 0px |
+| sm | 640px |
+| md | 768px |
+| lg | 1024px |
+| xl | 1280px |
+| 2xl | 1536px |
 
-### How the Engine Does It
+An EngineConfig can override named breakpoint values with createPage({ config: { breakpoints: { ... } } }). Only the supplied values are changed; the other defaults remain.
 
-Every `ResponsiveValue<T>` prop is resolved at render time into a CSS custom property with `@media` query overrides. The browser handles all switching in CSS — zero JS involvement at runtime.
+A responsive value is either one scalar value or an object keyed by breakpoints:
 
-```ts
-// You write this in your schema:
-props: {
-  px: { xs: "1rem", md: "2rem", xl: "3rem" }
+~~~ts
+{
+  type: "box",
+  props: {
+    px: { xs: "1rem", md: "2rem", xl: "3rem" },
+    width: { xs: "100%", lg: "70rem" },
+    display: { xs: "block", md: "grid" },
+  },
 }
+~~~
 
-// The engine generates this CSS once and injects it in a <style> tag:
-:root { --e-px-a1b2: 1rem }
-@media(min-width:768px)  { :root { --e-px-a1b2: 2rem } }
-@media(min-width:1280px) { :root { --e-px-a1b2: 3rem } }
+The CSS cascade carries a value forward until a later breakpoint overrides it. The compiler does not invent an xs fallback from a value supplied only at md or lg; provide xs when the property needs an explicit first-paint value. Responsive support is property-specific rather than a guarantee that every prop accepts breakpoint objects.
 
-// And applies this inline style to the element:
-style={{ paddingLeft: "var(--e-px-a1b2)", paddingRight: "var(--e-px-a1b2)" }}
-```
+Spacing-like properties that use spacing normalization convert a nonzero numeric value to value divided by 16 rem (for example, 16 becomes 1rem). Numeric values on other CSS properties keep their own property-specific meaning.
 
-The component itself never reads the viewport. It never re-renders on resize. The CSS does everything.
-
-### Responsive Values
-
-Any prop that accepts `ResponsiveValue<T>` can take either a plain value or a breakpoint map:
-
-```ts
-// Plain value — same at all sizes
-gap: "2rem"
-
-// Responsive — different per breakpoint, cascades upward
-gap: { xs: "1rem", md: "1.5rem", xl: "2rem" }
-```
-
-Breakpoints cascade upward. If you only define `xs` and `lg`, everything between `sm` and `md` uses the `xs` value.
-
-### Breakpoints
-
-| Key | Min Width |
-|-----|-----------|
-| `xs` | 0px (base) |
-| `sm` | 640px |
-| `md` | 768px |
-| `lg` | 1024px |
-| `xl` | 1280px |
-| `2xl` | 1536px |
-
-Custom breakpoints can be passed to `createPage({ config: { breakpoints: { … } } })`.
-
----
-
-
+For hide/show rules, use the supported hideOn and showOnly props. For styling-only responsive changes, prefer CSS/responsive values over EngineViewport or request-time adaptive compilation. See [simple styling](./3/styling.md) and [detailed styling internals](./3/styling-detailed.md).
 
 ## Rendering, memoization, and lazy work
 
@@ -153,42 +127,32 @@ Every node follows this shape:
 
 ### Shared Base Props
 
-All nodes accept these props in addition to their type-specific props:
+Most schema nodes accept common layout/style props in addition to the props documented for each node type. The runtime and TypeScript types are the source of truth; not every property listed here applies meaningfully to every component.
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `id` | `string` | HTML id attribute |
-| `className` | `string` | CSS class names |
-| `style` | `CSSProperties` | Inline style overrides |
-| `vars` | `Record<string, string>` | CSS custom properties set inline — cascade to all children |
-| `priority` | `boolean` | Skip lazy loading entirely |
-| `lazy` | `boolean` | Force lazy (true) or eager (false) |
-| `m`, `mt`, `mr`, `mb`, `ml`, `mx`, `my` | `ResponsiveValue<string\|number>` | Margin |
-| `p`, `pt`, `pr`, `pb`, `pl`, `px`, `py` | `ResponsiveValue<string\|number>` | Padding |
-| `w`, `h`, `minW`, `minH`, `maxW`, `maxH` | `ResponsiveValue<string\|number>` | Sizing |
-| `width`, `height`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight` | `ResponsiveValue<string\|number>` | Long-form sizing aliases |
-| `bg` | `string` | Background color |
-| `color` | `string` | Text color |
-| `border` | `string` | CSS border shorthand |
-| `borderRadius` | `ResponsiveValue<string\|number>` | Border radius |
-| `shadow` | `string` | Box shadow |
-| `boxShadow` | `string` | Long-form box shadow alias |
-| `transition` | `string` | CSS transition |
-| `backgroundImage`, `backgroundSize`, `backgroundRepeat`, `backgroundPosition` | `string` | Background image controls |
-| `backdrop`, `backdropFilter` | `string` | CSS backdrop-filter controls |
-| `position` | `string` | CSS position |
-| `zIndex` | `number` | Z-index |
-| `opacity` | `number` | Opacity |
-| `overflow` | `string` | Overflow behaviour |
-| `sides` | `(1\|2\|3\|4)[]` | Which sides `sideDistance` applies to (1=top 2=left 3=right 4=bottom) |
-| `sideDistance` | `string\|number` | Distance applied to each selected side |
-| `sideType` | `"margin"\|"padding"` | Whether `sideDistance` maps to margin (default) or padding |
-| `onClick` | `string` | Handler name from `createPage({ handlers })` |
-| `href` | `string` | Wraps node in an `<a>` tag |
+| Prop | Type / purpose |
+|---|---|
+| id, name, point, key | DOM/schema identity, patch targeting, or stable child identity; each has distinct semantics |
+| className | Additional CSS class names |
+| style | Explicit CSS style object; this has higher precedence than generated style props where the style compiler documents it |
+| vars | CSS custom properties applied on the node; standard CSS variable inheritance handles descendants |
+| lazy, eager, priority | Lazy/eager hints used only by components/render paths that support them |
+| hideOn, showOnly | CSS-responsive visibility rules at named breakpoints |
+| m, mt, mr, mb, ml, mx, my | Responsive margin shorthands |
+| p, pt, pr, pb, pl, px, py | Responsive padding shorthands |
+| w, h, minW, minH, maxW, maxH | Responsive size shorthands |
+| width, height, minWidth, minHeight, maxWidth, maxHeight | Long-form sizing aliases where supported |
+| bg, background, backgroundColor, color, opacity | Common responsive visual properties |
+| border, borderTop, borderBottom, borderLeft, borderRight, borderRadius | Borders and corner radius |
+| shadow, boxShadow, transition | Shadow and transition properties |
+| position, top, right, bottom, left, zIndex, overflow, cursor | Positioning and interaction-related CSS |
+| transform, filter, backdropFilter, clipPath, objectFit, objectPosition, aspectRatio | Common direct CSS props |
+| sides, sideDistance, sideType | Per-side margin/padding helper; see the detailed section below |
+| onClick | Named handler reference when using the provider/compatibility event path |
+| href | Link target consumed by the relevant link-capable component; do not assume every node is automatically wrapped in an anchor |
 
-Numbers in spacing/sizing props are treated as pixels divided by 16 (so `16 → 1rem`, `32 → 2rem`).
+Responsive support depends on each property's type. See the current source types and [styling guide](./3/styling.md) before assuming an arbitrary CSS property accepts a breakpoint object.
 
----
+Spacing and sizing shorthands do not have one universal numeric meaning across all CSS properties. Numeric values on properties using spacing normalization are converted to rem; use explicit CSS strings when the intended CSS unit should be unambiguous.
 
 ### `vars` — CSS Custom Properties
 
@@ -268,28 +232,28 @@ props: {
 
 ## Event Handlers
 
-Handlers are provided at the `createPage` level and referenced in schema nodes by name:
+Named handlers are trusted application code passed to createPage or createComponent and referenced from schema props by name:
 
-```ts
-// page.tsx
+~~~tsx
+import { createPage } from "nextjs-engine";
+import { HomeSchema } from "./schema";
+
 export default createPage({
-  schema: MySchema,
+  schema: HomeSchema,
   handlers: {
-    openModal: () => setModalOpen(true),
-    trackCta:  () => analytics.track("cta_clicked"),
+    trackCta: () => analytics.track("cta_clicked"),
   },
 });
+~~~
 
-// In schema:
+~~~ts
 {
   type: "button",
-  props: { label: "Open", onClick: "openModal" }
+  props: { label: "Continue", onClick: "trackCta" },
 }
-```
+~~~
 
-Because handlers are defined outside the schema object, they can close over React state from a parent component if needed.
-
----
+Important Generation 3 behavior: a non-empty named-handler map selects the provider/legacy renderer path for that page/component instead of the server-first renderer. Keep handlers for interactions that actually need them; prefer narrow client React components/slots for client state rather than making an otherwise static schema depend on a broad handler map. The schema stores handler names, not handler source code. A module-level createPage call does not automatically have access to state local to an unrelated parent React component.
 
 ## Theme System
 
@@ -367,72 +331,58 @@ createComponent({ schema }) currently composes a schema tree into a reusable Rea
 
 ## createPage API
 
-`createPage` accepts three page definition shapes:
+Generation 3 createPage accepts three shapes:
 
-```ts
-// Existing full-schema form
-export default createPage({
-  schema: MySchema,
-  config: {
-    breakpoints: { … },
-    contentMaxWidth: "1400px",
-    gapBase: "1rem",
-  },
-  handlers: {
-    myHandler: () => { … }
-  },
-  slots: {
-    mySlot: <MyComponent />
-  },
-});
+1. A full PageSchema through the schema option.
+2. Direct schema fields such as meta, theme and root.
+3. A compact Markdown-page shape with filePath, optional inline content, markdown props, optional theme, and optional section props.
 
-// Direct schema form
-export default createPage({
-  meta: { title: "Home" },
-  root: { type: "box", children: [] },
-});
+~~~tsx
+import { createPage, defineSchema } from "nextjs-engine";
 
-// Compact local Markdown page form
-export default createPage({
-  title: "Privacy Policy — Kastrick",
-  description: "Kastrick privacy policy.",
-  filePath: "@/data/page/privacy.md",
-  markdown: {
-    headingColor: "#07111f",
-    textColor: "#30475f",
-    linkColor: "#12304c",
+const homeSchema = defineSchema({
+  meta: { title: "Home", description: "Welcome." },
+  root: {
+    type: "section",
+    children: [
+      { type: "heading", props: { content: "Home" } },
+      { type: "text", props: { content: "Built with Next.js Engine." } },
+    ],
   },
 });
-```
 
-When using the Markdown page form, `meta.title` and `meta.description` override the top-level `title` and `description` fallbacks.
+export default createPage({ schema: homeSchema });
+~~~
 
-The older full-schema signature remains:
+Direct-schema form:
 
-```ts
+~~~ts
 export default createPage({
-  schema: MySchema,       // Required — the PageSchema definition
-  config: {               // Optional — engine config overrides
-    breakpoints: { … },
-    contentMaxWidth: "1400px",
-    gapBase: "1rem",
-  },
-  handlers: {             // Optional — named event handlers
-    myHandler: () => { … }
-  },
-  slots: {                // Optional — named React node injections
-    mySlot: <MyComponent />
-  },
+  meta: { title: "Privacy Policy" },
+  root: { type: "markdown", props: { content: "# Privacy Policy" } },
 });
-```
+~~~
 
----
+Compact Markdown-file form:
+
+~~~ts
+export default createPage({
+  title: "Privacy Policy",
+  description: "How the site handles data.",
+  filePath: "./data/privacy.md",
+  markdown: { headingColor: "#07111f", linkColor: "#12304c" },
+});
+~~~
+
+The page options can also include config, slots, mobile/tablet adaptive configuration and compiler controls. The createPage Markdown file form reads local files on the server/build path; it is not a browser URL loader. If handlers is a non-empty object, the current implementation uses the provider/compatibility renderer rather than server-first rendering. For App Router metadata, use Next.js generateMetadata with generateEngineMetadata, shown below.
 
 ## createComponent API
 
-Use `createComponent` for reusable app chrome or shared UI that still needs to be rendered through the engine. It accepts the same options as `createPage`, but the returned component accepts runtime `slots` and `children`.
+createComponent creates a reusable React component from a schema-backed page definition. It accepts the full-schema form or direct schema fields; it does not accept createPage's compact filePath Markdown-page form.
 
-```ts
+~~~tsx
+import { createComponent, defineSchema } from "nextjs-engine";
+
 const SiteChrome = createComponent({
   schema: defineSchema({
     root: {
@@ -446,61 +396,17 @@ const SiteChrome = createComponent({
 });
 
 export default SiteChrome;
-```
+~~~
 
-Runtime slots can be passed with `<SiteChrome slots={{ sidebar: <Sidebar /> }}>...</SiteChrome>`. Plain children are injected into `{ type: "slot", props: { name: "children" } }`.
+The returned component accepts runtime slots and children:
 
-### Loading Markdown Files
+~~~tsx
+<SiteChrome slots={{ sidebar: <Sidebar /> }}>
+  <MainContent />
+</SiteChrome>
+~~~
 
-`createPage` can load local Markdown files when a `markdown` node has `props.filePath`. The file content is injected into that node before rendering, while all display control stays on the node props.
-
-```ts
-import path from "node:path";
-import { createPage, defineSchema } from "nextjs-engine";
-
-export default createPage({
-  schema: defineSchema({
-    root: {
-      type: "section",
-      children: [
-        {
-          type: "markdown",
-          props: {
-            filePath: path.join(process.cwd(), "data/page/privacy.md"),
-            headingColor: "#07111f",
-            textColor: "#30475f",
-            linkColor: "#12304c",
-          },
-        },
-      ],
-    },
-  }),
-});
-```
-
-For simple document-style pages, use the compact Markdown page form:
-
-```ts
-import { createPage } from "nextjs-engine";
-
-export default createPage({
-  meta: {
-    title: "Kastrick Terms of Service",
-  },
-  title: "Terms of Service — Kastrick",
-  description: "Kastrick terms of service.",
-  filePath: "@/data/page/tos.md",
-  markdown: {
-    blockAnimation: "slide-up",
-  },
-});
-```
-
-`filePath` can be absolute, relative to the project working directory, or use the `@/` project-root alias. If both `content` and `filePath` are supplied, loaded file content takes precedence. This feature is server-only, so routes that use local Markdown files should not be marked `"use client"`.
-
----
-
----
+Named slots are injected through the schema slot nodes. This is the existing schema-composition API; the advanced custom React component authoring mode through createComponent remains a separate planned enhancement and should not be presented as implemented.
 
 ## defineSchema
 
@@ -544,51 +450,41 @@ Do not assume every element is memoized, every image automatically becomes next/
 
 ## Integrating with Next.js App Router
 
-The engine output is a standard React function component. Use it as a default export in any `page.tsx`:
+Next.js App Router does not build page metadata from meta tags emitted in the React body. Export generateMetadata from the route and convert the same PageSchema to Next.js Metadata:
 
-```ts
-// app/page.tsx
-import { createPage } from "nextjs-engine";
+~~~tsx
+import type { Metadata } from "next";
+import { createPage, generateEngineMetadata } from "nextjs-engine";
+import { HomeSchema } from "./schema";
+
+export function generateMetadata(): Metadata {
+  return generateEngineMetadata(HomeSchema);
+}
+
 export default createPage({ schema: HomeSchema });
-```
+~~~
 
-For the `<head>` meta tags to work correctly in App Router, the `EngineHead` output needs to be rendered inside a `<head>` element. The simplest approach is to handle `title` and `description` in your `layout.tsx` using `generateMetadata`, and leave the schema meta for supplementary tags only.
-
----
+Use the same schema for rendering and metadata when practical so the title, description, canonical URL, robots and social preview values stay consistent. The helper accepts either a PageSchema or PageMeta. For richer site/social/structured-data handling, see the EngineSEO component guide.
 
 ## Integrating with Next.js Pages Router
 
-```ts
+~~~tsx
 // pages/index.tsx
 import { createPage } from "nextjs-engine";
+import { HomeSchema } from "../schemas/home";
+
 export default createPage({ schema: HomeSchema });
+
 export const getStaticProps = async () => ({ props: {} });
-```
+~~~
 
----
+This is the Pages Router compatibility path. The App Router generateMetadata function documented above does not apply to Pages Router; use Next.js Head or the metadata mechanisms supported by that router.
 
-## Module Aliases
+## Optional repository-local module aliases
 
-Add this to `tsconfig.json` for clean imports:
+These aliases are conveniences for working inside the repository. Applications consuming the published package should import from nextjs-engine and do not need this mapping.
 
-```json
-{
-  "compilerOptions": {
-    "paths": {
-      "@/engine": ["./src/engine/index.ts"],
-      "@/engine/*": ["./src/engine/*"]
-    }
-  }
-}
-```
-
----
-
----
-
-## Module Aliases
-
-Add this to `tsconfig.json` for clean imports:
+Add this to tsconfig.json for clean imports:
 
 ```json
 {
@@ -637,7 +533,7 @@ For custom component-scoped styles, see [the detailed Gen 3 styling guide](./3/s
       onHover:  { background: "#1a1a2e", transform: "scale(1.02)" },
       onFocus:  { outline: "2px solid var(--e-accent)", outlineOffset: "3px" },
       onActive: { transform: "scale(0.98)", opacity: "0.9" },
-      css:      { userSelect: "none", willChange: "transform" },
+      // Put raw CSS properties on style or on supported node props, not inside cprop.
     }
   }
 }
@@ -671,30 +567,33 @@ function MyComponent({ cprop, className, ...props }) {
 
 ## CSS Directly on Prop
 
-Any standard CSS property can be written directly alongside engine shorthands:
+The schema type exposes many common CSS properties directly alongside Engine shorthands. For properties not included in the node's TypeScript props, use the style object, which accepts the supported React CSS style shape plus Engine's nested at-rule form. Do not assume every browser CSS property is a top-level schema prop.
 
-```ts
+~~~ts
 {
   type: "box",
   props: {
-    // Engine shorthands
-    bg:  "#111",
-    px:  "2rem",
-    // Direct CSS — just write the property name
-    transform:     "rotate(-3deg)",
-    filter:        "blur(4px)",
-    clipPath:      "polygon(0 0, 100% 0, 100% 80%, 0 100%)",
-    mixBlendMode:  "multiply",
-    willChange:    "transform",
-    animation:     "fadeIn 0.4s ease forwards",
-    aspectRatio:   "16/9",
-    gridColumn:    "1 / -1",
-    userSelect:    "none",
-    // Also works as responsive values
-    transform:     { xs: "scale(0.9)", md: "scale(1)" },
-  }
+    bg: "#111",
+    px: "2rem",
+    filter: "blur(4px)",
+    clipPath: "polygon(0 0, 100% 0, 100% 80%, 0 100%)",
+    mixBlendMode: "multiply",
+    willChange: "transform",
+    animation: "fadeIn 0.4s ease forwards",
+    aspectRatio: "16/9",
+    gridColumn: "1 / -1",
+    userSelect: "none",
+    transform: { xs: "rotate(-3deg)", md: "rotate(0deg)" },
+    style: {
+      "@supports (backdrop-filter: blur(1px))": {
+        backdropFilter: "blur(8px)",
+      },
+    },
+  },
 }
-```
+~~~
+
+Do not repeat a property key in one object literal; a later duplicate overwrites the earlier value and TypeScript may reject it.
 
 ### cprop — Engine Custom Properties
 
@@ -718,76 +617,42 @@ All pseudo-states are compiled to CSS classes and injected via StyleCollector �
 
 ## Schema Validation
 
-```ts
+Use validateSchema for a node tree or validatePageSchema for a full PageSchema:
+
+~~~ts
 import { validatePageSchema, validateSchema } from "nextjs-engine";
 
-// In your page or CI:
-const result = validatePageSchema(mySchema);
-// → console.warn in dev for each issue
-// → result.valid, result.errors[]
+const pageResult = validatePageSchema(mySchema);
+if (!pageResult.valid) {
+  console.error(pageResult.errors);
+}
 
-// Validate just a node tree:
-const result = validateSchema(mySchema.root);
-```
+const rootResult = validateSchema(mySchema.root);
+~~~
 
-Each `ValidationError` has: `{ path: string, message: string, level: "error" | "warn" }`.
-
----
-
----
+Both functions return a structured ValidationResult with valid and errors. In development, validatePageSchema also prints reported issues to the console. These functions do not throw solely because the returned result contains validation errors; callers decide whether to stop a build/test based on result.valid. For richer aggregated diagnostics and suggestions, use the static schema analyzer below.
 
 ## Static Schema Analyzer
 
-`schemaAnalyzer` is a build-time / dev-time static analysis tool. Unlike `validateSchema` (which throws on hard errors at runtime), the analyzer collects all diagnostics in one pass and returns them as structured objects — suitable for CI pipelines, editor integrations, or dev-server overlays.
+The exported analyzer gathers schema diagnostics in one pass and returns structured objects suitable for CI, editor integrations and debugging:
 
-```ts
-import { analyzeSchema, isSchemaValid } from "nextjs-engine";
+~~~ts
+import { analyzeSchema, analyzeNode, isSchemaValid } from "nextjs-engine";
 
 const result = analyzeSchema(MySchema);
-
 console.log(result.formatted);
-// [schema:root.children[2]] EngineError(E001): Unknown node type "txt".
-//     hint: Did you mean "text"?
-// [schema:root.children[5].props] EngineWarn(W001): Image node is missing an "alt" prop.
-//     hint: Add alt="" for decorative images or a descriptive string for meaningful ones.
+console.log(result.diagnostics);
+console.log({ errors: result.errors, warnings: result.warnings });
 
-console.log(result.errors);   // number of error-severity diagnostics
-console.log(result.warnings); // number of warn-severity diagnostics
-
-// Guard before rendering:
-if (!isSchemaValid(MySchema)) throw new Error("Schema has errors");
-```
-
-**Diagnostic codes:**
-
-| Code | Severity | Description |
-|------|----------|-------------|
-| `E001` | error | Unknown node type. Includes "Did you mean X?" via Levenshtein distance. |
-| `E002` | error | Missing required prop for a known node type (e.g. `src` on `image`). |
-| `E003` | error | Duplicate `id` or `point` value — reports first-seen path. |
-| `E004` | error | Circular reference — same object instance appears twice in the tree. |
-| `W001` | warn | `image` / `img` node has no `alt` prop (accessibility). |
-| `W002` | warn | `button` / `link` has neither `label` nor children (accessibility). |
-| `W003` | warn | `checkbox` / `input` has no `id` — cannot be associated with a `<label>`. |
-| `W004` | warn | Node has >100 direct children (performance). |
-| `W005` | warn | Tree nesting exceeds 15 levels (performance). |
-| `W006` | warn | Leaf node (`text`, `image`, `button`, etc.) has children declared — they are silently ignored. |
-
-**`EngineDiagnostic` shape:**
-
-```ts
-interface EngineDiagnostic {
-  severity: "error" | "warn" | "info";
-  code:     string;   // "E001", "W003", etc.
-  message:  string;
-  path:     string;   // e.g. "root.children[2].children[0]"
-  hint?:    string;   // optional fix suggestion
+const nodeResult = analyzeNode(MySchema.root);
+if (!isSchemaValid(MySchema)) {
+  throw new Error("The page schema has analyzer errors.");
 }
-```
+~~~
 
----
+AnalyzerResult contains diagnostics, error and warning counts, and a formatted report. Diagnostic families include unknown node types, malformed/circular or reused node objects, required props, duplicate navigation targets/names, accessibility hints, excessive nesting/child counts, and orphaned EngineScroll point metadata. Codes and hints are part of diagnostics, not a promise that every warning is a runtime exception.
 
----
+This is separate from validateSchema/validatePageSchema, which return a simpler valid/errors result, and from the Gen 3 compilePage diagnostics and fallback plan documented in the [compiler deep dive](./3/compiler-deep-dive.md).
 
 ## `staticClass` — Deduplicated CSS Classes
 
