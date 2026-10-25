@@ -287,3 +287,172 @@ Run browser regressions on Chromium, Firefox, and WebKit wherever the repository
 ## 13. Current status
 
 This is a plan only. Repository files were inspected; no source code, dependencies, tests, font files, generated outputs, or runtime behavior have been changed or implemented. Wait for Kate's explicit implementation instruction before beginning implementation.
+
+
+## 14. Custom UI components, registry integration, and EngineTheme bindings
+
+This section extends the existing theme plan with a public custom-component authoring path. It is a proposal, not an implementation instruction; preserve the planning-only status above until Kate explicitly approves implementation.
+
+### What exists today on `main-3`
+
+The current API already exports `createComponent()`, `registerComponent()`, `unregisterComponent()`, `getComponent()`, `hasComponent()`, and `registeredTypes()`.
+
+- `createComponent(options)` accepts a `PageSchema` (or direct schema options) and returns a React component that renders that schema. It is currently a schema-backed composition helper, not a factory for defining a new component type.
+- `registerComponent(type, component)` puts a trusted React component into the runtime schema-node registry. Schema nodes can then refer to that registered node type.
+- The current `EngineTheme` type only supports page-level `vars`, `fonts`, and `globalStyles`. It does not yet describe per-component themes, variants, or theme IDs.
+- The registry is currently a module-level mutable map. That is simple, but custom registrations need clear ownership and isolation rules for multi-app builds, tests, server rendering, and development hot reload.
+
+These facts mean the pieces are already adjacent, but a stable custom-component contract and the EngineTheme-to-component resolution path still need to be designed.
+
+### Recommended API boundary
+
+Do not repurpose the existing `createComponent(schema)` call to mean something different. Keep it backward-compatible for composing schema trees, and introduce a distinct authoring API—provisionally `defineComponent()`—for trusted custom React components. A separately named API is easier to type, explain, and maintain than a heavily overloaded function.
+
+The proposed responsibilities are:
+
+1. **`createTheme()`** defines reusable theme data: shared tokens, a component's default appearance, named variants, and safe declarative templates.
+2. **`defineComponent()`** describes a custom component's stable ID, prop contract, trusted local React implementation/adapter, supported slots, and optional default theme reference.
+3. **`registerComponent()` / component registry** makes that definition available to a schema-rendering context. Existing direct registry calls remain supported as a low-level compatibility path.
+4. **`createComponent()`** continues to compose a schema-backed React component. It may accept an optional theme context/reference for the schema it wraps, but should not silently become the custom React-component factory.
+5. **`defineSchema()` / `PageSchema`** references registered node types and selects theme IDs/variants without embedding executable component code.
+6. **Data-API** describes supported events and declarative composition behavior. It must not become a generic JavaScript execution hook.
+
+Names and exact type shapes are provisional until the API review. The important contract is the separation of *defining code*, *registering a component*, *selecting its theme*, and *composing schema data*.
+
+### Illustrative API shape
+
+The following is a design sketch, not code that should be copied as an implemented contract:
+
+~~~tsx
+import {
+  createTheme,
+  defineComponent,
+  registerComponent,
+  defineSchema,
+  createComponent,
+} from "nextjs-engine";
+import type { EngineLinkProps } from "nextjs-engine";
+
+export const siteTheme = createTheme({
+  id: "site",
+  scope: "global",
+  components: {
+    link: {
+      defaults: {
+        color: "var(--site-link)",
+        textDecoration: "underline",
+        underlineOffset: "0.2em",
+      },
+      variants: {
+        quiet: { textDecoration: "none" },
+        button: { /* declarative surface, spacing and focus tokens */ },
+      },
+    },
+  },
+});
+
+// Trusted application code owns the actual behavior and accessibility.
+export const CustomLink = defineComponent({
+  id: "site-link",
+  component: SiteLinkImplementation,
+  props: linkPropsSchema,
+  slots: ["children"],
+  theme: "site.link",
+});
+
+registerComponent("site-link", CustomLink);
+
+const schema = defineSchema({
+  root: {
+    type: "site-link",
+    props: {
+      href: "/guide",
+      theme: "site.link.quiet",
+      children: "Read the guide",
+    },
+  },
+});
+
+export const GuideLink = createComponent({ schema });
+~~~
+
+This sketch intentionally leaves the exact prop/slot representation open: current `SchemaNode` stores generic `props`, while React children and Engine's named slots have existing runtime semantics that must be reconciled before finalizing the syntax. Do not assume that passing a `theme` prop alone applies styling; the renderer must resolve the theme ID, validate it, and deliver the resolved values to a supported component/theme adapter.
+
+### Theme resolution and precedence
+
+Use one shared resolver for built-in and custom components. A proposed precedence, from weakest to strongest, is:
+
+1. Engine/built-in component defaults.
+2. Theme-group shared tokens and the component's base theme.
+3. Inherited named variants.
+4. Component-definition default theme reference.
+5. Schema-node theme ID/variant.
+6. Explicit, validated per-node style overrides.
+
+Finalize precedence against the existing `vars` / `fonts` / `globalStyles` behavior before implementation. Do not allow a custom component to bypass schema validation or override reserved engine/runtime attributes. Unknown theme IDs, incompatible component IDs, inheritance cycles, and invalid values should produce actionable development diagnostics and deterministic production fallbacks.
+
+The theme compiler should emit normalized declarative data, not a generated JavaScript module for arbitrary theme code. Theme lookup should happen during compilation/build when possible; avoid per-node network requests, repeated parsing, or expensive style recalculation during render. Reuse the existing deterministic cache/fingerprint approach, and invalidate only the affected theme/component artifacts.
+
+### Custom links as the first end-to-end example
+
+A custom link is a good proof of concept because the repo already has `EngineLink` and `EngineTransitionLink`, a registered `link` node, and shared schema rendering. The example should prove that users can:
+
+- create a custom link implementation or adapter using normal typed React props;
+- register it under an application-owned schema-node type without replacing the built-in `link`;
+- define default styling and named variants in `createTheme()`;
+- select a theme/variant in schema data and reuse the same component across pages;
+- preserve safe URL handling, keyboard navigation, focus-visible styling, accessible names, and target/rel behavior;
+- keep theme appearance separate from navigation behavior, transition behavior, and Data-API event handlers.
+
+Do not require users to fork or edit Engine's built-in `EngineLink` just to create a differently styled link. Conversely, do not automatically let a remote theme replace the behavior of a trusted local link component.
+
+### Registry and framework boundaries
+
+- Custom React/Next.js implementations are trusted local code and must be imported/registered through a documented project-local entry point. Remote `.etr` files can name an already registered adapter ID; they cannot provide JSX, imports, JavaScript, or a module URL to execute.
+- Review whether registrations should be explicit per-app/per-renderer registry instances rather than global mutation. Server rendering must not allow one request or tenant's registration/theme to leak into another.
+- Preserve lazy-loading for optional/heavy components. A custom component should not force every route to eagerly import all registered components.
+- Keep schema registration compatible with Gen 3's server-first rendering. Make client-only requirements explicit; do not silently force an entire page onto the legacy client renderer because a component uses one event handler.
+- Keep browser behavior generic across Chromium, Firefox, and WebKit, and provide graceful fallback when optional capabilities are unavailable.
+- Define how TypeScript prop schemas, runtime schema validation, slot values, serializability, and React children map to `SchemaNode`. Reject unsupported or unsafe values at the boundary.
+
+### Data-API integration
+
+The Data-API should be a typed, narrow event/slot contract for declared behavior (for example, a link activation or a template composition event), not a general-purpose callback that evaluates arbitrary strings from schema/theme data.
+
+- Define supported event names, payloads, cancellation/error behavior, and whether each event is server-only, client-only, or serializable.
+- Resolve handler names only against trusted local registrations supplied by the application; never evaluate a handler body from schema or remote theme data.
+- Keep styling/template composition independent from event dispatch so users can change a link's appearance without changing its navigation or security behavior.
+- Add bounds for recursion/template nesting and validate slot/placement rules before rendering.
+- Document the trust boundary clearly: app code implements behavior; schema and themes select among declared capabilities.
+
+### Suggested implementation order and acceptance criteria
+
+1. Finalize the public type model and backward-compatibility tests for the existing `createComponent(schema)` and direct `registerComponent(type, component)` APIs.
+2. Implement the custom component descriptor/authoring API and a safe registry integration path, including app/request isolation decisions.
+3. Add component theme IDs and variant resolution to schema validation and the shared theme resolver.
+4. Implement the custom link example as the first registered custom component, with keyboard/accessibility and URL-safety tests.
+5. Connect the declarative Data-API contract only for explicitly supported events and slots.
+6. Add server-first, browser-compatibility, cache invalidation, malformed theme, missing component, unknown theme, and cross-request isolation tests.
+7. Update the simple and detailed documentation only after the API shape is stable and verified.
+
+Acceptance criteria:
+
+- Existing `createComponent({ schema })` calls continue to behave as before.
+- A user can define and register a custom component without modifying Engine source or overwriting a built-in registry entry.
+- A schema node can choose a registered component and a valid theme/variant ID.
+- Built-in and custom components use the same deterministic theme-resolution rules.
+- Theme data remains declarative and cannot execute remote code.
+- Custom link variants preserve accessible, safe link behavior.
+- Registry/theme state cannot leak between unrelated requests or app contexts.
+- Gen 3 server-first rendering and optional-component code splitting remain intact.
+- Type-check, targeted component/theme tests, build smoke tests, and Chromium/Firefox/WebKit regressions pass before this feature is marked complete.
+
+### Decisions still open
+
+- Whether the final public factory name is `defineComponent()`, `createCustomComponent()`, or another unambiguous name.
+- Whether custom definitions register immediately or return a descriptor that is explicitly registered.
+- Whether `createComponent()` accepts an optional theme reference for schema composition, and the exact placement of that option.
+- The final typed prop-schema format and how named slots/children serialize through `SchemaNode`.
+- Whether component registries are explicit objects passed through schema/render context or safely scoped registries created by a project bootstrap.
+- Exact custom-link props and whether theme IDs live in a reserved schema field or validated component props.
+- The exact Data-API event list and handler registration contract.
