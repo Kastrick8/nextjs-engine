@@ -262,10 +262,10 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		blockquote: ({ node, className, style, children, ...props }) => {
 			const childNodes = Children.toArray(children);
 			const firstChild = childNodes[0];
-			const firstText = isValidElement<{ children?: ReactNode }>(firstChild)
+			const firstText = firstChild !== undefined ? reactNodeText(firstChild).trim() : "";
 				? reactNodeText(firstChild.props.children).trim()
 				: "";
-			const info = /^\[!ENGINE-INFO (info|note|tip|warning|danger|success)\]\s*(.*)$/i.exec(firstText);
+			const info = /\[\s*!ENGINE-INFO\s+(info|note|tip|warning|danger|success)\s*\]\s*([\s\S]*)/i.exec(firstText);
 			if (info) {
 				const tone = info[1].toLowerCase();
 				const title = (info[2] ?? "").trim();
