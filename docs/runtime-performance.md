@@ -1,5 +1,7 @@
 # Runtime & Performance Notes
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. For stable Gen 2 behavior, use [`docs/2/runtime-performance.md`](./2/runtime-performance.md).
+
 This page documents performance behavior that is true in the current source.
 It is not a promise that every schema is automatically fast; expensive custom
 callbacks, huge scenes, media, and application code can still dominate runtime.
