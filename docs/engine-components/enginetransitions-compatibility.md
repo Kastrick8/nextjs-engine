@@ -1,5 +1,7 @@
 # EngineTransitions+ Browser Compatibility
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineTransitions+ treats page animation as progressive enhancement. Navigation and state updates must remain functional even when a browser does not expose the native View Transitions API.
 
 ## Runtime tiers
