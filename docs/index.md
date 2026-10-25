@@ -74,6 +74,7 @@ Read [`gen3/overview.md`](./gen3/overview.md) first if you are starting a new pa
 | Heroes | [`engine-components/enginehero.md`](./engine-components/enginehero.md) |
 | Forms | [`engine-components/engineforms.md`](./engine-components/engineforms.md) |
 | Searchable styled select | [`engine-components/customselect.md`](./engine-components/customselect.md) |
+| Searchable styled select | [`engine-components/customselect.md`](./engine-components/customselect.md) |
 | Markdown | [`engine-components/enginemarkdown.md`](./engine-components/enginemarkdown.md) |
 | Suspense/loading surfaces | [`engine-components/enginesuspense.md`](./engine-components/enginesuspense.md) |
 | Overlay/dialog/drawer/popover | [`engine-components/engineoverlay.md`](./engine-components/engineoverlay.md) |
@@ -115,6 +116,7 @@ EngineManim
 | EngineScroll | [`engine-components/enginescroll.md`](./engine-components/enginescroll.md) |
 | EngineManim | [`engine-components/enginemanim.md`](./engine-components/enginemanim.md) |
 | EngineImage / EngineVideo | [`engine-components/engineimage.md`](./engine-components/engineimage.md) |
+| EngineVideo viewport lifecycle | [`engine-components/enginevideo.md`](./engine-components/enginevideo.md) |
 
 EngineTransitions+ and EngineShader remain separate responsibilities. Transition presets such as `pixel`, `liquid`, and `dissolve` are transition animations, not `.shed` framebuffer passes.
 
