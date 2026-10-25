@@ -1,5 +1,7 @@
 # Next.js Engine — Developer Reference
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. For the stable 2.x contract, use the versioned guides under [`docs/2`](./2/index.md).
+
 > Core concepts, schema system, PROP vs CPROP, createPage API.
 > For component-specific APIs see `engine-components/`.
 
