@@ -43,6 +43,29 @@ Generated CSS is collected by the nearest `EngineProvider`. Each page/component 
 
 Ordinary generated CSS is not retained as a process-wide cross-request cache: each response needs its own stylesheet. The explicit global-style path is separate and exists for styles intentionally added through `StyleCollector.addGlobal()`. A low-level global collector remains a compatibility fallback for helpers used outside a provider.
 
+## Low-level style helpers
+
+The public package also exports low-level helpers for custom React components:
+
+```ts
+import { staticClass, mediaClass } from "nextjs-engine";
+
+const layoutClass = staticClass({
+  display: "grid",
+  gap: "1rem",
+});
+
+const responsiveClass = mediaClass(
+  { display: "block" },
+  ["768px", { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }],
+);
+```
+
+- `staticClass(style, collector?)` converts a CSS style object into a reusable generated class and registers its CSS with the supplied collector. If omitted, the low-level global collector is used.
+- `mediaClass(base, ...breakpoints)` creates a class with base declarations plus `min-width` media overrides. Each breakpoint argument is a tuple of a CSS length string and a `CSSProperties` object. It currently registers through the low-level global collector.
+
+These are low-level helpers for custom-component code, not replacements for normal Engine schema styling. Prefer responsive props for ordinary responsive layout so the active page's provider-scoped collector owns the CSS. `EngineGlobalStyles()` emits only CSS explicitly registered with `StyleCollector.addGlobal()`; it does not sweep up all CSS from these helpers or from provider collectors.
+
 ## Known limitation
 
 Post-hydration dynamic rule flushing remains a limitation: application code may create a new responsive or pseudo-state rule after hydration while stylesheet DOM flushing remains primarily server-oriented. Do not assume the complete SSR stylesheet is automatically re-emitted on the client.
