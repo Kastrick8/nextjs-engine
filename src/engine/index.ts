@@ -166,8 +166,8 @@ export type {
 export { validateSchema, validatePageSchema } from "./core/validateSchema";
 export type { ValidationError, ValidationResult } from "./core/validateSchema";
 
-export { createTheme, parseEngineThemeId } from "./theme/createTheme";
-export type { ParsedEngineThemeId } from "./theme/createTheme";
+export { createTheme, parseEngineThemeId } from "./engineTheme/createTheme";
+export type { ParsedEngineThemeId } from "./engineTheme/createTheme";
 
 export {
 	registerEngineHighlighterProvider,
@@ -178,40 +178,40 @@ export {
 	highlightEngineCode,
 	normalizeEngineHighlightLanguage,
 	normalizeEngineThemeColor,
-} from "./theme/highlighting";
+} from "./engineTheme/highlighting";
 export type {
 	EngineHighlighterProvider,
 	EngineHighlighterProviderInfo,
 	EngineHighlighterThemeInfo,
 	EngineHighlighterToken,
-} from "./theme/highlighting";
+} from "./engineTheme/highlighting";
 
 export {
 	registerEngineThemeDataHandler,
 	unregisterEngineThemeDataHandler,
 	listEngineThemeDataHandlers,
 	dispatchEngineThemeDataEvent,
-} from "./theme/dataApi";
+} from "./engineTheme/dataApi";
 
 export {
 	registerEngineThemeTemplateAdapter,
 	unregisterEngineThemeTemplateAdapter,
 	listEngineThemeTemplateAdapters,
 	renderEngineThemeTemplate,
-} from "./theme/templates";
+} from "./engineTheme/templates";
 
 export {
 	loadRemoteEngineTheme,
 	clearRemoteEngineThemeCache,
 	getRemoteEngineThemeCacheSize,
 	unregisterRemoteEngineTheme,
-} from "./theme/remoteTheme";
-export type { EngineThemeArtifact, LoadRemoteEngineThemeOptions } from "./theme/remoteTheme";
+} from "./engineTheme/remoteTheme";
+export type { EngineThemeArtifact, LoadRemoteEngineThemeOptions } from "./engineTheme/remoteTheme";
 
 export type {
 	EngineThemeTemplateAdapter,
 	EngineThemeTemplateContext,
-} from "./theme/templates";
+} from "./engineTheme/templates";
 
 export type {
 	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,

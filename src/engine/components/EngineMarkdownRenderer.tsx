@@ -16,8 +16,8 @@ import React, {
 import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MarkdownProps } from "../schema/types";
-import { getEngineHighlighterColor, getEngineHighlighterPalette, highlightEngineCode, normalizeEngineThemeColor } from "../theme/highlighting";
-import { renderEngineThemeTemplate } from "../theme/templates";
+import { getEngineHighlighterColor, getEngineHighlighterPalette, highlightEngineCode, normalizeEngineThemeColor } from "../engineTheme/highlighting";
+import { renderEngineThemeTemplate } from "../engineTheme/templates";
 import { EngineUrlIcon } from "./EngineUrlIcon";
 import {
 	normalizeEngineMarkdownSource,

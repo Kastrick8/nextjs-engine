@@ -7,7 +7,7 @@ const ts = require("typescript");
 const { analyzeProjectModules, SCHEMA_ENGINE_SYMBOLS } = require("./gen3ModuleCompiler");
 const { createSchemaOutputCache } = require("./gen3SchemaCache");
 const { compileEngineThemeArtifacts } = require("./gen3ThemeCompiler");
-const { compileEngineThemeFonts } = require("./gen3ThemeFonts");
+const { compileEngineThemeFonts } = require("../engineTheme/EngineThemeFontCompiler");
 const nencLogger = require("./nencTerminalLogger");
 
 const BUILTIN_NODE_TYPES = new Set([

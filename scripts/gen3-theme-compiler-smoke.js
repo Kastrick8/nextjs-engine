@@ -11,7 +11,9 @@ const {
 	canonicalJson,
 	compileEngineThemeArtifacts,
 	ETR_FORMAT,
-} = require("../src/engine/plugins/gen3ThemeCompiler");
+} = require("../src/engine/compiler/EngineThemeCompiler");
+const pluginCompilerLink = require("../src/engine/plugins/gen3ThemeCompiler");
+assert.equal(pluginCompilerLink.compileEngineThemeArtifacts, compileEngineThemeArtifacts, "the Next.js plugin forwards to the dedicated EngineTheme compiler");
 
 async function testPublicThemeApi() {
 	const previousTsExtension = Module._extensions[".ts"];
@@ -35,12 +37,12 @@ async function testPublicThemeApi() {
 	Module._extensions[".tsx"] = transpileThemeModule;
 
 	try {
-		const themePath = path.resolve(__dirname, "../src/engine/theme/createTheme.ts");
-		const resolverPath = path.resolve(__dirname, "../src/engine/theme/resolveTheme.ts");
+		const themePath = path.resolve(__dirname, "../src/engine/engineTheme/createTheme.ts");
+		const resolverPath = path.resolve(__dirname, "../src/engine/engineTheme/resolveTheme.ts");
 		const { createTheme, parseEngineThemeId } = require(themePath);
 		const { resolveEngineThemeSchema } = require(resolverPath);
-		const { compileEngineThemeFonts } = require(path.resolve(__dirname, "../src/engine/plugins/gen3ThemeFonts.js"));
-		const { loadRemoteEngineTheme, clearRemoteEngineThemeCache, getRemoteEngineThemeCacheSize, unregisterRemoteEngineTheme } = require(path.resolve(__dirname, "../src/engine/theme/remoteTheme.ts"));
+		const { compileEngineThemeFonts } = require(path.resolve(__dirname, "../src/engine/engineTheme/EngineThemeFontCompiler.js"));
+		const { loadRemoteEngineTheme, clearRemoteEngineThemeCache, getRemoteEngineThemeCacheSize, unregisterRemoteEngineTheme } = require(path.resolve(__dirname, "../src/engine/engineTheme/remoteTheme.ts"));
 		const {
 			highlightEngineCode,
 			listEngineHighlighterProviders,
@@ -51,23 +53,23 @@ async function testPublicThemeApi() {
 			normalizeEngineThemeColor,
 			getEngineHighlighterColor,
 			getEngineHighlighterPalette,
-		} = require(path.resolve(__dirname, "../src/engine/theme/highlighting.ts"));
+		} = require(path.resolve(__dirname, "../src/engine/engineTheme/highlighting.ts"));
 		const {
 			dispatchEngineThemeDataEvent,
 			listEngineThemeDataHandlers,
 			registerEngineThemeDataHandler,
 			unregisterEngineThemeDataHandler,
-		} = require(path.resolve(__dirname, "../src/engine/theme/dataApi.ts"));
+		} = require(path.resolve(__dirname, "../src/engine/engineTheme/dataApi.ts"));
 		const React = require("react");
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
-		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/theme/fontUrls.ts"));
-		const { flattenEngineThemeTokens, normalizeEngineThemeVariables } = require(path.resolve(__dirname, "../src/engine/theme/tokens.ts"));
+		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/engineTheme/fontUrls.ts"));
+		const { flattenEngineThemeTokens, normalizeEngineThemeVariables } = require(path.resolve(__dirname, "../src/engine/engineTheme/tokens.ts"));
 		const {
 			renderEngineThemeTemplate,
 			listEngineThemeTemplateAdapters,
 			registerEngineThemeTemplateAdapter,
 			unregisterEngineThemeTemplateAdapter,
-		} = require(path.resolve(__dirname, "../src/engine/theme/templates.tsx"));
+		} = require(path.resolve(__dirname, "../src/engine/engineTheme/templates.tsx"));
 
 		const definition = createTheme({
 			id: "safe-theme",
