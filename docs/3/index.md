@@ -48,6 +48,7 @@ These component references describe the implementation on `main-3`. The file pat
 | Device information and adaptive schema patches | [EngineMobile / EngineDevice](../engine-components/enginemobile.md) |
 | Hero layouts and parallax | [EngineHero](../engine-components/enginehero.md) |
 | Forms | [EngineForms](../engine-components/engineforms.md) |
+| Searchable styled select | [CustomSelect](../engine-components/customselect.md) |
 | Suspense/loading surfaces | [EngineSuspense](../engine-components/enginesuspense.md) |
 | Dialog, drawer, popover | [EngineOverlay](../engine-components/engineoverlay.md) |
 | External API resolution/configuration | [EngineAPIResolver](../engine-components/engineapi.md) |
