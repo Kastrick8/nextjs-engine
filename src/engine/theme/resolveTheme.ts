@@ -154,10 +154,14 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 
 	if (isReference) {
 		if (themeRecord.sourceUrl || themeRecord.scope === "remote") {
-			throw new Error(
-				"Remote EngineTheme fetching is not enabled in this build. The .etr artifact format is data-only; "
-				+ "provide a globally registered theme or wait for the remote resolver phase.",
-			);
+			try {
+				resolveRegisteredEngineTheme(theme.id);
+			} catch {
+				throw new Error(
+					"Remote EngineTheme references are resolved only after an explicit loadRemoteEngineTheme() call "
+					+ "with an origin allowlist and version/checksum verification. No network request is made during render.",
+				);
+			}
 		}
 		const resolved = resolveRegisteredEngineTheme(theme.id);
 		resolvedCssTheme = {
