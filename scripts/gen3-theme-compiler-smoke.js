@@ -155,8 +155,24 @@ async function testPublicThemeApi() {
 			id: "theme-palette-inheritance-smoke",
 			scope: "global",
 			markdown: {
-				defaults: { prettyPlease: { languagePalettes: { typescript: { foreground: "#cccccc", keyword: "#ff00ff" } } } },
-				variants: { dark: { defaults: { prettyPlease: { languagePalettes: { typescript: { foreground: "#aabbcc" } } } } },
+				defaults: {
+					prettyPlease: {
+						languagePalettes: {
+							typescript: { foreground: "#cccccc", keyword: "#ff00ff" },
+						},
+					},
+				},
+				variants: {
+					dark: {
+						defaults: {
+							prettyPlease: {
+								languagePalettes: {
+									typescript: { foreground: "#aabbcc" },
+								},
+							},
+						},
+					},
+				},
 			},
 		});
 		const inheritedPalettePage = resolveEngineThemeSchema({
