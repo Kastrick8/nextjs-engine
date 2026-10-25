@@ -527,6 +527,16 @@ async function testPublicThemeApi() {
 			], { production: true, fetchImpl: async () => { throw new Error("cache hit must not fetch"); }, cacheTtlMs: 60000 });
 			assert.equal(secondFontBuild.cacheHits, 1);
 			assert.equal(fontUrls.length, 2, "a warm production build does not refetch fonts");
+			const fontManifestPath = path.join(fontRoot, ".nextjs-engine", ".cache", "gen3", "fonts", "manifest.json");
+			const expiredManifest = JSON.parse(fs.readFileSync(fontManifestPath, "utf8"));
+			expiredManifest.themes["font-smoke"].updatedAt = 0;
+			expiredManifest.themes["font-smoke"].fontAssets.forEach((asset) => { asset.updatedAt = 0; });
+			fs.writeFileSync(fontManifestPath, JSON.stringify(expiredManifest, null, 2));
+			const expiredFontBuild = await compileEngineThemeFonts(fontRoot, [
+				{ id: "font-smoke", fileName: "font-smoke.etr" },
+			], { production: true, fetchImpl: fakeFontFetch, cacheTtlMs: 1 });
+			assert.equal(expiredFontBuild.downloadedFonts, 1, "expired URL-based font entries are refreshed instead of reused forever");
+			assert.equal(fontUrls.length, 4, "expiry refresh re-fetches the stylesheet and font file");
 			const previousNodeEnvForFonts = process.env.NODE_ENV;
 			try {
 				process.env.NODE_ENV = "development";
