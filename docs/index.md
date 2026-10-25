@@ -73,6 +73,7 @@ Read [`gen3/overview.md`](./gen3/overview.md) first if you are starting a new pa
 | Page and layout transitions | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
 | Heroes | [`engine-components/enginehero.md`](./engine-components/enginehero.md) |
 | Forms | [`engine-components/engineforms.md`](./engine-components/engineforms.md) |
+| Searchable styled select | [`engine-components/customselect.md`](./engine-components/customselect.md) |
 | Markdown | [`engine-components/enginemarkdown.md`](./engine-components/enginemarkdown.md) |
 | Suspense/loading surfaces | [`engine-components/enginesuspense.md`](./engine-components/enginesuspense.md) |
 | Overlay/dialog/drawer/popover | [`engine-components/engineoverlay.md`](./engine-components/engineoverlay.md) |
