@@ -151,6 +151,17 @@ client renderer merely because it was created with `createComponent()`.
 compiler/runtime APIs remain in the normal package barrel; request-aware server
 helpers stay out of client imports.
 
+### Default not-found page
+
+The package exports `DefaultNotFoundPage`, the Engine-rendered 404 page. An App Router application can wire it explicitly:
+
+```tsx
+// app/not-found.tsx
+export { DefaultNotFoundPage as default } from "nextjs-engine";
+```
+
+This page is built from an Engine schema and follows the generation's normal rendering path. Keep an existing app-owned `app/not-found.tsx` when the project needs a custom not-found experience.
+
 ## Shared work scheduler
 
 ### Work states
