@@ -1,5 +1,7 @@
 # EngineTransitions+
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineTransitions+ is Next.js Engine's page, navigation, and layout transition runtime.
 
 It is built around the browser View Transitions API when that API exists. NE keeps a normal Next.js navigation path as the fallback, so a transition is an enhancement rather than a requirement for the page to work.
