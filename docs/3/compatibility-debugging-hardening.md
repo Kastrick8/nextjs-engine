@@ -100,6 +100,48 @@ Built-in probes cover the compiler's DOM, Canvas/WebGL, scheduling, viewport, tr
 
 `autoOpen` defaults to `true`. Set it to `false` to expose only the manual “Browser compatibility” trigger. `showSources` reveals the stable compiled node paths responsible for each issue and defaults to `false` for user-facing dialogs.
 
+## Public compatibility APIs and update prompt
+
+The package exposes two different browser-compatibility UI components. Choose the one that matches the user experience you need.
+
+### Show fallback and unsupported-feature details
+
+`EngineCompatibilityDialog` reports every used feature that resolves to either a fallback or an unavailable state. It can open automatically or provide a manual trigger.
+
+```tsx
+import { EngineCompatibilityDialog } from "nextjs-engine";
+
+<EngineCompatibilityDialog
+  plan={compiledPage.fallbackPlan}
+  autoOpen={true}
+  showSources={process.env.NODE_ENV === "development"}
+/>
+```
+
+The `support` prop can override support checks for application-defined capabilities. The dialog otherwise uses the built-in browser probes, waits until the client can measure the browser, and stays absent when all used features are native.
+
+### Recommend a browser update when a required feature has no viable fallback
+
+`EngineBrowserUpdateDialog` is a separate update/leave/continue prompt. It renders only when the compatibility report recommends an update; fallback-only pages do not trigger it.
+
+```tsx
+import { EngineBrowserUpdateDialog } from "nextjs-engine";
+
+<EngineBrowserUpdateDialog
+  plan={compiledPage.fallbackPlan}
+  rememberContinue={true}
+  onContinue={(report) => {
+    console.info("User continued with the available experience", report.pageId);
+  }}
+/>
+```
+
+Its public options include `isSupported` (a feature-support resolver), `leaveUrl`, `updateUrl`, `rememberContinue`, and `onContinue`, `onLeave`, and `onUpdate` callbacks. Callbacks receive the compatibility report. The default update destination is Browse Happy; set `updateUrl` to your own browser-support guidance when needed.
+
+### Programmatic checks
+
+The public package also exports `detectEngineBrowserFeature()`, `evaluateEngineBrowserCompatibility()`, `resolveEngineBrowserCompatibility()`, `supportsEngineBrowserFeature()`, `createEngineBrowserSupportResolver()`, and `engineFallbackPlanNeedsCompatibilityCheck()`. Use these helpers when a custom UI or build diagnostic needs the same feature/fallback evaluation as the built-in dialogs; do not recreate the capability rules in application code.
+
 ## Development-only EngineDebug route
 
 The combined Engine plugin generates `app/%5Fengine/debug/page.tsx` only while Next.js runs in development. Next exposes that encoded private-looking directory as `/_engine/debug`. The generated module points at the package's EngineDebug implementation and is protected by an ownership marker, so the plugin never replaces or removes an application-owned page.
