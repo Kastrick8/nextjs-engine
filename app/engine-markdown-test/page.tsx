@@ -5,6 +5,7 @@ const markdownShowcaseTheme = createTheme({
 	id: "emd-showcase",
 	scope: "global",
 	vars: { "--emd-theme-accent": "#826f9b" },
+	tokens: { colors: { accent: "#826f9b", surface: "#241b38" } },
 	markdown: {
 		defaults: {
 			codeBackground: "#241b38",

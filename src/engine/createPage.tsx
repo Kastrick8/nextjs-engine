@@ -13,6 +13,7 @@ import type {
 } from "./schema/types";
 import { resolveEngineThemeSchema } from "./theme/resolveTheme";
 import { normalizeEngineThemeFontHrefs } from "./theme/fontUrls";
+import { flattenEngineThemeTokens, normalizeEngineThemeVariables } from "./theme/tokens";
 import { EngineCollectedStyles, EngineProvider } from "./providers/EngineProvider";
 import { EngineScrollProvider } from "./core/enginescroll";
 import { SchemaRenderer } from "./core/SchemaRenderer";
@@ -184,10 +185,11 @@ function stableThemeHash(value: string): string {
 
 function EngineTheme({ schema }: { schema: PageSchema }) {
 	if (!schema.theme) return null;
-	const { vars, fonts, globalStyles } = schema.theme;
+	const { vars: declaredVars, fonts, globalStyles, tokens } = schema.theme;
 	const safeFonts = normalizeEngineThemeFontHrefs(fonts);
+	const vars = { ...flattenEngineThemeTokens(tokens), ...normalizeEngineThemeVariables(declaredVars) };
 	let css = "";
-	if (vars) {
+	if (Object.keys(vars).length > 0) {
 		const declarations = Object.entries(vars)
 			.map(([key, value]) => `  ${key.startsWith("--") ? key : `--${key}`}: ${value};`)
 			.join("\n");

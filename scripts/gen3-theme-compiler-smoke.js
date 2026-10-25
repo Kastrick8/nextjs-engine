@@ -60,6 +60,7 @@ async function testPublicThemeApi() {
 		const React = require("react");
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
 		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/theme/fontUrls.ts"));
+		const { flattenEngineThemeTokens, normalizeEngineThemeVariables } = require(path.resolve(__dirname, "../src/engine/theme/tokens.ts"));
 		const {
 			renderEngineThemeTemplate,
 			listEngineThemeTemplateAdapters,
@@ -97,6 +98,8 @@ async function testPublicThemeApi() {
 		const nestedFenceInfo = normalizeEngineMarkdownSource(":::info Example" + "\n" + "```text" + "\n" + "::: not a closing directive" + "\n" + "```" + "\n" + "Body" + "\n" + ":::");
 		assert.ok(nestedFenceInfo.includes("> ::: not a closing directive"), "a directive inside a nested code fence is not treated as the block close");
 		assert.ok(nestedFenceInfo.includes("> Body"), "text after a nested code fence stays inside the info block");
+		assert.deepEqual(flattenEngineThemeTokens({ colors: { accent: "#826f9b", surface: "color(srgb 0.1 0.2 0.3)" }, typography: { bodyFontFamily: "Inter, system-ui, sans-serif", scale: 1.25, unsafe: "red; --escape: true", tracked: "url(https://evil.invalid/x)" }, ignored: true }), { "--e-theme-colors-accent": "#826f9b", "--e-theme-colors-surface": "color(srgb 0.1 0.2 0.3)", "--e-theme-typography-body-font-family": "Inter, system-ui, sans-serif", "--e-theme-typography-scale": "1.25" }, "safe semantic tokens are flattened to bounded CSS variables");
+		assert.deepEqual(normalizeEngineThemeVariables({ accent: "#fff", "--legacy-gap": "1rem", unsafe: "red; color: black", tracked: "url(https://evil.invalid/x)" }), { "--accent": "#fff", "--legacy-gap": "1rem" }, "legacy CSS vars preserve safe values and discard injection vectors");
 		const normalizedInfo = normalizeEngineMarkdownSource(":::warning Build note\nRead this carefully.\n:::");
 		assert.ok(normalizedInfo.includes("> [!ENGINE-INFO warning] Build note"), "info blocks normalize to a safe blockquote marker");
 		assert.ok(normalizedInfo.includes("> Read this carefully."), "info block body remains Markdown text");

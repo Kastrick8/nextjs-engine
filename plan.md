@@ -297,6 +297,7 @@ Implementation is underway on branch feat/enginetheme-foundation.
 - Declarative safe Engine Schema templates for code blocks, table headers/cells, and info blocks, plus locally registered trusted React adapters.
 - Explicit remote ETR loading with exact HTTPS origin allowlists, redirects disabled, bounded streaming reads, response-size caps, timeout/cancellation, checksum/format/version validation, cache/deduplication, and fail-closed behavior.
 - Remote themes cannot supply raw globalStyles; CSS custom properties and font stylesheet origins are constrained. Local/global font hrefs are also filtered, deduplicated, and capped.
+- Scalar semantic tokens are flattened into bounded `--e-theme-*` CSS variables, while explicit legacy vars override generated token values.
 - Typed Data-API join events dispatch only to locally registered handlers with validated, cloned, frozen context.
 - Demo/browser regressions and focused compiler/runtime smoke coverage.
 

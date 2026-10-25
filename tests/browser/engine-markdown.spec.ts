@@ -10,6 +10,7 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await page.goto("/engine-markdown-test");
 	const article = page.locator("article#markdown-showcase.markdown-showcase");
 	await expect(article).toBeVisible();
+	expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--e-theme-colors-accent").trim())).toBe("#826f9b");
 	await expect(page.locator("article#markdown-file-loading")).toContainText("loaded from a local Markdown file");
 	await expect(article.getByRole("heading", { level: 1, name: "EngineMarkdown showcase" })).toHaveAttribute(
 		"id",

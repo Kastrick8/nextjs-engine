@@ -40,7 +40,7 @@ export const darkFantasy = createTheme({
 });
 ~~~
 
-The root ID names a theme group and must be one safe segment. Component configuration is placed underneath a namespace such as markdown; shared tokens can live under tokens.
+The root ID names a theme group and must be one safe segment. Component configuration is placed underneath a namespace such as markdown; shared tokens can live under tokens. Semantic scalar tokens are flattened into safe CSS custom properties: `tokens.colors.accent` becomes `--e-theme-colors-accent`. Existing `vars` take precedence; unsafe CSS variable values are ignored.
 
 createTheme() validates the definition as JSON data, clones and deeply freezes it, and never performs network requests, publishes a theme, downloads fonts, or evaluates theme content. Functions, accessors, cycles, symbols, non-finite numbers, reserved keys, excessive nesting, and oversized definitions are rejected.
 
