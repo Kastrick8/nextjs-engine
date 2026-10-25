@@ -357,7 +357,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			const language = codeLanguage(children);
 			const languagePalette = getEngineHighlighterPalette(config.prettyPlease, language);
 			const blockCodeBackground = normalizeEngineThemeColor(languagePalette?.background) ?? config.codeBackground;
-			const blockCodeColor = normalizeEngineThemeColor(languagePalette?.foreground) ?? config.codeColor;
+			const blockCodeColor = normalizeEngineThemeColor(languagePalette?.foreground) ?? normalizeEngineThemeColor(config.prettyPlease?.palette?.foreground) ?? config.codeColor;
 			const codeChildren = Children.map(children, (child) => {
 				if (!isValidElement<{ style?: CSSProperties; children?: ReactNode }>(child)) return child;
 				const sourceText = reactNodeText(child.props.children);
