@@ -1,5 +1,7 @@
 # EngineDebug ephemeral isolation
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 `/_engine/debug` is a development-only Engine route. It must behave like an Engine-owned workbench even when the host Next.js application has a global root layout with headers, footers, cookie banners, portals, analytics UI, or aggressive global CSS.
 
 ## Why isolation is required
