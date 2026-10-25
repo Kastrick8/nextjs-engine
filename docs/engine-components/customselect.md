@@ -1,5 +1,7 @@
 # CustomSelect
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Schema type: `"custom-select"`.
 
 `CustomSelect` is the engine's styled, keyboard-navigable select control. It
