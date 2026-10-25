@@ -1,5 +1,7 @@
 # APIStatic
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 APIStatic is the in-house static API system for Next.js Engine. It is intentionally separate from `.EngineAPIConfig/*.api` provider configuration.
 
 Use APIStatic when the application needs small programmable endpoint modules for browser-safe work such as math, parsing, transformations, public API composition, or explicitly proxied backend work without creating a new Next.js `route.ts` for every operation.
