@@ -13,7 +13,7 @@ const {
 	ETR_FORMAT,
 } = require("../src/engine/plugins/gen3ThemeCompiler");
 
-function testPublicThemeApi() {
+async function testPublicThemeApi() {
 	const previousTsExtension = Module._extensions[".ts"];
 	const previousTsxExtension = Module._extensions[".tsx"];
 	const transpileThemeModule = (loadedModule, filePath) => {
@@ -39,6 +39,7 @@ function testPublicThemeApi() {
 		const resolverPath = path.resolve(__dirname, "../src/engine/theme/resolveTheme.ts");
 		const { createTheme, parseEngineThemeId } = require(themePath);
 		const { resolveEngineThemeSchema } = require(resolverPath);
+		const { loadRemoteEngineTheme, clearRemoteEngineThemeCache, getRemoteEngineThemeCacheSize, unregisterRemoteEngineTheme } = require(path.resolve(__dirname, "../src/engine/theme/remoteTheme.ts"));
 		const {
 			highlightEngineCode,
 			listEngineHighlighterProviders,
@@ -304,7 +305,88 @@ function testPublicThemeApi() {
 		assert.throws(() => resolveEngineThemeSchema({
 			theme: { id: "remote-theme.markdown.dark", sourceUrl: "https://example.invalid/theme.etr" },
 			root: { type: "markdown", props: { content: "remote" } },
-		}), /Remote EngineTheme fetching is not enabled/);
+		}), /loadRemoteEngineTheme/);
+
+		const remoteContent = {
+			id: "remote-smoke",
+			scope: "remote",
+			name: "Remote smoke theme",
+			markdown: {
+				defaults: { codeColor: "#ffeeaa" },
+				variants: { dark: { defaults: { codeBackground: "#121212" } } },
+			},
+		};
+		const remotePayload = {
+			format: "nextjs-engine-theme",
+			formatVersion: 1,
+			generatedBy: "NENC",
+			id: "remote-smoke",
+			createdWith: { nextjs: "16.4.2", nextjsEngine: "3.0.0-alpha.1" },
+			content: remoteContent,
+		};
+		const remoteDigest = crypto.createHash("sha256").update(canonicalJson(remotePayload), "utf8").digest("hex");
+		const remoteText = JSON.stringify({ ...remotePayload, sha256: remoteDigest });
+		let remoteFetchCalls = 0;
+		const remoteFetch = async (_url, init) => {
+			remoteFetchCalls += 1;
+			assert.equal(init.redirect, "error", "remote ETR redirects are disabled");
+			assert.equal(init.credentials, "omit", "remote ETR credentials are never sent");
+			return new Response(remoteText, { status: 200, headers: { "content-type": "application/json" } });
+		};
+		const remoteOptions = {
+			allowedOrigins: ["https://themes.example.invalid"],
+			expectedNextjsVersion: "16.4.2",
+			expectedEngineVersion: "3.0.0-alpha.1",
+			expectedId: "remote-smoke",
+			fetchImpl: remoteFetch,
+		};
+		const loadedRemote = await loadRemoteEngineTheme("https://themes.example.invalid/dark.etr", remoteOptions);
+		assert.equal(loadedRemote.scope, "remote");
+		assert.equal(Object.isFrozen(loadedRemote), true, "loaded remote theme definitions are frozen");
+		const cacheHit = await loadRemoteEngineTheme("https://themes.example.invalid/dark.etr", remoteOptions);
+		assert.equal(cacheHit, loadedRemote, "repeated loads reuse the in-process cache entry");
+		assert.equal(remoteFetchCalls, 1, "cache hits do not issue another request");
+		const resolvedRemotePage = resolveEngineThemeSchema({
+			theme: { id: "remote-smoke.markdown.dark", scope: "remote" },
+			root: { type: "markdown", props: { content: "remote" } },
+		});
+		assert.equal(resolvedRemotePage.root.props.codeColor, "#ffeeaa", "loaded remote theme defaults are available by ID");
+		assert.equal(resolvedRemotePage.root.props.codeBackground, "#121212", "loaded remote subthemes resolve");
+		await assert.rejects(
+			loadRemoteEngineTheme("https://attacker.example.invalid/theme.etr", remoteOptions),
+			/not in allowedOrigins/,
+		);
+		assert.equal(remoteFetchCalls, 1, "disallowed origins are rejected before fetch");
+		const corruptRemoteOptions = {
+			...remoteOptions,
+			expectedId: "remote-corrupt",
+			fetchImpl: async () => new Response(JSON.stringify({
+				...remotePayload,
+				id: "remote-corrupt",
+				content: { ...remoteContent, id: "remote-corrupt" },
+				sha256: "0".repeat(64),
+			}), { status: 200, headers: { "content-type": "application/json" } }),
+		};
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.invalid/corrupt.etr", corruptRemoteOptions),
+			/SHA-256 verification failed/,
+		);
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.invalid/wrong-version.etr", {
+				...remoteOptions,
+				expectedNextjsVersion: "16.4.3",
+			}),
+			/version mismatch/,
+		);
+		assert.ok(getRemoteEngineThemeCacheSize() >= 1);
+		clearRemoteEngineThemeCache();
+		assert.equal(getRemoteEngineThemeCacheSize(), 0, "remote response cache can be cleared");
+		assert.equal(unregisterRemoteEngineTheme("remote-smoke"), true, "verified remote definitions can be unregistered");
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: { id: "remote-smoke.markdown.dark", scope: "remote" },
+			root: { type: "markdown" },
+		}), /loadRemoteEngineTheme/);
+
 	} finally {
 		if (previousTsExtension) Module._extensions[".ts"] = previousTsExtension;
 		else delete Module._extensions[".ts"];
@@ -330,7 +412,7 @@ function verifyDigest(artifact) {
 	assert.equal(actual, sha256, "the SHA-256 digest matches canonical artifact content");
 }
 
-function run() {
+async function run() {
 	testPublicThemeApi();
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-theme-smoke-"));
 	try {
@@ -433,4 +515,7 @@ function run() {
 	}
 }
 
-run();
+run().catch((error) => {
+	console.error(error);
+	process.exitCode = 1;
+});
