@@ -43,11 +43,35 @@ console.log(plan.diagnostics);
 
 The public package exports `compilePage`, plan inspection helpers, build-budget helpers, artifact graph helpers, runtime-profile helpers, and their associated types. Use the current exports and type definitions for the exact call signatures.
 
+`strict: true` adds a warning when a multi-node schema is entirely client-owned. It is a diagnostic for a page that may have moved more work into the browser than intended; it does not mean “enable every validation.” The `security` option separately controls the compiler security pass: enforcement by default, report-only mode for migration, or off when another validation pipeline owns the check.
+
 ## 1. Runtime ownership
 
 Each compiled node is classified as `static`, `server`, or `client`. The compiler has built-in runtime profiles and supports registering custom profiles for custom node types. A profile may describe a runtime kind, a human-readable reason, browser capabilities, default work class, and whether the node is heavy.
 
 The compiler may upgrade an otherwise-static node when its props require browser behavior, such as interactive handlers, transitions, model bindings, or Shader behavior. Custom components default to automatic classification unless the application registers a profile.
+
+For a custom node type, a profile can override automatic classification and explain the browser capabilities and work priority:
+
+```ts
+import {
+  registerEngineRuntimeProfile,
+  unregisterEngineRuntimeProfile,
+} from "nextjs-engine";
+
+registerEngineRuntimeProfile("map-widget", {
+  runtime: "client",
+  reason: "This widget uses live browser map state.",
+  capabilities: ["dom", "visual-viewport"],
+  defaultWorkClass: "near",
+  heavy: true,
+});
+
+// Remove the override when the integration is no longer registered.
+unregisterEngineRuntimeProfile("map-widget");
+```
+
+Register profiles before compiling pages that use those node types. Profile-registry changes participate in page-plan fingerprints, so an existing cached plan is not reused after the registry revision changes.
 
 ## 2. Work classes
 
