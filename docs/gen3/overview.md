@@ -1,6 +1,8 @@
 # Generation 3 — Overview
 
-> Branch: `main-3`
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
+> Source branch: `main-3`
 >
 > This is the current Next.js Engine architecture. Start here before reading the older v1/v2 release notes or the large historical `DOCUMENT.md` reference.
 
