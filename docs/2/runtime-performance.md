@@ -301,16 +301,21 @@ remains as a compatibility fallback for low-level helpers invoked outside an
 `EngineProvider`; built-in page rendering does not use it as the normal request
 collector.
 
-### Remaining style-runtime limitation
+### Client-side generated stylesheet updates
 
-Dynamic generated CSS created **after hydration** is still primarily collected
-rather than incrementally flushed into the live DOM stylesheet. The ownership
-problem is fixed, but a future client-side flusher must append only new rules,
-avoid render-time DOM side effects, and avoid duplicating the complete SSR
-stylesheet.
+The current provider path includes `EngineCollectedStyles`, which subscribes to
+the nearest `StyleCollector`. New styles registered with that collector after
+hydration schedule a notification, and the style component reconciles its CSS
+snapshot. It adopts existing server-emitted CSS first when present, then updates
+after mount so the initial client render can match SSR.
 
-This is separate from server-render concurrency: provider-scoped SSR collection
-is isolated now.
+This relies on styles being registered to the provider collector that owns the
+rendered subtree. `staticClass(style, collector)` accepts an explicit collector;
+custom React components should pass the active
+`useEngineContext().styleCollector` rather than relying on the low-level
+global fallback. The public `mediaClass(base, ...breakpoints)` helper does not
+currently accept a collector argument and writes to the global fallback. For
+ordinary component-scoped responsive styles, prefer schema responsive props.
 
 ## Measuring instead of guessing
 
