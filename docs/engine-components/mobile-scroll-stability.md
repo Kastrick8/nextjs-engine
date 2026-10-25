@@ -1,5 +1,7 @@
 # Mobile scroll stability
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Next.js Engine treats native touch scrolling as the owner of the viewport whenever the user starts interacting with the page. Engine-driven movement may animate the window, but it must release control immediately when touch, wheel, or page-scroll keyboard intent arrives.
 
 ## Stable layout is more important than speculative lazy mounting
