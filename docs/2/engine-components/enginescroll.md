@@ -16,7 +16,7 @@ they do not create another scroll listener or permanent RAF loop.
 ## Basic navigation
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 EngineScroll.move("#hero");
 EngineScroll.move("#pricing", {
@@ -374,7 +374,7 @@ velocity spike.
 When React state is actually desired:
 
 ```tsx
-import { useEngineScrollTimeline } from "@/engine";
+import { useEngineScrollTimeline } from "nextjs-engine";
 
 function Progress() {
 	const frame = useEngineScrollTimeline({
@@ -402,7 +402,7 @@ EngineScroll commands use `#-es?` so normal browser hashes remain available:
 ```
 
 ```ts
-import { EngineScrollURL } from "@/engine";
+import { EngineScrollURL } from "nextjs-engine";
 
 EngineScrollURL.has();
 EngineScrollURL.execute();
