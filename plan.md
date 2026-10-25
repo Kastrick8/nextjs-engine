@@ -1,6 +1,6 @@
 # EngineTheme / createTheme / Pretty-please — Implementation Plan
 
-**Status:** Implementation in progress on `feat/enginetheme-foundation`; compiler and runtime module boundaries are being applied.  
+**Status:** Implementation complete on `feat/enginetheme-foundation`; runtime, compiler, integration, docs, and regression coverage are in place.  
 **Repository:** Kate-alt-69/nextjs-engine  
 **Baseline inspected:** main-3, 2026-10-24
 
@@ -273,31 +273,32 @@ Existing smoke-test conventions include scripts/gen3-build-compiler-smoke.js and
 
 Run browser regressions on Chromium, Firefox, and WebKit wherever the repository's Playwright configuration enables them.
 
-## 12. Decisions to leave open until confirmed
+## 12. Locked implementation decisions
 
-- Exact variant declaration syntax under markdown.
-- Remote URL mapping strategy and cache freshness/pinning.
-- Final .etr schema, compatibility policy, and whether publisher signatures are required.
-- Data-API event names, payload/result contract, and adapter registration API.
-- Exact information-block authoring syntax.
-- Cross-provider token mapping and palette fallback for omitted token categories.
-- Allowed font origins, required/optional failure behavior, and offline-build policy.
-- Generated .etr ignore/publish workflow.
+- Variants are declared under each component's `variants` object. IDs use one safe group segment, a component segment, and at most three inherited subtheme segments.
+- Remote URLs are explicit inputs to `loadRemoteEngineTheme()`. There is no Engine-hosted registry or implicit runtime fetch. Remote artifacts are pinned to exact Next.js/Engine versions and checked with canonical SHA-256; the digest is integrity metadata, not publisher authentication.
+- The versioned `.etr` format is deterministic UTF-8 JSON with NENC generator metadata and a canonical digest excluding the digest field. Generated output under `.nextjs-engine/gen3/theme/` is ignored build output; publication is an explicit owner-controlled hosting/copy step.
+- Data-API events are `join:left`, `join:right`, `join:top`, and `join:bottom`. Handler code is trusted project-local code; contexts are bounded cloned/frozen JSON data. Unknown handlers/events fail deterministically.
+- Information blocks use `:::info`, `:::note`, `:::tip`, `:::warning`, `:::danger`, and `:::success` directives closed by `:::`. Directives in fenced code are left untouched.
+- Provider token scopes are normalized to portable token categories. Provider colors are used only without a custom palette; explicit per-language palettes override the shared palette, and omitted token categories use the palette foreground.
+- Font CSS/files require exact HTTPS origins. Google Fonts is built in; other providers including Bunny Fonts must be explicitly allowlisted. Development never downloads fonts; production supports fallback or strict-error behavior, bounded cache TTL, explicit refresh, and offline cache-only mode.
+- Engine Lite is the dependency-free low-memory default. The optional `createShikiEngineHighlighterProvider()` adapts an initialized Shiki/TextMate tokenizer without adding Shiki to Engine's mandatory dependencies or loading extra grammars into every application.
 
 ## 13. Current status
 
-Implementation is underway on branch `feat/enginetheme-foundation`.
+The EngineTheme implementation is complete on branch `feat/enginetheme-foundation`. Previously open provider and TextMate items now have implementation and executable verification paths.
 
 ### Implemented in the current foundation
 
 - Public `createTheme()` with local/global/remote scope, safe one-segment group IDs, three-level subtheme depth, JSON-only validation, deep freezing, and ID-based resolution.
 - NENC `.etr` artifacts with deterministic JSON/SHA-256, protected output paths, atomic writes, and stale-artifact tracking; static compiler logic is in `src/engine/compiler/theme/3/compiler.ts`, reached through a thin plugin adapter.
-- Pretty-please lightweight highlighting, provider/language/theme discovery, authoritative custom palettes, and per-language palettes including TypeScript versus Node.js.
+- Pretty-please lightweight highlighting, provider/language/theme discovery, authoritative custom palettes, and per-language palettes including TypeScript versus Node.js. An optional first-party Shiki/TextMate adapter is available without a mandatory dependency.
 - Safe declarative Engine Schema templates for code blocks, table headers/cells, and typed info-block syntax; local React adapters are registered by trusted code and never embedded in remote theme data.
 - Typed event-driven Data-API join dispatch for left/right/top/bottom. It allocates events to local handlers and is not a preview/inspection API.
 - Explicit remote `.etr` loader with exact HTTPS origin allowlists, redirect denial, bounded streaming, timeouts/cancellation, checksum/format/version validation, recursive bounded theme-data checks, CSS/network primitive rejection, local/private host rejection, safe CSS-variable/font validation, cache deduplication, and explicit unregister/cache-clear functions.
 - Production-only NENC font compilation in `src/engine/compiler/font/3/compiler.ts` for local/global themes: bounded, allowlisted CSS/font downloads; local WOFF2/WOFF/TTF/OTF assets; content-hashed filenames; disk-cache reuse; explicit refresh; strict development-mode skip; configurable cache lifetime; offline cache-only mode; strict build-failure mode; and allowlist-constrained browser fallback.
 - Updated EngineMarkdown demo, docs, and smoke/browser regression coverage.
+- Deterministic Bunny Fonts-compatible CSS/font fixtures plus a real Google Fonts and Bunny Fonts strict-mode matrix in `.github/workflows/theme-font-providers.yml`.
 
 ### Verification
 
@@ -307,9 +308,10 @@ Implementation is underway on branch `feat/enginetheme-foundation`.
 - Font compiler smoke uses mocked stylesheet/font responses to verify content-addressed output, cache reuse, expiry refresh, and development-mode no-network behavior.
 - Local command execution is unavailable through the connected repository workflow in this session; GitHub Actions is the runtime verification source.
 
-### Remaining
+### Completion status
 
-- Add additional provider-specific font CSS fixtures and a live-provider validation matrix; non-Google origins are configurable but must be explicitly allowlisted.
-- Exact VS Code/TextMate grammar parity would require a heavier optional highlighting provider; Engine Lite stays small and dependency-free.
+The remaining font-provider and full-grammar work is now implemented rather than deferred: the highlighter can adapt an initialized Shiki/TextMate instance, and the live font-provider workflow validates real CSS/file retrieval plus local content-hashed output in strict mode. Engine Lite remains the dependency-free default.
 
-Remote loading remains explicit and data-only. Theme files do not execute remote code. Font URLs are allowlisted for both compile-time fetching and any browser fallback. Offline builds can reuse verified stale local cache entries but fail on a cache miss; strict failure mode avoids browser-import fallback when local output cannot be produced.
+The baseline before this completion commit passed Engine runtime CI and Chromium/Firefox/WebKit compatibility on commit `983deacf279f64d90624c0140edb4ac3fc4d70f5`: https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40196068392 and https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40196068411. The new adapter, fixtures, and workflow are not considered verified until their post-commit checks complete.
+
+Remote loading remains explicit and data-only. Theme files do not execute remote code. Font URLs are allowlisted for compile-time downloads and any browser fallback. Offline builds can reuse verified stale local cache entries but fail on a cache miss; strict failure mode avoids browser-import fallback when local output cannot be produced.

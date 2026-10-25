@@ -326,7 +326,7 @@ export interface EngineMarkdownPrettyPleaseConfig {
 	mode?: "auto" | "none";
 	/** engine-lite or a locally registered provider ID. */
 	provider?: string;
-	/** Built-in palette name, currently vscode-dark or vscode-light. */
+	/** Built-in palette or a theme ID exposed by the selected provider. */
 	theme?: string;
 	/** An authoritative replacement palette for this Markdown theme/language profile. */
 	palette?: EngineMarkdownTokenPalette;

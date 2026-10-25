@@ -54,6 +54,7 @@ async function testPublicThemeApi() {
 			getEngineHighlighterColor,
 			getEngineHighlighterPalette,
 		} = require(path.resolve(__dirname, "../src/engine/component/engineTheme/highlighting.ts"));
+		const { createShikiEngineHighlighterProvider } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/shikiProvider.ts"));
 		const {
 			dispatchEngineThemeDataEvent,
 			listEngineThemeDataHandlers,
@@ -161,6 +162,42 @@ async function testPublicThemeApi() {
 			{ kind: "plain", text: '{"ok":true}' },
 		]);
 		assert.equal(unregisterEngineHighlighterProvider("smoke-provider"), true);
+
+		const shikiProvider = createShikiEngineHighlighterProvider({
+			getLoadedLanguages: () => ["typescript"],
+			getLoadedThemes: () => ["github-dark", "github-light"],
+			codeToTokens(code, options) {
+				assert.equal(options.includeExplanation, true, "the TextMate adapter requests token scopes");
+				assert.equal(options.lang, "typescript");
+				assert.ok(["github-dark", "github-light"].includes(options.theme));
+				const firstLine = [
+					{ content: "const", color: "#569cd6", explanation: [{ scopes: [{ scopeName: "keyword.control.ts" }] }] },
+					{ content: " value = ", color: "#d4d4d4", explanation: [{ scopes: [{ scopeName: "source.ts" }] }] },
+					{ content: "42", color: "#b5cea8", explanation: [{ scopes: [{ scopeName: "constant.numeric.ts" }] }] },
+					{ content: ";", color: "#d4d4d4", explanation: [{ scopes: [{ scopeName: "punctuation.terminator.statement.ts" }] }] },
+				];
+				return { tokens: code.endsWith("\n") ? [firstLine, []] : [firstLine] };
+			},
+		}, { id: "shiki-smoke", defaultTheme: "github-dark" });
+		registerEngineHighlighterProvider(shikiProvider);
+		const shikiSource = "const value = 42;\n";
+		const shikiTokens = highlightEngineCode(shikiSource, "typescript", {
+			provider: "shiki-smoke",
+			theme: "github-light",
+		});
+		assert.ok(shikiTokens, "the initialized Shiki adapter produces safe tokens");
+		assert.equal(shikiTokens.map((token) => token.text).join(""), shikiSource,
+			"the TextMate adapter preserves source whitespace and line endings exactly");
+		assert.equal(shikiTokens.find((token) => token.text === "const").kind, "keyword");
+		assert.equal(shikiTokens.find((token) => token.text === "42").kind, "number");
+		assert.equal(shikiTokens.find((token) => token.text === "const").color, "#569cd6");
+		assert.ok(listEngineHighlighterThemes("shiki-smoke").some((theme) => theme.id === "github-light"));
+		assert.ok(highlightEngineCode(shikiSource, "typescript", {
+			provider: "shiki-smoke",
+			theme: "github-light",
+			palette: { foreground: "#eeeeee" },
+		}), "custom palettes remain compatible with TextMate providers");
+		assert.equal(unregisterEngineHighlighterProvider("shiki-smoke"), true);
 
 		let allocatedEvent;
 		const existingContext = { label: "Name" };
@@ -602,6 +639,41 @@ async function testPublicThemeApi() {
 				else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousProviderCssOrigins;
 				if (previousProviderFileOrigins === undefined) delete process.env.ENGINE_THEME_FONT_FILE_ORIGINS;
 				else process.env.ENGINE_THEME_FONT_FILE_ORIGINS = previousProviderFileOrigins;
+			}
+			const previousBunnyCssOrigins = process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
+			const previousBunnyFileOrigins = process.env.ENGINE_THEME_FONT_FILE_ORIGINS;
+			try {
+				process.env.ENGINE_THEME_FONT_CSS_ORIGINS = "https://fonts.bunny.net";
+				process.env.ENGINE_THEME_FONT_FILE_ORIGINS = "https://fonts.bunny.net";
+				writeFontFixture("bunny-fixture", "https://fonts.bunny.net/css?family=BunnyFixture:400");
+				const bunnyFixtureCss = fakeFontCss
+					.replace("Fixture", "BunnyFixture")
+					.replace("https://fonts.gstatic.com/s/fixture/font.woff2", "https://fonts.bunny.net/files/fixture.woff2");
+				const bunnyFixtureBuild = await compileEngineThemeFonts(fontRoot, [
+					{ id: "bunny-fixture", fileName: "bunny-fixture.etr" },
+				], {
+					production: true,
+					lookupImpl: async () => [{ address: "93.184.216.34", family: 4 }],
+					fetchImpl: async (url, init) => {
+						assert.equal(init.redirect, "error");
+						if (url === "https://fonts.bunny.net/css?family=BunnyFixture:400") {
+							return new Response(bunnyFixtureCss, { status: 200, headers: { "content-type": "text/css; charset=utf-8" } });
+						}
+						if (url === "https://fonts.bunny.net/files/fixture.woff2") {
+							return new Response(fakeFontBytes, { status: 200, headers: { "content-type": "font/woff2" } });
+						}
+						throw new Error("Unexpected Bunny Fonts fixture URL: " + url);
+					},
+				});
+				assert.equal(bunnyFixtureBuild.downloadedFonts, 1, "Bunny Fonts-style same-origin assets compile to local files");
+				const bunnyCssPath = path.join(fontRoot, "public", "nextjs-engine", "fonts", "bunny-fixture.css");
+				const bunnyCss = fs.readFileSync(bunnyCssPath, "utf8");
+				assert.ok(!bunnyCss.includes("fonts.bunny.net"), "Bunny fixture output contains only local font URLs");
+			} finally {
+				if (previousBunnyCssOrigins === undefined) delete process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
+				else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousBunnyCssOrigins;
+				if (previousBunnyFileOrigins === undefined) delete process.env.ENGINE_THEME_FONT_FILE_ORIGINS;
+				else process.env.ENGINE_THEME_FONT_FILE_ORIGINS = previousBunnyFileOrigins;
 			}
 			writeFontFixture("blocked-font", "https://untrusted.example/fonts.css");
 			const blockedFallback = await compileEngineThemeFonts(fontRoot, [

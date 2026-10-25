@@ -381,11 +381,16 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 								key={index}
 								className={"e-md-token e-md-token--" + token.kind}
 								style={{
-									color: getEngineHighlighterColor(token.kind, {
-										theme: config.prettyPlease?.theme,
-										palette: config.prettyPlease?.palette,
-										fallbackForeground: blockCodeColor,
-									}),
+									color: languagePalette
+										? getEngineHighlighterColor(token.kind, {
+											theme: config.prettyPlease?.theme,
+											palette: languagePalette,
+											fallbackForeground: blockCodeColor,
+										})
+										: normalizeEngineThemeColor(token.color) ?? getEngineHighlighterColor(token.kind, {
+											theme: config.prettyPlease?.theme,
+											fallbackForeground: blockCodeColor,
+										}),
 								}}
 							>{token.text}</span>
 						));

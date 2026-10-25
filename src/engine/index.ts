@@ -179,11 +179,14 @@ export {
 	normalizeEngineHighlightLanguage,
 	normalizeEngineThemeColor,
 } from "./component/engineTheme/highlighting";
+export { createShikiEngineHighlighterProvider } from "./component/engineTheme/shikiProvider";
+export type { EngineShikiHighlighter, EngineShikiProviderOptions } from "./component/engineTheme/shikiProvider";
 export type {
 	EngineHighlighterProvider,
 	EngineHighlighterProviderInfo,
 	EngineHighlighterThemeInfo,
 	EngineHighlighterToken,
+	EngineHighlighterContext,
 } from "./component/engineTheme/highlighting";
 
 export {

@@ -234,11 +234,42 @@ The built-in engine-lite tokenizer is intentionally lightweight and bounded for 
 
 The public provider/list APIs are:
 - registerEngineHighlighterProvider()
+- unregisterEngineHighlighterProvider()
 - listEngineHighlighterProviders()
 - listEngineHighlighterLanguages()
 - listEngineHighlighterThemes()
 
-Aliases include ts/typescript and nodejs/javascript. The current built-in palettes are vscode-dark and vscode-light.
+Aliases include ts/typescript and nodejs/javascript. The built-in palettes are vscode-dark and vscode-light. Use `listEngineHighlighterThemes("engine-lite")` or `listEngineHighlighterThemes("shiki")` to list themes exposed by one provider.
+
+### Optional TextMate/VS Code grammar support
+
+Engine Lite remains dependency-free and is the default for low-memory builds. For full TextMate grammar highlighting, install Shiki in the consuming application and register an already initialized highlighter. EngineTheme does not import Shiki automatically or include all grammar/theme bundles in every project.
+
+```sh
+npm install shiki
+```
+
+Initialize only the language grammars and themes the app needs, then register once before EngineMarkdown renders:
+
+```ts
+import { createHighlighter } from "shiki";
+import {
+  createShikiEngineHighlighterProvider,
+  registerEngineHighlighterProvider
+} from "nextjs-engine";
+
+const highlighter = await createHighlighter({
+  langs: ["typescript", "javascript", "json", "tsx"],
+  themes: ["github-dark", "github-light"]
+});
+
+registerEngineHighlighterProvider(createShikiEngineHighlighterProvider(highlighter, {
+  id: "shiki",
+  defaultTheme: "github-dark"
+}));
+```
+
+Set `prettyPlease.provider: "shiki"` and select a loaded Shiki theme with `prettyPlease.theme`. Provider themes are discoverable with `listEngineHighlighterThemes("shiki")`. The adapter requests TextMate scope explanations, maps them into EngineTheme token categories, validates provider colors, and emits tokens rendered as React text—not HTML. Custom global or per-language palettes fully override provider colors. ANSI fences continue through the ANSI parser. Keep the initialized highlighter as an application/server singleton instead of creating it during rendering.
 
 Custom palettes replace provider token colors authoritatively. If a token category is omitted or invalid, it uses the palette foreground (or the code foreground fallback), never the provider's default color. Supported palette values are HEX, bounded RGB/RGBA, and bounded color(srgb ...) values.
 
@@ -281,7 +312,9 @@ In development, `createTheme()` leaves font stylesheet URLs unchanged; NENC skip
 
 In production, NENC fetches supported font CSS and font files during the build, emits local files under `public/nextjs-engine/fonts/`, and local/global themes reference the generated `/nextjs-engine/fonts/<theme-id>.css` stylesheet. Font filenames include their SHA-256 content hash. The disk cache lives under `.nextjs-engine/.cache/gen3/fonts/`.
 
-The default stylesheet origin is `https://fonts.googleapis.com` and the default font-file origin is `https://fonts.gstatic.com`. Additional exact HTTPS origins can be opted in using `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS` (comma-separated origin URLs; wildcards are not accepted). Redirects, local/private IPs and local-only hostnames, unexpected content types, oversized files, unsafe font CSS declarations, and remote theme strings containing CSS/network primitives such as `url(...)`, `expression(...)`, or `javascript:` are rejected. Because the allowlist is an explicit trust boundary, configured hostnames should be controlled by the project owner.
+The default stylesheet origin is `https://fonts.googleapis.com` and the default font-file origin is `https://fonts.gstatic.com`. Additional exact HTTPS origins can be opted in using `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS` (comma-separated origin URLs; wildcards are not accepted). Bunny Fonts can also be used by explicitly adding `https://fonts.bunny.net` to both origin variables; additional providers are never trusted by default.
+
+Run deterministic font fixtures with `npm run test:theme`. Run a real Google Fonts/Bunny Fonts production-pipeline matrix with `npm run test:theme:live-fonts`; pass `google` or `bunny` to test one provider. The `.github/workflows/theme-font-providers.yml` workflow runs both providers on pull requests, manual dispatch, and weekly on a schedule. It uses strict failure mode so provider, DNS, TLS, response, or asset-emission failures cannot silently pass by emitting a browser `@import`. Redirects, local/private IPs and local-only hostnames, unexpected content types, oversized files, unsafe font CSS declarations, and remote theme strings containing CSS/network primitives such as `url(...)`, `expression(...)`, or `javascript:` are rejected. Because the allowlist is an explicit trust boundary, configured hostnames should be controlled by the project owner.
 
 The cache policy is explicit and configurable:
 

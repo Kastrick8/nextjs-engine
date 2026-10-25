@@ -4,6 +4,12 @@ export type { EngineHighlighterTokenKind } from "../../schema/types";
 export interface EngineHighlighterToken {
 	kind: EngineHighlighterTokenKind;
 	text: string;
+	/** Optional provider color. An explicit custom palette always overrides it. */
+	color?: string;
+}
+
+export interface EngineHighlighterContext {
+	theme?: string;
 }
 
 export interface EngineHighlighterProvider {
@@ -12,8 +18,10 @@ export interface EngineHighlighterProvider {
 	name: string;
 	/** Supported language IDs; aliases are normalized before checking. */
 	languages: readonly string[];
+	/** Theme IDs exposed by this initialized provider instance. */
+	themes?: readonly EngineHighlighterThemeInfo[];
 	/** Synchronous tokenization; output is rendered as safe React text spans, never HTML. */
-	highlight(code: string, language: string): readonly EngineHighlighterToken[] | null;
+	highlight(code: string, language: string, context?: EngineHighlighterContext): readonly EngineHighlighterToken[] | null;
 }
 
 export interface EngineHighlighterProviderInfo {
@@ -428,6 +436,13 @@ export function getEngineHighlighterColor(
 function isValidProvider(value: unknown): value is EngineHighlighterProvider {
 	if (!value || typeof value !== "object") return false;
 	const candidate = value as EngineHighlighterProvider;
+	const validThemes = candidate.themes === undefined || (
+		Array.isArray(candidate.themes)
+		&& candidate.themes.length <= 200
+		&& candidate.themes.every((theme) => theme && typeof theme === "object"
+			&& typeof theme.id === "string" && SAFE_PROVIDER_ID.test(theme.id)
+			&& typeof theme.name === "string" && theme.name.length > 0 && theme.name.length <= 120)
+	);
 	return typeof candidate.id === "string"
 		&& SAFE_PROVIDER_ID.test(candidate.id)
 		&& typeof candidate.name === "string"
@@ -436,7 +451,8 @@ function isValidProvider(value: unknown): value is EngineHighlighterProvider {
 		&& Array.isArray(candidate.languages)
 		&& candidate.languages.length > 0
 		&& candidate.languages.length <= 500
-		&& candidate.languages.every((language) => typeof language === "string" && language.length <= 64)
+		&& candidate.languages.every((language) => typeof language === "string" && language.length > 0 && language.length <= 64)
+		&& validThemes
 		&& typeof candidate.highlight === "function";
 }
 
@@ -460,6 +476,7 @@ export function registerEngineHighlighterProvider(provider: EngineHighlighterPro
 		id: provider.id,
 		name: provider.name,
 		languages: Object.freeze([...provider.languages]),
+		themes: provider.themes ? Object.freeze(provider.themes.map((theme) => Object.freeze({ ...theme }))) : undefined,
 		highlight: provider.highlight,
 	}));
 }
@@ -484,8 +501,25 @@ const BUILTIN_THEME_INFO: readonly EngineHighlighterThemeInfo[] = Object.freeze(
 	Object.freeze({ id: "vscode-light", name: "VS Code Light (lightweight palette)" }),
 ]);
 
-export function listEngineHighlighterThemes(): EngineHighlighterThemeInfo[] {
-	return BUILTIN_THEME_INFO.map((theme) => ({ ...theme }));
+export function listEngineHighlighterThemes(providerId?: string): EngineHighlighterThemeInfo[] {
+	if (providerId) {
+		const provider = providers.get(providerId);
+		if (!provider) return [];
+		if (provider.id === builtinProvider.id) return BUILTIN_THEME_INFO.map((theme) => ({ ...theme }));
+		return (provider.themes ?? []).map((theme) => ({ ...theme }));
+	}
+	const themes = [
+		...BUILTIN_THEME_INFO.map((theme) => ({ ...theme })),
+		...[...providers.values()].filter((provider) => provider.id !== builtinProvider.id)
+			.flatMap((provider) => (provider.themes ?? []).map((theme) => ({ ...theme }))),
+	];
+	const seen = new Set<string>();
+	return themes.filter((theme) => {
+		const key = theme.id + "\u0000" + theme.name;
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
 }
 export function listEngineHighlighterLanguages(providerId?: string): string[] {
 	const selected = providerId ? providers.get(providerId) : undefined;
@@ -513,19 +547,23 @@ export function highlightEngineCode(
 	if (!normalizedLanguages.has(normalizedLanguage)) return null;
 
 	try {
-		const tokens = provider.highlight(code, normalizedLanguage);
+		const tokens = provider.highlight(code, normalizedLanguage, { theme: options.theme });
 		if (!Array.isArray(tokens) || tokens.length > MAX_TOKEN_COUNT) return null;
 		let joined = "";
+		const safeTokens: EngineHighlighterToken[] = [];
 		for (const token of tokens) {
 			if (!token || typeof token.text !== "string" || !token.text
 				|| !["plain", "keyword", "string", "comment", "number", "type", "function", "property", "constant", "operator", "punctuation"].includes(token.kind)) {
 				return null;
 			}
+			const color = token.color === undefined ? undefined : normalizeEngineThemeColor(token.color);
+			if (token.color !== undefined && color === undefined) return null;
 			joined += token.text;
 			if (joined.length > code.length) return null;
+			safeTokens.push({ kind: token.kind, text: token.text, ...(color ? { color } : {}) });
 		}
 		if (joined !== code) return null;
-		return tokens.slice();
+		return safeTokens;
 	} catch {
 		// A faulty custom provider must never take Markdown rendering down.
 		return null;
