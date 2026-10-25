@@ -216,7 +216,7 @@ Inspect scripts/gen3-prepare-production.js and the existing production-build hoo
 | package.json and existing lockfile, if present | Add only a justified highlighter dependency and focused smoke-test command after evaluation. |
 | .gitignore | Decide explicitly how generated .etr artifacts are tracked or published; currently .nextjs-engine/.cache/ is ignored, not the whole theme output directory. |
 
-Proposed new area: src/engine/theme/ for public construction/types, ID resolution, ETR serialization/validation, event dispatch, provider registry, and font cache helpers. Split files only where each has a clear responsibility. A dedicated Gen 3 theme compiler is preferred if it keeps the existing build coordinator manageable.
+Proposed runtime module area: src/engine/engineTheme/ for public construction/types, ID resolution, remote ETR loading, event dispatch, provider registry, templates, and font cache helpers. Static ETR compilation belongs in src/engine/compiler/EngineThemeCompiler.js. Keep src/engine/plugins/ focused on Next.js hooks/adapters and links to compiler modules.
 
 ## 9. Implementation phases
 
@@ -291,22 +291,23 @@ Implementation is underway on branch `feat/enginetheme-foundation`.
 ### Implemented in the current foundation
 
 - Public `createTheme()` with local/global/remote scope, safe one-segment group IDs, three-level subtheme depth, JSON-only validation, deep freezing, and ID-based resolution.
-- NENC `.etr` artifacts with deterministic JSON/SHA-256, protected output paths, atomic writes, and stale-artifact tracking.
+- NENC `.etr` artifacts with deterministic JSON/SHA-256, protected output paths, atomic writes, and stale-artifact tracking; static compiler logic is in `src/engine/compiler/EngineThemeCompiler.js`, reached through a thin plugin adapter.
 - Pretty-please lightweight highlighting, provider/language/theme discovery, authoritative custom palettes, and per-language palettes including TypeScript versus Node.js.
 - Safe declarative Engine Schema templates for code blocks, table headers/cells, and typed info-block syntax; local React adapters are registered by trusted code and never embedded in remote theme data.
 - Typed event-driven Data-API join dispatch for left/right/top/bottom. It allocates events to local handlers and is not a preview/inspection API.
 - Explicit remote `.etr` loader with exact HTTPS origin allowlists, redirect denial, bounded streaming, timeouts/cancellation, checksum/format/version validation, recursive bounded theme-data checks, CSS/network primitive rejection, local/private host rejection, safe CSS-variable/font validation, cache deduplication, and explicit unregister/cache-clear functions.
-- Production-only NENC font compilation for local/global themes: bounded, allowlisted CSS/font downloads; local WOFF2/WOFF/TTF/OTF assets; content-hashed filenames; disk-cache reuse; explicit refresh; and strict dev-mode skip.
+- Production-only NENC font compilation in `src/engine/engineTheme/EngineThemeFontCompiler.js` for local/global themes: bounded, allowlisted CSS/font downloads; local WOFF2/WOFF/TTF/OTF assets; content-hashed filenames; disk-cache reuse; explicit refresh; and strict dev-mode skip.
 - Updated EngineMarkdown demo, docs, and smoke/browser regression coverage.
 
 ### Verification
 
-- A recent runtime CI run passed `npm run type-check`, the EngineTheme artifact/compiler smoke, and the Gen 3 production build. Chromium, Firefox, and WebKit browser jobs passed for the pre-font integration commit.
+- Runtime CI and Chromium, Firefox, and WebKit passed on commit `e2d9e94b824b1c033efc039985f8bb9026dad09e` before the directory refactor. The current folder move and link updates are awaiting a fresh CI run.
 - The latest production font integration now has deterministic smoke coverage using mocked stylesheet/font responses, cache reuse, content-hashed output, and development-mode no-network assertions. The current CI jobs must finish before the font integration can be called green.
 - Local command execution is unavailable through the connected repository workflow in this session; GitHub Actions is the runtime verification source.
 
 ### Remaining
 
+- Run type-check, EngineTheme compiler/font smoke tests, production build, and Chromium/Firefox/WebKit after the directory refactor.
 - Broader font-provider coverage and lifecycle/update policies beyond the Google Fonts defaults. Explicit origin allowlisting is required for other providers.
 - Exact VS Code/TextMate grammar parity would require a heavier optional highlighting provider; Engine Lite stays small and dependency-free.
 - More complete migration guidance for multi-component themes and version/update lifecycle.

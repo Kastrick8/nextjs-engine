@@ -1,8 +1,12 @@
 # EngineTheme
 
-**Status: foundation implemented; production font download-to-local-assets and lifecycle refresh remain pending.**
+**Implementation layout:** runtime theme modules live in `src/engine/engineTheme/`, static `.etr` extraction lives in `src/engine/compiler/EngineThemeCompiler.js`, and Next.js hook/link integration remains in `src/engine/plugins/`.
 
 EngineTheme is the data-only theming layer for Next.js Engine. The current foundation provides a validated createTheme() API, qualified theme IDs, local/global/explicitly preloaded remote theme resolution for Markdown, static NENC .etr generation, lightweight Pretty-please highlighting, safe declarative UI templates, and a typed event-driven Data-API.
+
+## Module layout
+
+`createTheme()`, ID resolution, highlighting, declarative templates, remote `.etr` loading, font caching, and the event-driven Data-API are implemented in `src/engine/engineTheme/`. `src/engine/compiler/EngineThemeCompiler.js` owns the static NENC compiler pass. The `src/engine/plugins/gen3ThemeCompiler.js` file is only a link from the Next.js build coordinator to that compiler; the plugin directory is not the home of EngineTheme business logic.
 
 ## Define a theme group
 

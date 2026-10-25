@@ -48,6 +48,17 @@ For statically resolvable `createPage({ schema })` schemas and `defineSchema({..
 If a page's schema depends on runtime values, imports, object spreads, computed properties, or arbitrary function execution, Engine skips only static **schema planning** for that page. It still analyzes that route's import graph, and Next.js continues to compile and render the route normally. This is why route-entry count and static-schema-plan count are separate numbers.
 
 
+## EngineTheme compiler integration
+
+The implementation is split by responsibility rather than placed in the plugin directory:
+
+- `src/engine/compiler/EngineThemeCompiler.js` owns static AST extraction, validation, `.etr` serialization, hashing, guarded artifact writes, and stale-artifact cleanup.
+- `src/engine/engineTheme/` owns the runtime `createTheme()` API, ID resolution, remote `.etr` loader, templates, highlighting, Data-API, theme tokens, and production font compiler.
+- `src/engine/plugins/gen3ThemeCompiler.js` is a thin Next.js integration link to `../compiler/EngineThemeCompiler.js`; it contains no compiler logic.
+- `src/engine/plugins/gen3BuildCompiler.js` remains the NENC/Next.js build coordinator. It invokes the compiler link and the font compiler from `engineTheme/` while keeping the integration hooks in `plugins/`.
+
+Place EngineTheme domain logic under `engineTheme/` or `compiler/`. Reserve `plugins/` for Next.js integration hooks, adapters, and linking.
+
 ## EngineTheme font assets
 
 The Gen 3 source pass compiles statically visible `createTheme()` definitions into `.etr` files. When `NODE_ENV=production`, the same pass runs a production-only font compiler after writing those artifacts.
