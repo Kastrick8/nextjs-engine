@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const nencLogger = require("./nencTerminalLogger");
+const nencLogger = require("../plugins/nencTerminalLogger");
 
 const BUILD_STATE_KEY = Symbol.for("nextjs-engine.gen3-build-adapter-state");
 const DEV_BRIDGE_KEY = Symbol.for("nextjs-engine.next-dev-output-bridge-state");
@@ -162,7 +162,7 @@ const adapter = {
 				if (!fs.existsSync(state.manifestFile)) {
 					throw new Error("[NENC] Generation 3 compiler completed without writing its manifest.");
 				}
-				const compiler = require("./gen3BuildCompiler");
+				const compiler = require("./build.compiler.ts");
 				nencLogger.setStatus("FINALIZING NEXT.JS BUILD OUTPUTS", "engine");
 				compiler.emitArtifacts(context.projectDir || state.projectDir, state.manifestFile, context.distDir, context);
 			}
