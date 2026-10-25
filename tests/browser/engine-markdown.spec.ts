@@ -10,6 +10,7 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await page.goto("/engine-markdown-test");
 	const article = page.locator("article#markdown-showcase.markdown-showcase");
 	await expect(article).toBeVisible();
+	expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--e-theme-colors-accent").trim())).toBe("#826f9b");
 	await expect(page.locator("article#markdown-file-loading")).toContainText("loaded from a local Markdown file");
 	await expect(article.getByRole("heading", { level: 1, name: "EngineMarkdown showcase" })).toHaveAttribute(
 		"id",
@@ -19,6 +20,10 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await expect(article.locator("h3#markdown-showcase-heading-level-three-2")).toBeVisible();
 	await expect(article.locator("strong").first()).toHaveText("complete documented EngineMarkdown feature set");
 	await expect(article.locator("blockquote blockquote")).toContainText("Nested blockquotes work too");
+	const infoBlock = article.locator(".emd-themed-info");
+	await expect(infoBlock).toHaveCount(1);
+	await expect(infoBlock).toContainText("Configuration note");
+	await expect(infoBlock).toContainText("parsed as safe Markdown");
 	// The parent list item inherits its child text, so target the nested matching item.
 	await expect(article.getByRole("listitem").filter({ hasText: "Nested item with" }).last()).toBeVisible();
 	await expect(article.locator('input[type="checkbox"]:checked')).toHaveCount(1);
@@ -26,10 +31,17 @@ test("EngineMarkdown showcases documented features with safe GFM rendering", asy
 	await expect(article.locator("img[alt='A small EngineMarkdown feature illustration']")).toHaveAttribute("src", "/markdown-demo.svg");
 
 	const codeBlocks = page.locator("figure.e-md-code-block");
-	await expect(codeBlocks).toHaveCount(3);
+	await expect(codeBlocks).toHaveCount(4);
 	await expect(codeBlocks.nth(0)).toHaveAttribute("data-language", "typescript");
 	await expect(codeBlocks.nth(0).locator("figcaption")).toHaveText("typescript");
 	await expect(codeBlocks.nth(0).locator("pre code")).toContainText("safeByDefault: true");
+	await expect(codeBlocks.nth(0).locator(".e-md-token--keyword").first()).toHaveText("type");
+	await expect(codeBlocks.nth(0).locator(".e-md-token--keyword").first()).toHaveCSS("color", "rgb(86, 156, 214)");
+	const inheritedThemeBlock = page.locator("#markdown-file-loading figure.e-md-code-block");
+	await expect(inheritedThemeBlock).toHaveCount(1);
+	await expect(inheritedThemeBlock).toHaveCSS("background-color", "rgb(36, 27, 56)");
+	await expect(inheritedThemeBlock).toHaveCSS("border-top-color", "rgb(130, 111, 155)");
+	await expect(inheritedThemeBlock).toHaveClass(/emd-themed-code/);
 	await expect(codeBlocks.nth(1).locator("pre code")).toHaveText("<ROOT>/compact/ ├── storage/ └── backup/");
 	await expect(codeBlocks.nth(2)).toHaveAttribute("data-language", "ansi");
 	await expect(codeBlocks.nth(2).locator("pre code")).toContainText("✓ Build complete");

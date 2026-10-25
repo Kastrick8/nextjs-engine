@@ -4,6 +4,59 @@
 
 const COMPACT_FENCE = /^([ \t]{0,3})(`{3,}|~{3,})([A-Za-z0-9_+.-]+)[ \t]+(.+)$/;
 
+const INFO_DIRECTIVE = /^ {0,3}:::(info|note|tip|warning|danger|success)(?:[ \t]+(.*?))?[ \t]*$/i;
+const INFO_DIRECTIVE_CLOSE = /^ {0,3}:::[ \t]*$/;
+
+/** Convert explicit :::info directives to blockquotes without interpreting them inside fenced code. */
+function expandEngineInfoBlocks(lines: string[]): string[] {
+	const output: string[] = [];
+	let fence: { char: string; length: number } | undefined;
+	for (let index = 0; index < lines.length; index += 1) {
+		const line = lines[index];
+		const openingFence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+		if (fence) {
+			output.push(line);
+			const closingFence = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+			if (closingFence && closingFence[1][0] === fence.char && closingFence[1].length >= fence.length) fence = undefined;
+			continue;
+		}
+		if (openingFence) {
+			fence = { char: openingFence[1][0], length: openingFence[1].length };
+			output.push(line);
+			continue;
+		}
+		const directive = INFO_DIRECTIVE.exec(line);
+		if (!directive) { output.push(line); continue; }
+		let close = index + 1;
+		let bodyFence: { char: string; length: number } | undefined;
+		for (; close < lines.length; close += 1) {
+			const bodyLine = lines[close];
+			const bodyFenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(bodyLine);
+			if (bodyFence) {
+				const closingBodyFence = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(bodyLine);
+				if (closingBodyFence && closingBodyFence[1][0] === bodyFence.char && closingBodyFence[1].length >= bodyFence.length) bodyFence = undefined;
+				continue;
+			}
+			if (bodyFenceMatch) {
+				bodyFence = { char: bodyFenceMatch[1][0], length: bodyFenceMatch[1].length };
+				continue;
+			}
+			if (INFO_DIRECTIVE_CLOSE.test(bodyLine)) break;
+		}
+		if (close >= lines.length) { output.push(line); continue; }
+		const tone = directive[1].toLowerCase();
+		const title = (directive[2] ?? "").trim();
+		output.push("> [!ENGINE-INFO " + tone + "] " + title);
+		output.push(">");
+		for (let bodyIndex = index + 1; bodyIndex < close; bodyIndex += 1) {
+			const bodyLine = lines[bodyIndex];
+			output.push(bodyLine.length > 0 ? "> " + bodyLine : ">");
+		}
+		index = close;
+	}
+	return output;
+}
+
 /**
  * Preserve CommonMark input while repairing the compact fence shape produced by
  * a few documentation generators: ` ```text code...``` ` on one physical line.
@@ -34,7 +87,7 @@ export function normalizeEngineMarkdownSource(content: string): string {
 		normalized.push(`${indentation}${fence}`);
 	}
 
-	return normalized.join("\n");
+	return expandEngineInfoBlocks(normalized).join("\n");
 }
 
 

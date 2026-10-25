@@ -16,6 +16,8 @@ import React, {
 import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MarkdownProps } from "../schema/types";
+import { getEngineHighlighterColor, getEngineHighlighterPalette, highlightEngineCode, normalizeEngineThemeColor } from "../component/engineTheme/highlighting";
+import { renderEngineThemeTemplate } from "../component/engineTheme/templates";
 import { EngineUrlIcon } from "./EngineUrlIcon";
 import {
 	normalizeEngineMarkdownSource,
@@ -48,6 +50,7 @@ type AnimKind = "none" | "fade-in" | "slide-up";
 type PositionedNode = { position?: { start?: { line?: number } } };
 
 interface MarkdownRenderConfig {
+	themeId?: string;
 	textColor: string;
 	headingColor: string;
 	linkColor: string;
@@ -68,6 +71,8 @@ interface MarkdownRenderConfig {
 	codeBorderColor: string;
 	codeFontFamily: string;
 	showCodeLanguage: boolean;
+	prettyPlease?: MarkdownProps["prettyPlease"];
+	themeTemplates?: MarkdownProps["themeTemplates"];
 	markdownStyles?: MarkdownProps["markdownStyles"];
 	ansiPalette: EngineAnsiPalette;
 	ansiForeground: string;
@@ -92,6 +97,15 @@ function joinClassNames(...names: Array<string | undefined>): string | undefined
 function animClass(kind: AnimKind | undefined): string | undefined {
 	if (!kind || kind === "none") return undefined;
 	return kind === "slide-up" ? "e-md-anim-slide" : "e-md-anim-fade";
+}
+
+function textFromReactNode(value: ReactNode, depth = 0): string {
+	if (depth > 16 || value === null || value === undefined || typeof value === "boolean") return "";
+	if (typeof value === "string") return value.slice(0, 512);
+	if (typeof value === "number") return String(value);
+	if (Array.isArray(value)) return value.slice(0, 64).map((item) => textFromReactNode(item, depth + 1)).join("").slice(0, 512);
+	if (isValidElement<{ children?: ReactNode }>(value)) return textFromReactNode(value.props.children, depth + 1);
+	return "";
 }
 
 function sourceAnimationStyle(node: PositionedNode | undefined, config: MarkdownRenderConfig): CSSProperties {
@@ -255,23 +269,83 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				style={{ margin: ".18rem 0", ...style }}
 			/>
 		),
-		blockquote: ({ node, className, style, ...props }) => (
-			<blockquote
-				{...props}
-				className={joinClassNames(className, blockClass)}
-				style={{
-					...sourceAnimationStyle(node, config),
-					margin: 0,
-					padding: ".75rem 1rem",
-					borderLeft: `4px solid ${config.linkColor}`,
-					background: "rgba(148,163,184,.08)",
-					borderRadius: "0 .5rem .5rem 0",
-					color: config.textColor,
-					...style,
-					...config.markdownStyles?.blockquote,
-				}}
-			/>
-		),
+		blockquote: ({ node, className, style, children, ...props }) => {
+			const childNodes = Children.toArray(children);
+			const markerIndex = childNodes.findIndex((child) => /\[\s*!ENGINE-INFO\s+(info|note|tip|warning|danger|success)\s*\]/i.test(reactNodeText(child)));
+			const firstText = markerIndex >= 0 ? reactNodeText(childNodes[markerIndex]).trim() : "";
+			const info = /\[\s*!ENGINE-INFO\s+(info|note|tip|warning|danger|success)\s*\]\s*([\s\S]*)/i.exec(firstText);
+			if (info) {
+				const tone = info[1].toLowerCase();
+				const title = (info[2] ?? "").trim();
+				const bodyNodes = Children.toArray(childNodes.filter((_child, index) => index !== markerIndex));
+				const body = bodyNodes;
+				const toneStyle: Record<string, { border: string; background: string }> = {
+					info: { border: "#60a5fa", background: "rgba(59,130,246,.09)" },
+					note: { border: "#94a3b8", background: "rgba(148,163,184,.09)" },
+					tip: { border: "#34d399", background: "rgba(16,185,129,.09)" },
+					success: { border: "#34d399", background: "rgba(16,185,129,.09)" },
+					warning: { border: "#fbbf24", background: "rgba(245,158,11,.10)" },
+					danger: { border: "#fb7185", background: "rgba(244,63,94,.09)" },
+				};
+				const themed = renderEngineThemeTemplate(config.themeTemplates?.infoBlock, {
+					themeId: config.themeId,
+					componentId: "markdown",
+					block: "infoBlock",
+					dataApiContext: { existing: { title: title ?? "", tone }, incoming: { text: textFromReactNode(body).slice(0, 256) } },
+					tone,
+					title,
+					label: title,
+					textColor: config.textColor,
+					headingColor: config.headingColor,
+					linkColor: config.linkColor,
+					slots: {
+						title: title ? <strong>{title}</strong> : null,
+						icon: tone,
+						content: body,
+						children: body,
+						body,
+					},
+				});
+				if (themed !== undefined) return themed;
+				const colors = toneStyle[tone] ?? toneStyle.info;
+				return (
+					<aside
+						role="note"
+						className={joinClassNames("e-md-info-block", "e-md-info-block--" + tone, blockClass)}
+						style={{
+							...sourceAnimationStyle(node, config),
+							margin: 0,
+							padding: ".85rem 1rem",
+							borderLeft: "4px solid " + colors.border,
+							background: colors.background,
+							borderRadius: "0 .6rem .6rem 0",
+							color: config.textColor,
+							...config.markdownStyles?.infoBlock,
+						}}
+					>
+						{title ? <div style={{ marginBottom: ".35rem", fontWeight: 750 }}>{title}</div> : null}
+						<div>{body}</div>
+					</aside>
+				);
+			}
+			return (
+				<blockquote
+					{...props}
+					className={joinClassNames(className, blockClass)}
+					style={{
+						...sourceAnimationStyle(node, config),
+						margin: 0,
+						padding: ".75rem 1rem",
+						borderLeft: `4px solid ${config.linkColor}`,
+						background: "rgba(148,163,184,.08)",
+						borderRadius: "0 .5rem .5rem 0",
+						color: config.textColor,
+						...style,
+						...config.markdownStyles?.blockquote,
+					}}
+				>{children}</blockquote>
+			);
+		},
 		code: ({ node: _node, className, style, ...props }) => (
 			<code
 				{...props}
@@ -291,20 +365,51 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		),
 		pre: ({ node, children }) => {
 			const language = codeLanguage(children);
+			const languagePalette = getEngineHighlighterPalette(config.prettyPlease, language);
+			const blockCodeBackground = normalizeEngineThemeColor(languagePalette?.background) ?? config.codeBackground;
+			const blockCodeColor = normalizeEngineThemeColor(languagePalette?.foreground) ?? normalizeEngineThemeColor(config.prettyPlease?.palette?.foreground) ?? config.codeColor;
 			const codeChildren = Children.map(children, (child) => {
 				if (!isValidElement<{ style?: CSSProperties; children?: ReactNode }>(child)) return child;
-				const ansiChildren = language?.toLowerCase() === "ansi"
-					? parseEngineAnsi(
-						reactNodeText(child.props.children),
+				const sourceText = reactNodeText(child.props.children);
+				let renderedChildren: ReactNode = child.props.children;
+				if (language?.toLowerCase() === "ansi") {
+					renderedChildren = parseEngineAnsi(
+						sourceText,
 						config.ansiPalette,
 						config.ansiForeground,
 						config.ansiBackground,
 					).map((segment, index) => (
 						<span key={index} style={segment.style}>{segment.text}</span>
-					))
-					: child.props.children;
+					));
+				} else if (language && config.prettyPlease?.mode !== "none") {
+					const tokens = highlightEngineCode(sourceText, language, {
+						provider: config.prettyPlease?.provider,
+						theme: config.prettyPlease?.theme,
+						palette: languagePalette,
+					});
+					if (tokens) {
+						renderedChildren = tokens.map((token, index) => (
+							<span
+								key={index}
+								className={"e-md-token e-md-token--" + token.kind}
+								style={{
+									color: languagePalette
+										? getEngineHighlighterColor(token.kind, {
+											theme: config.prettyPlease?.theme,
+											palette: languagePalette,
+											fallbackForeground: blockCodeColor,
+										})
+										: normalizeEngineThemeColor(token.color) ?? getEngineHighlighterColor(token.kind, {
+											theme: config.prettyPlease?.theme,
+											fallbackForeground: blockCodeColor,
+										}),
+								}}
+							>{token.text}</span>
+						));
+					}
+				}
 				return cloneElement(child, {
-					children: ansiChildren,
+					children: renderedChildren,
 					style: {
 						...child.props.style,
 						display: "block",
@@ -317,51 +422,81 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 					},
 				});
 			});
-			return (
+			const languageLabel = language && config.showCodeLanguage ? (
+				<figcaption style={{
+					padding: ".45rem .85rem",
+					borderBottom: "1px solid " + config.codeBorderColor,
+					fontFamily: config.codeFontFamily,
+					fontSize: ".72rem",
+					fontWeight: 800,
+					letterSpacing: ".08em",
+					textTransform: "uppercase",
+					color: "rgba(226,232,240,.72)",
+					...config.markdownStyles?.codeLanguage,
+				}}>{language}</figcaption>
+			) : null;
+			const codePre = (
+				<pre style={{
+					margin: 0,
+					padding: "1rem",
+					overflowX: "auto",
+					overflowY: "hidden",
+					maxWidth: "100%",
+					whiteSpace: "pre",
+					tabSize: 4,
+					fontFamily: config.codeFontFamily,
+					fontSize: ".88rem",
+					lineHeight: 1.65,
+					WebkitOverflowScrolling: "touch",
+				}}>{codeChildren}</pre>
+			);
+			const blockStyle = {
+				...sourceAnimationStyle(node, config),
+				margin: 0,
+				minWidth: 0,
+				maxWidth: "100%",
+				border: "1px solid " + config.codeBorderColor,
+				borderRadius: ".75rem",
+				overflow: "hidden" as const,
+				background: config.codeBackground,
+				color: config.codeColor,
+				...config.markdownStyles?.codeBlock,
+			};
+			const fallback = (
 				<figure
 					className={joinClassNames("e-md-code-block", blockClass)}
 					data-language={language}
-					style={{
-						...sourceAnimationStyle(node, config),
-						margin: 0,
-						minWidth: 0,
-						maxWidth: "100%",
-						border: `1px solid ${config.codeBorderColor}`,
-						borderRadius: ".75rem",
-						overflow: "hidden",
-						background: config.codeBackground,
-						color: config.codeColor,
-						...config.markdownStyles?.codeBlock,
-					}}
+					style={blockStyle}
 				>
-					{language && config.showCodeLanguage ? (
-						<figcaption style={{
-							padding: ".45rem .85rem",
-							borderBottom: `1px solid ${config.codeBorderColor}`,
-							fontFamily: config.codeFontFamily,
-							fontSize: ".72rem",
-							fontWeight: 800,
-							letterSpacing: ".08em",
-							textTransform: "uppercase",
-							color: "rgba(226,232,240,.72)",
-							...config.markdownStyles?.codeLanguage,
-						}}>{language}</figcaption>
-					) : null}
-					<pre style={{
-						margin: 0,
-						padding: "1rem",
-						overflowX: "auto",
-						overflowY: "hidden",
-						maxWidth: "100%",
-						whiteSpace: "pre",
-						tabSize: 4,
-						fontFamily: config.codeFontFamily,
-						fontSize: ".88rem",
-						lineHeight: 1.65,
-						WebkitOverflowScrolling: "touch",
-					}}>{codeChildren}</pre>
+					{languageLabel}
+					{codePre}
 				</figure>
 			);
+			return renderEngineThemeTemplate(config.themeTemplates?.codeBlock, {
+				themeId: config.themeId,
+				componentId: "markdown",
+				block: "codeBlock",
+				dataApiContext: { existing: { language: language ?? "text" } },
+				className: joinClassNames("e-md-code-block", blockClass),
+				wrapperStyle: blockStyle,
+				codeBackground: blockCodeBackground,
+				codeColor: blockCodeColor,
+				codeBorderColor: config.codeBorderColor,
+				codeFontFamily: config.codeFontFamily,
+				textColor: config.textColor,
+				headingColor: config.headingColor,
+				linkColor: config.linkColor,
+				language,
+				label: language,
+				slots: {
+					languageLabel,
+					content: codePre,
+					pre: codePre,
+					children: codePre,
+					language,
+					label: language,
+				},
+			}) ?? fallback;
 		},
 		table: ({ node, children }) => (
 			<div
@@ -376,12 +511,42 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				<table style={config.markdownStyles?.table}>{children}</table>
 			</div>
 		),
-		th: ({ node: _node, style, ...props }) => (
-			<th {...props} style={{ ...style, ...config.markdownStyles?.tableHeader }} />
-		),
-		td: ({ node: _node, style, ...props }) => (
-			<td {...props} style={{ ...style, ...config.markdownStyles?.tableCell }} />
-		),
+		th: ({ node: _node, children, style, align, ...props }) => {
+			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableHeader, {
+				themeId: config.themeId,
+				componentId: "markdown",
+				block: "tableHeader",
+				dataApiContext: { existing: { text: textFromReactNode(children).slice(0, 256) }, metadata: { alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : "start") } },
+				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
+				textColor: config.textColor,
+				headingColor: config.headingColor,
+				linkColor: config.linkColor,
+				slots: { content: children, children, label: children, value: children },
+			});
+			return (
+				<th {...props} style={{ ...style, ...config.markdownStyles?.tableHeader }}>
+					{themed ?? children}
+				</th>
+			);
+		},
+		td: ({ node: _node, children, style, align, ...props }) => {
+			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableCell, {
+				themeId: config.themeId,
+				componentId: "markdown",
+				block: "tableCell",
+				dataApiContext: { existing: { text: textFromReactNode(children).slice(0, 256) }, metadata: { alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : "start") } },
+				alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : undefined),
+				textColor: config.textColor,
+				headingColor: config.headingColor,
+				linkColor: config.linkColor,
+				slots: { content: children, children, value: children },
+			});
+			return (
+				<td {...props} style={{ ...style, ...config.markdownStyles?.tableCell }}>
+					{themed ?? children}
+				</td>
+			);
+		},
 		img: ({ node: _node, src = "", alt = "", className, style, ...props }) => (
 			<img
 				{...props}
@@ -424,6 +589,7 @@ export interface EngineMarkdownRendererProps extends MarkdownProps {
 
 export function EngineMarkdownRenderer({
 	content = "",
+	engineThemeId,
 	textColor = "#30475f",
 	headingColor = "#07111f",
 	linkColor = "#12304c",
@@ -439,13 +605,15 @@ export function EngineMarkdownRenderer({
 	animationStagger = 50,
 	disablepointformarkdownhash = false,
 	disablepointformarkdownhashhash = false,
-	codeBackground = "#0b1020",
+	codeBackground: codeBackgroundProp,
 	codeColor = "#e6edf3",
 	inlineCodeBackground = "rgba(148,163,184,.14)",
 	inlineCodeColor = headingColor,
 	codeBorderColor = "rgba(148,163,184,.28)",
 	codeFontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
 	showCodeLanguage = true,
+	prettyPlease = { mode: "auto", provider: "engine-lite", theme: "vscode-dark" },
+	themeTemplates,
 	"emd_show-url-icon": showUrlIcon = false,
 	"emd_url-icon-size": urlIconSize = "auto",
 	markdownStyles,
@@ -460,7 +628,10 @@ export function EngineMarkdownRenderer({
 	articleId,
 }: EngineMarkdownRendererProps) {
 	const normalizedContent = normalizeEngineMarkdownSource(content);
+	const paletteBackground = normalizeEngineThemeColor(prettyPlease?.palette?.background);
+	const codeBackground = codeBackgroundProp ?? paletteBackground ?? "#0b1020";
 	const renderConfig: MarkdownRenderConfig = {
+		themeId: engineThemeId,
 		textColor,
 		headingColor,
 		linkColor,
@@ -481,6 +652,8 @@ export function EngineMarkdownRenderer({
 		codeBorderColor,
 		codeFontFamily,
 		showCodeLanguage,
+		prettyPlease,
+		themeTemplates,
 		markdownStyles,
 		ansiPalette,
 		ansiForeground: ansiForeground ?? codeColor,

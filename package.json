@@ -1,32 +1,34 @@
 {
-	"name": "nextjs-engine",
-	"version": "3.0.0-alpha.1",
-	"private": false,
-	"scripts": {
-		"build": "npm run prepare:production && npm run type-check && next build",
-		"prepare:production": "node scripts/gen3-prepare-production.js",
-		"dev": "next dev",
-		"start": "next start",
-		"type-check": "tsc --noEmit",
-		"test:browser": "playwright test",
-		"clear": "pwsh -Command \"clear; Remove-Item ./.next, ./dist, -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item tsconfig.tsbuildinfo -Force -ErrorAction SilentlyContinue\""
-	},
-	"dependencies": {
-		"next": "^16.3.3",
-		"next-view-transitions": "^0.3.5",
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0",
-		"react-markdown": "^10.1.0",
-		"remark-gfm": "^4.0.1",
-		"three": "^0.184.0",
-		"two.js": "^0.8.23"
-	},
-	"devDependencies": {
-		"@playwright/test": "1.64.0",
-		"@types/node": "^20.10.0",
-		"@types/react": "^19.0.0",
-		"@types/react-dom": "^19.0.0",
-		"@types/three": "^0.185.0",
-		"typescript": "^5.3.0"
-	}
+  "name": "nextjs-engine",
+  "version": "3.0.0-alpha.1",
+  "private": false,
+  "scripts": {
+    "build": "npm run prepare:production && npm run type-check && next build",
+    "prepare:production": "node scripts/gen3-prepare-production.js",
+    "dev": "next dev",
+    "start": "next start",
+    "type-check": "tsc --noEmit",
+    "test:theme": "node scripts/gen3-theme-compiler-smoke.js",
+    "test:browser": "playwright test",
+    "clear": "pwsh -Command \"clear; Remove-Item ./.next, ./dist, -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item tsconfig.tsbuildinfo -Force -ErrorAction SilentlyContinue\"",
+    "test:theme:live-fonts": "node scripts/gen3-font-provider-live-smoke.js"
+  },
+  "dependencies": {
+    "next": "^16.3.3",
+    "next-view-transitions": "^0.3.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "three": "^0.184.0",
+    "two.js": "^0.8.23"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@types/node": "^20.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.185.0",
+    "typescript": "^5.3.0"
+  }
 }

@@ -11,6 +11,9 @@ import type {
 	MarkdownProps,
 	EngineTheme as EngineThemeConfig,
 } from "./schema/types";
+import { resolveEngineThemeSchema } from "./component/engineTheme/resolveTheme";
+import { normalizeEngineThemeFontHrefs } from "./component/engineTheme/fontUrls";
+import { flattenEngineThemeTokens, normalizeEngineThemeVariables } from "./component/engineTheme/tokens";
 import { EngineCollectedStyles, EngineProvider } from "./providers/EngineProvider";
 import { EngineScrollProvider } from "./core/enginescroll";
 import { SchemaRenderer } from "./core/SchemaRenderer";
@@ -182,9 +185,11 @@ function stableThemeHash(value: string): string {
 
 function EngineTheme({ schema }: { schema: PageSchema }) {
 	if (!schema.theme) return null;
-	const { vars, fonts, globalStyles } = schema.theme;
+	const { vars: declaredVars, fonts, globalStyles, tokens } = schema.theme;
+	const safeFonts = normalizeEngineThemeFontHrefs(fonts);
+	const vars = { ...flattenEngineThemeTokens(tokens), ...normalizeEngineThemeVariables(declaredVars) };
 	let css = "";
-	if (vars) {
+	if (Object.keys(vars).length > 0) {
 		const declarations = Object.entries(vars)
 			.map(([key, value]) => `  ${key.startsWith("--") ? key : `--${key}`}: ${value};`)
 			.join("\n");
@@ -195,7 +200,7 @@ function EngineTheme({ schema }: { schema: PageSchema }) {
 
 	return (
 		<>
-			{fonts?.map((url) => (
+			{safeFonts.map((url) => (
 				<link key={url} rel="stylesheet" href={url} precedence="engine-font" />
 			))}
 			{css && (
@@ -206,7 +211,9 @@ function EngineTheme({ schema }: { schema: PageSchema }) {
 }
 
 export function createPage(options: CreatePageOptions): EnginePageComponent {
-	const { schema, config, handlers, slots, mobile, tablet, compiler } = normalizeCreateOptions(options);
+	const normalized = normalizeCreateOptions(options);
+	const schema = resolveEngineThemeSchema(normalized.schema);
+	const { config, handlers, slots, mobile, tablet, compiler } = normalized;
 	const shouldResolveMarkdown = nodeHasMarkdownFile(schema.root);
 	const usesAdaptiveLayout = mobile !== undefined || tablet !== undefined;
 	const hasNamedHandlers = handlers !== undefined && Object.keys(handlers).length > 0;
@@ -280,7 +287,9 @@ export function createPage(options: CreatePageOptions): EnginePageComponent {
 }
 
 export function createComponent(options: CreateComponentOptions): React.FC<EngineComponentProps> {
-	const { schema, config, handlers, slots, compiler } = normalizeCreateOptions(options);
+	const normalized = normalizeCreateOptions(options);
+	const schema = resolveEngineThemeSchema(normalized.schema);
+	const { config, handlers, slots, compiler } = normalized;
 	const hasNamedHandlers = handlers !== undefined && Object.keys(handlers).length > 0;
 	const useServerFirstRenderer = compiler?.serverFirst !== false && !hasNamedHandlers;
 	const basePlan = compilePage(schema, {

@@ -1,4 +1,80 @@
 import { createPage } from "../../src/engine/createPage";
+import { createTheme } from "../../src/engine/component/engineTheme/createTheme";
+
+const markdownShowcaseTheme = createTheme({
+	id: "emd-showcase",
+	scope: "global",
+	vars: { "--emd-theme-accent": "#826f9b" },
+	tokens: { colors: { accent: "#826f9b", surface: "#241b38" } },
+	markdown: {
+		defaults: {
+			codeBackground: "#241b38",
+			codeBorderColor: "#826f9b",
+			codeColor: "#f5efff",
+		},
+		templates: {
+			codeBlock: {
+				schema: {
+					type: "stack",
+					props: {
+						as: "figure",
+						className: "emd-themed-code",
+						direction: "column",
+						gap: "0",
+						style: {
+							border: "1px solid {{codeBorderColor}}",
+							borderRadius: "1rem",
+							background: "{{codeBackground}}",
+							color: "{{codeColor}}",
+						},
+					},
+					children: [
+						{ type: "slot", props: { name: "languageLabel" } },
+						{ type: "slot", props: { name: "content" } },
+					],
+				},
+			},
+			infoBlock: {
+				schema: {
+					type: "stack",
+					props: {
+						as: "aside",
+						className: "emd-themed-info",
+						direction: "column",
+						gap: "0.4rem",
+						style: {
+							padding: "0.85rem 1rem",
+							border: "1px solid #826f9b",
+							borderRadius: "0.75rem",
+							background: "#241b38",
+							color: "#f5efff",
+						},
+					},
+					children: [
+						{ type: "text", props: { content: "{{title}}" } },
+						{ type: "slot", props: { name: "content" } },
+					],
+				},
+			},
+			tableHeader: {
+				schema: {
+					type: "stack",
+					props: { direction: "row", gap: "0.4rem", align: "center" },
+					children: [{ type: "slot", props: { name: "content" } }],
+				},
+			},
+		},
+		styles: {
+			codeBlock: { borderColor: "#826f9b" },
+		},
+		variants: {
+			dark: {
+				defaults: { codeBackground: "#241b38" },
+				styles: { codeBlock: { borderColor: "#826f9b" } },
+			},
+		},
+	},
+});
 
 const MARKDOWN_SHOWCASE = `# EngineMarkdown showcase
 
@@ -25,6 +101,10 @@ Visit [the Next.js website](https://nextjs.org) or <https://github.com>. Relativ
 - [ ] GFM task still open
 
 ## Blockquotes and thematic breaks
+
+:::info Configuration note
+EngineMarkdown info blocks can be themed separately from ordinary blockquotes. This content is still parsed as safe Markdown.
+:::
 
 > A styled blockquote demonstrates the semantic quote treatment.
 >
@@ -100,6 +180,7 @@ This article also applies responsive font family and body sizing, heading scales
 export default createPage({
 	compiler: { pageId: "engine-markdown-test" },
 	schema: {
+		theme: { id: "emd-showcase.markdown.dark" },
 		meta: { title: "EngineMarkdown complete feature showcase" },
 		root: {
 			type: "section",

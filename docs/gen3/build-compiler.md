@@ -47,6 +47,35 @@ For statically resolvable `createPage({ schema })` schemas and `defineSchema({..
 
 If a page's schema depends on runtime values, imports, object spreads, computed properties, or arbitrary function execution, Engine skips only static **schema planning** for that page. It still analyzes that route's import graph, and Next.js continues to compile and render the route normally. This is why route-entry count and static-schema-plan count are separate numbers.
 
+
+## EngineTheme compiler integration
+
+The implementation is split by responsibility rather than placed in the plugin directory:
+
+- `src/engine/compiler/theme/3/compiler.ts` owns static AST extraction, validation, `.etr` serialization, hashing, guarded artifact writes, and stale-artifact cleanup.
+- `src/engine/component/engineTheme/` owns the runtime `createTheme()` API, ID resolution, remote `.etr` loader, templates, highlighting, Data-API, and theme tokens; production font compilation is implemented in `src/engine/compiler/font/3/compiler.ts`.
+- `src/engine/plugins/gen3ThemeCompiler.js` is a thin Next.js integration link to `../compiler/theme/3/compiler.ts`; it contains no compiler logic.
+- `src/engine/compiler/build.compiler.ts` remains the NENC/Next.js build coordinator. The Next.js adapter is exposed through `src/engine/compiler/nextjs.compiler.ts`; `src/engine/plugins/engineBuildAdapter.js` is the Next.js-facing link. The build coordinator invokes `theme/3/compiler.ts` and `font/3/compiler.ts` directly; plugin files stay focused on framework integration.
+
+Place runtime EngineTheme logic under `src/engine/component/engineTheme/` and compiler implementation under `src/engine/compiler/`. Reserve `src/engine/plugins/` for Next.js integration hooks, adapters, and linking.
+
+## EngineTheme .etr version and integrity contract
+
+NENC emits deterministic UTF-8 JSON under `.nextjs-engine/gen3/theme/<theme-id>.etr`. The envelope separates `formatVersion` (the .etr container shape) from `schemaVersion` (the EngineTheme definition contract); both currently equal `1`. It also records `generatedBy: "NENC"`, the group ID, `createdWith.nextjs`, `createdWith.nextjsEngine`, and the JSON theme definition. `sha256` is calculated over canonical JSON for the complete envelope excluding the `sha256` property itself. The remote loader requires an exact allowlisted HTTPS origin, checks the expected framework/Engine versions, verifies the digest, rejects unsupported envelope or schema versions, and only then registers the data. SHA-256 detects corruption; it is not a publisher signature or proof of origin. Remote themes remain owner-hosted data and never execute theme-supplied code.
+
+## EngineTheme font assets
+
+The Gen 3 source pass compiles statically visible `createTheme()` definitions into `.etr` files. When `NODE_ENV=production`, the same pass runs a production-only font compiler after writing those artifacts.
+
+- Theme CSS and font responses use sequential bounded reads, redirects disabled, credentials omitted, timeouts, byte limits, content-type checks, and exact-origin allowlists.
+- Default origins are `fonts.googleapis.com` for stylesheet CSS and `fonts.gstatic.com` for font binaries. Extra origins must be explicitly listed in `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS`.
+- Supported outputs are WOFF2, WOFF, TTF, and OTF. Binary filenames are content-addressed; generated local CSS references only emitted local font files.
+- Cache metadata and source font assets live under `.nextjs-engine/.cache/gen3/fonts/`; emitted files live under `public/nextjs-engine/fonts/`. Existing unrelated files are not overwritten, symlink paths are rejected, and writes use temporary files plus replacement.
+- Valid cache entries are reused for seven days by default. `ENGINE_THEME_FONT_CACHE_TTL_MS` sets a 0–30-day freshness window, and `ENGINE_THEME_FONT_REFRESH=1` explicitly refreshes stylesheet metadata. Development mode skips the entire pass and keeps stylesheet links unchanged.
+- If compilation fails, the default fallback policy logs a warning and may emit an `@import` only for an exact allowlisted stylesheet origin. Unapproved origins never enter generated CSS. Set `ENGINE_THEME_FONT_FAILURE_POLICY=error` to fail when no valid previous local output can be reused.
+- `ENGINE_THEME_FONT_CACHE_TTL_MS` controls cache freshness (default seven days, maximum 30 days). `ENGINE_THEME_FONT_REFRESH=1` forces a refresh. `ENGINE_THEME_FONT_OFFLINE=1` disables requests and requires a valid local cache; a cache miss fails closed.
+
+The font compiler consumes static `.etr` values only; it never evaluates theme code. Remote-scope `.etr` definitions are excluded from local font compilation because the consuming site's remote-origin policy controls their fonts.
 ## Manifest
 
 After Next.js succeeds, the adapter emits `nextjs-engine/compiler-manifest.json` under the configured build output directory. The manifest includes:

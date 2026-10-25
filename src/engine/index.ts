@@ -166,8 +166,64 @@ export type {
 export { validateSchema, validatePageSchema } from "./core/validateSchema";
 export type { ValidationError, ValidationResult } from "./core/validateSchema";
 
+export { createTheme, parseEngineThemeId } from "./component/engineTheme/createTheme";
+export type { ParsedEngineThemeId } from "./component/engineTheme/createTheme";
+
+export {
+	registerEngineHighlighterProvider,
+	unregisterEngineHighlighterProvider,
+	listEngineHighlighterProviders,
+	listEngineHighlighterLanguages,
+	listEngineHighlighterThemes,
+	highlightEngineCode,
+	normalizeEngineHighlightLanguage,
+	normalizeEngineThemeColor,
+} from "./component/engineTheme/highlighting";
+export { createShikiEngineHighlighterProvider } from "./component/engineTheme/shikiProvider";
+export type { EngineShikiHighlighter, EngineShikiProviderOptions } from "./component/engineTheme/shikiProvider";
 export type {
-	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineConfig,
+	EngineHighlighterProvider,
+	EngineHighlighterProviderInfo,
+	EngineHighlighterThemeInfo,
+	EngineHighlighterToken,
+	EngineHighlighterContext,
+} from "./component/engineTheme/highlighting";
+
+export {
+	registerEngineThemeDataHandler,
+	unregisterEngineThemeDataHandler,
+	listEngineThemeDataHandlers,
+	dispatchEngineThemeDataEvent,
+} from "./component/engineTheme/dataApi";
+
+export {
+	registerEngineThemeTemplateAdapter,
+	unregisterEngineThemeTemplateAdapter,
+	listEngineThemeTemplateAdapters,
+	renderEngineThemeTemplate,
+} from "./component/engineTheme/templates";
+
+export {
+	loadRemoteEngineTheme,
+	clearRemoteEngineThemeCache,
+	getRemoteEngineThemeCacheSize,
+	unregisterRemoteEngineTheme,
+} from "./component/engineTheme/remoteTheme";
+export type { EngineThemeArtifact, LoadRemoteEngineThemeOptions } from "./component/engineTheme/remoteTheme";
+
+export type {
+	EngineThemeTemplateAdapter,
+	EngineThemeTemplateContext,
+} from "./component/engineTheme/templates";
+
+export type {
+	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,
+	EngineThemeScope, EngineThemeJsonValue, EngineThemeJsonObject, EngineConfig,
+	EngineThemeJoinDirection, EngineThemeDataEventType, EngineThemeDataEventBinding, EngineThemeDataEventContext,
+	EngineThemeDataEvent, EngineThemeDataCompositionResult, EngineThemeDataHandlerResult, EngineThemeDataHandler,
+	EngineThemeTemplateNodeType, EngineThemeTemplateNode, EngineThemeTemplateDefinition, EngineThemeTemplateOptions,
+	EngineThemeTemplatePlacement, EngineThemeTemplateMerge, EngineThemeTemplateLayout, EngineThemeTemplateDataApiBinding, EngineMarkdownThemeTemplates,
+	EngineHighlighterTokenKind, EngineMarkdownTokenPalette, EngineMarkdownPrettyPleaseConfig,
 	NodeType, BuiltinNodeType, Breakpoint, ResponsiveValue,
 	CpropValue, SelectOption,
 	BoxProps, StackProps, GridProps, TextProps, TextPart, TextVariant,

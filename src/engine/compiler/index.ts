@@ -1,3 +1,8 @@
+/**
+ * Engine compiler exports.
+ * The EngineTheme static artifact compiler lives in ./theme/3/compiler.ts and is linked
+ * into the Next.js build by ../plugins/gen3ThemeCompiler.js.
+ */
 export {
 	compilePage,
 	explainCompiledNode,
