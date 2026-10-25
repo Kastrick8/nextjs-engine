@@ -35,6 +35,7 @@ Use these pages for the code maintained on `main-2`. Generation 3 is a separate 
 | Adaptive layout and device info | [EngineMobile and EngineDevice](./engine-components/enginemobile.md) |
 | Heroes | [EngineHero](./engine-components/enginehero.md) |
 | Forms | [EngineForms](./engine-components/engineforms.md) |
+| Dialog, drawer, popover | [EngineOverlay](./engine-components/engineoverlay.md) |
 | Suspense/loading surfaces | [EngineSuspense](./engine-components/enginesuspense.md) |
 | External API configuration and requests | [EngineAPIResolver](./engine-components/engineapi.md) |
 | Browser-executed endpoint programs | [APIStatic](./engine-components/apistatic.md) |
