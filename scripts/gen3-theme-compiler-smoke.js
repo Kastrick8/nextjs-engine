@@ -56,6 +56,7 @@ function testPublicThemeApi() {
 			unregisterEngineThemeDataHandler,
 		} = require(path.resolve(__dirname, "../src/engine/theme/dataApi.ts"));
 		const React = require("react");
+		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
 		const {
 			renderEngineThemeTemplate,
 			listEngineThemeTemplateAdapters,
@@ -83,6 +84,12 @@ function testPublicThemeApi() {
 		Object.defineProperty(accessorTheme, "id", { enumerable: true, get() { getterCalled = true; return "unsafe"; } });
 		assert.throws(() => createTheme(accessorTheme), /accessors/);
 		assert.equal(getterCalled, false, "accessor validation must not execute the getter");
+
+		const normalizedInfo = normalizeEngineMarkdownSource(":::warning Build note\\nRead this carefully.\\n:::");
+		assert.ok(normalizedInfo.includes("> [!ENGINE-INFO warning] Build note"), "info blocks normalize to a safe blockquote marker");
+		assert.ok(normalizedInfo.includes("> Read this carefully."), "info block body remains Markdown text");
+		const fencedInfo = normalizeEngineMarkdownSource("```text\\n:::info this is code\\n```");
+		assert.ok(fencedInfo.includes(":::info this is code"), "directives inside code fences remain code");
 
 		const highlighted = highlightEngineCode(
 			"const value: number = 42; // safe",

@@ -307,7 +307,7 @@ export interface TextProps extends BaseNodeProps {
 
 export type EngineMarkdownStyleSlot =
 	| "heading" | "paragraph" | "link" | "blockquote" | "inlineCode"
-	| "codeBlock" | "codeLanguage" | "table" | "tableHeader" | "tableCell" | "horizontalRule";
+	| "codeBlock" | "codeLanguage" | "table" | "tableHeader" | "tableCell" | "infoBlock" | "horizontalRule";
 
 export type EngineMarkdownStyles = Partial<Record<EngineMarkdownStyleSlot, CSSProperties>>;
 

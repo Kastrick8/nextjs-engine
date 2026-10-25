@@ -33,6 +33,7 @@ function expandEngineInfoBlocks(lines: string[]): string[] {
 		const tone = directive[1].toLowerCase();
 		const title = (directive[2] ?? "").trim();
 		output.push("> [!ENGINE-INFO " + tone + "] " + title);
+		output.push(">");
 		for (let bodyIndex = index + 1; bodyIndex < close; bodyIndex += 1) {
 			const bodyLine = lines[bodyIndex];
 			output.push(bodyLine.length > 0 ? "> " + bodyLine : ">");

@@ -33,6 +33,28 @@ const markdownShowcaseTheme = createTheme({
 					],
 				},
 			},
+			infoBlock: {
+				schema: {
+					type: "stack",
+					props: {
+						as: "aside",
+						className: "emd-themed-info",
+						direction: "column",
+						gap: "0.4rem",
+						style: {
+							padding: "0.85rem 1rem",
+							border: "1px solid #826f9b",
+							borderRadius: "0.75rem",
+							background: "#241b38",
+							color: "#f5efff",
+						},
+					},
+					children: [
+						{ type: "text", props: { content: "{{title}}" } },
+						{ type: "slot", props: { name: "content" } },
+					],
+				},
+			},
 			tableHeader: {
 				schema: {
 					type: "stack",
@@ -78,6 +100,10 @@ Visit [the Next.js website](https://nextjs.org) or <https://github.com>. Relativ
 - [ ] GFM task still open
 
 ## Blockquotes and thematic breaks
+
+:::info Configuration note
+EngineMarkdown info blocks can be themed separately from ordinary blockquotes. This content is still parsed as safe Markdown.
+:::
 
 > A styled blockquote demonstrates the semantic quote treatment.
 >

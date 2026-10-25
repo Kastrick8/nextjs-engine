@@ -259,23 +259,83 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				style={{ margin: ".18rem 0", ...style }}
 			/>
 		),
-		blockquote: ({ node, className, style, ...props }) => (
-			<blockquote
-				{...props}
-				className={joinClassNames(className, blockClass)}
-				style={{
-					...sourceAnimationStyle(node, config),
-					margin: 0,
-					padding: ".75rem 1rem",
-					borderLeft: `4px solid ${config.linkColor}`,
-					background: "rgba(148,163,184,.08)",
-					borderRadius: "0 .5rem .5rem 0",
-					color: config.textColor,
-					...style,
-					...config.markdownStyles?.blockquote,
-				}}
-			/>
-		),
+		blockquote: ({ node, className, style, children, ...props }) => {
+			const childNodes = Children.toArray(children);
+			const firstChild = childNodes[0];
+			const firstText = isValidElement<{ children?: ReactNode }>(firstChild)
+				? reactNodeText(firstChild.props.children).trim()
+				: "";
+			const info = /^\\[!ENGINE-INFO (info|note|tip|warning|danger|success)\\]\\s*(.*)$/i.exec(firstText);
+			if (info) {
+				const tone = info[1].toLowerCase();
+				const title = (info[2] ?? "").trim();
+				const bodyNodes = childNodes.slice(1);
+				const body = bodyNodes.length === 1 ? bodyNodes[0] : bodyNodes;
+				const toneStyle: Record<string, { border: string; background: string }> = {
+					info: { border: "#60a5fa", background: "rgba(59,130,246,.09)" },
+					note: { border: "#94a3b8", background: "rgba(148,163,184,.09)" },
+					tip: { border: "#34d399", background: "rgba(16,185,129,.09)" },
+					success: { border: "#34d399", background: "rgba(16,185,129,.09)" },
+					warning: { border: "#fbbf24", background: "rgba(245,158,11,.10)" },
+					danger: { border: "#fb7185", background: "rgba(244,63,94,.09)" },
+				};
+				const themed = renderEngineThemeTemplate(config.themeTemplates?.infoBlock, {
+					componentId: "markdown",
+					block: "infoBlock",
+					tone,
+					title,
+					label: title,
+					textColor: config.textColor,
+					headingColor: config.headingColor,
+					linkColor: config.linkColor,
+					slots: {
+						title: title ? <strong>{title}</strong> : null,
+						icon: tone,
+						content: body,
+						children: body,
+						body,
+					},
+				});
+				if (themed !== undefined) return themed;
+				const colors = toneStyle[tone] ?? toneStyle.info;
+				return (
+					<aside
+						role="note"
+						className={joinClassNames("e-md-info-block", "e-md-info-block--" + tone, blockClass)}
+						style={{
+							...sourceAnimationStyle(node, config),
+							margin: 0,
+							padding: ".85rem 1rem",
+							borderLeft: "4px solid " + colors.border,
+							background: colors.background,
+							borderRadius: "0 .6rem .6rem 0",
+							color: config.textColor,
+							...config.markdownStyles?.infoBlock,
+						}}
+					>
+						{title ? <div style={{ marginBottom: ".35rem", fontWeight: 750 }}>{title}</div> : null}
+						<div>{body}</div>
+					</aside>
+				);
+			}
+			return (
+				<blockquote
+					{...props}
+					className={joinClassNames(className, blockClass)}
+					style={{
+						...sourceAnimationStyle(node, config),
+						margin: 0,
+						padding: ".75rem 1rem",
+						borderLeft: `4px solid ${config.linkColor}`,
+						background: "rgba(148,163,184,.08)",
+						borderRadius: "0 .5rem .5rem 0",
+						color: config.textColor,
+						...style,
+						...config.markdownStyles?.blockquote,
+					}}
+				>{children}</blockquote>
+			);
+		},
 		code: ({ node: _node, className, style, ...props }) => (
 			<code
 				{...props}
