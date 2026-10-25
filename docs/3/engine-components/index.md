@@ -58,4 +58,4 @@ Use this index to navigate the current Gen 3 component documentation. The source
 - [Runtime and performance](../../runtime-performance.md)
 - [Schema diagnostics](../../schema-diagnostics.md)
 - [Generation 3 documentation index](../index.md)
-- [Generation 2 stable documentation](../../2/index.md)
+- [Generation 2 stable documentation](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md)

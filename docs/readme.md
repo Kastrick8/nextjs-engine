@@ -2,7 +2,7 @@
 
 > **GENERATION 3 · ALPHA** · Source branch: main-3. This is the pre-release 3.x contract, not stable Gen 2 documentation.
 >
-> For existing stable 2.x applications, start at [Generation 2 Documentation](./2/index.md). For the full current Gen 3 guide map, use the [Gen 3 index](./3/index.md).
+> For existing stable 2.x applications, start at [Generation 2 Documentation](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md). For the full current Gen 3 guide map, use the [Gen 3 index](./3/index.md).
 
 ## What it is
 
@@ -58,7 +58,7 @@ export default createPage({ schema });
 - [Compiler deep dive](./3/compiler-deep-dive.md)
 - [Runtime and performance](./runtime-performance.md)
 - [Schema diagnostics](./schema-diagnostics.md)
-- [Versioned component reference](./3/engine-components/)
+- [Versioned component reference](./3/engine-components/index.md)
 
 ## Responsive System
 
