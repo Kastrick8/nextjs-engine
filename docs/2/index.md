@@ -1,8 +1,9 @@
 # Generation 2 Documentation
 
-> **Generation:** 2.x stable line  
+> **Generation:** 2.x stable API line  
 > **Source branch:** `main-2`  
-> **Release line:** v2.6.x  
+> **Maintenance line:** v2.6.x  
+> **Release status:** v2.5.0 is the latest published stable release; v2.6.2 is a prepared patch, not a published release.  
 > **Audience:** Existing Gen 2 applications and maintainers.
 
 Use these pages for the code maintained on `main-2`. Generation 3 is a separate compiler-first architecture; its implementation details are not the Gen 2 contract.
