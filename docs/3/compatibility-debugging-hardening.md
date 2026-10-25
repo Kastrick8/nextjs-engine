@@ -235,6 +235,32 @@ Adaptive pressure never reduces image, video, Canvas, Shader, or geometry resolu
 The production invariant remains strict: debug surfaces are absent from `next build` and `next start`, while unused feature runtimes do not enter route bundles.
 
 
+## Troubleshooting native SWC and Turbopack on Windows
+
+A log sequence such as:
+
+~~~text
+Attempted to load @next/swc-win32-x64-msvc ... is not a valid Win32 application
+Skipping ... because we're using WASM bindings
+Turbopack is not supported on this platform ... only WebAssembly (WASM) bindings were loaded
+~~~
+
+means the native SWC package failed to load and Next.js fell back to its WebAssembly build. The later Turbopack error is the consequence: the fallback SWC bindings can perform core SWC work, but Turbopack requires the supported native binding. If Engine/NENC logs show its analysis pass finishing before this error, that alone does not indicate that the Engine analysis pass failed; read the final Next.js build error separately.
+
+**Do not assume Windows 10 is unsupported or that the package name should be different.** Next.js lists Windows x64 as a supported Turbopack platform, and @next/swc-win32-x64-msvc is the expected package name for that target. The error means the installed native module could not be loaded; it does not identify the exact reason on its own. See the official [SWC troubleshooting guide](https://nextjs.org/docs/messages/failed-loading-swc), [Turbopack reference](https://nextjs.org/docs/app/api-reference/turbopack), and [Next.js 16 upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16).
+
+Recommended recovery order:
+
+1. **Confirm the running toolchain and target.** Run `node -p "process.version + ' ' + process.platform + '/' + process.arch"` and check that the installed Node.js version meets the current Next.js requirement. For Next.js 16, the documented minimum is Node.js 20.9. The target for this package is normally `win32/x64`; do not confuse an x64 Node process with an ARM64 or 32-bit install.
+2. **Check the resolved dependency.** Run `npm ls next @next/swc-win32-x64-msvc`. Keep the SWC package compatible with the exact installed Next.js version. Avoid manually installing an unrelated/latest SWC package over the version selected by the lockfile.
+3. **Repair the native runtime.** Install or repair the current Microsoft Visual C++ v14 Redistributable for the matching architecture from [Microsoft's official download page](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170). Next.js specifically lists the Visual C++ Redistributable as a Windows SWC troubleshooting step.
+4. **Reinstall dependencies on the target Windows machine.** Stop dev/build processes, preserve the lockfile, remove `node_modules` and the configured Next.js build-output directory (`.next` by default, or `dist` when `distDir` is configured), then run `npm ci`. Confirm that optional dependencies have not been disabled by npm configuration or install flags. If the lockfile itself omits the platform package, investigate how it was generated before deciding whether to regenerate it; do not delete the lockfile as the first step.
+5. **Use Webpack to isolate the bundler failure if necessary.** Next.js 16 defaults to Turbopack and supports `next build --webpack` as an opt-out. Preserve any required preparation/type-check steps, then run the equivalent Webpack build. If Webpack succeeds while the default build fails at Turbopack startup, that narrows the failure to the native Turbopack path; it does not prove the entire native SWC installation is healthy. If both paths fail to load SWC, continue investigating the binary/runtime installation.
+6. **If it still fails, capture useful diagnostics.** Record `node --version`, `npm --version`, `node -p "process.platform + '/' + process.arch"`, `npm ls next @next/swc-win32-x64-msvc`, the installed Next.js version, and the complete first SWC-load error. Check whether endpoint/security software quarantined or altered the `.node` binary. Do not share secrets from `.env` or private build configuration when collecting logs.
+
+A Webpack build is a diagnostic workaround, not proof that the root cause has been fixed. Return to the default Turbopack build after the native dependency issue is repaired and verify the full production build again.
+
+
 ## Related guides
 
 - [Compiler, rendering, and runtime](./compiler-rendering-runtime.md)
