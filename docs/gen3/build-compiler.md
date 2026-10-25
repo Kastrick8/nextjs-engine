@@ -53,7 +53,7 @@ If a page's schema depends on runtime values, imports, object spreads, computed 
 The implementation is split by responsibility rather than placed in the plugin directory:
 
 - `src/engine/compiler/theme/3/compiler.ts` owns static AST extraction, validation, `.etr` serialization, hashing, guarded artifact writes, and stale-artifact cleanup.
-- `src/engine/component/engineTheme/` owns the runtime `createTheme()` API, ID resolution, remote `.etr` loader, templates, highlighting, Data-API, theme tokens, and production font compiler.
+- `src/engine/component/engineTheme/` owns the runtime `createTheme()` API, ID resolution, remote `.etr` loader, templates, highlighting, Data-API, and theme tokens; production font compilation is implemented in `src/engine/compiler/font/3/compiler.ts`.
 - `src/engine/plugins/gen3ThemeCompiler.js` is a thin Next.js integration link to `../compiler/theme/3/compiler.ts`; it contains no compiler logic.
 - `src/engine/compiler/build.compiler.ts` remains the NENC/Next.js build coordinator. The Next.js adapter is exposed through `src/engine/compiler/nextjs.compiler.ts`; `src/engine/plugins/engineBuildAdapter.js` is the Next.js-facing link. The build coordinator invokes `theme/3/compiler.ts` and `font/3/compiler.ts` directly; plugin files stay focused on framework integration.
 
@@ -67,7 +67,7 @@ The Gen 3 source pass compiles statically visible `createTheme()` definitions in
 - Default origins are `fonts.googleapis.com` for stylesheet CSS and `fonts.gstatic.com` for font binaries. Extra origins must be explicitly listed in `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS`.
 - Supported outputs are WOFF2, WOFF, TTF, and OTF. Binary filenames are content-addressed; generated local CSS references only emitted local font files.
 - Cache metadata and source font assets live under `.nextjs-engine/.cache/gen3/fonts/`; emitted files live under `public/nextjs-engine/fonts/`. Existing unrelated files are not overwritten, symlink paths are rejected, and writes use temporary files plus replacement.
-- Valid cache entries are reused for seven days by default. `ENGINE_THEME_FONT_REFRESH=1` explicitly refreshes stylesheet metadata. Development mode skips the entire pass and keeps stylesheet links unchanged.
+- Valid cache entries are reused for seven days by default. `ENGINE_THEME_FONT_CACHE_TTL_MS` sets a 0–30-day freshness window, and `ENGINE_THEME_FONT_REFRESH=1` explicitly refreshes stylesheet metadata. Development mode skips the entire pass and keeps stylesheet links unchanged.
 - If compilation fails, the default fallback policy logs a warning and may emit an `@import` only for an exact allowlisted stylesheet origin. Unapproved origins never enter generated CSS. Set `ENGINE_THEME_FONT_FAILURE_POLICY=error` to fail when no valid previous local output can be reused.
 - `ENGINE_THEME_FONT_CACHE_TTL_MS` controls cache freshness (default seven days, maximum 30 days). `ENGINE_THEME_FONT_REFRESH=1` forces a refresh. `ENGINE_THEME_FONT_OFFLINE=1` disables requests and requires a valid local cache; a cache miss fails closed.
 

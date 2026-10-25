@@ -120,7 +120,7 @@ Remote handling:
 
 All artifacts should be reproducible and incrementally cached. Theme changes and theme-compiler changes should invalidate the right artifacts without needlessly rebuilding unrelated schema output. Choose a safe deterministic filename and handle collisions. Decide whether generated artifacts are ignored build output, deployment artifacts, or copied by a publishing step.
 
-Repository architecture note: gen3BuildCompiler.js is the Gen 3 source-discovery/schema-worker coordinator and gen3SchemaCache.js owns persistent schema-output caching. nencPlugin.js currently handles command manifests and generated command/favicon routes. Inspect call graphs before choosing the final integration point; prefer a focused theme-compiler module over overloading a command-specific module.
+Repository architecture: `src/engine/compiler/build.compiler.ts` coordinates Gen 3 source discovery and schema workers; `src/engine/compiler/schema-cache.compiler.js` owns persistent schema-output caching; and `src/engine/compiler/theme/3/compiler.ts` owns ETR extraction. `src/engine/plugins/nencPlugin.js` remains focused on command manifests and generated command/favicon routes. Keep compiler behavior in compiler modules rather than overloading a command-specific plugin.
 
 ## 4. Theme resolution and type compatibility
 
