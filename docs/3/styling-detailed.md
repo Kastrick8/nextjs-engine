@@ -66,9 +66,21 @@ const responsiveClass = mediaClass(
 
 These are low-level helpers for custom-component code, not replacements for normal Engine schema styling. Prefer responsive props for ordinary responsive layout so the active page's provider-scoped collector owns the CSS. `EngineGlobalStyles()` emits only CSS explicitly registered with `StyleCollector.addGlobal()`; it does not sweep up all CSS from these helpers or from provider collectors.
 
-## Known limitation
+## Client-side style reconciliation
 
-Post-hydration dynamic rule flushing remains a limitation: application code may create a new responsive or pseudo-state rule after hydration while stylesheet DOM flushing remains primarily server-oriented. Do not assume the complete SSR stylesheet is automatically re-emitted on the client.
+The current provider path includes `EngineCollectedStyles`, which subscribes to
+the nearest `StyleCollector`. When new rules are added after hydration, the
+collector schedules a notification and the style component reconciles its CSS
+snapshot. It first adopts the existing server-emitted style text when present,
+so the initial client render can match SSR before subscription updates are
+applied.
+
+This behavior depends on styles being registered with the relevant provider's
+collector. For `staticClass(style, collector)`, pass the active
+`useEngineContext().styleCollector` rather than relying on the low-level global
+fallback. The public `mediaClass(base, ...breakpoints)` helper currently has no
+collector parameter and registers with that global fallback; for normal
+component-scoped responsive styles, prefer schema responsive props.
 
 ## Related
 
