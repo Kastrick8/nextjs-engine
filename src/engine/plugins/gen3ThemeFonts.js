@@ -542,7 +542,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
  * Development mode deliberately performs no file writes, CSS requests, or
  * font downloads. Uses WOFF2 first, then WOFF/TTF/OTF fallback.
  */
-function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
+async function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 	if (process.env.NODE_ENV !== "production" && options.production !== true) {
 		return {
 			skipped: true,
@@ -579,6 +579,7 @@ function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 		generatedStylesheets: 0,
 		fallbackThemes: 0,
 		staleCacheHits: 0,
+		cacheHits: 0,
 		warnings: [],
 	};
 	const seenThemes = new Set();
