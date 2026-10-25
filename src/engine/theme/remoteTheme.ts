@@ -203,6 +203,70 @@ function validateArtifactShape(value: unknown): asserts value is EngineThemeArti
 	}
 }
 
+function sanitizeRemoteThemeContent(
+	content: EngineThemeDefinition,
+	artifactUrl: URL,
+	options: LoadRemoteEngineThemeOptions,
+): EngineThemeDefinition {
+	const safe = JSON.parse(JSON.stringify(content)) as EngineThemeDefinition & Record<string, unknown>;
+
+	// Arbitrary CSS is executable browser styling and can issue requests; it is
+	// not accepted from a remote theme artifact. Component styles are rendered
+	// through React style props / the safe template renderer instead.
+	if (typeof safe.globalStyles === "string" && safe.globalStyles.trim().length > 0) {
+		throw new Error("Remote EngineTheme globalStyles are disabled; use declarative tokens and component styles.");
+	}
+	delete safe.globalStyles;
+
+	if (safe.vars !== undefined) {
+		if (!safe.vars || typeof safe.vars !== "object" || Array.isArray(safe.vars)) {
+			throw new TypeError("Remote EngineTheme vars must be a plain object of CSS custom properties.");
+		}
+		const entries = Object.entries(safe.vars as Record<string, unknown>);
+		if (entries.length > 128) throw new Error("Remote EngineTheme vars exceed the property limit.");
+		const normalizedVars: Record<string, string> = {};
+		for (const [key, value] of entries) {
+			if (!/^--[A-Za-z0-9_-]{1,80}$/.test(key)) {
+				throw new Error("Remote EngineTheme CSS variable names must start with -- and use safe identifier characters.");
+			}
+			if (typeof value !== "string" || value.length > 256
+				|| /[\u0000-\u001f\u007f{};<>]/.test(value)
+				|| /url\s*\(|expression\s*\(|javascript\s*:|@import|\/\*|\*\//i.test(value)) {
+				throw new Error("Remote EngineTheme CSS variable '" + key + "' contains an unsafe CSS value.");
+			}
+			normalizedVars[key] = value;
+		}
+		safe.vars = normalizedVars;
+	}
+
+	if (safe.fonts !== undefined) {
+		if (!Array.isArray(safe.fonts) || safe.fonts.length > 16) {
+			throw new Error("Remote EngineTheme fonts must contain at most 16 allowlisted stylesheet URLs.");
+		}
+		const allowedOrigins = normalizeAllowedOrigins(options.allowedOrigins, false);
+		const fontUrls = new Set<string>();
+		for (const font of safe.fonts) {
+			if (typeof font !== "string" || font.length === 0 || font.length > 2048) {
+				throw new TypeError("Remote EngineTheme font URLs must be short non-empty strings.");
+			}
+			let parsed: URL;
+			try {
+				parsed = new URL(font, artifactUrl.href);
+			} catch {
+				throw new TypeError("Remote EngineTheme contains an invalid font stylesheet URL.");
+			}
+			if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.hash
+				|| !allowedOrigins.has(parsed.origin)) {
+				throw new Error("Remote EngineTheme font stylesheet origin must be HTTPS and included in allowedOrigins.");
+			}
+			fontUrls.add(parsed.href);
+		}
+		safe.fonts = [...fontUrls];
+	}
+
+	return safe as EngineThemeDefinition;
+}
+
 async function parseAndRegisterArtifact(
 	text: string,
 	url: URL,
@@ -233,7 +297,8 @@ async function parseAndRegisterArtifact(
 	if (expectedDigest !== artifact.sha256.toLowerCase()) {
 		throw new Error("Remote .etr SHA-256 verification failed.");
 	}
-	const registered = registerLoadedRemoteEngineTheme(artifact.content);
+	const safeContent = sanitizeRemoteThemeContent(artifact.content, url, options);
+	const registered = registerLoadedRemoteEngineTheme(safeContent);
 	return registered as Readonly<EngineThemeDefinition & { scope: "remote" }>;
 }
 
