@@ -1,5 +1,7 @@
 # EngineCanvas (EC)
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Schema type: `"canvas"`.
 
 EngineCanvas is Next.js Engine's canvas/GPU surface component. It can run in three different ways:
