@@ -9,7 +9,7 @@ These docs are maintained against the current `src/engine` implementation.
 ## Generation-specific documentation
 
 - [Generation 2 (stable 2.x)](./2/index.md) — simple and detailed guides.
-- [Generation 3 (alpha)](./3/index.md) — compiler-era guides for evaluation/migration.
+- [Generation 3 (alpha)](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/index.md) — compiler-era guides for evaluation/migration.
 
 ## Start here
 
@@ -19,6 +19,7 @@ These docs are maintained against the current `src/engine` implementation.
 | Learn schemas / `createPage()` | [`readme.md`](./readme.md) |
 | Learn stable Gen 2 styling | [`2/styling.md`](./2/styling.md) |
 | Learn Gen 2 styling internals | [`2/styling-detailed.md`](./2/styling-detailed.md) |
+| Learn about the Gen 3 compiler internals | [Compiler deep dive](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/compiler-deep-dive.md) |
 | Read version/release history | [`release/index.md`](./release/index.md) |
 | Add page/layout transitions | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
 | Write `.shed` GPU effects | [`engine-components/engineshader.md`](./engine-components/engineshader.md) |
