@@ -66,6 +66,38 @@ function canonicalJson(value: unknown): string {
 	return "{" + keys.map((key) => JSON.stringify(key) + ":" + canonicalJson(record[key])).join(",") + "}";
 }
 
+function isPrivateOrNonPublicAddress(address: string): boolean {
+	const value = String(address).toLowerCase().split("%")[0];
+	if (value === "::" || value === "::1" || value.startsWith("fc") || value.startsWith("fd")
+		|| value.startsWith("ff") || value.startsWith("2001:db8:") || /^fe[89ab]/.test(value)) return true;
+	const ipv4 = value.match(/^(?:::ffff:)?(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/i);
+	if (!ipv4) return false;
+	const octets = ipv4.slice(1).map(Number);
+	if (octets.some((part) => part < 0 || part > 255)) return true;
+	const [a, b, c] = octets;
+	return a === 0 || a === 10 || a === 127 || a >= 224
+		|| (a === 100 && b >= 64 && b <= 127)
+		|| (a === 169 && b === 254)
+		|| (a === 172 && b >= 16 && b <= 31)
+		|| (a === 192 && b === 168)
+		|| (a === 192 && b === 0 && c === 0)
+		|| (a === 192 && b === 0 && c === 2)
+		|| (a === 198 && (b === 18 || b === 19 || b === 51 && c === 100))
+		|| (a === 203 && b === 0 && c === 113);
+}
+
+function assertRemoteOriginIsPublic(url: URL): void {
+	const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+	if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost")
+		|| hostname.endsWith(".local") || hostname.endsWith(".lan")
+		|| hostname.endsWith(".internal") || hostname.endsWith(".home.arpa")
+		|| hostname.endsWith(".test") || hostname.endsWith(".invalid")
+		|| !hostname.includes(".") && !hostname.includes(":")
+		|| isPrivateOrNonPublicAddress(hostname)) {
+		throw new Error("Remote EngineTheme hosts must be public; local/private hosts are not permitted: " + hostname + ".");
+	}
+}
+
 function normalizeAllowedOrigins(origins: readonly string[], allowHttp: boolean): Set<string> {
 	if (!Array.isArray(origins) || origins.length === 0 || origins.length > 64) {
 		throw new TypeError("loadRemoteEngineTheme() requires 1–64 exact allowedOrigins.");
@@ -87,6 +119,7 @@ function normalizeAllowedOrigins(origins: readonly string[], allowHttp: boolean)
 		if (parsed.protocol !== "https:" && !(allowHttp && parsed.protocol === "http:")) {
 			throw new TypeError("Remote theme origins must use HTTPS.");
 		}
+		assertRemoteOriginIsPublic(parsed);
 		normalized.add(parsed.origin);
 	}
 	return normalized;
@@ -106,6 +139,7 @@ function resolveAllowedUrl(input: string, options: LoadRemoteEngineThemeOptions)
 	if (url.protocol !== "https:") {
 		throw new TypeError("Remote EngineTheme URLs must use HTTPS.");
 	}
+	assertRemoteOriginIsPublic(url);
 	const allowed = normalizeAllowedOrigins(options.allowedOrigins, false);
 	if (!allowed.has(url.origin)) {
 		throw new Error("Remote EngineTheme origin '" + url.origin + "' is not in allowedOrigins.");

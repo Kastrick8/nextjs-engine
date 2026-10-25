@@ -374,18 +374,18 @@ async function testPublicThemeApi() {
 			return new Response(remoteText, { status: 200, headers: { "content-type": "application/json" } });
 		};
 		const remoteOptions = {
-			allowedOrigins: ["https://themes.example.invalid"],
+			allowedOrigins: ["https://themes.example.com"],
 			expectedNextjsVersion: "16.4.2",
 			expectedEngineVersion: "3.0.0-alpha.1",
 			expectedId: "remote-smoke",
 			fetchImpl: remoteFetch,
 		};
-		const loadedRemote = await loadRemoteEngineTheme("https://themes.example.invalid/dark.etr", remoteOptions);
+		const loadedRemote = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", remoteOptions);
 		assert.equal(loadedRemote.scope, "remote");
 		assert.equal(Object.isFrozen(loadedRemote), true, "loaded remote theme definitions are frozen");
 		assert.equal(loadedRemote.vars["--remote-accent"], "#aabbcc");
-		assert.deepEqual(loadedRemote.fonts, ["https://themes.example.invalid/engine-theme-fonts.css"], "remote font URLs are normalized to an allowlisted HTTPS origin");
-		const cacheHit = await loadRemoteEngineTheme("https://themes.example.invalid/dark.etr", remoteOptions);
+		assert.deepEqual(loadedRemote.fonts, ["https://themes.example.com/engine-theme-fonts.css"], "remote font URLs are normalized to an allowlisted HTTPS origin");
+		const cacheHit = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", remoteOptions);
 		assert.equal(cacheHit, loadedRemote, "repeated loads reuse the in-process cache entry");
 		assert.equal(remoteFetchCalls, 1, "cache hits do not issue another request");
 		const resolvedRemotePage = resolveEngineThemeSchema({
@@ -395,10 +395,26 @@ async function testPublicThemeApi() {
 		assert.equal(resolvedRemotePage.root.props.codeColor, "#ffeeaa", "loaded remote theme defaults are available by ID");
 		assert.equal(resolvedRemotePage.root.props.codeBackground, "#121212", "loaded remote subthemes resolve");
 		await assert.rejects(
-			loadRemoteEngineTheme("https://attacker.example.invalid/theme.etr", remoteOptions),
+			loadRemoteEngineTheme("https://attacker.example.com/theme.etr", remoteOptions),
 			/not in allowedOrigins/,
 		);
 		assert.equal(remoteFetchCalls, 1, "disallowed origins are rejected before fetch");
+
+		await assert.rejects(
+			loadRemoteEngineTheme("https://127.0.0.1/private.etr", {
+				...remoteOptions,
+				allowedOrigins: ["https://127.0.0.1"],
+			}),
+			/local\/private hosts are not permitted/,
+		);
+		await assert.rejects(
+			loadRemoteEngineTheme("https://localhost/private.etr", {
+				...remoteOptions,
+				allowedOrigins: ["https://localhost"],
+			}),
+			/local\/private hosts are not permitted/,
+		);
+
 		const corruptRemoteOptions = {
 			...remoteOptions,
 			expectedId: "remote-corrupt",
@@ -410,11 +426,11 @@ async function testPublicThemeApi() {
 			}), { status: 200, headers: { "content-type": "application/json" } }),
 		};
 		await assert.rejects(
-			loadRemoteEngineTheme("https://themes.example.invalid/corrupt.etr", corruptRemoteOptions),
+			loadRemoteEngineTheme("https://themes.example.com/corrupt.etr", corruptRemoteOptions),
 			/SHA-256 verification failed/,
 		);
 		await assert.rejects(
-			loadRemoteEngineTheme("https://themes.example.invalid/wrong-version.etr", {
+			loadRemoteEngineTheme("https://themes.example.com/wrong-version.etr", {
 				...remoteOptions,
 				expectedNextjsVersion: "16.4.3",
 			}),
@@ -422,15 +438,15 @@ async function testPublicThemeApi() {
 		);
 		const unsafeCssContent = { ...remoteContent, id: "remote-unsafe-css", vars: { "--remote-value": "red; background:url(https://evil.invalid/x)" } };
 		await assert.rejects(
-			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-css.etr", {
+			loadRemoteEngineTheme("https://themes.example.com/unsafe-css.etr", {
 				...remoteOptions, expectedId: "remote-unsafe-css",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-css", unsafeCssContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/unsafe CSS value/,
+			/unsafe CSS\/network primitive|unsafe CSS value/,
 		);
 		const unsafeFontContent = { ...remoteContent, id: "remote-unsafe-font", fonts: ["https://evil.invalid/fonts.css"] };
 		await assert.rejects(
-			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-font.etr", {
+			loadRemoteEngineTheme("https://themes.example.com/unsafe-font.etr", {
 				...remoteOptions, expectedId: "remote-unsafe-font",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-font", unsafeFontContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
@@ -442,7 +458,7 @@ async function testPublicThemeApi() {
 			markdown: { defaults: { codeBackground: "url(https://evil.invalid/pixel)" } },
 		};
 		await assert.rejects(
-			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-style.etr", {
+			loadRemoteEngineTheme("https://themes.example.com/unsafe-style.etr", {
 				...remoteOptions,
 				expectedId: "remote-unsafe-nested-style",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-nested-style", unsafeNestedStyleContent), {
@@ -453,7 +469,7 @@ async function testPublicThemeApi() {
 		);
 		const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
 		await assert.rejects(
-			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-global-styles.etr", {
+			loadRemoteEngineTheme("https://themes.example.com/unsafe-global-styles.etr", {
 				...remoteOptions, expectedId: "remote-unsafe-css-text",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-css-text", unsafeGlobalStylesContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
