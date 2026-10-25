@@ -78,7 +78,7 @@ The preview displays a waiting/building state until its response arrives, a read
 - Target baseline: React 19 and Next.js 16.
 - Treat Generation 3 as a separate alpha track, not a drop-in replacement for every Generation 2 application.
 - Keep existing stable 2.x applications on their supported 2.x line until the app's schemas, custom components, plugins, and build integration have been verified against Gen 3.
-- Prefer the current Gen 3 overview, Phase A/B compiler/runtime guide, Phase C networking guide, Phase D compatibility/debug guide, and the Kastrick integration migration notes over older 2.x documentation where the contracts differ.
+- Prefer the current Gen 3 overview, compiler/rendering/runtime guide, networking/credentials guide, compatibility/EngineDebug guide, and the Kastrick integration migration notes over older 2.x documentation where the contracts differ.
 - Pin the exact branch/commit or package snapshot used by your application while the alpha is evolving.
 
 ## Validation status
@@ -99,9 +99,9 @@ Generation 3 remains an alpha candidate. The latest published stable release is 
 ## Links
 
 - [Generation 3 overview](../gen3/overview.md)
-- [Compiler and server-first runtime](../gen3/phase-a-b.md)
-- [Networking and NENC](../gen3/phase-c-network.md)
-- [Compatibility and EngineDebug](../gen3/phase-d-hardening.md)
+- [Compiler, rendering, and runtime](../3/compiler-rendering-runtime.md)
+- [Networking, credentials, and command security](../3/networking-credentials-security.md)
+- [Compatibility, EngineDebug, and hardening](../3/compatibility-debugging-hardening.md)
 - [EngineDebug isolation contract](../gen3/engine-debug-isolation.md)
 - [Generation 3 migration](https://github.com/Kate-alt-69/kastrick/blob/main/docs/gen3-migration.md)
 - [Current development branch](https://github.com/Kate-alt-69/nextjs-engine/tree/main-3)
