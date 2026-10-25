@@ -1,5 +1,7 @@
 # Next.js Engine — Technical Documentation
 
+> **Scope:** Combined historical technical reference covering both generations. Use the maintained Gen 2 and Gen 3 indexes for the current generation-specific contract; older implementation notes below may be superseded.
+
 > **Last updated:** 2026-10-25
 > - **CSS collection accuracy correction** — Marked the old render-count CSS-tier description as historical. The current Gen 2/Gen 3 source uses provider-scoped style collection and only emits global CSS registered through `StyleCollector.addGlobal()`.
 > - **Generation 3 alpha candidate and EngineDebug preview lifecycle** — Prepared `3.0.0-alpha.1` candidate notes describing the compiler-first/server-first architectural shift from Generation 2. EngineDebug now has an accessible WAITING overlay with indeterminate progress, a persistent WAITING/READY/ERROR status, reload and Problems actions, plus regression coverage for the pending-preview state. The candidate is not a published GitHub Release; the latest published stable release remains v2.5.0; v2.6.2 is a prepared patch, not a published GitHub Release.
