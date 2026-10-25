@@ -436,6 +436,21 @@ async function testPublicThemeApi() {
 			}),
 			/font stylesheet origin must be HTTPS and included in allowedOrigins/,
 		);
+		const unsafeNestedStyleContent = {
+			...remoteContent,
+			id: "remote-unsafe-nested-style",
+			markdown: { defaults: { codeBackground: "url(https://evil.invalid/pixel)" } },
+		};
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-style.etr", {
+				...remoteOptions,
+				expectedId: "remote-unsafe-nested-style",
+				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-nested-style", unsafeNestedStyleContent), {
+					status: 200, headers: { "content-type": "application/json" },
+				}),
+			}),
+			/unsafe CSS\/network primitive/,
+		);
 		const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
 		await assert.rejects(
 			loadRemoteEngineTheme("https://themes.example.invalid/unsafe-global-styles.etr", {

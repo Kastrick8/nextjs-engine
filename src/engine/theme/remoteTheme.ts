@@ -203,12 +203,45 @@ function validateArtifactShape(value: unknown): asserts value is EngineThemeArti
 	}
 }
 
+const REMOTE_CSS_NETWORK_PATTERN = /url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|@import\b|-moz-binding\s*:|behavior\s*:/i;
+
+/** Bound and reject CSS/network primitives throughout JSON theme data before registration. */
+function assertSafeRemoteThemeStrings(
+	value: unknown,
+	path: string,
+	state: { nodes: number },
+	depth = 0,
+): void {
+	state.nodes += 1;
+	if (state.nodes > 10_000 || depth > 32) {
+		throw new Error("Remote EngineTheme exceeds the nested-data validation budget at " + path + ".");
+	}
+	if (typeof value === "string") {
+		if (REMOTE_CSS_NETWORK_PATTERN.test(value)) {
+			throw new Error("Remote EngineTheme contains an unsafe CSS/network primitive at " + path + ".");
+		}
+		return;
+	}
+	if (Array.isArray(value)) {
+		for (let index = 0; index < value.length; index += 1) {
+			assertSafeRemoteThemeStrings(value[index], path + "[" + index + "]", state, depth + 1);
+		}
+		return;
+	}
+	if (value && typeof value === "object") {
+		for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+			assertSafeRemoteThemeStrings(item, path + "." + key, state, depth + 1);
+		}
+	}
+}
+
 function sanitizeRemoteThemeContent(
 	content: EngineThemeDefinition,
 	artifactUrl: URL,
 	options: LoadRemoteEngineThemeOptions,
 ): EngineThemeDefinition {
 	const safe = JSON.parse(JSON.stringify(content)) as EngineThemeDefinition & Record<string, unknown>;
+	assertSafeRemoteThemeStrings(safe, "theme", { nodes: 0 });
 
 	// Arbitrary CSS is executable browser styling and can issue requests; it is
 	// not accepted from a remote theme artifact. Component styles are rendered

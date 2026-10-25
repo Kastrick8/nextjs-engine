@@ -237,7 +237,7 @@ In development, `createTheme()` leaves font stylesheet URLs unchanged; NENC skip
 
 In production, NENC fetches supported font CSS and font files during the build, emits local files under `public/nextjs-engine/fonts/`, and local/global themes reference the generated `/nextjs-engine/fonts/<theme-id>.css` stylesheet. Font filenames include their SHA-256 content hash. The disk cache lives under `.nextjs-engine/.cache/gen3/fonts/`.
 
-The default stylesheet origin is `https://fonts.googleapis.com` and the default font-file origin is `https://fonts.gstatic.com`. Additional exact HTTPS origins can be opted in using `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS` (comma-separated origin URLs; wildcards are not accepted). Redirects, local/private hosts, unexpected content types, oversized files, and unsafe declarations are rejected.
+The default stylesheet origin is `https://fonts.googleapis.com` and the default font-file origin is `https://fonts.gstatic.com`. Additional exact HTTPS origins can be opted in using `ENGINE_THEME_FONT_CSS_ORIGINS` and `ENGINE_THEME_FONT_FILE_ORIGINS` (comma-separated origin URLs; wildcards are not accepted). Redirects, local/private hosts, unexpected content types, oversized files, unsafe font CSS declarations, and remote theme strings containing CSS/network primitives such as `url(...)`, `expression(...)`, or `javascript:` are rejected.
 
 Valid cache entries are reused for seven days by default. Set `ENGINE_THEME_FONT_REFRESH=1` to refresh the stylesheet metadata explicitly. If a source is unavailable and no valid cache exists, the build logs a warning and writes a CSS `@import` fallback to keep the build usable. In that fallback case the browser may still fetch the original stylesheet.
 
