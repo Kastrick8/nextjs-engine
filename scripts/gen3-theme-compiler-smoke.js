@@ -230,6 +230,12 @@ async function testPublicThemeApi() {
 		assert.equal(schemaTemplateResult.type, "div", "Engine Schema templates render as safe React elements");
 		assert.equal(schemaTemplateResult.props.style.flexDirection, "row");
 		assert.equal(schemaTemplateResult.props.style.gap, "6px");
+		const slotElement = React.createElement("span", null, "prebuilt slot");
+		const slottedTemplate = renderEngineThemeTemplate({ schema: { type: "box", children: [{ type: "slot", props: { name: "content" } }] } }, { slots: { content: slotElement } });
+		assert.equal(slottedTemplate.props.children[0].key, "theme-template.0", "trusted React slot elements receive stable template keys");
+		const slottedArrayTemplate = renderEngineThemeTemplate({ schema: { type: "box", children: [{ type: "slot", props: { name: "content" } }] } }, { slots: { content: [React.createElement("span", null, "first"), React.createElement("span", null, "second")] } });
+		assert.equal(slottedArrayTemplate.props.children[0].type, React.Fragment, "array-valued slots get a keyed fragment wrapper");
+		assert.ok(slottedArrayTemplate.props.children[0].props.children.every((child) => child.key !== null), "array slot children receive stable keys");
 		assert.equal(schemaTemplateResult.props.style.background, "#123456", "schema templates can bind safe block style values");
 		assert.equal(schemaTemplateResult.props.children[2].props.children, "typescript");
 		const fallbackTemplate = renderEngineThemeTemplate({

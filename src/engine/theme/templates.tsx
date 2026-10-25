@@ -257,7 +257,13 @@ function renderCompiledNode(
 	if (node.type === "slot") {
 		const name = String(props.name);
 		const value = context.slots?.[name];
-		if (value !== undefined && value !== null) return value;
+		if (value !== undefined && value !== null) {
+			if (Array.isArray(value)) {
+				return createElement(React.Fragment, { key: keyPath }, React.Children.toArray(value));
+			}
+			if (React.isValidElement(value)) return React.cloneElement(value, { key: keyPath });
+			return value;
+		}
 		if (node.children.length > 0) return node.children.map((child, index) =>
 			typeof child === "string" ? interpolate(child, context) : renderCompiledNode(child, context, depth + 1, keyPath + "." + index));
 		return null;
