@@ -5,11 +5,13 @@
 Simple usage: [Styling — simple guide](./styling.md).
 
 
+This page documents the styling behavior implemented by the Gen 2 `usePropStyles()` hook and the current schema types. It is the canonical reference for engine shorthands, responsive values, direct CSS passthrough, and `style` at-rules.
 
+## Generation 2 implementation path
 
-This page documents the styling behavior implemented by `usePropStyles()` and
-the current schema types. It is the canonical reference for engine shorthands,
-responsive values, direct CSS passthrough, and `style` at-rules.
+Gen 2 handles style transformation inside `src/engine/hooks/usePropStyles.ts`. The hook resolves spacing and generic values through `src/engine/core/resolver`, builds the returned React style object, and registers responsive CSS with the active `StyleCollector`. Its `cpropClass()` path generates pseudo-state CSS. The low-level `staticClass()` and `mediaClass()` helpers are exported for custom-component authors.
+
+This implementation should not be described as Gen 3's dedicated `EngineStyleCompiler`: that compiler wrapper and compilation path belong to `main-3`. The common prop names and output concepts overlap, but these internal entry points are different.
 
 ## Responsive values
 
