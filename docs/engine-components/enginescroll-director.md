@@ -1,5 +1,7 @@
 # EngineScroll Director
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 `EngineScrollDirector` coordinates many named EngineScroll timelines through one
 shared EngineScroll runtime subscription.
 
