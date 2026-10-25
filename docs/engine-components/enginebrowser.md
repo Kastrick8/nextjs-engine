@@ -1,5 +1,7 @@
 # EngineBrowser
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 `EngineBrowser` exposes browser detection plus clipboard, interaction, media,
 speech, and network helpers.
 
