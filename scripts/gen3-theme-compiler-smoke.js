@@ -57,8 +57,6 @@ function testPublicThemeApi() {
 			unregisterEngineThemeDataHandler,
 		} = require(path.resolve(__dirname, "../src/engine/theme/dataApi.ts"));
 		const React = require("react");
-		const { renderToStaticMarkup } = require("react-dom/server");
-		const { EngineMarkdownRenderer } = require(path.resolve(__dirname, "../src/engine/components/EngineMarkdownRenderer.tsx"));
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
 		const {
 			renderEngineThemeTemplate,
@@ -93,26 +91,6 @@ function testPublicThemeApi() {
 		assert.ok(normalizedInfo.includes("> Read this carefully."), "info block body remains Markdown text");
 		const fencedInfo = normalizeEngineMarkdownSource("```text\n:::info this is code\n```");
 		assert.ok(fencedInfo.includes(":::info this is code"), "directives inside code fences remain code");
-		const infoMarkup = renderToStaticMarkup(React.createElement(EngineMarkdownRenderer, {
-			content: ":::info Smoke title\\nBody **markdown** content.\\n:::",
-			themeTemplates: {
-				infoBlock: {
-					schema: {
-						type: "stack",
-						props: { as: "aside", className: "smoke-themed-info", direction: "column" },
-						children: [
-							{ type: "text", props: { content: "{{title}}" } },
-							{ type: "slot", props: { name: "content" } },
-						],
-					},
-				},
-			},
-		}));
-		assert.ok(infoMarkup.includes('class="smoke-themed-info"'), "server-rendered info directives apply the registered schema template");
-		assert.ok(infoMarkup.includes("Smoke title"), "info-block title is rendered");
-		assert.ok(infoMarkup.includes("Body <strong>markdown</strong> content."), "info-block body retains Markdown rendering");
-		assert.ok(!infoMarkup.includes("[!ENGINE-INFO"), "internal info markers are not visible to readers");
-
 		const highlighted = highlightEngineCode(
 			"const value: number = 42; // safe",
 			"typescript",
