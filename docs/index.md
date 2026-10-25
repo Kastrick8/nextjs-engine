@@ -22,6 +22,7 @@ These docs are maintained against the current `src/engine` implementation.
 | Learn about the Gen 3 compiler internals | [Compiler deep dive](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/compiler-deep-dive.md) |
 | Read version/release history | [`release/index.md`](./release/index.md) |
 | Add page/layout transitions | [`2/engine-components/enginetransitions.md`](./2/engine-components/enginetransitions.md) |
+| Use individual transition-aware links | [`2/engine-components/enginelink.md`](./2/engine-components/enginelink.md) |
 | Write `.shed` GPU effects | [`2/engine-components/engineshader.md`](./2/engine-components/engineshader.md) |
 | Draw with Canvas / ECScene / shader mode | [`2/engine-components/enginecanvas.md`](./2/engine-components/enginecanvas.md) |
 | Use retained 3D rendering | [`2/engine-components/engine3d.md`](./2/engine-components/engine3d.md) |
