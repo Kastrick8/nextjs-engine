@@ -1,8 +1,10 @@
-# Styling Contract
+# Styling Contract — Generation 3 (Legacy Path)
 
-This page documents the styling behavior implemented by `usePropStyles()` and
-the current schema types. It is the canonical reference for engine shorthands,
-responsive values, direct CSS passthrough, and `style` at-rules.
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+>
+> This unversioned path remains for older links. For the maintained guide layout, use [Gen 3 styling — simple](./3/styling.md) or [Gen 3 styling — detailed](./3/styling-detailed.md). The [Gen 2 styling reference](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling-detailed.md) documents the separate stable 2.x line.
+
+This page describes the styling behavior implemented by the Gen 3 `usePropStyles()` and current schema types: Engine shorthands, responsive values, direct CSS passthrough, and `style` at-rules.
 
 ## Responsive values
 
