@@ -330,6 +330,8 @@ export interface EngineMarkdownPrettyPleaseConfig {
 	theme?: string;
 	/** An authoritative replacement palette for this Markdown theme/language profile. */
 	palette?: EngineMarkdownTokenPalette;
+	/** Authoritative palette overrides per language ID or alias, e.g. typescript or nodejs. */
+	languagePalettes?: Record<string, EngineMarkdownTokenPalette>;
 }
 
 /** Declarative subset of Engine Schema accepted as a reusable theme template. */
