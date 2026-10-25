@@ -543,4 +543,4 @@ Use one of the supported integration paths instead:
 - **Reusable named node:** define a trusted React component in application code and register it with `registerComponent("chart-widget", ChartWidget)`. Schema then refers to `type: "chart-widget"` and passes ordinary validated props.
 - **Page-specific React content:** declare a named `slot` node in the schema and supply the React element through the page/component `slots` option. This keeps the React element in application code instead of embedding it in schema data.
 
-See the [Custom Components guide](../readme.md#custom-components) for the current registration contract.
+See the [Generation 2 Custom Components guide](../2/readme.md#custom-components) for the current registration contract.
