@@ -62,4 +62,4 @@ The manifest excludes full source files, complete source schemas, arbitrary comp
 
 If an application already configured a Next.js adapter, `withEngine()` chains its `modifyConfig` and `onBuildComplete` callbacks through the Engine adapter.
 
-The Generation 3 CI lane runs the phase A/B contracts, the build-compiler and module-compiler smoke tests, type-checking, and the Next.js production build.
+The Generation 3 CI lane runs the compiler/runtime contracts, build-compiler and module-compiler smoke tests, type-checking, and the Next.js production build.
