@@ -1,5 +1,7 @@
 # Schema Validation & Diagnostics
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`. This describes the validation/diagnostic surface on the Gen 3 branch.
+
 Next.js Engine exposes two related schema-checking APIs. They intentionally have
 different scopes.
 
