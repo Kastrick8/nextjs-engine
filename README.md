@@ -409,8 +409,8 @@ Hydration-specific SSR → client regression coverage is part of the v2.6.1 stab
 
 Start at [`docs/index.md`](./docs/index.md), then choose the generation that matches your application:
 
-- **Generation 2 — stable 2.x:** [`docs/2/index.md`](./docs/2/index.md) — [simple styling](./docs/2/styling.md) and [detailed styling](./docs/2/styling-detailed.md).
-- **Generation 3 — alpha:** [`docs/3/index.md`](./docs/3/index.md) — [simple styling](./docs/3/styling.md) and [detailed styling](./docs/3/styling-detailed.md).
+- **Generation 2 — stable 2.x:** [documentation index](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md) — [simple styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling.md) and [detailed styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling-detailed.md).
+- **Generation 3 — alpha:** [documentation index](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/index.md) — [simple styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/styling.md) and [detailed styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/styling-detailed.md).
 
 Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture and should not be treated as the stable 2.x API contract.
 
