@@ -1,6 +1,6 @@
 # Styling Contract — Generation 3 (Legacy Path)
 
-> **COMPATIBILITY COPY** · This unversioned path is retained for old links. Canonical references: [Generation 2 styling](./2/styling.md) for stable 2.x and [Generation 3 styling](./3/styling.md) for the 3.x alpha.
+> **COMPATIBILITY COPY** · This unversioned path is retained for old links. Canonical references: [Generation 2 styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling.md) for stable 2.x and [Generation 3 styling](./3/styling.md) for the 3.x alpha.
 >
 > **GENERATION 3 · ALPHA** · Source branch: `main-3`.
 >
