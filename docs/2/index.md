@@ -40,6 +40,7 @@ Use these pages for the code maintained on `main-2`. Generation 3 is a separate 
 | Video viewport lifecycle | [EngineVideo](./engine-components/enginevideo.md) |
 | Markdown rendering | [EngineMarkdown](./engine-components/enginemarkdown.md) |
 | Navigation | [EngineNav](./engine-components/enginenav.md) |
+| Individual transition-aware links | [EngineLink](./engine-components/enginelink.md) |
 | Adaptive layout and device info | [EngineMobile and EngineDevice](./engine-components/enginemobile.md) |
 | Heroes | [EngineHero](./engine-components/enginehero.md) |
 | Forms | [EngineForms](./engine-components/engineforms.md) |
