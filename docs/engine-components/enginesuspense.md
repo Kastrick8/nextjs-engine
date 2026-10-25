@@ -1,5 +1,7 @@
 # EngineSuspense (ESU)
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 Schema type: `"suspense"`.
 
 EngineSuspense wraps children in `React.Suspense` and provides built-in loading
