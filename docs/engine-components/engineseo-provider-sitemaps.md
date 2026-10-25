@@ -1,5 +1,7 @@
 # EngineSEO provider-aware XML sitemaps
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineSEO can generate a universal `/sitemap.xml` plus search-engine-aware XML endpoints for Google, Bing, and Yandex. The provider maps share the same route inventory but deliberately emit different XML instead of cloning one generic sitemap under several names.
 
 Provider XML is opt-in. Existing EngineSEO applications keep the ordinary Next.js sitemap behavior until `sitemap.providerFiles` is enabled.
