@@ -375,7 +375,7 @@ export interface EngineThemeTemplateDataApiBinding {
 }
 
 export interface EngineThemeTemplateOptions {
-	/** Physical side of a composed template part. append: right/bottom; prepend: left/top. */
+	/** Physical side, independent from append/prepend DOM order; defaults are bottom for append and top for prepend. */
 	placement?: EngineThemeTemplatePlacement;
 	/** wrap preserves existing content slots; replacement/additive modes are explicit. */
 	merge?: EngineThemeTemplateMerge;

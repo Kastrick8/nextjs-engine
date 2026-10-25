@@ -413,12 +413,10 @@ function isTemplateMerge(value: unknown): value is EngineThemeTemplateMerge {
 	return value === "replace" || value === "append" || value === "prepend" || value === "wrap";
 }
 
-function templateLayoutStyle(layout?: EngineThemeTemplateLayout, placement?: EngineThemeTemplatePlacement): CSSProperties {
+function templateLayoutStyle(layout?: EngineThemeTemplateLayout): CSSProperties {
 	const style: Record<string, string | number | undefined> = {};
 	if (layout?.display) style.display = layout.display;
-	const direction = placement
-		? (placement === "left" || placement === "right" ? "row" : "column")
-		: layout?.direction;
+	const direction = layout?.direction;
 	if (direction) style.flexDirection = direction;
 	if (layout?.align) style.alignItems = layout.align === "start" ? "flex-start" : layout.align === "end" ? "flex-end" : layout.align;
 	if (layout?.justify) {
@@ -467,7 +465,22 @@ function composeTemplate(
 	// Physical placement is owned by this wrapper. The selected layout display
 	// applies to the additive template itself, not to the flex row/column that
 	// determines which side it occupies.
-	const style = templateLayoutStyle({ ...layout, display: layout?.display === "inline-flex" ? "inline-flex" : "flex", responsive: layout?.responsive ?? true }, placement);
+	const horizontal = placement === "left" || placement === "right";
+	// The merge mode decides DOM/composition order; placement decides which
+	// physical edge receives the extra part. Reverse the flex axis when those
+	// two independent choices point in opposite directions.
+	const reverse = merge === "append"
+		? placement === "left" || placement === "top"
+		: placement === "right" || placement === "bottom";
+	const direction = horizontal
+		? (reverse ? "row-reverse" : "row")
+		: (reverse ? "column-reverse" : "column");
+	const style = templateLayoutStyle({
+		...layout,
+		display: layout?.display === "inline-flex" ? "inline-flex" : "flex",
+		direction,
+		responsive: layout?.responsive ?? true,
+	});
 	return createElement("div", {
 		"data-engine-theme-composition": merge,
 		"data-engine-theme-placement": placement,
@@ -530,9 +543,9 @@ export function renderEngineThemeTemplate(
 		}
 	}
 	if ((merge === "append" || merge === "prepend") && !placement) placement = merge === "append" ? "bottom" : "top";
-	if (placement && merge !== "append" && merge !== "prepend") throw new TypeError("EngineTheme template placement is only valid with merge 'append' or 'prepend'.");
-	if (merge === "append" && placement !== "right" && placement !== "bottom") throw new TypeError("EngineTheme template merge 'append' requires placement 'right' or 'bottom'.");
-	if (merge === "prepend" && placement !== "left" && placement !== "top") throw new TypeError("EngineTheme template merge 'prepend' requires placement 'left' or 'top'.");
+	if (placement && merge !== "append" && merge !== "prepend") {
+		throw new TypeError("EngineTheme template placement is only meaningful for merge 'append' or 'prepend'.");
+	}
 	if (merge === "replace" || merge === "append" || merge === "prepend") {
 		delete slots.content;
 		delete slots.children;

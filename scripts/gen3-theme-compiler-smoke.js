@@ -387,9 +387,27 @@ async function testPublicThemeApi() {
 		}, { slots: { content: "Original body" } });
 		assert.equal(composedText(replacedTemplate), "Replacement body",
 			"replace does not inject the original content slot into the replacement template");
-		assert.throws(() => renderEngineThemeTemplate({
-			merge: "append", placement: "left", schema: { type: "slot", props: { name: "dataResult" } },
-		}, { slots: { content: "x" } }), /requires placement 'right' or 'bottom'/);
+		const appendLeft = renderEngineThemeTemplate({
+			merge: "append",
+			placement: "left",
+			layout: { display: "flex", responsive: true },
+			schema: { type: "text", props: { content: "Addon" } },
+		}, { slots: { content: "Base" } });
+		assert.equal(appendLeft.props["data-engine-theme-placement"], "left");
+		assert.equal(appendLeft.props.style.flexDirection, "row-reverse",
+			"placement controls physical position while append preserves DOM composition order");
+		assert.equal(composedText(appendLeft), "BaseAddon");
+
+		const prependRight = renderEngineThemeTemplate({
+			merge: "prepend",
+			placement: "right",
+			layout: { display: "flex", responsive: true },
+			schema: { type: "text", props: { content: "Addon" } },
+		}, { slots: { content: "Base" } });
+		assert.equal(prependRight.props["data-engine-theme-placement"], "right");
+		assert.equal(prependRight.props.style.flexDirection, "row-reverse",
+			"prepend DOM order is retained even when physical placement is right");
+		assert.equal(composedText(prependRight), "AddonBase");
 		assert.equal(unregisterEngineThemeDataHandler("smoke.template.composition"), true);
 		assert.equal(renderEngineThemeTemplate({ adapterId: "missing.remote.adapter" }, {}), undefined, "unregistered adapters fail closed");
 
