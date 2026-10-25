@@ -1,4 +1,4 @@
-import React, { createElement, type ComponentType, type CSSProperties, type ReactNode } from "react";
+import { Children, cloneElement, createElement, Fragment, isValidElement, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import type {
 	EngineThemeTemplateDefinition,
 	EngineThemeTemplateNodeType,
@@ -259,9 +259,9 @@ function renderCompiledNode(
 		const value = context.slots?.[name];
 		if (value !== undefined && value !== null) {
 			if (Array.isArray(value)) {
-				return createElement(React.Fragment, { key: keyPath }, React.Children.toArray(value));
+				return createElement(Fragment, { key: keyPath }, Children.toArray(value));
 			}
-			if (React.isValidElement(value)) return React.cloneElement(value, { key: keyPath });
+			if (isValidElement(value)) return cloneElement(value, { key: keyPath });
 			return value;
 		}
 		if (node.children.length > 0) return node.children.map((child, index) =>
