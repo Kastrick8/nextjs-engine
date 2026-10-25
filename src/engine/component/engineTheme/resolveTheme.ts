@@ -61,7 +61,7 @@ function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject, themeId?: 
 	const definition = value as Record<string, unknown>;
 	const defaults = isThemeRecord(definition.defaults) ? definition.defaults : undefined;
 	const explicitProps = isThemeRecord(definition.props) ? definition.props : undefined;
-	const props = {
+	const props: Record<string, unknown> = {
 		...pickMarkdownThemeProps(definition),
 		...pickMarkdownThemeProps(defaults),
 		...pickMarkdownThemeProps(explicitProps),

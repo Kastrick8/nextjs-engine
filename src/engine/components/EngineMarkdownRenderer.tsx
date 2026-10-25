@@ -104,7 +104,7 @@ function textFromReactNode(value: ReactNode, depth = 0): string {
 	if (typeof value === "string") return value.slice(0, 512);
 	if (typeof value === "number") return String(value);
 	if (Array.isArray(value)) return value.slice(0, 64).map((item) => textFromReactNode(item, depth + 1)).join("").slice(0, 512);
-	if (isValidElement(value)) return textFromReactNode(value.props.children as ReactNode, depth + 1);
+	if (isValidElement<{ children?: ReactNode }>(value)) return textFromReactNode(value.props.children, depth + 1);
 	return "";
 }
 
