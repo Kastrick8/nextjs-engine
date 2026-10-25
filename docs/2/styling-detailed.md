@@ -261,6 +261,29 @@ At-rules nested inside a pseudo-state keep the pseudo selector. A responsive
 hover rule therefore compiles as `@media ... { .generated:hover { ... } }`, not
 as an unrelated global rule.
 
+## Low-level style helpers
+
+The public package also exports low-level helpers for custom React components:
+
+```ts
+import { staticClass, mediaClass } from "nextjs-engine";
+
+const layoutClass = staticClass({
+  display: "grid",
+  gap: "1rem",
+});
+
+const responsiveClass = mediaClass(
+  { display: "block" },
+  ["768px", { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }],
+);
+```
+
+- `staticClass(style, collector?)` converts a CSS style object into a reusable generated class and registers its CSS with the supplied collector. If omitted, the low-level global collector is used.
+- `mediaClass(base, ...breakpoints)` creates a class with base declarations plus `min-width` media overrides. Each breakpoint argument is a tuple of a CSS length string and a `CSSProperties` object. It currently registers through the low-level global collector.
+
+These are low-level helpers for custom-component code, not replacements for normal Engine schema styling. Prefer responsive props for ordinary responsive layout so the active page's provider-scoped collector owns the CSS. `EngineGlobalStyles()` emits only CSS explicitly registered with `StyleCollector.addGlobal()`; it does not sweep up all CSS from these helpers or from provider collectors.
+
 ## Styling and the collector
 
 Generated responsive, pseudo-state, at-rule, visibility, navigation, and other
