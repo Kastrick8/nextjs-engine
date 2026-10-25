@@ -116,27 +116,26 @@ import {
   assertEngineBuildBudgets,
 } from "nextjs-engine";
 
-const report = evaluateEngineBuildBudgets(
-  {
-    initialJS: 180_000,
-    routeJS: 90_000,
-    criticalCSS: 18_000,
-    requestCount: 12,
-    hydratedIslands: 4,
-  },
-  {
-    initialJS: 180_000,
-    routeJS: 90_000,
-    criticalCSS: 18_000,
-    requestCount: 12,
-    hydratedIslands: 4,
-  },
-);
+const measurements = {
+  initialJS: 142_000,
+  routeJS: 71_000,
+  criticalCSS: 10_200,
+  requestCount: 9,
+  hydratedIslands: 3,
+};
+const limits = {
+  initialJS: 180_000,
+  routeJS: 90_000,
+  criticalCSS: 18_000,
+  requestCount: 12,
+  hydratedIslands: 4,
+};
 
+const report = evaluateEngineBuildBudgets(measurements, limits);
 assertEngineBuildBudgets(report);
 ```
 
-In this example the first object is the measurements and the second is the limits; real integrations should provide actual measurements from build output, not copy the same numbers into both objects. Unconfigured metrics are skipped. Each configured metric requires a finite, non-negative measurement and limit. The report includes PASS/FAIL results and optional contributor attribution; `assertEngineBuildBudgets()` throws if any configured limit fails.
+The sample numbers are illustrative. In a real integration, the measurements must come from actual build output; limits are the budget values you choose. Unconfigured metrics are skipped. Each configured metric requires a finite, non-negative measurement and limit. The report includes PASS/FAIL results and optional contributor attribution; `assertEngineBuildBudgets()` throws if any configured limit fails.
 
 The repository's production-proof script reads Next.js build and route manifests and supports application/CI configuration through `ENGINE_BUILD_BUDGETS`; hydrated-island measurements can be supplied through `ENGINE_HYDRATED_ISLANDS`. See [Phase D — Compatibility & Hardening](../gen3/phase-d-hardening.md) for the full integration notes.
 
