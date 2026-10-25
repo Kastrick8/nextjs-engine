@@ -301,23 +301,19 @@ The EngineTheme implementation is complete on branch `feat/enginetheme-foundatio
 
 ### Verification
 
-- Engine runtime CI passed on commit `9bfa59674d9d347f3bfca4614d390648cf8baf47`: https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40193812216
-- Engine cross-browser compatibility passed on the same commit, with Chromium, Firefox, and WebKit all green: https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40193812178
-- Runtime CI covered the theme compiler smoke, font compiler smoke, NENC build adapter, EngineMarkdown smoke, TypeScript type-check, Gen 3 production build, production bundle budgets, and Generation 3 browser/device/network tests.
-- Font compiler smoke uses mocked stylesheet/font responses to verify content-addressed output, cache reuse, expiry refresh, and development-mode no-network behavior.
-- Local command execution is unavailable through the connected repository workflow in this session; GitHub Actions is the runtime verification source.
+Completion commit `e80c01ff83efad92298da999c6027be33ccb4c3a` passed all three GitHub Actions workflows:
+
+- [Engine runtime CI](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40201234530) — EngineTheme artifact/compiler smoke, NENC integration, TypeScript type-check, Generation 3 production build, EngineDebug exclusion, production bundle budgets, and the combined browser/device/network suite all passed.
+- [Chromium, Firefox, and WebKit compatibility](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40201234585) — all three browser jobs passed.
+- [Strict live Google Fonts and Bunny Fonts pipeline](https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40201234537) — both real-provider builds passed with strict failure policy and locally emitted content-hashed assets.
+
+The focused smoke script also covers .etr schema-version rejection, palette inheritance/replacement, all four Data-API join directions, placement/merge combinations, Data-API result slots, Shiki token safety, ANSI compatibility, and font cache/offline/failure behavior. CI artifacts and test results are the verification source because local shell execution is not available through the connected repository workflow in this session.
 
 ### Completion status
 
-The remaining font-provider and full-grammar work is now implemented rather than deferred: the highlighter can adapt an initialized Shiki/TextMate instance, and the live font-provider workflow validates real CSS/file retrieval plus local content-hashed output in strict mode. Engine Lite remains the dependency-free default.
+The remaining font-provider and full-grammar work is implemented rather than deferred: the optional adapter uses an already-initialized Shiki/TextMate highlighter, and the live-font workflow exercises real Google Fonts and Bunny Fonts retrieval plus local content-hashed output under strict failure policy. Engine Lite remains the dependency-free low-memory default.
 
-The previous implementation baseline `44657176e19df25a32f74e3bc7648c62f9fb6bbe` passed:
-- Engine runtime CI, including EngineTheme smoke, TypeScript type-check, Generation 3 production build, bundle budgets, and browser/device/network checks: https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40197381881
-- Chromium, Firefox, and WebKit compatibility: https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40197381875
-- Strict live Google Fonts and Bunny Fonts production pipeline tests: https://github.com/Kate-alt-69/nextjs-engine/actions/runs/40197381921
-
-Remote loading remains explicit and data-only. Theme files do not execute remote code. Font URLs are allowlisted for compile-time downloads and any browser fallback. Offline builds can reuse verified stale local cache entries but fail on a cache miss; strict failure mode avoids browser-import fallback when local output cannot be produced. The current follow-up changes add independent ETR schema-version enforcement, authoritative per-language palette inheritance, and real template placement/merge/Data-API composition tests. Their verification is pending the CI run for the resulting commit; the passing links above apply to the previous baseline.
-
+Remote loading remains explicit and data-only. Theme files do not execute remote code. Font URLs are allowlisted for compile-time downloads and any browser fallback. Offline builds can reuse verified stale local cache entries but fail on a cache miss; strict failure mode avoids browser-import fallback when local output cannot be produced.
 ## 14. Custom UI components, registry integration, and EngineTheme bindings
 
 This section is a separate proposal for a future custom-component authoring path. The EngineTheme work recorded above is implemented; the distinct `defineComponent()` authoring API and its generic registry/theme binding remain open design work. This proposal does not mean EngineTheme itself is unfinished.
