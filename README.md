@@ -425,11 +425,15 @@ Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture
 | EngineOverlay | [`docs/engine-components/engineoverlay.md`](./docs/engine-components/engineoverlay.md) |
 | EngineScroll | [`docs/engine-components/enginescroll.md`](./docs/engine-components/enginescroll.md) |
 | Canvas / EC graphics | [`docs/engine-components/enginecanvas.md`](./docs/engine-components/enginecanvas.md) |
-| Styling | [`docs/styling.md`](./docs/styling.md) |
+| Gen 3 styling — simple | [`docs/3/styling.md`](./docs/3/styling.md) |
+| Gen 3 styling — detailed | [`docs/3/styling-detailed.md`](./docs/3/styling-detailed.md) |
+| Gen 3 compiler internals | [`docs/3/compiler-deep-dive.md`](./docs/3/compiler-deep-dive.md) |
 | Runtime/performance | [`docs/runtime-performance.md`](./docs/runtime-performance.md) |
 | APIStatic | [`docs/engine-components/apistatic.md`](./docs/engine-components/apistatic.md) |
 | External APIs | [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md) |
 | Diagnostics | [`docs/schema-diagnostics.md`](./docs/schema-diagnostics.md) |
+
+The unversioned [`docs/styling.md`](./docs/styling.md) path is retained for old links; use the explicitly versioned Gen 3 guide above.
 
 `DOCUMENT.md` is the large technical/history reference. For recently changed behavior, prefer the current TypeScript types and focused docs when an old historical section disagrees.
 
