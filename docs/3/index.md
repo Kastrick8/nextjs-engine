@@ -3,7 +3,7 @@
 > **Generation:** 3.x alpha · **Source branch:** `main-3`  
 > **Status:** Pre-release; this is not the stable Gen 2 API contract.
 
-This is the curated starting point for the current Gen 3 implementation. Some long-standing component guides remain at `docs/engine-components/` so existing links do not break; on `main-3`, those guides describe the Gen 3 component contract and are grouped that way by the Kastrick docs viewer.
+This is the curated starting point for the current Gen 3 implementation. Canonical Gen 3 component references live under docs/3/engine-components/. The older docs/engine-components/ paths are retained as compatibility copies for existing links; new repository navigation should use the versioned paths.
 
 ## Choose the level of detail
 
@@ -34,36 +34,39 @@ These component references describe the implementation on `main-3`. The file pat
 
 | Component / system | Guide |
 |---|---|
-| Primitives, layouts, slots, custom nodes | [Primitives](../engine-components/primitives.md) |
-| Canvas, retained graphics, SVG, and rendering engines | [EngineCanvas](../engine-components/enginecanvas.md) |
-| Retained Three.js 3D rendering | [Engine3D](../engine-components/engine3d.md) |
-| SVG import/export | [EngineSVG](../engine-components/enginesvg.md) |
-| GPU effects and `.shed` programs | [EngineShader](../engine-components/engineshader.md) |
-| Page/layout transitions and shared morphs | [EngineTransitions+](../engine-components/enginetransitions.md) |
-| Scroll points, timelines, snapping, and behavior policy | [EngineScroll](../engine-components/enginescroll.md) |
-| Explicit scroll interval geometry | [EngineScroll Range](../engine-components/enginescroll-range.md) |
-| Scroll-driven timelines | [EngineScroll Timeline](../engine-components/enginescroll-timeline.md) |
-| Coordinate multiple timelines | [EngineScroll Director](../engine-components/enginescroll-director.md) |
-| Track named point positions | [EngineScroll Point Tracker](../engine-components/enginescroll-tracker.md) |
-| Focus and visibility behavior | [EngineScroll Focus](../engine-components/enginescroll-focus.md) |
-| Named point groups | [EngineScroll Groups](../engine-components/enginescroll-groups.md) |
-| Browser capabilities and interactions | [EngineBrowser](../engine-components/enginebrowser.md) |
-| 2D/3D animation | [EngineManim](../engine-components/enginemanim.md) |
-| Image loading and media controls | [EngineImage](../engine-components/engineimage.md) |
-| Video lazy activation and viewport lifecycle | [EngineVideo](../engine-components/enginevideo.md) |
-| Server-first Markdown and URL icons | [EngineMarkdown](../engine-components/enginemarkdown.md) |
-| Navigation | [EngineNav](../engine-components/enginenav.md) |
-| Individual transition-aware links | [EngineLink](../engine-components/enginelink.md) |
-| Device information and adaptive schema patches | [EngineMobile / EngineDevice](../engine-components/enginemobile.md) |
-| Hero layouts and parallax | [EngineHero](../engine-components/enginehero.md) |
-| Forms | [EngineForms](../engine-components/engineforms.md) |
-| Searchable styled select | [CustomSelect](../engine-components/customselect.md) |
-| Suspense/loading surfaces | [EngineSuspense](../engine-components/enginesuspense.md) |
-| Dialog, drawer, popover | [EngineOverlay](../engine-components/engineoverlay.md) |
-| External API resolution/configuration | [EngineAPIResolver](../engine-components/engineapi.md) |
-| Browser-side endpoint programs | [APIStatic](../engine-components/apistatic.md) |
-| Metadata, sitemap, robots, JSON-LD, social previews | [EngineSEO](../engine-components/engineseo.md) |
-| Search-engine-specific XML sitemaps | [Provider sitemaps](../engine-components/engineseo-provider-sitemaps.md) |
+| Primitives, layouts, slots, custom nodes | [Primitives](./engine-components/primitives.md) |
+| Canvas, retained graphics, SVG, and rendering engines | [EngineCanvas](./engine-components/enginecanvas.md) |
+| Retained Three.js 3D rendering | [Engine3D](./engine-components/engine3d.md) |
+| SVG import/export | [EngineSVG](./engine-components/enginesvg.md) |
+| GPU effects and `.shed` programs | [EngineShader](./engine-components/engineshader.md) |
+| Page/layout transitions and shared morphs | [EngineTransitions+](./engine-components/enginetransitions.md) |
+| Scroll points, timelines, snapping, and behavior policy | [EngineScroll](./engine-components/enginescroll.md) |
+| Explicit scroll interval geometry | [EngineScroll Range](./engine-components/enginescroll-range.md) |
+| Scroll-driven timelines | [EngineScroll Timeline](./engine-components/enginescroll-timeline.md) |
+| Coordinate multiple timelines | [EngineScroll Director](./engine-components/enginescroll-director.md) |
+| Track named point positions | [EngineScroll Point Tracker](./engine-components/enginescroll-tracker.md) |
+| Focus and visibility behavior | [EngineScroll Focus](./engine-components/enginescroll-focus.md) |
+| Named point groups | [EngineScroll Groups](./engine-components/enginescroll-groups.md) |
+| Browser capabilities and interactions | [EngineBrowser](./engine-components/enginebrowser.md) |
+| 2D/3D animation | [EngineManim](./engine-components/enginemanim.md) |
+| Image loading and media controls | [EngineImage](./engine-components/engineimage.md) |
+| Video lazy activation and viewport lifecycle | [EngineVideo](./engine-components/enginevideo.md) |
+| Reusable themes, .etr artifacts, Markdown templates, fonts and Data-API | [EngineTheme](./engine-components/enginetheme.md) |
+| Server-first Markdown and URL icons | [EngineMarkdown](./engine-components/enginemarkdown.md) |
+| Navigation | [EngineNav](./engine-components/enginenav.md) |
+| Individual transition-aware links | [EngineLink](./engine-components/enginelink.md) |
+| Device information and adaptive schema patches | [EngineMobile / EngineDevice](./engine-components/enginemobile.md) |
+| Hero layouts and parallax | [EngineHero](./engine-components/enginehero.md) |
+| Forms | [EngineForms](./engine-components/engineforms.md) |
+| Searchable styled select | [CustomSelect](./engine-components/customselect.md) |
+| Suspense/loading surfaces | [EngineSuspense](./engine-components/enginesuspense.md) |
+| Dialog, drawer, popover | [EngineOverlay](./engine-components/engineoverlay.md) |
+| EngineTransitions+ edge cases and compatibility | [Transition compatibility](./engine-components/enginetransitions-compatibility.md) |
+| Mobile layout/scroll interaction edge cases | [Mobile scroll stability](./engine-components/mobile-scroll-stability.md) |
+| External API resolution/configuration | [EngineAPIResolver](./engine-components/engineapi.md) |
+| Browser-side endpoint programs | [APIStatic](./engine-components/apistatic.md) |
+| Metadata, sitemap, robots, JSON-LD, social previews | [EngineSEO](./engine-components/engineseo.md) |
+| Search-engine-specific XML sitemaps | [Provider sitemaps](./engine-components/engineseo-provider-sitemaps.md) |
 
 ## Release and compatibility
 

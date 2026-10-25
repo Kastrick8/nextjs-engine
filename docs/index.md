@@ -1,6 +1,6 @@
 # Next.js Engine — Documentation Index
 
-These docs follow the current `main-3` implementation unless a page explicitly describes an older release.
+These docs follow the current main-3 implementation unless a page explicitly describes an older release. Component API guides are versioned under docs/3/engine-components/; use docs/2/ for the distinct stable 2.x contract.
 
 If a historical example conflicts with the current TypeScript source or a current component page, prefer the current source and current component page.
 
@@ -21,12 +21,13 @@ If a historical example conflicts with the current TypeScript source or a curren
 | Learn schemas, props, and general page authoring | [`readme.md`](./readme.md) |
 | Learn Gen 3 styling (simple) | [`3/styling.md`](./3/styling.md) |
 | Learn Gen 3 styling internals | [`3/styling-detailed.md`](./3/styling-detailed.md) |
+| Define reusable themes, variants, .etr artifacts, templates and fonts | [`3/engine-components/enginetheme.md`](./3/engine-components/enginetheme.md) |
 | Legacy unversioned styling reference | [`styling.md`](./styling.md) |
 | Learn NENC, EngineCookies, sessions, replay/rate policy, and private backends | [`3/networking-credentials-security.md`](./3/networking-credentials-security.md) |
 | Learn compatibility manifests and fallback compilation | [`3/compatibility-debugging-hardening.md`](./3/compatibility-debugging-hardening.md) |
 | Understand EngineDebug ephemeral isolation | [`gen3/engine-debug-isolation.md`](./gen3/engine-debug-isolation.md) |
-| Generate metadata, sitemaps, robots, JSON-LD, and social previews | [`engine-components/engineseo.md`](./engine-components/engineseo.md) |
-| Generate Google/Bing/Yandex-aware XML sitemaps | [`engine-components/engineseo-provider-sitemaps.md`](./engine-components/engineseo-provider-sitemaps.md) |
+| Generate metadata, sitemaps, robots, JSON-LD, and social previews | [`engine-components/engineseo.md`](./3/engine-components/engineseo.md) |
+| Generate Google/Bing/Yandex-aware XML sitemaps | [`engine-components/engineseo-provider-sitemaps.md`](./3/engine-components/engineseo-provider-sitemaps.md) |
 | Run the device-bound private-search proof | [`gen3/private-search-example.md`](./gen3/private-search-example.md) |
 | Read release history | [`release/index.md`](./release/index.md) |
 | Read the large historical technical reference | [`../DOCUMENT.md`](../DOCUMENT.md) |
@@ -67,19 +68,19 @@ Read [`gen3/overview.md`](./gen3/overview.md) first if you are starting a new pa
 
 | Topic | Documentation |
 | --- | --- |
-| Schema primitives | [`engine-components/primitives.md`](./engine-components/primitives.md) |
+| Schema primitives | [`engine-components/primitives.md`](./3/engine-components/primitives.md) |
 | Styling / responsive values | [`styling.md`](./styling.md) |
-| Navigation | [`engine-components/enginenav.md`](./engine-components/enginenav.md) |
-| Page and layout transitions | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
-| Heroes | [`engine-components/enginehero.md`](./engine-components/enginehero.md) |
-| Forms | [`engine-components/engineforms.md`](./engine-components/engineforms.md) |
-| Searchable styled select | [`engine-components/customselect.md`](./engine-components/customselect.md) |
-| Individual transition-aware links | [`engine-components/enginelink.md`](./engine-components/enginelink.md) |
-| Markdown | [`engine-components/enginemarkdown.md`](./engine-components/enginemarkdown.md) |
-| Suspense/loading surfaces | [`engine-components/enginesuspense.md`](./engine-components/enginesuspense.md) |
-| Overlay/dialog/drawer/popover | [`engine-components/engineoverlay.md`](./engine-components/engineoverlay.md) |
-| SEO, crawler routes, JSON-LD, and social previews | [`engine-components/engineseo.md`](./engine-components/engineseo.md) |
-| Search-engine-specific XML sitemaps | [`engine-components/engineseo-provider-sitemaps.md`](./engine-components/engineseo-provider-sitemaps.md) |
+| Navigation | [`engine-components/enginenav.md`](./3/engine-components/enginenav.md) |
+| Page and layout transitions | [`engine-components/enginetransitions.md`](./3/engine-components/enginetransitions.md) |
+| Heroes | [`engine-components/enginehero.md`](./3/engine-components/enginehero.md) |
+| Forms | [`engine-components/engineforms.md`](./3/engine-components/engineforms.md) |
+| Searchable styled select | [`engine-components/customselect.md`](./3/engine-components/customselect.md) |
+| Individual transition-aware links | [`engine-components/enginelink.md`](./3/engine-components/enginelink.md) |
+| Markdown | [`engine-components/enginemarkdown.md`](./3/engine-components/enginemarkdown.md) |
+| Suspense/loading surfaces | [`engine-components/enginesuspense.md`](./3/engine-components/enginesuspense.md) |
+| Overlay/dialog/drawer/popover | [`engine-components/engineoverlay.md`](./3/engine-components/engineoverlay.md) |
+| SEO, crawler routes, JSON-LD, and social previews | [`engine-components/engineseo.md`](./3/engine-components/engineseo.md) |
+| Search-engine-specific XML sitemaps | [`engine-components/engineseo-provider-sitemaps.md`](./3/engine-components/engineseo-provider-sitemaps.md) |
 
 ---
 
@@ -109,14 +110,14 @@ EngineManim
 
 | System | Documentation |
 | --- | --- |
-| EngineCanvas | [`engine-components/enginecanvas.md`](./engine-components/enginecanvas.md) |
-| EngineSVG | [`engine-components/enginesvg.md`](./engine-components/enginesvg.md) |
-| EngineShader | [`engine-components/engineshader.md`](./engine-components/engineshader.md) |
-| EngineTransitions+ | [`engine-components/enginetransitions.md`](./engine-components/enginetransitions.md) |
-| EngineScroll | [`engine-components/enginescroll.md`](./engine-components/enginescroll.md) |
-| EngineManim | [`engine-components/enginemanim.md`](./engine-components/enginemanim.md) |
-| EngineImage / EngineVideo | [`engine-components/engineimage.md`](./engine-components/engineimage.md) |
-| EngineVideo viewport lifecycle | [`engine-components/enginevideo.md`](./engine-components/enginevideo.md) |
+| EngineCanvas | [`engine-components/enginecanvas.md`](./3/engine-components/enginecanvas.md) |
+| EngineSVG | [`engine-components/enginesvg.md`](./3/engine-components/enginesvg.md) |
+| EngineShader | [`engine-components/engineshader.md`](./3/engine-components/engineshader.md) |
+| EngineTransitions+ | [`engine-components/enginetransitions.md`](./3/engine-components/enginetransitions.md) |
+| EngineScroll | [`engine-components/enginescroll.md`](./3/engine-components/enginescroll.md) |
+| EngineManim | [`engine-components/enginemanim.md`](./3/engine-components/enginemanim.md) |
+| EngineImage / EngineVideo | [`engine-components/engineimage.md`](./3/engine-components/engineimage.md) |
+| EngineVideo viewport lifecycle | [`engine-components/enginevideo.md`](./3/engine-components/enginevideo.md) |
 
 EngineTransitions+ and EngineShader remain separate responsibilities. Transition presets such as `pixel`, `liquid`, and `dissolve` are transition animations, not `.shed` framebuffer passes.
 
@@ -127,8 +128,8 @@ EngineTransitions+ and EngineShader remain separate responsibilities. Transition
 | Topic | Documentation |
 | --- | --- |
 | Scheduler + server-first compiler | [`3/compiler-rendering-runtime.md`](./3/compiler-rendering-runtime.md) |
-| Browser capabilities | [`engine-components/enginebrowser.md`](./engine-components/enginebrowser.md) |
-| Device/adaptive layout | [`engine-components/enginemobile.md`](./engine-components/enginemobile.md) |
+| Browser capabilities | [`engine-components/enginebrowser.md`](./3/engine-components/enginebrowser.md) |
+| Device/adaptive layout | [`engine-components/enginemobile.md`](./3/engine-components/enginemobile.md) |
 | Runtime/lazy/performance behavior | [`runtime-performance.md`](./runtime-performance.md) |
 | Schema validation and diagnostics | [`schema-diagnostics.md`](./schema-diagnostics.md) |
 | Compatibility/fallback compiler | [`3/compatibility-debugging-hardening.md`](./3/compatibility-debugging-hardening.md) |
@@ -142,8 +143,8 @@ For styling-only responsive differences, prefer responsive schema values/CSS. Us
 
 | Topic | Documentation |
 | --- | --- |
-| External API resolver and auth | [`engine-components/engineapi.md`](./engine-components/engineapi.md) |
-| Static in-house endpoint programs | [`engine-components/apistatic.md`](./engine-components/apistatic.md) |
+| External API resolver and auth | [`engine-components/engineapi.md`](./3/engine-components/engineapi.md) |
+| Static in-house endpoint programs | [`engine-components/apistatic.md`](./3/engine-components/apistatic.md) |
 | NENC / EngineCookies / sessions / device proof | [`3/networking-credentials-security.md`](./3/networking-credentials-security.md) |
 | Private-search end-to-end example | [`gen3/private-search-example.md`](./gen3/private-search-example.md) |
 

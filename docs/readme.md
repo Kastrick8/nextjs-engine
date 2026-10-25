@@ -1,80 +1,64 @@
-# Next.js Engine — Developer Reference
+# Next.js Engine — Generation 3 Developer Reference
 
-> **GENERATION 3 · ALPHA** · Source branch: `main-3`. For the stable 2.x contract, use the versioned guides under [`docs/2`](./2/index.md).
+> **GENERATION 3 · ALPHA** · Source branch: main-3. This is the pre-release 3.x contract, not stable Gen 2 documentation.
+>
+> For existing stable 2.x applications, start at [Generation 2 Documentation](./2/index.md). For the full current Gen 3 guide map, use the [Gen 3 index](./3/index.md).
 
-> Core concepts, schema system, PROP vs CPROP, createPage API.
-> For component-specific APIs see `engine-components/`.
+## What it is
 
----
+Next.js Engine is a schema-driven React/Next.js runtime. A page is described with a typed PageSchema; Engine can validate it, compile an execution plan, render server-owned output where possible, and reserve client code for interactions that require the browser.
 
-## What It Is
+These are capabilities with specific boundaries, not blanket guarantees that every element is memoized, lazy-loaded, or rendered exactly once. Dynamic schemas, named-handler APIs, third-party components, and client state can follow different paths.
 
-A schema-driven rendering layer that sits on top of Next.js. Instead of writing raw HTML or JSX, you define pages as plain TypeScript objects. The engine converts that definition into a fully optimised Next.js page — automatically handling lazy loading, responsive layout, memoization, image optimization, and more.
+## Generation 3 rendering model
 
-You never touch a `<div>` again. The engine handles everything.
+~~~text
+PageSchema
+    ↓
+compilePage()
+    ├─ runtime ownership: static / server / client
+    ├─ work classes and used-feature manifest
+    ├─ browser fallback plan
+    ├─ asset graph and diagnostics
+    ↓
+EngineServerRenderer
+    ↓
+small client islands only where browser behavior is required
+    ↓
+EngineScheduler + EngineViewport + EngineModel
+~~~
 
----
+createPage() is the normal Generation 3 page entry point. A separate Gen 3 page factory is not required. For schemas eligible for server-first rendering, Engine keeps static markup on the server and introduces client islands only where needed. Some legacy named-handler usage still selects the compatibility/provider path; see the [compiler/rendering/runtime guide](./3/compiler-rendering-runtime.md).
 
-## Core Principle
+## Quick start
 
-Raw React and Next.js are fast when optimised correctly, but they give you nothing for free. Every optimization — `React.memo`, `next/image`, `IntersectionObserver`, `content-visibility`, responsive CSS — has to be applied manually. The engine applies all of them automatically, every time, for every element.
+~~~tsx
+import { createPage, defineSchema } from "nextjs-engine";
 
----
+const schema = defineSchema({
+  meta: { title: "Home" },
+  root: {
+    type: "section",
+    children: [
+      { type: "heading", props: { content: "Hello from Engine" } },
+      { type: "text", props: { content: "A typed schema rendered by Next.js." } },
+    ],
+  },
+});
 
-## Architecture Overview
+export default createPage({ schema });
+~~~
 
-```
-src/engine/
-│
-├── schema/
-│   └── types.ts              All TypeScript types for the schema system
-│
-├── core/
-│   ├── resolver.ts              Converts ResponsiveValue props to CSS custom properties
-│   ├── StyleCollector.ts        Collects CSS blocks during render, outputs one style tag
-│   ├── registry.ts              Maps NodeType strings to React components
-│   ├── lazyDetect.ts            Analyses nodes and decides lazy strategy per element
-│   ├── SchemaRenderer.tsx       Walks the schema tree and renders each node
-│   ├── EngineAPIResolver.ts     Runtime fetch orchestrator with multi-tier auth + version macros
-│   ├── EngineAPIConfigParser.ts Parses .EngineAPIConfig/*.api files into EngineAPICompiledConfig
-│   ├── schemaAnalyzer.ts        Static analyzer — diagnostics, did-you-mean, a11y, perf warnings
-│   ├── validateSchema.ts        Runtime schema validation (lightweight, throws on hard errors)
-│   ├── EngineDevice.ts          Server + client device detection (Apple, Samsung, Xiaomi, etc.)
-│   └── EngineMobilePatcher.ts   Mobile schema patching — applies MobileSchemaConfig to PageSchema
-│
-├── hooks/
-│   ├── useInView.ts          SSR-safe IntersectionObserver hook
-│   └── usePropStyles.ts      Converts engine props to inline CSS (uses resolver)
-│
-├── providers/
-│   └── EngineProvider.tsx    React context: config, handlers, slots, breakpoint hook
-│
-├── components/
-│   ├── primitives.tsx        Box, Stack, Grid, Text, Heading, Section, Button, Card, Spacer, Divider
-│   ├── EngineLink.tsx        Styled anchor — delegates routing to EngineNav
-│   ├── EngineNav.tsx         Navigation bar + shared anchor-rendering pipeline
-│   ├── EngineManim/
-│   │   ├── index.ts              Barrel exports
-│   │   ├── manimTypes.ts         All 2D + 3D types
-│   │   ├── manimCompiler.ts      Shape vectorizer + Float32Array pools
-│   │   ├── manimDSLParser.ts     frame() / constraint DSL parser
-│   │   ├── manimAnimationRouter.ts  Tier 2.5 animation routing
-│   │   ├── EngineManim.tsx       2D component (uses EngineCanvas)
-│   │   └── EngineManim3D.tsx     3D component (Three.js GLTF/OBJ)
-│   ├── EngineImage.tsx       Smart lazy image with blur-up progressive loading
-│   ├── EngineVideo.tsx       Lazy video — src never loads until near viewport
-│   ├── EngineHero.tsx        Dedicated hero sections with parallax and overlays
-│   ├── EngineSuspense.tsx    Schema-native Suspense with loading presets
-│   ├── EngineForms.tsx       Form primitives (Input, Textarea, Checkbox, etc)
-│   └── LazyMount.tsx         Generic lazy mount wrapper + LazySection variant
-│
-├── plugins/
-│   └── engineApiPlugin.js    Legacy standalone plugin; Gen 3 combined output lives under .nextjs-engine/config/
-├── createPage.tsx            Top-level page factory
-└── index.ts                  Public API exports
-```
+## Documentation map
 
----
+- [Gen 3 documentation index](./3/index.md)
+- [Gen 3 overview and server-first model](./gen3/overview.md)
+- [Simple styling](./3/styling.md) and [detailed styling](./3/styling-detailed.md)
+- [EngineTheme, createTheme(), .etr, templates, Data-API and fonts](./3/engine-components/enginetheme.md)
+- [Compiler deep dive](./3/compiler-deep-dive.md)
+- [Runtime and performance](./runtime-performance.md)
+- [Schema diagnostics](./schema-diagnostics.md)
+- [Versioned component reference](./3/engine-components/)
 
 ## Responsive System
 
@@ -138,17 +122,21 @@ Custom breakpoints can be passed to `createPage({ config: { breakpoints: { … }
 
 
 
-## Memoization
+## Rendering, memoization, and lazy work
 
-Every engine component is wrapped in `React.memo`. This means:
+The renderer does not promise that every component is wrapped in React.memo, that the full tree becomes immutable after mount, or that a page renders only once. React state, context, route changes, changed props, and client handlers can all cause valid re-renders.
 
-- A node only re-renders if its own props change
-- Parent re-renders do not cascade down the tree
-- The entire schema tree is stable once mounted
+Generation 3 adds compilation and runtime planning for eligible schemas. The plan can classify static/server/client ownership, work priority, required browser features, assets and fallbacks. Static planning may be skipped for dynamic or unsupported source patterns; Next.js still renders such routes normally.
 
-When you define a page with `createPage`, the schema is a static object defined outside of any component. It never changes between renders. Combined with `React.memo`, the entire page tree re-renders approximately zero times after mount.
+Performance behavior is component-specific:
 
----
+- Optional/heavier built-ins are split or lazy-loaded where their registry entry declares that behavior.
+- EngineImage and EngineVideo have their own viewport/media activation policies; these do not automatically apply to arbitrary image or video elements.
+- Responsive style props use CSS media rules rather than a JavaScript resize loop.
+- Generated CSS is deduplicated within the owning StyleCollector; this is not a promise of a process-wide stylesheet cache.
+- NENC/schema caches use fingerprints and bounded output policies where implemented. Changing a source, dependency or configuration may invalidate affected artifacts.
+
+Profile the actual route and use the [compiler deep dive](./3/compiler-deep-dive.md) and [runtime/performance guide](./runtime-performance.md) before assuming a particular optimization applies.
 
 ## Schema Node Reference
 
@@ -305,70 +293,77 @@ Because handlers are defined outside the schema object, they can close over Reac
 
 ## Theme System
 
-Themes are defined in the `theme` key of the schema:
+Generation 3 keeps the backward-compatible inline PageSchema.theme form and adds the reusable, validated createTheme() API. Use inline theme properties for a page-specific setup; use createTheme() when shared tokens, Markdown component defaults, variants or explicit remote artifacts are needed.
 
-```ts
-theme: {
-  vars: {
-    "--e-accent":    "#7c3aed",
-    "--e-bg":        "#0f0f1a",
-    "--e-card-bg":   "#1a1a2e",
-    "--e-muted":     "#94a3b8",
-    "--e-divider":   "rgba(255,255,255,0.08)",
-    "--e-skeleton-a":"#1e1e35",   // shimmer dark colour
-    "--e-skeleton-b":"#2a2a45",   // shimmer light colour
+~~~ts
+import { createTheme } from "nextjs-engine";
+
+export const docsTheme = createTheme({
+  id: "docs",
+  scope: "global",
+  tokens: { colors: { accent: "#826f9b", surface: "#241b38" } },
+  markdown: {
+    defaults: { linkColor: "var(--e-theme-colors-accent)", codeBackground: "#241b38" },
+    variants: { dark: { defaults: { codeColor: "#f5efff" } } },
   },
-  fonts: [
-    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
-  ],
-  globalStyles: `
-    body { background: var(--e-bg); font-family: 'Inter', sans-serif; }
-  `,
-}
-```
+});
+~~~
 
-All engine-internal CSS uses `var(--e-*)` properties, so the whole visual system is overridable from one place.
+A schema can reference a registered global theme variant:
 
----
+~~~ts
+const schema = defineSchema({
+  theme: { id: "docs.markdown.dark" },
+  root: { type: "markdown", props: { content: "# Themed docs" } },
+});
+~~~
+
+The current EngineTheme guide documents group IDs, inheritance, .etr generation/loading, templates, font compilation and the Data-API: [EngineTheme reference](./3/engine-components/enginetheme.md).
+
+**Current limitation:** the EngineTheme pipeline is implemented, but the runtime applies component-specific defaults/styles to Markdown today. Do not assume a components.dialog, components.drawer, components.popover, or arbitrary custom-component namespace automatically styles those components yet. In particular, EngineOverlay theme bindings remain planned work. Page-level vars, supported fonts, and globalStyles remain separate compatibility features.
+
+Legacy inline theme values remain supported:
+
+~~~ts
+const schema = defineSchema({
+  theme: {
+    vars: { "--docs-accent": "#826f9b" },
+    globalStyles: ".docs-article { max-width: 72rem; }",
+  },
+  root: { type: "markdown", props: { content: "# Legacy inline theme" } },
+});
+~~~
 
 ## Custom Components
 
-Register a custom component under any string key:
+Trusted local React components can be registered as schema node types with registerComponent(). This is the existing low-level custom-node API:
 
-```ts
-import { memo } from "react";
-import { registerComponent } from "@/engine";
+~~~tsx
+import { registerComponent } from "nextjs-engine";
+import type { ReactNode } from "react";
 
-const PricingCard = memo(function PricingCard({ plan, price, features, children }) {
+type PricingCardProps = {
+  plan: string;
+  price: string;
+  children?: ReactNode;
+};
+
+function PricingCard({ plan, price, children }: PricingCardProps) {
   return (
-    <div className="pricing-card">
+    <article className="pricing-card">
       <h3>{plan}</h3>
-      <span>{price}</span>
+      <strong>{price}</strong>
       {children}
-    </div>
+    </article>
   );
-});
+}
 
 registerComponent("pricing-card", PricingCard);
-```
+~~~
 
-Then use it in any schema:
+A schema node can then use type: pricing-card with validated, serializable props and children.
 
-```ts
-{
-  type: "pricing-card",
-  props: { plan: "Pro", price: "$9/mo" },
-  children: [
-    { type: "text", props: { content: "Unlimited projects" } }
-  ]
-}
-```
-
-Always call `registerComponent` at the module level (outside components), ideally in a file that's imported in `layout.tsx` or `_app.tsx`.
-
----
-
----
+createComponent({ schema }) currently composes a schema tree into a reusable React component. It is not yet the planned advanced custom-React-component factory described in [the Gen 3 plan](../plan.md#14-custom-ui-components-registry-integration-and-enginetheme-bindings). Keep using the implemented registerComponent() contract for custom React node types until that planned mode is implemented and documented.
 
 ## createPage API
 
@@ -461,7 +456,7 @@ Runtime slots can be passed with `<SiteChrome slots={{ sidebar: <Sidebar /> }}>.
 
 ```ts
 import path from "node:path";
-import { createPage, defineSchema } from "@/engine";
+import { createPage, defineSchema } from "nextjs-engine";
 
 export default createPage({
   schema: defineSchema({
@@ -486,7 +481,7 @@ export default createPage({
 For simple document-style pages, use the compact Markdown page form:
 
 ```ts
-import { createPage } from "@/engine";
+import { createPage } from "nextjs-engine";
 
 export default createPage({
   meta: {
@@ -513,7 +508,7 @@ Use `defineSchema` to define schemas in separate files with full TypeScript type
 
 ```ts
 // schemas/home.schema.ts
-import { defineSchema } from "@/engine";
+import { defineSchema } from "nextjs-engine";
 
 export const HomeSchema = defineSchema({
   meta: { title: "Home" },
@@ -523,7 +518,7 @@ export const HomeSchema = defineSchema({
 
 ```ts
 // app/page.tsx
-import { createPage } from "@/engine";
+import { createPage } from "nextjs-engine";
 import { HomeSchema } from "@/schemas/home.schema";
 
 export default createPage({ schema: HomeSchema });
@@ -535,33 +530,17 @@ export default createPage({ schema: HomeSchema });
 
 ## Performance Checklist
 
-Things the engine handles automatically — you don't need to do these manually:
+Use the optimization that matches the actual component and route:
 
-- React.memo on every rendered component
-- next/image on every image node
-- loading="lazy" passed to next/image for non-priority images
-- IntersectionObserver pre-loading with size-aware rootMargin
-- content-visibility: auto on off-screen sections
-- contain-intrinsic-height to prevent scroll jump
-- Blur-up image placeholder
-- Video src withheld from DOM until near viewport
-- CSS-only responsive layout (zero JS breakpoint detection)
-- Single deduplicated `<style>` tag for all CSS variables
-- Suspense boundaries around every lazy-mounted subtree
-- Shimmer skeleton placeholders with reserved space (prevents CLS)
+- Prefer server-first createPage() for schemas that qualify; keep browser-only behavior in narrow client components.
+- Use typed schema nodes and supported responsive values so styling does not require a resize listener.
+- Use EngineImage/EngineVideo and their documented loading controls when their viewport-aware behavior is needed.
+- Use lazy-mounted/deferred components only where the corresponding Engine component supports that lifecycle.
+- Keep createTheme() definitions static and reusable; remote .etr loading is explicit and is not performed automatically during rendering.
+- Use the compiler/runtime reports and bundle budgets to confirm what compiled, which islands/assets are produced, and which work can be deferred.
+- Profile real routes. Third-party/custom React components, context updates, event handlers and dynamic schema construction can change render cost.
 
-Things you still control:
-
-- Which breakpoints to use (configurable)
-- rootMargin overrides via `props.rootMargin`
-- Forcing eager/lazy via `props.priority` or `props.lazy`
-- Custom component registration
-- Theme CSS variables
-- Event handler wiring
-
----
-
----
+Do not assume every element is memoized, every image automatically becomes next/image, every subtree gets content-visibility, or every page stays permanently render-free after mount.
 
 ## Integrating with Next.js App Router
 
@@ -569,7 +548,7 @@ The engine output is a standard React function component. Use it as a default ex
 
 ```ts
 // app/page.tsx
-import { createPage } from "@/engine";
+import { createPage } from "nextjs-engine";
 export default createPage({ schema: HomeSchema });
 ```
 
@@ -581,7 +560,7 @@ For the `<head>` meta tags to work correctly in App Router, the `EngineHead` out
 
 ```ts
 // pages/index.tsx
-import { createPage } from "@/engine";
+import { createPage } from "nextjs-engine";
 export default createPage({ schema: HomeSchema });
 export const getStaticProps = async () => ({ props: {} });
 ```
@@ -628,40 +607,24 @@ Add this to `tsconfig.json` for clean imports:
 
 ## Style collection and global CSS
 
-The current implementation does **not** promote CSS into Global, Group, and Local tiers based on how many times a page has rendered. That tier description belongs to an older implementation and is retained only in historical material.
+Generation 3 collects generated style rules through the nearest EngineProvider / StyleCollector boundary. Exact CSS blocks are deduplicated within that collector. Provider-collected styles are not automatically promoted into a process-global stylesheet, and the collector is not a cross-request cache.
 
-Current behavior is simpler:
+For page-wide theme variables and styles, prefer the supported PageSchema.theme fields or createTheme() from nextjs-engine. This keeps the theme attached to the page and avoids importing the package's private implementation modules.
 
-- Generated styles are collected by the nearest `EngineProvider`. Each page/component boundary owns its collector, and exact CSS blocks are deduplicated inside it.
-- `EngineGlobalStyles()` emits only CSS explicitly registered through `StyleCollector.addGlobal()`. It does not automatically emit all styles collected by providers.
-- The exported `globalStyleCollector` is a compatibility fallback for low-level helpers used outside an Engine provider. Built-in page rendering normally uses provider-scoped collectors.
+~~~ts
+import { defineSchema } from "nextjs-engine";
 
-### Register truly global CSS
+export const schema = defineSchema({
+  theme: {
+    vars: { "--brand": "#9bcf3a" },
+    globalStyles: "body { color: var(--brand); }",
+  },
+  root: { type: "section", children: [] },
+});
+~~~
 
-```ts
-import { globalStyleCollector } from "@/engine/core/StyleCollector";
+For custom component-scoped styles, see [the detailed Gen 3 styling guide](./3/styling-detailed.md). EngineGlobalStyles only emits CSS explicitly registered through the global-style path; it does not gather all provider styles.
 
-globalStyleCollector.addGlobal(":root { --brand: #9bcf3a; }");
-```
-
-Then render `EngineGlobalStyles` in the root layout to emit the explicitly registered global stylesheet:
-
-```tsx
-import { EngineGlobalStyles } from "@/engine";
-
-export default function RootLayout({ children }) {
-  return (
-    <html>
-      <head><EngineGlobalStyles /></head>
-      <body>{children}</body>
-    </html>
-  );
-}
-```
-
-If no global CSS has been explicitly registered, `EngineGlobalStyles()` returns `null`. For ordinary responsive/pseudo-state styles, use the normal schema props and style collector rather than treating the global helper as a cache of all rendered CSS.
-
-For details about the implementation on each release line, read the generation-specific styling references under `docs/2` or `docs/3`.
 ## cprop — Custom CSS Props
 
 `cprop` exposes pseudo-class states and direct CSS on any engine node.
@@ -692,7 +655,7 @@ element's `className`. No JavaScript event handlers are used — it is pure CSS.
 ### cpropClass utility
 
 ```tsx
-import { cpropClass } from "@/engine";
+import { cpropClass } from "nextjs-engine";
 
 // In your own custom components:
 function MyComponent({ cprop, className, ...props }) {
@@ -756,7 +719,7 @@ All pseudo-states are compiled to CSS classes and injected via StyleCollector �
 ## Schema Validation
 
 ```ts
-import { validatePageSchema, validateSchema } from "@/engine";
+import { validatePageSchema, validateSchema } from "nextjs-engine";
 
 // In your page or CI:
 const result = validatePageSchema(mySchema);
@@ -778,7 +741,7 @@ Each `ValidationError` has: `{ path: string, message: string, level: "error" | "
 `schemaAnalyzer` is a build-time / dev-time static analysis tool. Unlike `validateSchema` (which throws on hard errors at runtime), the analyzer collects all diagnostics in one pass and returns them as structured objects — suitable for CI pipelines, editor integrations, or dev-server overlays.
 
 ```ts
-import { analyzeSchema, isSchemaValid } from "@/engine";
+import { analyzeSchema, isSchemaValid } from "nextjs-engine";
 
 const result = analyzeSchema(MySchema);
 
@@ -832,7 +795,7 @@ interface EngineDiagnostic {
 
 ```ts
 import type { ReactNode } from "react";
-import { staticClass, useEngineContext } from "@/engine";
+import { staticClass, useEngineContext } from "nextjs-engine";
 
 function CustomFrame({ children }: { children: ReactNode }) {
   const { styleCollector } = useEngineContext();
@@ -860,7 +823,7 @@ Used internally by `EngineSection` (inner content wrapper) and `EngineCard` (cov
 ```ts
 // app/some-page/page.tsx
 import type { Metadata } from "next";
-import { generateEngineMetadata } from "@/engine";
+import { generateEngineMetadata } from "nextjs-engine";
 import { myPageSchema } from "./schema";
 
 export async function generateMetadata(): Promise<Metadata> {

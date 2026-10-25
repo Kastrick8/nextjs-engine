@@ -149,6 +149,8 @@ export function OverlayExamples() {
 
 All three also accept normal Engine styling props through `BaseNodeProps`.
 
+**Trigger contract:** EngineOverlay renders its own native button around trigger / triggerLabel. Supply non-interactive trigger content; do not pass an existing button, link or other interactive element as trigger, because that can produce nested interactive HTML. If the application must own the interactive trigger element, use the controlled-open API and keep the actual trigger outside EngineOverlay until a dedicated trigger-composition API is available.
+
 ---
 
 ## Shared props
@@ -322,6 +324,8 @@ There is intentionally no separate `sheet` primitive because it would duplicate 
 
 Popover is anchored to its generated trigger and is non-modal by default.
 
+**Keyboard-role limitation:** the current type permits role: menu and role: listbox, but EnginePopover does not implement the complete menu/listbox composite-widget keyboard contract (for example, arrow-key item movement and active-item semantics). Do not interpret those role values as a complete menu/listbox implementation. Use the default dialog semantics unless the application supplies and tests the required role-specific keyboard/ARIA behavior.
+
 | Prop | Default | Meaning |
 |---|---|---|
 | `placement` | `bottom` | `top`, `right`, `bottom`, `left` |
@@ -403,6 +407,12 @@ Overlay panels portal to `document.body` by default. This prevents a parent elem
 When the requested target is missing, EngineOverlay safely falls back to `document.body`.
 
 The portal runtime is client-side only; the trigger can still participate in normal SSR/hydration.
+
+---
+
+## EngineTheme integration status
+
+The current EngineTheme runtime resolves Markdown component defaults/styles and page-level theme fields. It does not yet apply component-specific theme namespaces directly to EngineDialog, EngineDrawer or EnginePopover. For overlays, use the documented styling props and CSS variables below; do not assume a components.overlay, components.dialog, components.drawer or components.popover theme namespace is wired in this alpha. The planned integration is tracked in [plan.md](../../plan.md#16-gen-3-first-release-gap-assessment-engineoverlay-and-reused-gen-2-surfaces).
 
 ---
 
