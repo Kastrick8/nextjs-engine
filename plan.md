@@ -481,3 +481,226 @@ Acceptance criteria:
 - Whether component registries are explicit objects passed through schema/render context or safely scoped registries created by a project bootstrap.
 - Exact custom-link props and whether theme IDs live in a reserved schema field or validated component props.
 - Any additional custom-component event list and how those events interact with the existing local-handler/slot contract.
+
+## 15. General API and EnginePlugin system
+
+This proposal expands Nextjs Engine from a collection of public helpers into a deliberate extension platform. The General API/EnginePlugin system is a separate future proposal, not an instruction to implement it now. EngineTheme itself is implemented as described in Section 13; any future extension system must preserve its public contracts and existing compatibility boundaries.
+
+### Goal and terminology
+
+Provide one discoverable General API through which first-party modules, custom UI/theme packages, and compatible third-party packages can integrate with supported parts of Nextjs Engine. Add an EnginePlugin host that loads trusted project plugin files and lets those plugins contribute to declared extension points.
+
+The design should be approachable for a basic use case and expressive enough for advanced integrations:
+
+- **General API** is the stable public facade for supported Engine capabilities and extension contracts. It provides one consistent route into the Engine workload without requiring packages to import private files from `src/engine/`.
+- **EnginePlugin** is an opted-in integration module that declares its identity, compatibility, requested capabilities, target extension points, setup behavior, and optional lifecycle handlers.
+- **Extension point** is a named, typed, versioned integration surface explicitly published by a package. A plugin can connect only to extension points the target package exposes and the host allows.
+- **Adapter package** is a regular package that provides a small plugin or adapter module to connect its own functionality to Engine. The package may document how users install it and enable the corresponding local plugin.
+- **Plugin host** discovers/loads enabled plugin modules, validates their declarations, creates scoped API contexts, orders registrations, and owns cleanup/error reporting.
+
+Do not treat “General API” as permission to import or mutate every implementation detail. The API should make the workload discoverable while preserving stable boundaries, separate server/build/browser concerns, and clearly mark experimental or internal surfaces.
+
+### Proposed public entry points
+
+Names and package exports are provisional until the export map and versioning policy are reviewed.
+
+- `nextjs-engine`: preserve the existing consumer-facing public API and backwards compatibility.
+- `nextjs-engine/api`: stable, typed General API contracts and supported capability facades for packages integrating with Engine.
+- `nextjs-engine/plugin`: plugin author helpers and types such as `defineEnginePlugin`; host-side loader APIs should be explicitly server/build-only and must not be imported into client components.
+- `nextjs-engine/server`: continue to contain server-only APIs; never make server-only capabilities transitively available from the browser-safe root or API entry point.
+- `nextjs-engine/experimental`: optional staging surface for contracts that are not yet stable, if the project wants to publish them before graduation.
+
+The General API should group capabilities by domain instead of exposing one undifferentiated object full of private methods. Candidate domains include components/registry, themes, schema, Data-API, Markdown/rendering, compiler/build, assets, diagnostics, runtime profiles, and framework adapters. Each domain must explicitly declare its environment, mutability, stability, and version contract. The existing public exports are the compatibility baseline, not a reason to re-export every internal module.
+
+### Extension ownership: no hooks into null
+
+A plugin may integrate with “any package” only when that package provides a compatible, documented extension point or adapter. The host must reject unknown targets rather than guessing a private symbol, monkey-patching a dependency, rewriting installed package files, or silently falling back to internal imports.
+
+Each package that wants to be extensible should publish a catalog of extension points with:
+
+- a stable, namespaced ID and API/contract version;
+- supported lifecycle phase and runtime environment (build, Node.js server, browser/client, or more than one when explicitly safe);
+- the exact typed input/output or contribution schema;
+- allowed operations/capabilities and whether a hook may return a value, add a contribution, or transform a value;
+- ordering/composition rules, concurrency behavior, error semantics, and cleanup expectations;
+- stability status (stable, experimental, deprecated) and compatibility/migration rules.
+
+The Engine package can publish its own extension points; a third-party package must opt in by publishing an adapter interface, extension provider, or plugin API of its own. A plugin can then target that package's public contract. If a package offers no extension point, the supported answer is “not extensible through EnginePlugin yet,” with a request to add an adapter—not an unsafe promise that any dependency can be intercepted.
+
+Potential first-party extension-point families:
+
+- `engine.component.register`: contribute a uniquely named custom component descriptor.
+- `engine.theme.define` / `engine.theme.resolve`: add theme data and validated resolution contributions.
+- `engine.schema.validate`: add declared schema validators or schema-node kinds through a controlled contract.
+- `engine.markdown.render`: register trusted local rendering adapters or declarative templates.
+- `engine.compiler.beforeCompile`, `engine.compiler.afterCompile`, and narrowly scoped asset/diagnostic contributions: build-time integration only where the compiler contract explicitly permits it.
+- `engine.runtime.profile`: contribute a compatible runtime profile through the existing runtime-profile contract.
+- Framework-specific targets such as a Next.js build adapter must remain separate and versioned against the actual Next.js integration surface.
+
+These are candidate names for design discussion, not existing APIs. Do not mark an extension point as stable until its lifecycle, types, ordering, and tests exist.
+
+### Project plugin location and discovery
+
+The user-facing project convention should support files under the consuming project's root `/plugins/` directory, not require edits inside `node_modules/nextjs-engine`. This lets a separately published package instruct users to install the package and add or import a thin plugin file into their own project.
+
+Use a deliberately recognizable file pattern such as:
+
+- `plugins/acme-theme.engine-plugin.ts`
+- `plugins/acme-markdown.engine-plugin.js`
+
+Do not execute every `.js` or `.ts` file found in the folder. The final design must select an explicit policy: either a deliberate allow-list in project Engine configuration or opt-in discovery limited to the recognized `*.engine-plugin.{js,ts}` pattern. In either design, loading plugins must be visibly enabled, deterministic, and easy to inspect. A discovered file that is not enabled must not run.
+
+For initial ergonomics, support a local plugin file and a package-provided adapter where feasible. For example, an integration package could expose a public plugin entry that the project config references, or provide a small local file that imports its adapter. The package's installation instructions must state which approach it supports, the required package version, and the exact enablement step. Avoid requiring users to copy large or generated implementation files into their app.
+
+The plugin loader must settle the JavaScript/TypeScript module contract before implementation:
+
+- Support `.js` and `.ts` with a documented ESM/CommonJS policy compatible with the project's supported Node.js and build tool versions.
+- Do not assume every supported Node.js runtime can execute TypeScript directly. Where transpilation is needed, use a deliberate supported build-time path and cache its output safely; do not use eval or ship the loader into browser code.
+- Resolve only paths inside the project/plugin locations or supported installed package exports. Normalize paths, reject traversal and unexpected symlink escapes, and emit a clear diagnostic for invalid locations.
+- Avoid remote JavaScript imports or downloading and executing a plugin from a URL. Remote theme/data artifacts remain non-executable and separate from trusted plugin code.
+- Do not scan recursively on every route render or compiler pass. Discover and validate once in the correct host lifecycle, then reuse a bounded, deterministic plugin manifest/cache.
+
+### Illustrative plugin authoring contract
+
+This is a design sketch, not an implemented or finalized signature:
+
+~~~ts
+import { defineEnginePlugin } from "nextjs-engine/plugin";
+
+export default defineEnginePlugin({
+  id: "acme-site-theme",
+  apiVersion: "^1",
+  engineVersion: "^3",
+  targets: ["engine.theme.define", "engine.component.register"],
+  capabilities: ["theme.define", "component.register"],
+  setup(api) {
+    const theme = api.themes.define({
+      id: "acme-site",
+      components: {
+        link: {
+          defaults: { color: "var(--acme-link)" },
+          variants: { quiet: { textDecoration: "none" } },
+        },
+      },
+    });
+
+    api.components.register({
+      id: "acme-link",
+      component: AcmeLink,
+      theme: theme.component("link"),
+    });
+  },
+});
+~~~
+
+The exact chaining and descriptor shapes are open. The contract should consistently separate these concerns:
+
+1. The plugin manifest declares identity, compatibility range, target extension points, requested capabilities, dependencies, and environment needs.
+2. The host validates the manifest and compatibility before running plugin code, then builds a scoped API from the capabilities actually allowed.
+3. Setup registers descriptors/contributions through supported methods; it should not receive a mutable reference to internal global maps.
+4. The package/host validates registrations, reports conflicts, and resolves contributions according to declared rules.
+5. If a lifecycle exposes asynchronous operations, the phase must document whether they are awaited and what failure means.
+6. Cleanup/disposal removes registrations and subscriptions owned by that plugin when a development reload or host context ends.
+
+Do not force a beginner to write hooks, compiler passes, or low-level adapters just to publish a theme or component. Provide a simple mode that calls high-level helpers, while advanced plugins can use explicitly versioned lower-level extension contracts.
+
+### General API responsibilities and extension boundaries
+
+The General API should provide a consistent set of typed facades that map to existing subsystem APIs and future subsystem contracts:
+
+- **Components:** define a custom component descriptor, validate its props/slots, register it under an application-owned ID, and preserve built-in registrations unless explicit replacement is supported by a deliberate override policy.
+- **Themes:** create and extend theme data, reference tokens and component variants, and resolve the theme through the same shared resolver proposed in Section 14.
+- **Schema:** declare custom node types and validators without embedding JavaScript in schema data.
+- **Data-API:** declare supported event/slot contracts and bind named handlers to trusted local registrations; never evaluate code written into schema or theme values.
+- **Compiler/build:** use named, typed compiler phases and contribution points. Do not allow arbitrary source replacement, mutation of compiler internals, or unrestricted rewrite passes by default.
+- **Assets:** register declared asset types/resolvers with URL, size, origin, and content validation; cache work by stable fingerprints.
+- **Diagnostics:** report plugin ID, target, phase, path, and actionable cause, with severity and production/development behavior.
+- **Framework integration:** expose a separate adapter boundary for Next.js and any other cooperating framework, versioned to that framework's published API.
+
+A capability should not be exposed just because a module happens to export a function today. First define its behavior and compatibility. Use explicit stable, experimental, and internal classifications, and avoid exporting mutable internal registries as the integration mechanism.
+
+### EnginePlugin lifecycle and deterministic composition
+
+The host should define a single, documented lifecycle. A candidate order is:
+
+1. **Discover:** locate only enabled plugin entry points using the configured policy.
+2. **Load and describe:** import the module in a permitted build/server environment and read its manifest.
+3. **Validate:** check the manifest schema, duplicate IDs, Engine/API version compatibility, declared target IDs, requested capabilities, and module environment.
+4. **Plan order:** resolve declared plugin dependencies and ordering constraints; reject missing dependencies and ordering cycles. Use a deterministic tie-break rule for otherwise independent plugins.
+5. **Register:** create the scoped API and collect component/theme/schema/adapter contributions without mutating process-global singletons.
+6. **Execute phase hooks:** invoke only hooks supported for the current phase; await async handlers only where the contract allows it.
+7. **Finalize:** produce a normalized plugin/contribution manifest that the relevant compiler and cache can fingerprint.
+8. **Dispose/reload:** release subscriptions, remove owned contributions, and rebuild the affected context during HMR or shutdown.
+
+Define duplicate-ID and conflict behavior explicitly. In general, collisions should produce a clear diagnostic rather than “last plugin wins.” Override behavior, where needed, should be opt-in, scoped, visible in the plugin manifest, and prohibited for reserved internal/system-owned IDs.
+
+Plugin errors should identify the plugin, extension point, and lifecycle phase. Required plugin failures should fail the relevant build/startup phase rather than silently producing a partly configured app; optional plugins may declare an explicit optional policy and warning/fallback behavior. Never swallow errors without an actionable diagnostic.
+
+### Permissions, trust, and security model
+
+EnginePlugin files are trusted local JavaScript/TypeScript code and normally execute with the privileges of the process loading them. A declared capability list is an allow-list enforced by the EnginePlugin host; it is not a security sandbox against malicious code that imports Node.js filesystem, networking, or process APIs directly. Documentation and diagnostics must not imply otherwise.
+
+- Require each plugin to declare the capabilities it requests; expose only those capability methods through its scoped General API context.
+- Require the project to enable the plugin and approve any sensitive capability category defined by the policy. No permission should be inferred only from a package name or a file's presence.
+- Separate build, server, and client code. Build/server plugins must never be imported into a client bundle. Client contributions must be deliberately serializable or explicitly imported through React's supported client/server component boundaries.
+- Keep server/request state and registry instances isolated per application or render context where needed. One tenant, build, test, or request must not leak component registrations, theme changes, handlers, or secrets into another.
+- Treat plugins as trusted dependency code: inspect the source and package provenance before enabling unfamiliar plugins. A manifest or permission declaration alone cannot make arbitrary third-party code safe.
+- Never give plugin APIs a broader mutation mechanism than an extension point requires. Do not provide raw internal maps, unbounded file/network helpers, shell execution, or secret-bearing environment snapshots as convenience features.
+- Validate paths, URL schemes/origins, serialized data, payload sizes, recursion depth, and all cross-boundary values. Keep remote .etr theme content declarative and non-executable as established in the existing plan.
+- Include a future-compatible option for an isolated worker/process or constrained declarative plugin format if genuinely untrusted extensions become a requirement; do not promise that an in-process JavaScript plugin is sandboxed.
+
+### Compatibility with Next.js and other packages
+
+EnginePlugin is Nextjs Engine's plugin system; it must not be confused with a promise that Next.js exposes all of its internal hooks. Framework integration must use the supported boundary for the specific operation and version.
+
+Current official Next.js documentation describes `experimental.adapterPath` as an experimental build adapter entry point ([Next.js adapterPath documentation](https://nextjs.org/docs/app/api-reference/config/next-config-js/adapterPath)). The custom webpack configuration documentation warns that webpack config changes are not covered by semver ([Next.js webpack configuration](https://nextjs.org/docs/app/api-reference/config/next-config-js/webpack)). The instrumentation registration lifecycle is for server-startup integrations, not a general hook into arbitrary package internals ([Next.js instrumentation](https://nextjs.org/docs/app/guides/instrumentation)). These are distinct mechanisms and must not be wrapped in a false claim of a universal Next.js plugin API.
+
+For any framework-specific adapter, record the framework version/range, supported lifecycle phase, behavior under dev/build/production, and the corresponding compatibility tests. If the necessary framework hook is experimental, label the integration experimental and do not make it a core stable guarantee.
+
+A third-party package should integrate through a small public adapter rather than ask users to patch code in Engine or the dependency. If the package has no compatible extension contract, a package maintainer must first expose one or Engine must add a deliberate adapter.
+
+### Performance and low-end hardware requirements
+
+- Keep plugin discovery and manifest validation out of per-component and per-request hot paths unless request-scoped semantics explicitly require it.
+- Create separate immutable or controlled registry snapshots for each app/build context. Cache normalized contributions using deterministic fingerprints that include plugin identity/version, API contract version, declared targets, and relevant configuration—not transient object identity alone.
+- Invalidate only affected components, themes, schema validators, compiled pages, or asset outputs when a plugin changes.
+- Do not eagerly load every optional UI implementation. Preserve the registry's lazy-loading approach and allow plugin metadata registration without importing a heavy browser-only dependency.
+- Bound plugin counts, manifest size, recursion, async work, generated output, and cache growth; report budget violations clearly.
+- Keep browser work independent from build-time plugin initialization. Prefer server/build processing for metadata, theme normalization, and compilation when the result can be safely serialized.
+- Use predictable failure/fallback behavior on constrained environments. Avoid making a plugin system mandatory for ordinary Engine apps; a project with zero plugins should have effectively no recurring plugin overhead.
+
+### Suggested implementation phases
+
+1. **Inventory and contract map:** inspect package/export boundaries, all existing registries, compiler phase entry points, theme/schema/Markdown/Data-API integrations, current config conventions, and server/client separation. Classify every candidate extension point as stable, experimental, or internal. Do not decide on names from assumptions alone.
+2. **General API design:** agree on public subpaths, stable types, capability names, compatibility/version policy, context ownership, and how existing root exports map to the new facade. Preserve old APIs while gradually routing supported extensibility through shared contracts.
+3. **Plugin manifest and configuration:** define the manifest, project plugin location, recognized filename convention, allow-list/discovery policy, .js/.ts module strategy, compatibility validation, diagnostics, and developer inspection output.
+4. **Host and lifecycle:** implement discovery/loading, capability-scoped API construction, dependency ordering, idempotent registration, error handling, context isolation, cleanup, and HMR behavior.
+5. **First end-to-end Engine use case:** create a plugin that registers a custom component and extends EngineTheme using the shared resolver from Section 14. Start with a custom link variant, prove safe URL/accessibility behavior, and keep theme styling separate from link behavior.
+6. **Package-to-package integration:** add one narrow extension point in a cooperating Engine package and one example adapter package. Demonstrate the real installation and enablement workflow. Only then broaden the extension catalog.
+7. **Verification and documentation:** add contract, security, compatibility, performance, and regression tests; document basic and advanced plugin authoring; publish stable API contracts only after the implementation and tests justify them.
+
+### Acceptance criteria
+
+- A public, discoverable General API exists with typed, versioned contracts and clear environment/stability classifications.
+- Existing exports and existing component registrations continue to behave as documented; the new system does not require users to rewrite simple Engine usage.
+- A user can enable a local `.js` or `.ts` plugin through the documented `/plugins/` workflow without editing `node_modules`.
+- Plugin files execute only under the selected explicit enablement/discovery policy; unrelated files in `/plugins/` are not accidentally executed.
+- Invalid manifests, unsupported API versions, unknown target points, missing capabilities/dependencies, duplicate IDs, unsafe paths, and dependency cycles fail with actionable diagnostics.
+- An opted-in package can be extended through its declared public contract; a package with no extension point is rejected rather than silently monkey-patched.
+- Component/theme/schema/Data-API contributions use the General API and Section 14's shared resolution rules, with request/context isolation.
+- Build, server, and client plugin work remains separated; server-only code does not enter client bundles.
+- Remote .etr/theme/schema data cannot execute plugin code or import modules.
+- Cache invalidation is deterministic and scoped; no-plugin apps pay no significant recurring discovery/render cost.
+- Tests cover plugin ordering, conflict policy, API-version mismatch, permissions, loader behavior for supported JS/TS modes, HMR disposal, SSR/request isolation, malformed plugin data, build failure semantics, and low-end performance budgets.
+- Type-check, build, focused plugin/component/theme smoke tests, and relevant Chromium/Firefox/WebKit regressions pass before the system is considered complete.
+
+### Decisions still open
+
+- Final public names and export map: whether the facade is named `EngineGeneralAPI`, what lives at `nextjs-engine/api`, and which helpers live at `nextjs-engine/plugin`.
+- Whether plugin discovery is explicit-config-only, recognized-pattern auto-discovery after global opt-in, or a supported combination.
+- Minimum Node.js/toolchain requirements and the supported module/transpilation strategy for `.js` and `.ts` plugins.
+- Final manifest shape, package metadata convention, capability vocabulary, and whether permissions are grouped by risk or by API domain.
+- The lifecycle hook list, ordering/conflict policy, async behavior, cleanup contract, and which contribution types can mutate or only add data.
+- Whether plugin contexts are per build, per application, per request, or composed across these scopes; request state must never be stored in a process-global registry.
+- Which initial extension points are stable and which remain experimental, including the future-facing Next.js adapter boundary.
+- The smallest package-to-package proof of concept after the extension-point inventory.
