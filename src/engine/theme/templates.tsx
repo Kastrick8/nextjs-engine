@@ -250,6 +250,7 @@ function renderCompiledNode(
 	node: CompiledTemplateNode,
 	context: EngineThemeTemplateContext,
 	depth: number,
+	keyPath: string,
 ): ReactNode {
 	if (depth > MAX_TEMPLATE_DEPTH) return null;
 	const props = node.props;
@@ -258,18 +259,19 @@ function renderCompiledNode(
 		const value = context.slots?.[name];
 		if (value !== undefined && value !== null) return value;
 		if (node.children.length > 0) return node.children.map((child, index) =>
-			typeof child === "string" ? interpolate(child, context) : renderCompiledNode(child, context, depth + 1));
+			typeof child === "string" ? interpolate(child, context) : renderCompiledNode(child, context, depth + 1, keyPath + "." + index));
 		return null;
 	}
 	const children = node.children.length > 0
-		? node.children.map((child) => typeof child === "string"
+		? node.children.map((child, index) => typeof child === "string"
 			? interpolate(child, context)
-			: renderCompiledNode(child, context, depth + 1))
+			: renderCompiledNode(child, context, depth + 1, keyPath + "." + index))
 		: typeof props.content === "string"
 			? interpolate(props.content, context)
 			: undefined;
 	const tag = normalizeTag(node.type, props);
 	const elementProps: Record<string, unknown> = {
+		key: keyPath,
 		style: {
 			...(depth === 0 && context.wrapperStyle ? context.wrapperStyle : {}),
 			...compileStyleFromProps(node.type, props, context),
@@ -341,5 +343,5 @@ export function renderEngineThemeTemplate(
 		return adapter ? createElement(adapter, context) : undefined;
 	}
 	if (!compiled.node) return undefined;
-	return renderCompiledNode(compiled.node, context, 0);
+	return renderCompiledNode(compiled.node, context, 0, "theme-template");
 }
