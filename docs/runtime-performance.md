@@ -117,6 +117,53 @@ large lazy lists from multiplying identical native observers.
 `once: true` unregisters only the intersected element after its first hit; it does
 not disconnect the shared observer while other elements still depend on it.
 
+### Public viewport hooks
+
+`useInView()` is exported from `nextjs-engine` for custom React components. It returns `{ ref, inView, entry }` and accepts these options:
+
+| Option | Default | Purpose |
+|---|---|---|
+| `rootMargin` | `"200px 0px"` | Expand/shrink the observer root |
+| `threshold` | `0` | Intersection ratio or list of ratios |
+| `once` | `true` | Stop observing this element after its first intersection |
+| `root` | `null` | Optional scroll-container element |
+| `initialInView` | `false` | Start as visible; useful for eager/above-the-fold content |
+
+```tsx
+"use client";
+
+import { useInView } from "nextjs-engine";
+
+export function RevealOnView() {
+  const { ref, inView, entry } = useInView<HTMLElement>({
+    rootMargin: "200px 0px",
+    once: true,
+  });
+
+  return (
+    <section ref={ref} data-in-view={inView} data-ratio={entry?.intersectionRatio}>
+      {inView ? "Ready to show" : "Preparing"}
+    </section>
+  );
+}
+```
+
+Convenience hooks are also exported:
+
+- `useImageInView(priority = false)` observes 400px before entry and unobserves after the first hit.
+- `useSectionInView(eager = false)` observes 600px before entry and unobserves after the first hit.
+- `useVisibleInView()` uses no root margin, a 0.1 threshold, and continues tracking enter/leave transitions.
+
+The hooks pool native `IntersectionObserver` instances with the same root, root margin, and threshold. When `IntersectionObserver` is unavailable, the current implementation marks the hook as in-view rather than leaving the content permanently hidden.
+
+### LazyMount and LazySection
+
+`LazyMount` and `LazySection` are public component exports. Both accept `children`, `height`, `width`, `aspectRatio`, `skeleton`, `rootMargin` (default `"600px 0px"`), `eager`, `className`, and `style`. A custom `skeleton` replaces the built-in shimmer placeholder; numeric width/height values are interpreted as pixels.
+
+`LazySection` additionally accepts `contentVisibility` (default `true`) and `containIntrinsicHeight`. When content visibility is enabled, it uses `content-visibility: auto` and defaults the intrinsic height to the provided height or `500px`. Set `contentVisibility={false}` when that behavior is not suitable for the section.
+
+Generation 3 `LazyMount` routes mount preparation through `EngineScheduler`. It activates when the scheduler marks the node critical or visible, or near the viewport without frame pressure; this allows lazy work to share the Engine's scheduling policy.
+
 ## Responsive hook listener ownership
 
 All `useBreakpoint()` / `useMinBreakpoint()` instances share one passive window
