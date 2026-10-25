@@ -16,6 +16,7 @@ const DANGEROUS_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 interface RegisteredTheme {
   definition: Readonly<EngineThemeDefinition>;
   canonical: string;
+  allowRemote?: boolean;
 }
 
 export interface ResolvedEngineThemeGroup {
@@ -89,8 +90,8 @@ export function resolveRegisteredEngineTheme(id: string): ResolvedEngineThemeGro
     );
   }
   const group = registered.definition;
-  if (group.scope !== "global") {
-    throw new Error("EngineTheme ID references require scope global; local themes must be supplied as theme objects.");
+  if (group.scope !== "global" && !(group.scope === "remote" && registered.allowRemote === true)) {
+    throw new Error("EngineTheme ID references require a global theme or a verified remote theme loaded explicitly with loadRemoteEngineTheme(). Local themes must be supplied as theme objects.");
   }
 
   if (!parsed.componentId) {
@@ -281,9 +282,46 @@ export function createTheme<T extends EngineThemeDefinition>(
       globalThemes.set(frozen.id, {
         definition: frozen as Readonly<EngineThemeDefinition>,
         canonical,
+        allowRemote: false,
       });
     }
   }
 
   return frozen;
+}
+
+/**
+ * Register a remote definition only after remoteTheme.ts has verified its
+ * origin allowlist, bounded JSON body, checksum, format and compatible versions.
+ * Kept separate from createTheme() so ordinary theme construction never fetches
+ * or registers remote definitions implicitly.
+ */
+export function registerLoadedRemoteEngineTheme(
+  definition: EngineThemeDefinition,
+): Readonly<EngineThemeDefinition & { scope: EngineThemeScope }> {
+  const loaded = createTheme(definition);
+  if (loaded.scope !== "remote") {
+    throw new TypeError("A remotely loaded EngineTheme artifact must declare scope remote.");
+  }
+  const canonical = canonicalThemeJson(loaded);
+  const existing = globalThemes.get(loaded.id);
+  if (existing && existing.allowRemote !== true) {
+    throw new Error("Remote EngineTheme ID '" + loaded.id + "' conflicts with an already registered local/global theme.");
+  }
+  // A newly verified artifact may refresh the same remote group ID in this
+  // process; local/global entries are never replaced by remote content.
+  globalThemes.set(loaded.id, {
+    definition: loaded as Readonly<EngineThemeDefinition>,
+    canonical,
+    allowRemote: true,
+  });
+  return loaded;
+}
+
+/** Remove a verified remote group from the in-process registry. */
+export function unregisterLoadedRemoteEngineTheme(id: string): boolean {
+  const parsed = parseEngineThemeId(id);
+  const existing = globalThemes.get(parsed.groupId);
+  if (!existing || existing.allowRemote !== true) return false;
+  return globalThemes.delete(parsed.groupId);
 }
