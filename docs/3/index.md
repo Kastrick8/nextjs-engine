@@ -9,6 +9,7 @@ For Gen 3 evaluation, development, and migration. Gen 3 is not the stable 2.x co
 | Use styling props | [Styling — simple](./styling.md) |
 | Understand style compilation and collection | [Styling — detailed](./styling-detailed.md) |
 | Understand the compiler and server-first model | [Gen 3 overview](../gen3/overview.md) |
+| Detailed compiler, runtime profiles, artifact cache, budgets, and security | [Compiler deep dive](./compiler-deep-dive.md) |
 | Compiler, server rendering, and scheduler internals | [Phase A + B](../gen3/phase-a-b.md) |
 | Browse all documentation | [Main docs index](../index.md) |
 
