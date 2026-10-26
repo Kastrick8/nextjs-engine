@@ -389,6 +389,7 @@ const SiteChrome = createComponent({
       type: "box",
       children: [
         { type: "section", children: [] },
+        { type: "slot", props: { name: "sidebar" } },
         { type: "slot", props: { name: "children" } },
       ],
     },
