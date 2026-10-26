@@ -23,6 +23,7 @@ This is the curated starting point for the current Gen 3 implementation. Canonic
 |---|---|
 | Compiler, server rendering, work classes, scheduler, EngineModel, and EngineViewport | [Compiler, rendering, and runtime](./compiler-rendering-runtime.md) |
 | NENC, EngineCookies, device proof, sessions, permissions, and private backends | [Networking, credentials, and command security](./networking-credentials-security.md) |
+| Global error reporting, terminal diagnostics, and Next.js error fallbacks | [Global error handling](./global-error-handling.md) |
 | Used-feature manifests, browser fallbacks, EngineDebug, build budgets, and hardening | [Compatibility, EngineDebug, and hardening](./compatibility-debugging-hardening.md) |
 | EngineDebug route isolation and preview behavior | [EngineDebug isolation](../gen3/engine-debug-isolation.md) |
 | Server-first/client-render parity and shared style behavior | [Server-first parity](../gen3/server-first-parity.md) |

@@ -9,6 +9,8 @@ const withEngineSEO = require("./engineSEOPlugin");
 const withEngineShader = require("./engineShaderPlugin");
 const withEngineNENC = require("./nencPlugin");
 const { runGen3MigrationDiagnostics } = require("./gen3MigrationDiagnostics");
+const { prepareEngineErrorHandling } = require("./engineErrorHandling");
+const { installEngineUncaughtExceptionMonitor } = require("../errors/engineErrorReporter");
 const {
 	clearPluginArtifactCache,
 	inspectPluginArtifactCache,
@@ -108,6 +110,8 @@ function isDevelopmentProcess() {
 }
 
 function withEngine(nextConfig = {}, pluginOptions = {}) {
+	installEngineUncaughtExceptionMonitor();
+	prepareEngineErrorHandling({ rootDir: process.cwd(), development: isDevelopmentProcess() });
 	installDevelopmentOutputBridge();
 	const apiOptions = pluginOptions.api || pluginOptions;
 	if (isDevelopmentProcess()) {
@@ -144,4 +148,5 @@ module.exports.withEngineImageConfig = withEngineImageConfig;
 module.exports.withEngineTurbopackCache = withEngineTurbopackCache;
 module.exports.withEngineBuildAdapter = withEngineBuildAdapter;
 module.exports.clearPluginArtifactCache = clearPluginArtifactCache;
+module.exports.prepareEngineErrorHandling = prepareEngineErrorHandling;
 module.exports.inspectPluginArtifactCache = inspectPluginArtifactCache;
