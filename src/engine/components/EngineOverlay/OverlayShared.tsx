@@ -127,6 +127,8 @@ export function useOverlayPresence(open: boolean, duration: number) {
 
 interface OverlayBehaviorOptions {
 	open: boolean;
+	/** True only when the portal target and panel have mounted. */
+	present: boolean;
 	overlayId: string;
 	panelRef: React.RefObject<HTMLElement | null>;
 	triggerRef: React.RefObject<HTMLButtonElement | null>;
@@ -165,71 +167,65 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 	}, [options.lockScroll, options.open]);
 
 	useEffect(() => {
-		if (!options.open) return;
-		previousFocus.current = document.activeElement instanceof HTMLElement
-			? document.activeElement
+		if (!options.open || !options.present) return;
+		const panel = options.panelRef.current;
+		if (!panel) return;
+		const ownerDocument = panel.ownerDocument;
+		previousFocus.current = ownerDocument.activeElement instanceof HTMLElement
+			? ownerDocument.activeElement
 			: null;
-		// The portal panel can mount after the initial open-state effect.
-		let unregister: (() => void) | null = null;
-		const registerWhenMounted = () => {
-			if (unregister) return;
-			const current = currentOptions.current;
-			const panel = current.panelRef.current;
-			if (!panel) return;
-			unregister = registerOverlay(current.overlayId, panel.ownerDocument, {
-				root: panel.parentElement ?? panel,
-				modal: current.modal,
-			});
-		};
-		registerWhenMounted();
+		const unregister = registerOverlay(options.overlayId, ownerDocument, {
+			root: panel.parentElement ?? panel,
+			modal: options.modal,
+		});
 		const frame = requestAnimationFrame(() => {
-			registerWhenMounted();
 			const current = currentOptions.current;
 			if (!current.autoFocus) return;
-			const panel = current.panelRef.current;
-			if (!panel) return;
-			const requested = resolveInitialFocus(panel, current.initialFocus);
-			(requested ?? getFocusableElements(panel)[0] ?? panel).focus({ preventScroll: true });
+			const currentPanel = current.panelRef.current;
+			if (!currentPanel) return;
+			const requested = resolveInitialFocus(currentPanel, current.initialFocus);
+			(requested ?? getFocusableElements(currentPanel)[0] ?? currentPanel).focus({ preventScroll: true });
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
 			const current = currentOptions.current;
-			if (!isTopOverlay(current.overlayId, document)) return;
+			if (!isTopOverlay(current.overlayId, ownerDocument)) return;
 			if (event.key === "Escape" && current.closeOnEscape) {
 				event.preventDefault();
 				current.close();
 				return;
 			}
 			if (event.key !== "Tab" || !current.trapFocus) return;
-			const panel = current.panelRef.current;
-			if (!panel) return;
-			const focusable = getFocusableElements(panel);
+			const currentPanel = current.panelRef.current;
+			if (!currentPanel) return;
+			const focusable = getFocusableElements(currentPanel);
 			if (focusable.length === 0) {
 				event.preventDefault();
-				panel.focus();
+				currentPanel.focus();
 				return;
 			}
 			const first = focusable[0];
 			const last = focusable[focusable.length - 1];
-			if (!(document.activeElement instanceof Node) || !panel.contains(document.activeElement)) {
+			const activeElement = ownerDocument.activeElement;
+			if (!(activeElement instanceof Node) || !currentPanel.contains(activeElement)) {
 				event.preventDefault();
 				(event.shiftKey ? last : first).focus();
-			} else if (event.shiftKey && document.activeElement === first) {
+			} else if (event.shiftKey && activeElement === first) {
 				event.preventDefault();
 				last.focus();
-			} else if (!event.shiftKey && document.activeElement === last) {
+			} else if (!event.shiftKey && activeElement === last) {
 				event.preventDefault();
 				first.focus();
 			}
 		};
-		document.addEventListener("keydown", onKeyDown);
+		ownerDocument.addEventListener("keydown", onKeyDown);
 		return () => {
 			cancelAnimationFrame(frame);
-			document.removeEventListener("keydown", onKeyDown);
-			unregister?.();
+			ownerDocument.removeEventListener("keydown", onKeyDown);
+			unregister();
 			const current = currentOptions.current;
 			if (!current.restoreFocus) return;
 			const target = current.triggerRef.current ?? previousFocus.current;
 			if (target?.isConnected) target.focus({ preventScroll: true });
 		};
-	}, [options.modal, options.open, options.overlayId]);
+	}, [options.modal, options.open, options.overlayId, options.present]);
 }
