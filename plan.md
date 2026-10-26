@@ -1,5 +1,7 @@
 # Next.js Engine (`nextjs-engine`) — Master Architecture & Agent Execution Plan
 
+> The previous EngineTheme-specific implementation and audit plan is preserved in [`docs/enginetheme-implementation-plan.md`](docs/enginetheme-implementation-plan.md).
+
 ## 1. What `nextjs-engine` Is (Core Identity & Pillars)
 
 `nextjs-engine` is a standalone, All-In-One (AIO), schema-driven, **server-first rendering, compilation, graphics, and zero-trust networking engine** built on top of React and the Next.js App Router.
@@ -46,7 +48,7 @@ Every feature in this repository is governed by four non-negotiable pillars:
 
 ### 3.2 Compiler & Build Pipeline (`src/engine/compiler/` & `src/engine/plugins/`)
 - **Ownership & Artifact Graph:** `EngineCompiler.ts`, `EngineAdaptiveCompiler.ts`, `EngineFallbackCompiler.ts`, `EngineArtifactGraph.ts`, `EngineServerRenderer.tsx`, `EngineClientIsland.tsx`.
-- **Bundler & Worker Bridges:** `build.compiler.ts`, `gen3-build-compiler.js`, `module.compiler.js`, `nextjs.compiler.ts`, `delegate-adapter.loader.js`, `loadTypeScriptCompiler.js`, `runtimeRegistry.ts`, `schema-cache.compiler.js`, `schema-worker.compiler.js`.
+- **Bundler & Worker Bridges:** `build.compiler.ts`, `src/engine/compiler/gen3-build-compiler.js` (self-contained NENC CLI entrypoint), `module.compiler.js`, `nextjs.compiler.ts`, `delegate-adapter.loader.js`, `loadTypeScriptCompiler.js`, `runtimeRegistry.ts`, `schema-cache.compiler.js`, `schema-worker.compiler.js`.
 - **Style, Theme & Font Compilers:** `EngineStyleCompiler.ts`, `EngineThemeCompiler.js`, `src/engine/compiler/theme/3/compiler.ts`, `src/engine/compiler/font/3/compiler.ts`.
 - **Budgets, Security & Manifests:** `EngineBuildBudgets.ts`, `EngineSecurityCompiler.ts`, `EngineCompatibilityManifest.ts`, `EngineDebugMetadata.ts`.
 - **Next.js Config Plugins (`src/engine/plugins/`):** `enginePlugin.js`, `engineBuildAdapter.js`, `artifactCache.js`, `apiStaticCompiler.js`, `engineApiPlugin.js`, `engineDebugPlugin.js`, `engineSEOCapture.js`, `engineSEOPlugin.js`, `engineShaderCompiler.js`, `engineShaderCompilerBase.js`, `engineShaderPlugin.js`, `nencCompiler.js`, `nencPlugin.js`, `nencTerminalLogger.js`, `gen3BuildCompiler.js`, `gen3ModuleCompiler.js`, `gen3SchemaCache.js`, `gen3SchemaWorker.js`, `gen3ThemeCompiler.js`.
