@@ -13,11 +13,18 @@ function normalizeImportPath(value) {
 }
 
 function reporterSpecifier(rootDirectory, fromDirectory) {
-	const sourceFile = path.join(rootDirectory, "src", "engine", "errors", "engineErrorReporter.js");
-	try {
-		if (fs.statSync(sourceFile).isFile()) return normalizeImportPath(path.relative(fromDirectory, sourceFile));
-	} catch {
-		// A consumer project may only have the installed package.
+	const candidates = [
+		path.join(rootDirectory, "src", "engine", "errors", "engineErrorReporter.js"),
+		// When this plugin runs from node_modules, resolve the sibling reporter from
+		// the installed package instead of assuming its package root is exported.
+		path.resolve(__dirname, "../errors/engineErrorReporter.js"),
+	];
+	for (const sourceFile of candidates) {
+		try {
+			if (fs.statSync(sourceFile).isFile()) return normalizeImportPath(path.relative(fromDirectory, sourceFile));
+		} catch {
+			// Try the next known package layout.
+		}
 	}
 	return "nextjs-engine";
 }

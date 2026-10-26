@@ -34,8 +34,6 @@ function compile(source, jsx, label) {
 const root = makeRoot("nextjs-engine-errors-");
 try {
 	fs.mkdirSync(path.join(root, "app"), { recursive: true });
-	fs.mkdirSync(path.join(root, "src", "engine", "errors"), { recursive: true });
-	fs.writeFileSync(path.join(root, "src", "engine", "errors", "engineErrorReporter.js"), "module.exports = {}; \n", "utf8");
 	const first = prepareEngineErrorHandling({ rootDir: root, development: true });
 	assert.deepEqual(first.preserved, [], "fresh projects should not have user-owned files to preserve");
 	assert.ok(first.generated.includes("app/error.tsx"), "a route error UI is generated");
@@ -50,6 +48,8 @@ try {
 	assert.match(globalSource, /<html lang="en">/);
 	assert.match(instrumentation, /onRequestError/);
 	assert.match(instrumentation, /installEngineUncaughtExceptionMonitor/);
+	assert.match(errorSource, /\.\.\/\.\.\/\.\.\/.*src\/engine\/errors\/engineErrorReporter/,
+		"consumer projects without a local src tree import the reporter beside the installed Engine plugin");
 	compile(errorSource, true, "generated app/error.tsx");
 	compile(globalSource, true, "generated app/global-error.tsx");
 	compile(instrumentation, false, "generated instrumentation.ts");
