@@ -160,7 +160,7 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 	// an overlay remains open without recreating keyboard/focus registration.
 	useEffect(() => {
 		if (!options.open || !options.lockScroll) return;
-		return lockBodyScroll();
+		return lockBodyScroll(document);
 	}, [options.lockScroll, options.open]);
 
 	useEffect(() => {
@@ -168,7 +168,7 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 		previousFocus.current = document.activeElement instanceof HTMLElement
 			? document.activeElement
 			: null;
-		const unregister = registerOverlay(options.overlayId);
+		const unregister = registerOverlay(options.overlayId, document);
 		const frame = requestAnimationFrame(() => {
 			const current = currentOptions.current;
 			if (!current.autoFocus) return;
@@ -179,7 +179,7 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
 			const current = currentOptions.current;
-			if (!isTopOverlay(current.overlayId)) return;
+			if (!isTopOverlay(current.overlayId, document)) return;
 			if (event.key === "Escape" && current.closeOnEscape) {
 				event.preventDefault();
 				current.close();

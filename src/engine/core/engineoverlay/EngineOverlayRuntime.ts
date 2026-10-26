@@ -36,11 +36,35 @@ interface OverlayRegistration {
 	token: number;
 }
 
-const overlayStack: OverlayRegistration[] = [];
-let overlayRegistrationToken = 0;
-let bodyLockCount = 0;
-let previousOverflow = "";
-let previousPaddingRight = "";
+interface OverlayDocumentState {
+	stack: OverlayRegistration[];
+	nextToken: number;
+	bodyLockCount: number;
+	previousOverflow: string;
+	previousPaddingRight: string;
+}
+
+const overlayDocuments = new WeakMap<Document, OverlayDocumentState>();
+
+function getOverlayDocumentState(ownerDocument: Document): OverlayDocumentState {
+	let state = overlayDocuments.get(ownerDocument);
+	if (!state) {
+		state = {
+			stack: [],
+			nextToken: 0,
+			bodyLockCount: 0,
+			previousOverflow: "",
+			previousPaddingRight: "",
+		};
+		overlayDocuments.set(ownerDocument, state);
+	}
+	return state;
+}
+
+function resolveOwnerDocument(ownerDocument?: Document): Document | null {
+	if (ownerDocument) return ownerDocument;
+	return typeof document === "undefined" ? null : document;
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
 	return Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
@@ -138,48 +162,52 @@ export function computePopoverPosition(
 	};
 }
 
-export function registerOverlay(id: string): () => void {
-	const existingIndex = overlayStack.findIndex((entry) => entry.id === id);
-	if (existingIndex >= 0) overlayStack.splice(existingIndex, 1);
-	const registration = { id, token: ++overlayRegistrationToken };
-	overlayStack.push(registration);
+export function registerOverlay(id: string, ownerDocument?: Document): () => void {
+	const doc = resolveOwnerDocument(ownerDocument);
+	if (!doc) return () => undefined;
+	const state = getOverlayDocumentState(doc);
+	const existingIndex = state.stack.findIndex((entry) => entry.id === id);
+	if (existingIndex >= 0) state.stack.splice(existingIndex, 1);
+	const registration = { id, token: ++state.nextToken };
+	state.stack.push(registration);
 	return () => {
-		const index = overlayStack.findIndex((entry) => (
+		const index = state.stack.findIndex((entry) => (
 			entry.id === registration.id && entry.token === registration.token
 		));
-		if (index >= 0) overlayStack.splice(index, 1);
+		if (index >= 0) state.stack.splice(index, 1);
 	};
 }
 
-export function isTopOverlay(id: string): boolean {
-	return overlayStack[overlayStack.length - 1]?.id === id;
+export function isTopOverlay(id: string, ownerDocument?: Document): boolean {
+	const doc = resolveOwnerDocument(ownerDocument);
+	if (!doc) return false;
+	const stack = getOverlayDocumentState(doc).stack;
+	return stack[stack.length - 1]?.id === id;
 }
 
-export function lockBodyScroll(): () => void {
-	if (typeof document === "undefined") return () => undefined;
-	const body = document.body;
-	if (bodyLockCount === 0) {
-		previousOverflow = body.style.overflow;
-		previousPaddingRight = body.style.paddingRight;
-		const scrollbarWidth = Math.max(
-			0,
-			window.innerWidth - document.documentElement.clientWidth,
-		);
-		const computedPaddingRight = Number.parseFloat(
-			window.getComputedStyle(body).paddingRight,
-		) || 0;
+export function lockBodyScroll(ownerDocument?: Document): () => void {
+	const doc = resolveOwnerDocument(ownerDocument);
+	if (!doc?.body) return () => undefined;
+	const state = getOverlayDocumentState(doc);
+	const body = doc.body;
+	const view = doc.defaultView;
+	if (state.bodyLockCount === 0) {
+		state.previousOverflow = body.style.overflow;
+		state.previousPaddingRight = body.style.paddingRight;
+		const scrollbarWidth = Math.max(0, (view?.innerWidth ?? 0) - doc.documentElement.clientWidth);
+		const computedPaddingRight = Number.parseFloat(view?.getComputedStyle(body).paddingRight ?? "0") || 0;
 		body.style.overflow = "hidden";
 		if (scrollbarWidth > 0) body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`;
 	}
-	bodyLockCount += 1;
+	state.bodyLockCount += 1;
 	let released = false;
 	return () => {
 		if (released) return;
 		released = true;
-		bodyLockCount = Math.max(0, bodyLockCount - 1);
-		if (bodyLockCount !== 0) return;
-		body.style.overflow = previousOverflow;
-		body.style.paddingRight = previousPaddingRight;
+		state.bodyLockCount = Math.max(0, state.bodyLockCount - 1);
+		if (state.bodyLockCount !== 0) return;
+		body.style.overflow = state.previousOverflow;
+		body.style.paddingRight = state.previousPaddingRight;
 	};
 }
 
