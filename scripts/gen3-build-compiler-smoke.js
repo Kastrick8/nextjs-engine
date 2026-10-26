@@ -15,7 +15,7 @@ const {
 	releaseBanner,
 	renderBannerLines,
 	summarizeNextOutputs,
-} = require("./gen3-build-compiler");
+} = require("../src/engine/compiler/gen3-build-compiler");
 
 const {
 	formatDoneLine,
