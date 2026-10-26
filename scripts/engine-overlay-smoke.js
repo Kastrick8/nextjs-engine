@@ -117,6 +117,34 @@ function main() {
 			"overlay stacks are isolated by their owning Document");
 		releaseOtherDocument();
 
+		const modalBody = { children: [], parentElement: null };
+		const makeBodyChild = () => {
+			const element = { inert: false, children: [], parentElement: modalBody };
+			modalBody.children.push(element);
+			return element;
+		};
+		const pageBackground = makeBodyChild();
+		const modalRoot = makeBodyChild();
+		const popoverRoot = makeBodyChild();
+		const nestedModalRoot = makeBodyChild();
+		const modalDocument = { body: modalBody };
+		const unregisterModal = runtime.registerOverlay("modal", modalDocument, { root: modalRoot, modal: true });
+		assert.equal(pageBackground.inert, true, "background branches become inert when a modal opens");
+		assert.equal(modalRoot.inert, false, "the active modal root stays interactive");
+		const unregisterPopover = runtime.registerOverlay("popover", modalDocument, { root: popoverRoot, modal: false });
+		assert.equal(popoverRoot.inert, false, "a non-modal overlay above the active modal stays interactive");
+		const unregisterNestedModal = runtime.registerOverlay("nested-modal", modalDocument, { root: nestedModalRoot, modal: true });
+		assert.equal(modalRoot.inert, true, "a nested modal makes the previous modal inert");
+		assert.equal(popoverRoot.inert, true, "overlays below a nested modal become inert");
+		assert.equal(nestedModalRoot.inert, false, "the top nested modal stays interactive");
+		unregisterNestedModal();
+		assert.equal(pageBackground.inert, true, "closing a nested modal does not reactivate the page background");
+		assert.equal(modalRoot.inert, false, "closing a nested modal reactivates its parent modal");
+		assert.equal(popoverRoot.inert, false, "an overlay above the parent modal becomes interactive again");
+		unregisterPopover();
+		unregisterModal();
+		assert.equal(pageBackground.inert, false, "closing the final modal restores prior inert state");
+
 		const scheduledFrames = new Map();
 		let frameToken = 0;
 		const frameDocument = {

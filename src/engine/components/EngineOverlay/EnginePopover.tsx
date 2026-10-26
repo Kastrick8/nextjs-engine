@@ -45,7 +45,7 @@ export const EnginePopover = memo(function EnginePopover({
 	const [position, setPosition] = useState<{ top: number; left: number; placement: EnginePopoverPlacement } | null>(null);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
-		open: isOpen, overlayId: panelId, panelRef, triggerRef, close,
+		open: isOpen, overlayId: panelId, panelRef, triggerRef, close, modal: false,
 		closeOnEscape, trapFocus, autoFocus, lockScroll: false, restoreFocus, initialFocus,
 	}), [autoFocus, close, closeOnEscape, initialFocus, isOpen, panelId, restoreFocus, trapFocus]);
 	useOverlayBehavior(behavior);

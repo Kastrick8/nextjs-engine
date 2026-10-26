@@ -34,6 +34,8 @@ export interface PopoverPosition {
 interface OverlayRegistration {
 	id: string;
 	token: number;
+	root?: HTMLElement;
+	modal?: boolean;
 }
 
 interface OverlayDocumentState {
@@ -47,6 +49,7 @@ interface OverlayDocumentState {
 	nextFrameToken: number;
 	frameId: number | null;
 	frameCallbacks: Map<number, () => void>;
+	inertedElements: Map<HTMLElement, boolean>;
 	resizeObserver: ResizeObserver | null;
 	resizeSubscribers: Map<Element, Set<() => void>>;
 }
@@ -67,6 +70,7 @@ function getOverlayDocumentState(ownerDocument: Document): OverlayDocumentState 
 			nextFrameToken: 0,
 			frameId: null,
 			frameCallbacks: new Map(),
+			inertedElements: new Map(),
 			resizeObserver: null,
 			resizeSubscribers: new Map(),
 		};
@@ -176,19 +180,81 @@ export function computePopoverPosition(
 	};
 }
 
-export function registerOverlay(id: string, ownerDocument?: Document): () => void {
+/**
+ * Keep the active modal and overlays above it interactive while marking all
+ * other sibling branches inert. Original inert values are restored afterward.
+ */
+function syncModalBackgroundInertness(doc: Document, state: OverlayDocumentState): void {
+	const body = doc.body;
+	let modalIndex = -1;
+	for (let index = 0; index < state.stack.length; index += 1) {
+		const registration = state.stack[index];
+		if (registration.modal && registration.root) modalIndex = index;
+	}
+	if (!body || modalIndex < 0) {
+		for (const [element, previouslyInert] of state.inertedElements) {
+			element.inert = previouslyInert;
+		}
+		state.inertedElements.clear();
+		return;
+	}
+
+	const protectedRoots = state.stack
+		.slice(modalIndex)
+		.map((registration) => registration.root)
+		.filter((root): root is HTMLElement => Boolean(root));
+	const protectedElements = new Set<HTMLElement>();
+	const shouldBeInert = new Set<HTMLElement>();
+
+	for (const root of protectedRoots) {
+		let current: HTMLElement | null = root;
+		while (current && current !== body) {
+			protectedElements.add(current);
+			const parent = current.parentElement;
+			if (!parent) break;
+			for (const sibling of Array.from(parent.children)) {
+				if (sibling !== current && "inert" in sibling) {
+					shouldBeInert.add(sibling as HTMLElement);
+				}
+			}
+			if (parent === body) break;
+			current = parent as HTMLElement;
+		}
+	}
+	for (const protectedElement of protectedElements) shouldBeInert.delete(protectedElement);
+
+	for (const [element, previouslyInert] of state.inertedElements) {
+		if (shouldBeInert.has(element)) continue;
+		element.inert = previouslyInert;
+		state.inertedElements.delete(element);
+	}
+	for (const element of shouldBeInert) {
+		if (!state.inertedElements.has(element)) {
+			state.inertedElements.set(element, element.inert);
+		}
+		if (!element.inert) element.inert = true;
+	}
+}
+
+export function registerOverlay(
+	id: string,
+	ownerDocument?: Document,
+	options: { root?: HTMLElement; modal?: boolean } = {},
+): () => void {
 	const doc = resolveOwnerDocument(ownerDocument);
 	if (!doc) return () => undefined;
 	const state = getOverlayDocumentState(doc);
 	const existingIndex = state.stack.findIndex((entry) => entry.id === id);
 	if (existingIndex >= 0) state.stack.splice(existingIndex, 1);
-	const registration = { id, token: ++state.nextToken };
+	const registration = { id, token: ++state.nextToken, root: options.root, modal: options.modal === true };
 	state.stack.push(registration);
+	syncModalBackgroundInertness(doc, state);
 	return () => {
 		const index = state.stack.findIndex((entry) => (
 			entry.id === registration.id && entry.token === registration.token
 		));
 		if (index >= 0) state.stack.splice(index, 1);
+		syncModalBackgroundInertness(doc, state);
 	};
 }
 

@@ -131,6 +131,7 @@ interface OverlayBehaviorOptions {
 	panelRef: React.RefObject<HTMLElement | null>;
 	triggerRef: React.RefObject<HTMLButtonElement | null>;
 	close: () => void;
+	modal: boolean;
 	closeOnEscape: boolean;
 	trapFocus: boolean;
 	autoFocus: boolean;
@@ -168,7 +169,10 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 		previousFocus.current = document.activeElement instanceof HTMLElement
 			? document.activeElement
 			: null;
-		const unregister = registerOverlay(options.overlayId, document);
+		const unregister = registerOverlay(options.overlayId, document, {
+			root: options.panelRef.current?.parentElement ?? options.panelRef.current ?? undefined,
+			modal: options.modal,
+		});
 		const frame = requestAnimationFrame(() => {
 			const current = currentOptions.current;
 			if (!current.autoFocus) return;
@@ -217,5 +221,5 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 			const target = current.triggerRef.current ?? previousFocus.current;
 			if (target?.isConnected) target.focus({ preventScroll: true });
 		};
-	}, [options.open, options.overlayId]);
+	}, [options.modal, options.open, options.overlayId]);
 }

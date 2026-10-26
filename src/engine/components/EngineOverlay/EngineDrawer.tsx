@@ -38,7 +38,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
-		open: isOpen, overlayId: panelId, panelRef, triggerRef, close,
+		open: isOpen, overlayId: panelId, panelRef, triggerRef, close, modal: true,
 		closeOnEscape, trapFocus, autoFocus: true, lockScroll, restoreFocus, initialFocus,
 	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, restoreFocus, trapFocus]);
 	useOverlayBehavior(behavior);
