@@ -2,7 +2,7 @@
 
 > **GENERATION 3 · ALPHA** · Source branch: main-3. This is the pre-release 3.x contract, not stable Gen 2 documentation.
 >
-> For existing stable 2.x applications, start at [Generation 2 Documentation](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md). For the full current Gen 3 guide map, use the [Gen 3 index](./3/index.md).
+> **Compatibility path:** the canonical, versioned copy is [the Gen 3 developer reference](./3/readme.md). This file is retained for older links. For existing stable 2.x applications, use [Generation 2 Documentation](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md); browse current Gen 3 guides in the [Gen 3 index](./3/index.md).
 
 ## What it is
 
@@ -432,8 +432,6 @@ export default createPage({ schema: HomeSchema });
 
 ---
 
----
-
 ## Performance Checklist
 
 Use the optimization that matches the actual component and route:
@@ -499,8 +497,6 @@ Add this to tsconfig.json for clean imports:
 
 ---
 
----
-
 ## Style collection and global CSS
 
 Generation 3 collects generated style rules through the nearest EngineProvider / StyleCollector boundary. Exact CSS blocks are deduplicated within that collector. Provider-collected styles are not automatically promoted into a process-global stylesheet, and the collector is not a cross-request cache.
@@ -563,8 +559,6 @@ function MyComponent({ cprop, className, ...props }) {
 
 ---
 
----
-
 ## CSS Directly on Prop
 
 The schema type exposes many common CSS properties directly alongside Engine shorthands. For properties not included in the node's TypeScript props, use the style object, which accepts the supported React CSS style shape plus Engine's nested at-rule form. Do not assume every browser CSS property is a top-level schema prop.
@@ -610,8 +604,6 @@ cprop: {
 ```
 
 All pseudo-states are compiled to CSS classes and injected via StyleCollector — no JS event handlers.
-
----
 
 ---
 
@@ -681,14 +673,12 @@ Used internally by `EngineSection` (inner content wrapper) and `EngineCard` (cov
 
 ---
 
----
-
 ## Metadata Integration (SEO)
 
 ```ts
 // app/some-page/page.tsx
 import type { Metadata } from "next";
-import { generateEngineMetadata } from "nextjs-engine";
+import { createPage, generateEngineMetadata } from "nextjs-engine";
 import { myPageSchema } from "./schema";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -696,7 +686,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // or just the meta: generateEngineMetadata({ title: "…", ogImage: "…" })
 }
 
-export default createPage(myPageSchema);
+export default createPage({ schema: myPageSchema });
 ```
 
 Generates `title`, `description`, `keywords`, `canonical`, `robots`, `openGraph`, and `twitter` from `PageMeta`.
