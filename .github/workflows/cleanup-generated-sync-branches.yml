@@ -13,17 +13,13 @@ on:
         type: string
         required: true
 
-  push:
-    branches: [main]
-    paths: [".github/workflows/cleanup-generated-sync-branches.yml"]
-
 permissions:
   contents: write
   pull-requests: read
 
 jobs:
   cleanup:
-    if: ${{ github.event_name == 'push' || inputs.dry_run || inputs.confirm == 'DELETE-GENERATED-SYNC-BRANCHES' }}
+    if: ${{ inputs.dry_run == true || inputs.confirm == 'DELETE-GENERATED-SYNC-BRANCHES' }}
     runs-on: ubuntu-latest
     steps:
       - name: Preview or delete only generated package-sync refs
@@ -34,60 +30,59 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            DRY_RUN=false
-            CONFIRM=DELETE-GENERATED-SYNC-BRANCHES
-            echo "Cleanup triggered by the deliberate cleanup-workflow update on main."
+          if [[ "$DRY_RUN" == "true" ]]; then
+            MODE="preview"
+          elif [[ "$CONFIRM" == "DELETE-GENERATED-SYNC-BRANCHES" ]]; then
+            MODE="delete"
+          else
+            echo "Confirmation mismatch; refusing to delete refs." >&2
+            exit 1
           fi
-          if [[ "$DRY_RUN" != "true" && "$CONFIRM" != "DELETE-GENERATED-SYNC-BRANCHES" ]]; then
-            echo "Confirmation mismatch; refusing to delete refs." >&2; exit 1
-          fi
-          mapfile -t BRANCHES < <(gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[].name' | grep -E '^sync/main-3-package-[0-9a-f]{7}-[0-9]+
+
+          mapfile -t BRANCHES < <(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[].name' |
+              grep -E '^sync/main-3-package-[0-9a-f]{7}-[0-9]+$' || true
+          )
+          mapfile -t OPEN_PR_HEADS < <(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].head.ref'
+          )
+
           echo "Matching generated refs: ${#BRANCHES[@]}"
-          deleted=0; skipped=0; failed=0
+          deleted=0
+          skipped=0
+          failed=0
+
           for branch in "${BRANCHES[@]}"; do
             if printf '%s\n' "${OPEN_PR_HEADS[@]}" | grep -Fxq "$branch"; then
-              echo "SKIP open PR uses branch: $branch"; skipped=$((skipped+1)); continue
+              echo "SKIP open PR uses branch: $branch"
+              skipped=$((skipped+1))
+              continue
             fi
-            if [[ "$DRY_RUN" == "true" ]]; then echo "DRY RUN would delete: $branch"; continue; fi
+            if [[ "$MODE" == "preview" ]]; then
+              echo "DRY RUN would delete: $branch"
+              continue
+            fi
             if gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch" >/dev/null; then
-              echo "DELETED: $branch"; deleted=$((deleted+1))
+              echo "DELETED: $branch"
+              deleted=$((deleted+1))
             else
-              echo "FAILED (possibly protected or permission denied): $branch"; failed=$((failed+1))
+              echo "FAILED (possibly protected or permission denied): $branch"
+              failed=$((failed+1))
             fi
           done
+
           {
             echo "## Generated branch cleanup"
             echo "- Matching refs: ${#BRANCHES[@]}"
             echo "- Deleted: $deleted"
             echo "- Skipped due to open PR: $skipped"
             echo "- Failed: $failed"
-            echo "- Dry run: $DRY_RUN"
+            echo "- Mode: $MODE"
             echo
             echo "Only refs matching `sync/main-3-package-<7-hex-sha>-<attempt>` were eligible."
           } >> "$GITHUB_STEP_SUMMARY"
- || true)
-          mapfile -t OPEN_PR_HEADS < <(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].head.ref')
-          echo "Matching generated refs: ${#BRANCHES[@]}"
-          deleted=0; skipped=0; failed=0
-          for branch in "${BRANCHES[@]}"; do
-            if printf '%s\n' "${OPEN_PR_HEADS[@]}" | grep -Fxq "$branch"; then
-              echo "SKIP open PR uses branch: $branch"; skipped=$((skipped+1)); continue
-            fi
-            if [[ "$DRY_RUN" == "true" ]]; then echo "DRY RUN would delete: $branch"; continue; fi
-            if gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch" >/dev/null; then
-              echo "DELETED: $branch"; deleted=$((deleted+1))
-            else
-              echo "FAILED (possibly protected or permission denied): $branch"; failed=$((failed+1))
-            fi
-          done
-          {
-            echo "## Generated branch cleanup"
-            echo "- Matching refs: ${#BRANCHES[@]}"
-            echo "- Deleted: $deleted"
-            echo "- Skipped due to open PR: $skipped"
-            echo "- Failed: $failed"
-            echo "- Dry run: $DRY_RUN"
-            echo
-            echo "Only refs matching `sync/main-3-package-<7-hex-sha>-<attempt>` were eligible."
-          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$failed" -gt 0 ]]; then
+            echo "$failed matching branch deletion(s) failed." >&2
+            exit 1
+          fi
