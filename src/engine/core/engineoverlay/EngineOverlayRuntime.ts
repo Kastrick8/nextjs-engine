@@ -47,6 +47,8 @@ interface OverlayDocumentState {
 	nextFrameToken: number;
 	frameId: number | null;
 	frameCallbacks: Map<number, () => void>;
+	resizeObserver: ResizeObserver | null;
+	resizeSubscribers: Map<Element, Set<() => void>>;
 }
 
 const overlayDocuments = new WeakMap<Document, OverlayDocumentState>();
@@ -65,6 +67,8 @@ function getOverlayDocumentState(ownerDocument: Document): OverlayDocumentState 
 			nextFrameToken: 0,
 			frameId: null,
 			frameCallbacks: new Map(),
+			resizeObserver: null,
+			resizeSubscribers: new Map(),
 		};
 		overlayDocuments.set(ownerDocument, state);
 	}
@@ -253,6 +257,67 @@ export function subscribeOverlayViewport(callback: () => void, ownerDocument?: D
 	return () => {
 		state.viewportSubscribers.delete(callback);
 		if (state.viewportSubscribers.size === 0) state.viewportCleanup?.();
+	};
+}
+
+/**
+ * Share one ResizeObserver per owning Document. Individual elements are observed
+ * only while at least one active consumer needs their geometry.
+ */
+export function subscribeOverlayResize(
+	element: Element,
+	callback: () => void,
+	ownerDocument?: Document,
+): () => void {
+	const doc = ownerDocument ?? element.ownerDocument ?? resolveOwnerDocument();
+	if (!doc) return () => undefined;
+	const view = doc.defaultView as (Window & { ResizeObserver?: typeof ResizeObserver }) | null;
+	const ResizeObserverConstructor = view?.ResizeObserver
+		?? (typeof ResizeObserver === "undefined" ? undefined : ResizeObserver);
+	if (!ResizeObserverConstructor) return () => undefined;
+
+	const state = getOverlayDocumentState(doc);
+	if (!state.resizeObserver) {
+		state.resizeObserver = new ResizeObserverConstructor((entries) => {
+			for (const entry of entries) {
+				const subscribers = state.resizeSubscribers.get(entry.target);
+				if (!subscribers) continue;
+				for (const subscriber of [...subscribers]) subscriber();
+			}
+		});
+	}
+
+	let subscribers = state.resizeSubscribers.get(element);
+	if (!subscribers) {
+		subscribers = new Set();
+		state.resizeSubscribers.set(element, subscribers);
+		try {
+			state.resizeObserver.observe(element);
+		} catch {
+			state.resizeSubscribers.delete(element);
+			if (state.resizeSubscribers.size === 0) {
+				state.resizeObserver.disconnect();
+				state.resizeObserver = null;
+			}
+			return () => undefined;
+		}
+	}
+	subscribers.add(callback);
+
+	let subscribed = true;
+	return () => {
+		if (!subscribed) return;
+		subscribed = false;
+		const current = state.resizeSubscribers.get(element);
+		current?.delete(callback);
+		if (current && current.size === 0) {
+			state.resizeSubscribers.delete(element);
+			state.resizeObserver?.unobserve(element);
+		}
+		if (state.resizeSubscribers.size === 0) {
+			state.resizeObserver?.disconnect();
+			state.resizeObserver = null;
+		}
 	};
 }
 

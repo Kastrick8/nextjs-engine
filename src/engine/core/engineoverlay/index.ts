@@ -6,6 +6,7 @@ export {
 	registerOverlay,
 	scheduleOverlayFrame,
 	subscribeOverlayViewport,
+	subscribeOverlayResize,
 } from "./EngineOverlayRuntime";
 
 export type {

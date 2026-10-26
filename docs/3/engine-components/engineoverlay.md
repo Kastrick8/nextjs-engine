@@ -347,7 +347,7 @@ The open Popover repositions when:
 - the trigger changes size;
 - the panel changes size.
 
-Viewport listeners are shared per Document, and all popover reposition callbacks are coalesced into one scheduled animation-frame pass per Document. Each Popover's `ResizeObserver` exists only while that Popover is present.
+Viewport listeners and ResizeObserver instances are shared per Document, and all popover reposition callbacks are coalesced into one scheduled animation-frame pass per Document. Trigger/panel targets are observed only while the Popover is present; the shared observer disconnects when its final target is released.
 
 ---
 

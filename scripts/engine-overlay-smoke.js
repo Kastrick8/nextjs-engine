@@ -142,6 +142,41 @@ function main() {
 		runFrame(0);
 		assert.deepEqual(frameResults, ["first", "third"], "cancelled layout work is not executed");
 
+		const resizeObservers = [];
+		class FakeResizeObserver {
+			constructor(callback) {
+				this.callback = callback;
+				this.targets = new Set();
+				this.disconnectCount = 0;
+				resizeObservers.push(this);
+			}
+			observe(target) { this.targets.add(target); }
+			unobserve(target) { this.targets.delete(target); }
+			disconnect() { this.disconnectCount += 1; this.targets.clear(); }
+			notify(target) { this.callback([{ target }]); }
+		}
+		const resizeDocument = { defaultView: { ResizeObserver: FakeResizeObserver } };
+		const trigger = {};
+		const panel = {};
+		let triggerNotifications = 0;
+		let panelNotifications = 0;
+		const stopTrigger = runtime.subscribeOverlayResize(trigger, () => triggerNotifications += 1, resizeDocument);
+		const stopPanel = runtime.subscribeOverlayResize(panel, () => panelNotifications += 1, resizeDocument);
+		assert.equal(resizeObservers.length, 1, "all observed popover elements share one ResizeObserver per Document");
+		resizeObservers[0].notify(trigger);
+		assert.equal(triggerNotifications, 1);
+		assert.equal(panelNotifications, 0, "resize callbacks are scoped to their own observed element");
+		stopTrigger();
+		assert.equal(resizeObservers[0].targets.has(trigger), false, "inactive trigger targets are unobserved");
+		resizeObservers[0].notify(panel);
+		assert.equal(panelNotifications, 1);
+		stopPanel();
+		assert.equal(resizeObservers[0].disconnectCount, 1, "the shared ResizeObserver disconnects when its last target is released");
+
+		const fallbackDocument = { defaultView: {} };
+		const stopWithoutObserver = runtime.subscribeOverlayResize({}, () => assert.fail("unsupported ResizeObserver must not subscribe"), fallbackDocument);
+		assert.doesNotThrow(stopWithoutObserver, "missing ResizeObserver degrades to a no-op");
+
 		console.log("EngineOverlay runtime smoke tests passed");
 	} finally {
 		fs.rmSync(tempRoot, { recursive: true, force: true });

@@ -4,7 +4,8 @@ import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState }
 import { createPortal } from "react-dom";
 import { useCpropClass } from "../../hooks/usePropStyles";
 import { usePrimitiveStyles } from "../../hooks/usePrimitiveStyles";
-import { computePopoverPosition, isTopOverlay, scheduleOverlayFrame, subscribeOverlayViewport, type EnginePopoverPlacement } from "../../core/engineoverlay";
+import { computePopoverPosition, isTopOverlay, scheduleOverlayFrame, subscribeOverlayViewport,
+	subscribeOverlayResize, type EnginePopoverPlacement } from "../../core/engineoverlay";
 import {
 	SURFACE_BASE,
 	clampDuration,
@@ -95,13 +96,17 @@ export const EnginePopover = memo(function EnginePopover({
 		};
 		update();
 		const unsubscribeViewport = subscribeOverlayViewport(update, document);
-		const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
-		if (observer && triggerRef.current) observer.observe(triggerRef.current);
-		if (observer && panelRef.current) observer.observe(panelRef.current);
+		const unsubscribeTriggerResize = triggerRef.current
+			? subscribeOverlayResize(triggerRef.current, update, document)
+			: () => undefined;
+		const unsubscribePanelResize = panelRef.current
+			? subscribeOverlayResize(panelRef.current, update, document)
+			: () => undefined;
 		return () => {
 			cancelScheduled?.();
 			unsubscribeViewport();
-			observer?.disconnect();
+			unsubscribeTriggerResize();
+			unsubscribePanelResize();
 		};
 	}, [resolvedAlign, resolvedMatchTriggerWidth, resolvedOffset, resolvedPlacement, present, target, resolvedViewportPadding]);
 
