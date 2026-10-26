@@ -20,7 +20,7 @@ function isSafeLinkHref(input: string): boolean {
 	const value = input.trim();
 	if (!value || value.length > 2048 || /[\u0000-\u001f\u007f]/.test(value)) return false;
 	if (/^(javascript|data|vbscript):/i.test(value)) return false;
-	if (value.startsWith("//")) return false;
+	if (/^[\\/]{2}/.test(value)) return false;
 	if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
 		return /^(https?:|mailto:|tel:)/i.test(value);
 	}
@@ -116,6 +116,11 @@ export default createPage({
 					type: "engine-site-link",
 					theme: "engine-custom-link-demo.link",
 					props: { href: "javascript:alert(1)", target: "_self", children: "Unsafe link blocked", "data-testid": "custom-unsafe-link" },
+				},
+				{
+					type: "engine-site-link",
+					theme: "engine-custom-link-demo.link",
+					props: { href: "\\\\evil.example/path", target: "_self", children: "Backslash URL blocked", "data-testid": "custom-backslash-link" },
 				},
 			],
 		},
