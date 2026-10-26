@@ -1,0 +1,88 @@
+name: Validate versioned package archive
+
+on:
+  push:
+    branches: ["package/main"]
+  pull_request:
+    branches: ["package/main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.packages.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - id: packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import fs from "node:fs";
+          import path from "node:path";
+          const roots=["version","alpha"];
+          const packages=[];
+          function walk(dir){
+            if(!fs.existsSync(dir)) return;
+            for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+              const full=path.join(dir,entry.name);
+              if(entry.isDirectory()) walk(full);
+              else if(entry.isFile()&&entry.name==="package.json") packages.push(path.dirname(full).replaceAll("\\","/"));
+            }
+          }
+          for(const root of roots) walk(root);
+          packages.sort();
+          if(packages.length===0) throw new Error("No versioned package snapshots found.");
+          console.log("matrix="+JSON.stringify({package:packages}));
+          NODE
+
+  validate:
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Validate manifest, local entrypoint and exports
+        working-directory: ${{ matrix.package }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import path from "node:path";
+          const p=JSON.parse(fs.readFileSync("package.json","utf8"));
+          if(p.name!=="nextjs-engine") throw new Error("Unexpected package name: "+p.name);
+          if(!p.version) throw new Error("Missing full package version");
+          if(!fs.existsSync("index.ts")||!fs.existsSync("engine/index.ts")) throw new Error("Snapshot entrypoint missing");
+          const expected=path.basename(process.cwd());
+          if(p.version!==expected) throw new Error(`Manifest version ${p.version} does not match folder ${expected}`);
+          for(const [name,value] of Object.entries(p.exports||{})){
+            const values=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
+            for(const target of values){
+              if(!fs.existsSync(target.replace(/^\.\//,""))) throw new Error(`Export ${name} targets missing file ${target}`);
+            }
+          }
+          NODE
+      - name: Install package validation dependencies
+        working-directory: ${{ matrix.package }}
+        run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+      - name: Type-check snapshot
+        working-directory: ${{ matrix.package }}
+        run: npm run type-check
+      - name: Verify npm pack contents
+        working-directory: ${{ matrix.package }}
+        run: npm run pack:check
