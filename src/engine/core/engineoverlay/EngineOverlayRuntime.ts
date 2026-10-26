@@ -250,18 +250,25 @@ export function lockBodyScroll(ownerDocument?: Document): () => void {
 
 const FOCUSABLE_SELECTOR = [
 	"a[href]",
-	"button:not([disabled])",
-	"input:not([disabled])",
-	"select:not([disabled])",
-	"textarea:not([disabled])",
+	"button",
+	"input",
+	"select",
+	"textarea",
+	"summary",
+	"audio[controls]",
+	"video[controls]",
 	"[tabindex]:not([tabindex='-1'])",
-	"[contenteditable='true']",
+	"[contenteditable]:not([contenteditable='false'])",
 ].join(",");
 
+/** Exclude controls hidden or disabled by themselves or by an ancestor. */
 export function getFocusableElements(root: HTMLElement): HTMLElement[] {
-	return [...root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter((element) => (
-		!element.hasAttribute("disabled")
-		&& element.getAttribute("aria-hidden") !== "true"
-		&& element.getClientRects().length > 0
-	));
+	const view = root.ownerDocument.defaultView;
+	return [...root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter((element) => {
+		if (element.matches(":disabled") || element.tabIndex < 0) return false;
+		if (element.closest("[hidden], [inert], [aria-hidden='true']")) return false;
+		if (element.getClientRects().length === 0) return false;
+		const visibility = view?.getComputedStyle(element).visibility;
+		return visibility !== "hidden" && visibility !== "collapse";
+	});
 }

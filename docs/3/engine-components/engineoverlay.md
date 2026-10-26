@@ -364,6 +364,8 @@ Resize/scroll updates are coalesced through `requestAnimationFrame`, and `Resize
 </EngineDialog>
 ```
 
+Focusable discovery excludes disabled controls and controls hidden by a `hidden`, `inert`, or `aria-hidden="true"` ancestor, as well as elements with no layout box or hidden/collapsed visibility.
+
 Focus selection order is:
 
 ```text
