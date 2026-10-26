@@ -62,7 +62,7 @@ Use them from schema links/Nav or programmatically through `useEngineTransitions
 
 Theme and other imperative visual updates can use `coordinateEngineViewTransition()` so they share the browser's single native View Transition owner with NE navigation. Overlapping visual work is cancelled or skipped safely without leaking native `AbortError` rejections.
 
-Read [`docs/engine-components/enginetransitions.md`](./docs/engine-components/enginetransitions.md).
+Read [`docs/3/engine-components/enginetransitions.md`](./docs/3/engine-components/enginetransitions.md).
 
 ### EngineShader + `.shed`
 
@@ -79,7 +79,7 @@ shader <= aurora => [
 
 `.shed` programs can use staged `before`, `render`, `after`, and `overlay` processing, runtime system/pointer/scroll/viewport inputs, build-time validation, render-graph optimization, and demand-aware runtime scheduling.
 
-Read [`docs/engine-components/engineshader.md`](./docs/engine-components/engineshader.md).
+Read [`docs/3/engine-components/engineshader.md`](./docs/3/engine-components/engineshader.md).
 
 ### EngineScroll orchestration
 
@@ -98,7 +98,7 @@ EngineScroll now goes far beyond `move()`:
 - crossing/activity events;
 - `EngineScrollDirector` for coordinating multiple named timelines through one runtime subscription.
 
-Read [`docs/engine-components/enginescroll.md`](./docs/engine-components/enginescroll.md).
+Read [`docs/3/engine-components/enginescroll.md`](./docs/3/engine-components/enginescroll.md).
 
 ### EngineOverlay
 
@@ -119,7 +119,7 @@ They share focus handling, top-overlay ownership, Escape behavior, portals, focu
 
 Use them to compose sheets, inspectors, confirmation prompts, account menus, dropdowns, and command palettes instead of adding redundant core node types.
 
-Read [`docs/engine-components/engineoverlay.md`](./docs/engine-components/engineoverlay.md).
+Read [`docs/3/engine-components/engineoverlay.md`](./docs/3/engine-components/engineoverlay.md).
 
 ---
 
@@ -200,7 +200,7 @@ const withEngine = require("nextjs-engine/plugin")
 module.exports = withEngine({})
 ```
 
-The combined Generation 3 plugin stores compiled provider JSON at `.nextjs-engine/config/.apiconfig.json`. The standalone Generation 2 API plugin keeps `.engine-api-compiled.json` at the project root. Both accept the existing `.EngineAPIConfig/*.api` source format during migration; the JSON is generated output, may contain expanded credentials, and is Git-ignored. See [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md).
+The combined Generation 3 plugin stores compiled provider JSON at `.nextjs-engine/config/.apiconfig.json`. The standalone Generation 2 API plugin keeps `.engine-api-compiled.json` at the project root. Both accept the existing `.EngineAPIConfig/*.api` source format during migration; the JSON is generated output, may contain expanded credentials, and is Git-ignored. See [`docs/3/engine-components/engineapi.md`](./docs/3/engine-components/engineapi.md).
 
 Specialized plugin entrypoints remain available for advanced setups:
 
@@ -229,7 +229,7 @@ See [`docs/3/networking-credentials-security.md`](./docs/3/networking-credential
 The compatibility subsystem compiles a frozen per-page used-feature manifest and ordered fallback plan. It records only capabilities the schema needs, resolves native/runtime/rendering fallbacks against browser support, and keeps best-effort legacy content separate from full client runtime support. `createPage()` automatically recommends a browser update only when a required, actually used feature has no viable fallback; decorative nodes can opt out with `compatibility: "optional"`. See [`docs/3/compatibility-debugging-hardening.md`](./docs/3/compatibility-debugging-hardening.md).
 
 During `next dev`, the combined plugin also provides an EngineDebug workbench at `/_engine/debug`. It includes a route explorer and live preview, compiler-node picker, runtime-boundary overlay, scheduler state feed, and device/viewport simulator. The generated debug route is removed before production route discovery and CI verifies that it is absent from `next build` output; it is not an authenticated or hidden production endpoint.
-Generation 3 EngineSEO turns an Engine page or dedicated JSON-style schema into Next.js metadata, canonical/OpenGraph/Twitter tags, Google/Bing verification, sitemap and robots outputs, safe JSON-LD, and dynamic `ImageResponse` cards. Automatic sitemaps include trustworthy per-route Git modification dates by default, with explicit dates for CMS content and an opt-in build-time mode. Social previews can use a custom image, a generated banner, or a real website screenshot captured through the Node-only helper. See [`docs/engine-components/engineseo.md`](./docs/engine-components/engineseo.md).
+Generation 3 EngineSEO turns an Engine page or dedicated JSON-style schema into Next.js metadata, canonical/OpenGraph/Twitter tags, Google/Bing verification, sitemap and robots outputs, safe JSON-LD, and dynamic `ImageResponse` cards. Automatic sitemaps include trustworthy per-route Git modification dates by default, with explicit dates for CMS content and an opt-in build-time mode. Social previews can use a custom image, a generated banner, or a real website screenshot captured through the Node-only helper. See [`docs/3/engine-components/engineseo.md`](./docs/3/engine-components/engineseo.md).
 
 ---
 
@@ -341,7 +341,7 @@ const response = await APIStatic.resolve(
 
 `.route` programs execute in the browser. Do not put secrets, private environment values, database credentials, or server-only session state in them. Use an explicitly configured backend/proxy bridge for trusted work.
 
-Read [`docs/engine-components/apistatic.md`](./docs/engine-components/apistatic.md).
+Read [`docs/3/engine-components/apistatic.md`](./docs/3/engine-components/apistatic.md).
 
 ---
 
@@ -420,18 +420,19 @@ Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture
 | Release history | [`docs/release/index.md`](./docs/release/index.md) |
 | v2.6.1 stability changes | [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md) |
 | v2.6.0 feature release | [`docs/release/NE-v2-6-0.md`](./docs/release/NE-v2-6-0.md) |
-| Layouts and primitives | [`docs/engine-components/primitives.md`](./docs/engine-components/primitives.md) |
-| Transitions+ | [`docs/engine-components/enginetransitions.md`](./docs/engine-components/enginetransitions.md) |
-| EngineShader | [`docs/engine-components/engineshader.md`](./docs/engine-components/engineshader.md) |
-| EngineOverlay | [`docs/engine-components/engineoverlay.md`](./docs/engine-components/engineoverlay.md) |
-| EngineScroll | [`docs/engine-components/enginescroll.md`](./docs/engine-components/enginescroll.md) |
-| Canvas / EC graphics | [`docs/engine-components/enginecanvas.md`](./docs/engine-components/enginecanvas.md) |
+| Layouts and primitives | [`docs/3/engine-components/primitives.md`](./docs/3/engine-components/primitives.md) |
+| Transitions+ | [`docs/3/engine-components/enginetransitions.md`](./docs/3/engine-components/enginetransitions.md) |
+| EngineShader | [`docs/3/engine-components/engineshader.md`](./docs/3/engine-components/engineshader.md) |
+| EngineOverlay | [`docs/3/engine-components/engineoverlay.md`](./docs/3/engine-components/engineoverlay.md) |
+| EngineScroll | [`docs/3/engine-components/enginescroll.md`](./docs/3/engine-components/enginescroll.md) |
+| Canvas / EC graphics | [`docs/3/engine-components/enginecanvas.md`](./docs/3/engine-components/enginecanvas.md) |
+| EngineTheme, `.etr`, templates and font pipeline | [`docs/3/engine-components/enginetheme.md`](./docs/3/engine-components/enginetheme.md) |
 | Gen 3 styling — simple | [`docs/3/styling.md`](./docs/3/styling.md) |
 | Gen 3 styling — detailed | [`docs/3/styling-detailed.md`](./docs/3/styling-detailed.md) |
 | Gen 3 compiler internals | [`docs/3/compiler-deep-dive.md`](./docs/3/compiler-deep-dive.md) |
 | Runtime/performance | [`docs/runtime-performance.md`](./docs/runtime-performance.md) |
-| APIStatic | [`docs/engine-components/apistatic.md`](./docs/engine-components/apistatic.md) |
-| External APIs | [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md) |
+| APIStatic | [`docs/3/engine-components/apistatic.md`](./docs/3/engine-components/apistatic.md) |
+| External APIs | [`docs/3/engine-components/engineapi.md`](./docs/3/engine-components/engineapi.md) |
 | Diagnostics | [`docs/schema-diagnostics.md`](./docs/schema-diagnostics.md) |
 
 The unversioned [`docs/styling.md`](./docs/styling.md) path is retained for old links; use the explicitly versioned Gen 3 guide above.
