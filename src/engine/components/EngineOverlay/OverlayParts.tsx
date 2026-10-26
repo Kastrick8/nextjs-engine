@@ -118,6 +118,7 @@ export function OverlayTrigger({ label, children, asChild = false, className, st
 			className?: string;
 			style?: CSSProperties;
 			"aria-label"?: string;
+			type?: "button" | "submit" | "reset";
 		}>;
 		const childRef = child.props.ref;
 		return React.cloneElement(child, {
