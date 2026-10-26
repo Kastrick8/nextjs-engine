@@ -10,6 +10,13 @@ export type {
 	EngineCompilerOptions,
 	EnginePageComponent,
 } from "./createPage";
+export type {
+	CreateCustomComponentOptions,
+	EngineCustomPropRule,
+	EngineCustomPropSchema,
+	EngineCustomPropType,
+	EngineCustomReactComponent,
+} from "./core/EngineCustomComponent";
 
 // Generation 3 compiler/runtime foundation. Server-only request helpers remain
 // in `nextjs-engine/server`; this barrel only exposes browser/server-safe APIs.

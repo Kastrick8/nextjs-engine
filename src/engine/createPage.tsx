@@ -12,6 +12,7 @@ import type {
 	EngineTheme as EngineThemeConfig,
 } from "./schema/types";
 import { resolveEngineThemeSchema } from "./components/engineTheme/resolveTheme";
+import { createTrustedEngineComponent, type CreateCustomComponentOptions, type EngineCustomReactComponent } from "./core/EngineCustomComponent";
 import { normalizeEngineThemeFontHrefs } from "./components/engineTheme/fontUrls";
 import { flattenEngineThemeTokens, normalizeEngineThemeVariables } from "./components/engineTheme/tokens";
 import { EngineCollectedStyles, EngineProvider } from "./providers/EngineProvider";
@@ -72,7 +73,7 @@ export interface CreateMarkdownPageOptions extends CreateOptionsBase {
 }
 
 export type CreatePageOptions = CreateSchemaPageOptions | CreateDirectPageOptions | CreateMarkdownPageOptions;
-export type CreateComponentOptions = CreateSchemaPageOptions | CreateDirectPageOptions;
+export type CreateComponentOptions = CreateSchemaPageOptions | CreateDirectPageOptions | CreateCustomComponentOptions<any>;
 
 export interface EngineComponentProps {
 	slots?: Record<string, ReactNode>;
@@ -286,7 +287,12 @@ export function createPage(options: CreatePageOptions): EnginePageComponent {
 	return Object.assign(EnginePage, { enginePlan: basePlan });
 }
 
-export function createComponent(options: CreateComponentOptions): React.FC<EngineComponentProps> {
+export function createComponent<P extends object>(options: CreateCustomComponentOptions<P>): EngineCustomReactComponent<P>;
+export function createComponent(options: CreateSchemaPageOptions | CreateDirectPageOptions): React.FC<EngineComponentProps>;
+export function createComponent(options: CreateComponentOptions): React.ComponentType<any> {
+	if ("mode" in options && options.mode === "custom") {
+		return createTrustedEngineComponent(options);
+	}
 	const normalized = normalizeCreateOptions(options);
 	const schema = resolveEngineThemeSchema(normalized.schema);
 	const { config, handlers, slots, compiler } = normalized;

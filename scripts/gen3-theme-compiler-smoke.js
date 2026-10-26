@@ -62,6 +62,44 @@ async function testPublicThemeApi() {
 			unregisterEngineThemeDataHandler,
 		} = require(path.resolve(__dirname, "../src/engine/components/engineTheme/dataApi.ts"));
 		const React = require("react");
+		const { createTrustedEngineComponent } = require(path.resolve(__dirname, "../src/engine/core/EngineCustomComponent.tsx"));
+		const {
+			getComponent,
+			registerComponent,
+			unregisterComponent,
+		} = require(path.resolve(__dirname, "../src/engine/core/registry.ts"));
+
+		const customLinkImplementation = (props) => React.createElement("a", props, props.children);
+		const CustomLink = createTrustedEngineComponent({
+			mode: "custom",
+			id: "smoke-custom-link",
+			component: customLinkImplementation,
+			props: {
+				href: { type: "string", required: true, maxLength: 2048 },
+				target: { type: "string", enum: ["_self", "_blank"] },
+			},
+			slots: ["children", "leading"],
+			strictProps: true,
+		});
+		assert.equal(CustomLink.engineCustomComponentId, "smoke-custom-link", "custom component IDs are stable and explicit");
+		assert.throws(() => CustomLink({ target: "_blank", children: "Missing href" }), /requires prop 'href'/);
+		assert.throws(() => CustomLink({ href: 42 }), /must be string/);
+		assert.throws(() => CustomLink({ href: "/guide", target: "_parent" }), /enum values/);
+		assert.throws(() => CustomLink({ href: "/guide", onClick: () => undefined }), /Undeclared custom component prop 'onClick'/);
+		assert.throws(() => CustomLink({ href: "/guide", leading: { invalid: true } }), /must be a valid ReactNode/);
+		const validCustomElement = CustomLink({ href: "/guide", target: "_blank", children: "Read the guide", leading: React.createElement("span", null, "Go") });
+		assert.ok(React.isValidElement(validCustomElement));
+		assert.equal(validCustomElement.type, customLinkImplementation);
+
+		const originalBox = getComponent("box");
+		assert.throws(() => registerComponent("box", CustomLink), /Cannot replace built-in Engine component type/);
+		assert.equal(getComponent("box"), originalBox, "a failed registration cannot replace a built-in component");
+		assert.throws(() => unregisterComponent("box"), /Cannot unregister built-in Engine component type/);
+		registerComponent("smoke-custom-link", CustomLink);
+		assert.equal(getComponent("smoke-custom-link"), CustomLink);
+		assert.throws(() => registerComponent("different-id", CustomLink), /does not match registry type/);
+		unregisterComponent("smoke-custom-link");
+		assert.equal(getComponent("smoke-custom-link"), undefined, "custom registrations can be cleaned up after tests");
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
 		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/components/engineTheme/fontUrls.ts"));
 		const { flattenEngineThemeTokens, normalizeEngineThemeVariables } = require(path.resolve(__dirname, "../src/engine/components/engineTheme/tokens.ts"));

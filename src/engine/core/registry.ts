@@ -133,12 +133,27 @@ function buildDefaultRegistry(): ComponentRegistry {
 }
 
 const _registry: ComponentRegistry = buildDefaultRegistry();
+const BUILTIN_COMPONENT_TYPES = new Set<NodeType>(_registry.keys());
 
-export function registerComponent(type: NodeType, component: EngineComponent): void {
-	_registry.set(type, component);
+export function registerComponent<P extends object>(type: NodeType, component: ComponentType<P>): void {
+	if (typeof type !== "string" || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(type)
+		|| type === "__proto__" || type === "prototype" || type === "constructor") {
+		throw new TypeError("Custom component type must be a single safe schema-node identifier.");
+	}
+	if (BUILTIN_COMPONENT_TYPES.has(type)) {
+		throw new Error("Cannot replace built-in Engine component type '" + type + "'. Choose a new application-owned type ID.");
+	}
+	const declaredId = (component as unknown as { engineCustomComponentId?: unknown }).engineCustomComponentId;
+	if (typeof declaredId === "string" && declaredId !== type) {
+		throw new Error("Custom component ID '" + declaredId + "' does not match registry type '" + type + "'.");
+	}
+	_registry.set(type, component as unknown as EngineComponent);
 }
 
 export function unregisterComponent(type: NodeType): void {
+	if (BUILTIN_COMPONENT_TYPES.has(type)) {
+		throw new Error("Cannot unregister built-in Engine component type '" + type + "'.");
+	}
 	_registry.delete(type);
 }
 
