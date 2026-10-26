@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || (github.event_name == 'workflow_dispatch' && 'package/main') || github.sha }}
       - id: packages
         shell: bash
         run: |
@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || (github.event_name == 'workflow_dispatch' && 'package/main') || github.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
