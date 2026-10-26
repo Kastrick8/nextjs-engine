@@ -420,6 +420,7 @@ Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture
 | Goal | Read |
 |---|---|
 | Release history | [`docs/release/index.md`](./docs/release/index.md) |
+| v2.6.2 prepared bug-fix patch | [`docs/release/NE-v2-6-2.md`](./docs/release/NE-v2-6-2.md) |
 | v2.6.1 stability changes | [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md) |
 | v2.6.0 feature release | [`docs/release/NE-v2-6-0.md`](./docs/release/NE-v2-6-0.md) |
 | Layouts and primitives | [`docs/3/engine-components/primitives.md`](./docs/3/engine-components/primitives.md) |
@@ -433,7 +434,6 @@ Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture
 | Gen 3 styling — detailed | [`docs/3/styling-detailed.md`](./docs/3/styling-detailed.md) |
 | Gen 3 compiler internals | [`docs/3/compiler-deep-dive.md`](./docs/3/compiler-deep-dive.md) |
 | Runtime/performance | [`docs/runtime-performance.md`](./docs/runtime-performance.md) |
-| EngineTheme and `.etr` | [`docs/3/engine-components/enginetheme.md`](./docs/3/engine-components/enginetheme.md) |
 | EngineSEO and crawler metadata | [`docs/3/engine-components/engineseo.md`](./docs/3/engine-components/engineseo.md) |
 | APIStatic | [`docs/3/engine-components/apistatic.md`](./docs/3/engine-components/apistatic.md) |
 | External APIs | [`docs/3/engine-components/engineapi.md`](./docs/3/engine-components/engineapi.md) |
