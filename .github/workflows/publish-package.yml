@@ -1,0 +1,74 @@
+name: Publish versioned package
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'Kate-alt-69/nextjs-engine'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged archive commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - name: Set up Node.js for npm Trusted Publishing
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Verify tag belongs to package/main history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin package/main
+          git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD || { echo "Tag is not part of package/main history; refusing to publish." >&2; exit 1; }
+      - name: Resolve exact snapshot directory
+        id: snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.[0-9]+-alpha\.([0-9]+)$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            DIR="alpha/version/$MAJOR.alpha/version/$VERSION"
+            DIST_TAG="alpha"
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
+            DIR="version/$MAJOR.$MINOR/version/$VERSION"
+            DIST_TAG="latest"
+          else
+            echo "Expected v2.6.3 or v3.0.0-alpha.2, got $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          test -f "$DIR/package.json" && test -f "$DIR/index.ts" && test -d "$DIR/engine"
+          export DIR VERSION
+          node -e 'const p=require("./"+process.env.DIR+"/package.json"); if(p.name!=="nextjs-engine"||p.version!==process.env.VERSION) { console.error({name:p.name,version:p.version,expected:process.env.VERSION}); process.exit(1); }'
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "directory=$DIR" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+      - name: Install npm CLI with OIDC support
+        run: npm install --global npm@^11.5.1
+      - name: Validate package contents before publishing
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+          npm run type-check
+          npm run pack:check
+      - name: Publish the selected snapshot
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        env:
+          DIST_TAG: ${{ steps.snapshot.outputs.dist_tag }}
+        run: npm publish --access public --tag "$DIST_TAG"
