@@ -4,6 +4,7 @@ export {
 	isTopOverlay,
 	lockBodyScroll,
 	registerOverlay,
+	scheduleOverlayFrame,
 	subscribeOverlayViewport,
 } from "./EngineOverlayRuntime";
 

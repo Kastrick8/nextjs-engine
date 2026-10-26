@@ -746,7 +746,7 @@ Suggested overlay theme slots include trigger, backdrop, panel, header, title, d
 
 ### P0 — Shared overlay runtime and low-end performance
 
-The current implementation still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. Overlay stack and scroll-lock ownership are scoped in a WeakMap keyed by the owning Document. Reduced-motion preference uses one shared external store/subscription, popover viewport resize/scroll/visualViewport listeners are shared per Document, and unchanged computed position retains the previous state object. Per-instance ResizeObservers and the frame-coalesced read/write scheduler remain outstanding.
+The current implementation still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. Overlay stack and scroll-lock ownership are scoped in a WeakMap keyed by the owning Document. Reduced-motion preference uses one shared external store/subscription, popover viewport resize/scroll/visualViewport listeners are shared per Document, and unchanged computed position retains the previous state object. Per-instance ResizeObservers remain outstanding. Popover position callbacks are now coalesced into one animation-frame pass per Document; explicit batched read-then-write layout scheduling still needs verification and refinement.
 
 Continue with a targeted shared-runtime improvement rather than rewriting the components into a large new abstraction:
 

@@ -44,6 +44,9 @@ interface OverlayDocumentState {
 	previousPaddingRight: string;
 	viewportSubscribers: Set<() => void>;
 	viewportCleanup: (() => void) | null;
+	nextFrameToken: number;
+	frameId: number | null;
+	frameCallbacks: Map<number, () => void>;
 }
 
 const overlayDocuments = new WeakMap<Document, OverlayDocumentState>();
@@ -59,6 +62,9 @@ function getOverlayDocumentState(ownerDocument: Document): OverlayDocumentState 
 			previousPaddingRight: "",
 			viewportSubscribers: new Set(),
 			viewportCleanup: null,
+			nextFrameToken: 0,
+			frameId: null,
+			frameCallbacks: new Map(),
 		};
 		overlayDocuments.set(ownerDocument, state);
 	}
@@ -187,6 +193,34 @@ export function isTopOverlay(id: string, ownerDocument?: Document): boolean {
 	if (!doc) return false;
 	const stack = getOverlayDocumentState(doc).stack;
 	return stack[stack.length - 1]?.id === id;
+}
+
+/**
+ * Coalesce overlay layout work into one animation-frame callback per Document.
+ * Consumers can cancel their queued work when a panel closes or receives a newer update.
+ */
+export function scheduleOverlayFrame(callback: () => void, ownerDocument?: Document): () => void {
+	const doc = resolveOwnerDocument(ownerDocument);
+	const view = doc?.defaultView;
+	if (!doc || !view) return () => undefined;
+	const state = getOverlayDocumentState(doc);
+	const token = ++state.nextFrameToken;
+	state.frameCallbacks.set(token, callback);
+	if (state.frameId === null) {
+		state.frameId = view.requestAnimationFrame(() => {
+			state.frameId = null;
+			const callbacks = [...state.frameCallbacks.values()];
+			state.frameCallbacks.clear();
+			for (const run of callbacks) run();
+		});
+	}
+	return () => {
+		state.frameCallbacks.delete(token);
+		if (state.frameCallbacks.size === 0 && state.frameId !== null) {
+			view.cancelAnimationFrame(state.frameId);
+			state.frameId = null;
+		}
+	};
 }
 
 /**

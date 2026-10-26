@@ -4,7 +4,7 @@ import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState }
 import { createPortal } from "react-dom";
 import { useCpropClass } from "../../hooks/usePropStyles";
 import { usePrimitiveStyles } from "../../hooks/usePrimitiveStyles";
-import { computePopoverPosition, isTopOverlay, subscribeOverlayViewport, type EnginePopoverPlacement } from "../../core/engineoverlay";
+import { computePopoverPosition, isTopOverlay, scheduleOverlayFrame, subscribeOverlayViewport, type EnginePopoverPlacement } from "../../core/engineoverlay";
 import {
 	SURFACE_BASE,
 	clampDuration,
@@ -51,10 +51,11 @@ export const EnginePopover = memo(function EnginePopover({
 
 	useEffect(() => {
 		if (!present || !target) return;
-		let frame = 0;
+		let cancelScheduled: (() => void) | null = null;
 		const update = () => {
-			cancelAnimationFrame(frame);
-			frame = requestAnimationFrame(() => {
+			cancelScheduled?.();
+			cancelScheduled = scheduleOverlayFrame(() => {
+				cancelScheduled = null;
 				const triggerElement = triggerRef.current;
 				const panelElement = panelRef.current;
 				if (!triggerElement || !panelElement) return;
@@ -90,7 +91,7 @@ export const EnginePopover = memo(function EnginePopover({
 					&& previous.placement === nextPosition.placement
 					? previous
 					: nextPosition);
-			});
+			}, document);
 		};
 		update();
 		const unsubscribeViewport = subscribeOverlayViewport(update, document);
@@ -98,7 +99,7 @@ export const EnginePopover = memo(function EnginePopover({
 		if (observer && triggerRef.current) observer.observe(triggerRef.current);
 		if (observer && panelRef.current) observer.observe(panelRef.current);
 		return () => {
-			cancelAnimationFrame(frame);
+			cancelScheduled?.();
 			unsubscribeViewport();
 			observer?.disconnect();
 		};
