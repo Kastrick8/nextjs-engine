@@ -27,3 +27,13 @@ test("registered custom link resolves EngineTheme base and variant styles", asyn
 	await expect(backslash.locator("a")).toHaveCount(0);
 	await expect(backslash).toContainText("Backslash URL blocked");
 });
+
+test("custom internal link stays keyboard accessible and activates safely", async ({ page }) => {
+	await page.goto("/engine-custom-link-test");
+
+	const internal = page.getByTestId("custom-safe-link").getByRole("link", { name: /Read the internal guide/ });
+	await internal.focus();
+	await expect(internal).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(page).toHaveURL(/\\/engine-compat-test(?:\\/)?$/);
+});
