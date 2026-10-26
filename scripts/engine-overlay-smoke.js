@@ -91,23 +91,31 @@ function main() {
 		assert.ok(clamped.top >= 12);
 		assert.ok(clamped.left + 220 <= 308);
 
-		const releaseA = runtime.registerOverlay("a");
-		assert.equal(runtime.isTopOverlay("a"), true);
-		const releaseB = runtime.registerOverlay("b");
-		assert.equal(runtime.isTopOverlay("a"), false);
-		assert.equal(runtime.isTopOverlay("b"), true);
+		const ownerDocument = {};
+		const otherDocument = {};
+		const releaseA = runtime.registerOverlay("a", ownerDocument);
+		assert.equal(runtime.isTopOverlay("a", ownerDocument), true);
+		const releaseB = runtime.registerOverlay("b", ownerDocument);
+		assert.equal(runtime.isTopOverlay("a", ownerDocument), false);
+		assert.equal(runtime.isTopOverlay("b", ownerDocument), true);
 		releaseB();
-		assert.equal(runtime.isTopOverlay("a"), true);
+		assert.equal(runtime.isTopOverlay("a", ownerDocument), true);
 		releaseA();
-		assert.equal(runtime.isTopOverlay("a"), false);
+		assert.equal(runtime.isTopOverlay("a", ownerDocument), false);
 
-		const releaseOld = runtime.registerOverlay("same");
-		const releaseNew = runtime.registerOverlay("same");
-		assert.equal(runtime.isTopOverlay("same"), true);
+		const releaseOld = runtime.registerOverlay("same", ownerDocument);
+		const releaseNew = runtime.registerOverlay("same", ownerDocument);
+		assert.equal(runtime.isTopOverlay("same", ownerDocument), true);
 		releaseOld();
-		assert.equal(runtime.isTopOverlay("same"), true);
+		assert.equal(runtime.isTopOverlay("same", ownerDocument), true);
 		releaseNew();
-		assert.equal(runtime.isTopOverlay("same"), false);
+		assert.equal(runtime.isTopOverlay("same", ownerDocument), false);
+
+		const releaseOtherDocument = runtime.registerOverlay("other", otherDocument);
+		assert.equal(runtime.isTopOverlay("other", otherDocument), true);
+		assert.equal(runtime.isTopOverlay("other", ownerDocument), false,
+			"overlay stacks are isolated by their owning Document");
+		releaseOtherDocument();
 
 		console.log("EngineOverlay runtime smoke tests passed");
 	} finally {
