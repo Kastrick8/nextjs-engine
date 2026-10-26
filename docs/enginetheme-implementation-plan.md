@@ -454,7 +454,7 @@ The implemented EngineTheme Data-API already provides typed `join:left`, `join:r
 1. [x] Finalize the typed, discriminated `createComponent()` contract while preserving schema-composition calls; smoke coverage exercises both the custom props/slots contract and direct registry protection.
 2. [x, partial] Implement the advanced local-component factory and safe registration. Per-app/request registry isolation is still outstanding.
 3. [x] Add qualified theme IDs and variant resolution for registered custom nodes through the shared theme resolver, with a bounded style allowlist and local-style precedence.
-4. Implement the custom link example as the first registered custom component, with keyboard/accessibility and URL-safety tests.
+4. [x, partial] Added `app/engine-custom-link-test/page.tsx` and `tests/browser/engine-custom-link.spec.ts` for a registered custom link with base/variant styles, named slots, internal navigation, external `target="_blank"` rel protections, and fail-closed handling of JavaScript and backslash protocol-relative URLs. Current-head Chromium/Firefox/WebKit execution is not yet verified, so final browser accessibility/security acceptance remains open.
 5. Connect the declarative Data-API contract only for explicitly supported events and slots.
 6. Add server-first, browser-compatibility, cache invalidation, malformed theme, missing component, unknown theme, and cross-request isolation tests.
 7. Update the simple and detailed documentation only after the API shape is stable and verified.
