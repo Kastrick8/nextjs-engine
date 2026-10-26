@@ -31,7 +31,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 	const titleId = `${panelId}-title`;
 	const descriptionId = `${panelId}-description`;
 	const [isOpen, setOpen] = useOverlayState(open, defaultOpen, onOpenChange);
-	const transitionMs = useReducedMotion() ? 0 : clampDuration(transitionDuration, 220);
+	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration ?? engineOverlayTheme?.defaults?.duration, 220);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -45,7 +45,6 @@ export const EngineDrawer = memo(function EngineDrawer({
 
 	const resolvedSide = side ?? engineOverlayTheme?.defaults?.side ?? "right";
 	const resolvedSize = size ?? engineOverlayTheme?.defaults?.size ?? "min(26rem, 92vw)";
-	const transitionDuration = duration ?? engineOverlayTheme?.defaults?.duration;
 	const horizontal = resolvedSide === "left" || resolvedSide === "right";
 	const hiddenTransform = resolvedSide === "left" ? "translateX(-100%)"
 		: resolvedSide === "right" ? "translateX(100%)"

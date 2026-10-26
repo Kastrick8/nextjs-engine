@@ -61,6 +61,13 @@ function pickMarkdownThemeProps(value: unknown): Record<string, unknown> {
 	return result;
 }
 
+function withoutVariants(value: EngineThemeJsonObject | undefined): Record<string, unknown> | undefined {
+	if (!value) return undefined;
+	const result: Record<string, unknown> = { ...value };
+	delete result.variants;
+	return result;
+}
+
 function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject, themeId?: string): {
 	props: Record<string, unknown>;
 	styles?: Record<string, unknown>;
