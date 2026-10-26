@@ -1,3 +1,4 @@
+import { isSafeEngineThemeCssValue } from "../components/engineTheme/cssSafety";
 import * as React from "react";
 import type { ComponentType, CSSProperties } from "react";
 import { parseEngineThemeId } from "../components/engineTheme/createTheme";
@@ -136,11 +137,9 @@ const THEME_STYLE_PROPERTIES = new Set([
 	"flexWrap", "gridTemplateColumns", "gridTemplateRows", "aspectRatio", "transition",
 	"transform", "filter", "backdropFilter",
 ]);
-const UNSAFE_THEME_CSS_VALUE = /url\s*\(|expression\s*\(|javascript\s*:|@import|behavior\s*:|-moz-binding|[;{}]|[\u0000-\u001f\u007f]/i;
-
 function safeThemeStyleValue(value: unknown): value is string | number {
 	if (typeof value === "number") return Number.isFinite(value) && Math.abs(value) <= 1_000_000;
-	return typeof value === "string" && value.length <= 256 && !UNSAFE_THEME_CSS_VALUE.test(value);
+	return isSafeEngineThemeCssValue(value, 256);
 }
 
 /** Validate style data from a theme before it reaches a trusted local component. */

@@ -1,3 +1,5 @@
+import { isSafeEngineThemeCssValue } from "./cssSafety";
+
 const MAX_TOKEN_DEPTH = 8;
 const MAX_TOKEN_NODES = 512;
 const MAX_TOKEN_VARIABLES = 128;
@@ -7,10 +9,7 @@ const RESERVED_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 export type EngineThemeCssVariables = Record<string, string>;
 
 function safeCssValue(value: unknown): value is string {
-	return typeof value === "string"
-		&& value.length <= MAX_TOKEN_VALUE_LENGTH
-		&& !/[\u0000-\u001f\u007f{};<>]/.test(value)
-		&& !/url\s*\(|expression\s*\(|javascript\s*:|@import|\/\*|\*\//i.test(value);
+	return isSafeEngineThemeCssValue(value, MAX_TOKEN_VALUE_LENGTH);
 }
 
 function safeVariableKey(value: string): string | undefined {

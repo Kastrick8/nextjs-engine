@@ -1,3 +1,4 @@
+import { isSafeEngineThemeCssValue } from "./cssSafety";
 import type { CSSProperties } from "react";
 import type {
 	EngineTheme,
@@ -191,7 +192,7 @@ const OVERLAY_STYLE_PROPERTIES = new Set([
 	"wordBreak", "overflowWrap", "textOverflow", "backdropFilter",
 ]);
 
-const UNSAFE_OVERLAY_CSS_VALUE = /url\s*\(|expression\s*\(|javascript\s*:|@import|behavior\s*:|-moz-binding|[;{}]/i;
+
 
 function mergeThemeData(
 	base: Record<string, unknown>,
@@ -209,9 +210,7 @@ function mergeThemeData(
 
 function isSafeThemeScalar(value: unknown): value is string | number {
 	if (typeof value === "number") return Number.isFinite(value) && Math.abs(value) <= 1_000_000;
-	return typeof value === "string"
-		&& value.length <= 256
-		&& !UNSAFE_OVERLAY_CSS_VALUE.test(value);
+	return isSafeEngineThemeCssValue(value, 256);
 }
 
 function sanitizeOverlayStyles(value: unknown): EngineOverlayResolvedTheme["styles"] | undefined {
@@ -292,7 +291,7 @@ function sanitizeOverlayDefaults(value: Record<string, unknown>): EngineOverlayT
 			case "size":
 				if (typeof item === "number" && Number.isFinite(item) && item > 0 && item <= 2048) {
 					result.size = item;
-				} else if (typeof item === "string" && item.length > 0 && item.length <= 64 && !UNSAFE_OVERLAY_CSS_VALUE.test(item)) {
+				} else if (typeof item === "string" && item.length > 0 && isSafeEngineThemeCssValue(item, 64)) {
 					result.size = item;
 				} else {
 					throw new TypeError("EngineTheme drawer size must be a positive bounded number or a safe CSS size.");

@@ -1,3 +1,4 @@
+import { hasUnsafeEngineThemeCssNetworkPrimitive, isSafeEngineThemeCssValue } from "./cssSafety";
 import type { EngineThemeDefinition } from "../../schema/types";
 import {
 	registerLoadedRemoteEngineTheme,
@@ -238,7 +239,7 @@ function validateArtifactShape(value: unknown): asserts value is EngineThemeArti
 	}
 }
 
-const REMOTE_CSS_NETWORK_PATTERN = /url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|@import\b|-moz-binding\s*:|behavior\s*:/i;
+
 
 /** Bound and reject CSS/network primitives throughout JSON theme data before registration. */
 function assertSafeRemoteThemeStrings(
@@ -252,7 +253,7 @@ function assertSafeRemoteThemeStrings(
 		throw new Error("Remote EngineTheme exceeds the nested-data validation budget at " + path + ".");
 	}
 	if (typeof value === "string") {
-		if (REMOTE_CSS_NETWORK_PATTERN.test(value)) {
+		if (hasUnsafeEngineThemeCssNetworkPrimitive(value)) {
 			throw new Error("Remote EngineTheme contains an unsafe CSS/network primitive at " + path + ".");
 		}
 		return;
@@ -297,9 +298,7 @@ function sanitizeRemoteThemeContent(
 			if (!/^--[A-Za-z0-9_-]{1,80}$/.test(key)) {
 				throw new Error("Remote EngineTheme CSS variable names must start with -- and use safe identifier characters.");
 			}
-			if (typeof value !== "string" || value.length > 256
-				|| /[\u0000-\u001f\u007f{};<>]/.test(value)
-				|| /url\s*\(|expression\s*\(|javascript\s*:|@import|\/\*|\*\//i.test(value)) {
+			if (typeof value !== "string" || !isSafeEngineThemeCssValue(value, 256) {
 				throw new Error("Remote EngineTheme CSS variable '" + key + "' contains an unsafe CSS value.");
 			}
 			normalizedVars[key] = value;

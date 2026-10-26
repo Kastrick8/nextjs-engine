@@ -120,6 +120,8 @@ The live fixture at [`/engine-custom-link-test`](../../app/engine-custom-link-te
 
 Theme data controls appearance only; trusted application code owns navigation and behavior. The resolver validates the bounded CSS property/value vocabulary and applies explicit node styles after theme defaults/variants. A remote `.etr` file cannot provide React code or replace the registered component implementation.
 
+CSS safety checks decode CSS escapes before scanning style values, theme tokens, remote `.etr` strings, and overlay defaults. Literal and escaped spellings of `url(...)`, `expression(...)`, executable schemes, and similar network/execution primitives are rejected before those values are applied.
+
 ## Migration and compatibility
 
 The public import remains `nextjs-engine`; applications should not import the internal `src/engine/components/engineTheme/` files directly. Moving those implementation files does not change the public API.
