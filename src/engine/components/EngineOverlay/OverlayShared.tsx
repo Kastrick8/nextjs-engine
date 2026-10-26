@@ -175,7 +175,7 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 			? ownerDocument.activeElement
 			: null;
 		const unregister = registerOverlay(options.overlayId, ownerDocument, {
-			root: panel.parentElement ?? panel,
+			root: current.modal ? (panel.parentElement ?? panel) : panel,
 			modal: options.modal,
 		});
 		const frame = requestAnimationFrame(() => {
