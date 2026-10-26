@@ -13,13 +13,17 @@ on:
         type: string
         required: true
 
+  push:
+    branches: [main]
+    paths: [".github/workflows/cleanup-generated-sync-branches.yml"]
+
 permissions:
   contents: write
   pull-requests: read
 
 jobs:
   cleanup:
-    if: ${{ inputs.dry_run || inputs.confirm == 'DELETE-GENERATED-SYNC-BRANCHES' }}
+    if: ${{ github.event_name == 'push' || inputs.dry_run || inputs.confirm == 'DELETE-GENERATED-SYNC-BRANCHES' }}
     runs-on: ubuntu-latest
     steps:
       - name: Preview or delete only generated package-sync refs
@@ -35,6 +39,11 @@ jobs:
           fi
           mapfile -t BRANCHES < <(gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[].name' | grep -E '^sync/main-3-package-[0-9a-f]{7}-[0-9]+$' || true)
           mapfile -t OPEN_PR_HEADS < <(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].head.ref')
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            DRY_RUN=false
+            CONFIRM=DELETE-GENERATED-SYNC-BRANCHES
+            echo "Cleanup triggered by the deliberate cleanup-workflow update on main."
+          fi
           echo "Matching generated refs: ${#BRANCHES[@]}"
           deleted=0; skipped=0; failed=0
           for branch in "${BRANCHES[@]}"; do
