@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { ComponentType } from "react";
+import type { ComponentType, CSSProperties } from "react";
 
 export type EngineCustomPropType =
 	| "string"
@@ -23,6 +23,9 @@ export interface EngineCustomPropRule {
 
 export type EngineCustomPropSchema = Readonly<Record<string, EngineCustomPropRule>>;
 
+/** Safe theme styles keyed by the custom component's declared slots. */
+export type EngineCustomThemeStyles = Readonly<Record<string, CSSProperties>>;
+
 export interface CreateCustomComponentOptions<P extends object> {
 	/** Discriminant for the trusted local React component authoring path. */
 	mode: "custom";
@@ -38,19 +41,74 @@ export interface CreateCustomComponentOptions<P extends object> {
 	strictProps?: boolean;
 }
 
-export type EngineCustomReactComponent<P extends object> = ComponentType<P> & {
+export type EngineCustomReactComponent<P extends object> = ComponentType<P & {
+	engineThemeStyles?: EngineCustomThemeStyles;
+}> & {
 	readonly engineCustomComponentId: string;
+	readonly engineCustomSlots: readonly string[];
 };
 
 const CUSTOM_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const RESERVED_IDS = new Set(["__proto__", "prototype", "constructor"]);
 const RESERVED_PROPS = new Set(["dangerouslySetInnerHTML", "__proto__", "prototype", "constructor"]);
-const STANDARD_PROPS = new Set(["children", "id", "className", "style", "title", "role", "tabIndex"]);
+const STANDARD_PROPS = new Set(["children", "id", "className", "style", "title", "role", "tabIndex", "engineThemeStyles"]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
+}
+
+const THEME_STYLE_PROPERTIES = new Set([
+\t"color", "background", "backgroundColor", "backgroundImage", "border", "borderColor",
+\t"borderWidth", "borderStyle", "borderRadius", "boxShadow", "outline", "outlineColor",
+\t"outlineWidth", "outlineStyle", "fontFamily", "fontSize", "fontWeight", "fontStyle",
+\t"lineHeight", "letterSpacing", "textAlign", "textTransform", "textDecoration",
+\t"textDecorationColor", "textDecorationThickness", "textUnderlineOffset", "padding",
+\t"paddingBlock", "paddingBlockStart", "paddingBlockEnd", "paddingInline", "paddingInlineStart",
+\t"paddingInlineEnd", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "margin",
+\t"marginBlock", "marginInline", "marginTop", "marginRight", "marginBottom", "marginLeft",
+\t"gap", "rowGap", "columnGap", "width", "minWidth", "maxWidth", "height", "minHeight",
+\t"maxHeight", "display", "opacity", "cursor", "boxSizing", "verticalAlign", "whiteSpace",
+\t"wordBreak", "overflowWrap", "textOverflow", "objectFit", "alignItems", "justifyContent",
+\t"alignSelf", "justifySelf", "flex", "flexGrow", "flexShrink", "flexBasis", "flexDirection",
+\t"flexWrap", "gridTemplateColumns", "gridTemplateRows", "aspectRatio", "transition",
+\t"transform", "filter", "backdropFilter",
+]);
+const UNSAFE_THEME_CSS_VALUE = /url\s*\(|expression\s*\(|javascript\s*:|@import|behavior\s*:|-moz-binding|[;{}]|[\u0000-\u001f\u007f]/i;
+
+function safeThemeStyleValue(value: unknown): value is string | number {
+\tif (typeof value === "number") return Number.isFinite(value) && Math.abs(value) <= 1_000_000;
+\treturn typeof value === "string" && value.length <= 256 && !UNSAFE_THEME_CSS_VALUE.test(value);
+}
+
+/** Validate style data from a theme before it reaches a trusted local component. */
+export function sanitizeEngineCustomThemeStyles(
+\tvalue: unknown,
+\tdeclaredSlots: readonly string[],
+\tlabel = "EngineTheme custom styles",
+): EngineCustomThemeStyles {
+\tif (!isPlainObject(value)) throw new TypeError(label + " must be an object of named style slots.");
+\tif (Object.keys(value).length > 33) throw new TypeError(label + " exceeds the maximum number of style slots.");
+\tconst allowedSlots = new Set(["root", ...declaredSlots]);
+\tconst output: Record<string, CSSProperties> = {};
+\tfor (const [slot, candidate] of Object.entries(value)) {
+\t\tif (!allowedSlots.has(slot)) throw new TypeError("Unsupported " + label + " slot '" + slot + "'.");
+\t\tif (!isPlainObject(candidate)) throw new TypeError(label + " slot '" + slot + "' must be an object.");
+\t\tif (Object.keys(candidate).length > 80) throw new TypeError(label + " slot '" + slot + "' exceeds 80 properties.");
+\t\tconst style: Record<string, string | number> = {};
+\t\tfor (const [property, item] of Object.entries(candidate)) {
+\t\t\tif (!THEME_STYLE_PROPERTIES.has(property) && !/^--[A-Za-z0-9_-]{1,128}$/.test(property)) {
+\t\t\t\tthrow new TypeError("Unsupported CSS property '" + property + "' in " + label + " slot '" + slot + "'.");
+\t\t\t}
+\t\t\tif (!safeThemeStyleValue(item)) {
+\t\t\t\tthrow new TypeError("Unsafe or invalid CSS value for '" + property + "' in " + label + " slot '" + slot + "'.");
+\t\t\t}
+\t\t\tstyle[property] = item;
+\t\t}
+\t\toutput[slot] = style as CSSProperties;
+\t}
+\treturn output;
 }
 
 function isReactNode(value: unknown, depth = 0): boolean {
@@ -184,9 +242,16 @@ export function createTrustedEngineComponent<P extends object>(
 		}
 	}
 
-	function EngineCustomComponent(props: P) {
-		validateProps(options, props);
-		return React.createElement(options.component, props);
+	function EngineCustomComponent(props: P & { engineThemeStyles?: EngineCustomThemeStyles }) {
+		const input = props as unknown as Record<string, unknown>;
+		const safeThemeStyles = input.engineThemeStyles === undefined
+			? undefined
+			: sanitizeEngineCustomThemeStyles(input.engineThemeStyles, options.slots ?? []);
+		validateProps(options, input);
+		const forwarded = safeThemeStyles === undefined
+			? input
+			: { ...input, engineThemeStyles: safeThemeStyles };
+		return React.createElement(options.component, forwarded as P);
 	}
 	EngineCustomComponent.displayName = "EngineCustomComponent(" + options.id + ")";
 	Object.defineProperty(EngineCustomComponent, "engineCustomComponentId", {
@@ -194,6 +259,12 @@ export function createTrustedEngineComponent<P extends object>(
 		enumerable: false,
 		writable: false,
 		value: options.id,
+	});
+	Object.defineProperty(EngineCustomComponent, "engineCustomSlots", {
+		configurable: false,
+		enumerable: false,
+		writable: false,
+		value: Object.freeze([...(options.slots ?? [])]),
 	});
 	return EngineCustomComponent as EngineCustomReactComponent<P>;
 }

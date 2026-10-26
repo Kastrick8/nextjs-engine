@@ -15,6 +15,8 @@ import {
 	parseEngineThemeId,
 	resolveRegisteredEngineTheme,
 } from "./createTheme";
+import { getComponentThemeSlots, isCustomComponentType } from "../../core/registry";
+import { sanitizeEngineCustomThemeStyles, type EngineCustomThemeStyles } from "../../core/EngineCustomComponent";
 
 interface ResolvedMarkdownTheme {
 	props: Record<string, unknown>;
@@ -443,6 +445,141 @@ function applyMarkdownThemeToNode(node: SchemaNode, markdownTheme: ResolvedMarkd
 	return { ...node, props: nextProps as SchemaNode["props"] };
 }
 
+const CUSTOM_COMPONENT_THEME_STYLE_KEYS = new Set([
+	"color", "background", "backgroundColor", "backgroundImage", "border", "borderColor",
+	"borderWidth", "borderStyle", "borderRadius", "boxShadow", "outline", "outlineColor",
+	"outlineWidth", "outlineStyle", "fontFamily", "fontSize", "fontWeight", "fontStyle",
+	"lineHeight", "letterSpacing", "textAlign", "textTransform", "textDecoration",
+	"textDecorationColor", "textDecorationThickness", "textUnderlineOffset", "padding",
+	"paddingBlock", "paddingBlockStart", "paddingBlockEnd", "paddingInline", "paddingInlineStart",
+	"paddingInlineEnd", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "margin",
+	"marginBlock", "marginInline", "marginTop", "marginRight", "marginBottom", "marginLeft",
+	"gap", "rowGap", "columnGap", "width", "minWidth", "maxWidth", "height", "minHeight",
+	"maxHeight", "display", "opacity", "cursor", "boxSizing", "verticalAlign", "whiteSpace",
+	"wordBreak", "overflowWrap", "textOverflow", "objectFit", "alignItems", "justifyContent",
+	"alignSelf", "justifySelf", "flex", "flexGrow", "flexShrink", "flexBasis", "flexDirection",
+	"flexWrap", "gridTemplateColumns", "gridTemplateRows", "aspectRatio", "transition",
+	"transform", "filter", "backdropFilter",
+]);
+
+function isCustomComponentStyleKey(key: string): boolean {
+	return CUSTOM_COMPONENT_THEME_STYLE_KEYS.has(key) || /^--[A-Za-z0-9_-]{1,128}$/.test(key);
+}
+
+function collectCustomComponentStyle(
+	target: Record<string, unknown>,
+	candidate: unknown,
+	label: string,
+	strict: boolean,
+): void {
+	if (candidate === undefined) return;
+	if (!isThemeRecord(candidate)) throw new TypeError("EngineTheme custom component styles at '" + label + "' must be an object.");
+	for (const [property, value] of Object.entries(candidate)) {
+		if (!isCustomComponentStyleKey(property)) {
+			if (strict) throw new TypeError("Unsupported CSS property '" + property + "' in EngineTheme custom component styles at '" + label + "'.");
+			continue;
+		}
+		target[property] = value;
+	}
+}
+
+function resolveCustomComponentThemeStyles(
+	definition: Record<string, unknown>,
+	nodeType: string,
+): EngineCustomThemeStyles {
+	const slots = getComponentThemeSlots(nodeType);
+	const styles: Record<string, Record<string, unknown>> = { root: {} };
+	collectCustomComponentStyle(styles.root, Object.fromEntries(
+		Object.entries(definition).filter(([key]) => isCustomComponentStyleKey(key)),
+	), nodeType, false);
+	collectCustomComponentStyle(styles.root, definition.defaults, nodeType + ".defaults", false);
+	collectCustomComponentStyle(styles.root, definition.props, nodeType + ".props", false);
+
+	const declaredStyles = definition.styles;
+	if (declaredStyles !== undefined) {
+		if (!isThemeRecord(declaredStyles)) {
+			throw new TypeError("EngineTheme custom component '" + nodeType + "'.styles must be a plain object.");
+		}
+		const entries = Object.entries(declaredStyles);
+		const isDirectRootStyle = entries.length === 0 || entries.every(([key]) => isCustomComponentStyleKey(key));
+		if (isDirectRootStyle) {
+			collectCustomComponentStyle(styles.root, declaredStyles, nodeType + ".styles", true);
+		} else {
+			for (const [slot, candidate] of entries) {
+				if (slot !== "root" && !slots.includes(slot)) {
+					throw new TypeError("EngineTheme custom component '" + nodeType + "' declares unsupported style slot '" + slot + "'. Declare it in createComponent({ mode: \"custom\", slots: [...] }).");
+				}
+				if (!isThemeRecord(candidate)) {
+					throw new TypeError("EngineTheme custom component style slot '" + slot + "' must be an object.");
+				}
+				collectCustomComponentStyle(styles[slot] ?? (styles[slot] = {}), candidate, nodeType + ".styles." + slot, true);
+			}
+		}
+	}
+	return sanitizeEngineCustomThemeStyles(styles, slots, "EngineTheme custom component '" + nodeType + "'");
+}
+
+function resolveCustomComponentThemeNode(
+	node: SchemaNode,
+	context: EngineThemeResolutionContext,
+): SchemaNode {
+	const explicitId = node.theme;
+	if (!isCustomComponentType(node.type)) {
+		if (explicitId !== undefined) {
+			throw new Error(
+				"SchemaNode.theme currently supports registered custom node types plus EngineDialog, EngineDrawer, and EnginePopover; received <" + node.type + ">.",
+			);
+		}
+		return node;
+	}
+	let selection: Record<string, unknown> | undefined;
+	if (explicitId !== undefined) {
+		if (typeof explicitId !== "string" || !explicitId) {
+			throw new TypeError("SchemaNode.theme must be a qualified EngineTheme component ID.");
+		}
+		const parsed = parseEngineThemeId(explicitId);
+		if (parsed.componentId !== node.type) {
+			throw new Error("Schema node <" + node.type + "> must use an EngineTheme namespace with the same ID; received '" + explicitId + "'.");
+		}
+		if (!context.groupId) {
+			throw new Error("SchemaNode.theme requires PageSchema.theme to identify an EngineTheme group.");
+		}
+		if (parsed.groupId !== context.groupId) {
+			throw new Error("Schema node theme '" + explicitId + "' must use the same EngineTheme group '" + context.groupId + "' as its PageSchema.");
+		}
+		if (context.globallyRegistered) {
+			selection = resolveRegisteredEngineTheme(explicitId).components[parsed.componentId!];
+		} else {
+			selection = resolveLocalVariant(context.components[node.type], parsed.subthemes, explicitId);
+		}
+	} else {
+		selection = context.selectedComponents[node.type]
+			? { ...(context.selectedComponents[node.type] as Record<string, unknown>) }
+			: namespaceDefinition(context, node.type);
+	}
+	if (!selection) {
+		if (explicitId !== undefined) {
+			throw new Error("EngineTheme '" + explicitId + "' did not resolve to a custom component namespace.");
+		}
+		return node;
+	}
+	const safeStyles = resolveCustomComponentThemeStyles(selection, node.type);
+	const originalProps = node.props ?? {};
+	const nextProps: Record<string, unknown> = { ...originalProps };
+	delete nextProps.engineThemeStyles;
+	if (originalProps.style !== undefined && !isThemeRecord(originalProps.style)) {
+		throw new TypeError("Explicit style on custom node <" + node.type + "> must be an object so it can override EngineTheme defaults.");
+	}
+	const localStyle = isThemeRecord(originalProps.style) ? originalProps.style : {};
+	const rootStyle = safeStyles.root ?? {};
+	if (Object.keys(rootStyle).length > 0 || originalProps.style !== undefined) {
+		nextProps.style = { ...rootStyle, ...localStyle };
+	}
+	if (Object.keys(safeStyles).some((slot) => slot !== "root")) nextProps.engineThemeStyles = safeStyles;
+	const { theme: _consumedTheme, ...themedNode } = node;
+	return { ...themedNode, props: nextProps as SchemaNode["props"] };
+}
+
 function applyResolvedThemeToNode(
 	node: SchemaNode,
 	context: EngineThemeResolutionContext,
@@ -476,10 +613,8 @@ function applyResolvedThemeToNode(
 				props: nextProps as SchemaNode["props"],
 			};
 		}
-	} else if (result.theme !== undefined) {
-		throw new Error(
-			"SchemaNode.theme currently supports EngineDialog, EngineDrawer, and EnginePopover nodes only; received <" + result.type + ">.",
-		);
+	} else {
+		result = resolveCustomComponentThemeNode(result, context);
 	}
 
 	if (markdownTheme) result = applyMarkdownThemeToNode(result, markdownTheme);
@@ -558,7 +693,8 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 	const needsNodeResolution = Boolean(
 		resolvedMarkdownTheme
 		|| schemaHasNodeTheme(schema.root)
-		|| ["overlay", "dialog", "drawer", "popover"].some((name) => components[name] || selectedComponents[name]),
+		|| ["overlay", "dialog", "drawer", "popover"].some((name) => components[name] || selectedComponents[name])
+		|| Object.keys(components).some((name) => isCustomComponentType(name) && (components[name] || selectedComponents[name])),
 	);
 	const root = needsNodeResolution
 		? applyResolvedThemeToNode(schema.root, context, resolvedMarkdownTheme)

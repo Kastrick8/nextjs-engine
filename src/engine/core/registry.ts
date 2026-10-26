@@ -161,6 +161,22 @@ export function getComponent(type: NodeType): EngineComponent | undefined {
 	return _registry.get(type);
 }
 
+export function isBuiltInComponentType(type: NodeType): boolean {
+	return BUILTIN_COMPONENT_TYPES.has(type);
+}
+
+export function isCustomComponentType(type: NodeType): boolean {
+	return _registry.has(type) && !BUILTIN_COMPONENT_TYPES.has(type);
+}
+
+export function getComponentThemeSlots(type: NodeType): readonly string[] {
+	if (BUILTIN_COMPONENT_TYPES.has(type)) return [];
+	const component = _registry.get(type) as unknown as { engineCustomSlots?: unknown } | undefined;
+	return component && Array.isArray(component.engineCustomSlots)
+		? component.engineCustomSlots.filter((slot): slot is string => typeof slot === "string")
+		: [];
+}
+
 export function isSplitComponent(component: EngineComponent): boolean {
 	return splitComponents.has(component as unknown as object);
 }

@@ -110,6 +110,61 @@ async function testPublicThemeApi() {
 			unregisterEngineThemeTemplateAdapter,
 		} = require(path.resolve(__dirname, "../src/engine/components/engineTheme/templates.tsx"));
 
+		const customTheme = createTheme({
+			id: "custom-link-theme",
+			scope: "local",
+			components: {
+				"smoke-custom-link": {
+					defaults: { color: "#123456", textDecoration: "underline" },
+					styles: {
+						root: { fontSize: "1rem" },
+						leading: { marginRight: "0.5rem" },
+					},
+					variants: {
+						quiet: {
+							textDecoration: "none",
+							styles: { root: { fontWeight: 600 }, leading: { gap: "4px" } },
+						},
+					},
+				},
+			},
+		});
+		registerComponent("smoke-custom-link", CustomLink);
+		const themedCustomSchema = resolveEngineThemeSchema({
+			theme: customTheme,
+			root: {
+				type: "smoke-custom-link",
+				theme: "custom-link-theme.smoke-custom-link.quiet",
+				props: { href: "/guide", style: { fontWeight: 700 } },
+			},
+		});
+		assert.equal(themedCustomSchema.root.theme, undefined, "custom node theme IDs are consumed before runtime props");
+		assert.equal(themedCustomSchema.root.props.style.color, "#123456", "custom namespace defaults become safe root styles");
+		assert.equal(themedCustomSchema.root.props.style.textDecoration, "none", "custom component variants override base CSS defaults");
+		assert.equal(themedCustomSchema.root.props.style.fontSize, "1rem");
+		assert.equal(themedCustomSchema.root.props.style.fontWeight, 700, "explicit node styles override theme styles");
+		assert.equal(themedCustomSchema.root.props.engineThemeStyles.leading.marginRight, "0.5rem");
+		assert.equal(themedCustomSchema.root.props.engineThemeStyles.leading.gap, "4px", "declared slot styles merge across variants");
+		assert.equal(themedCustomSchema.root.props.engineThemeStyles.root.fontWeight, 600);
+		unregisterComponent("smoke-custom-link");
+
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: customTheme,
+			root: { type: "smoke-custom-link", theme: "custom-link-theme.other.quiet" },
+		}), /same ID/);
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: createTheme({
+				id: "unsafe-custom-theme",
+				scope: "local",
+				components: { "smoke-custom-link": { styles: { root: { background: "url(https://bad.invalid/x)" } } } },
+			}),
+			root: { type: "smoke-custom-link" },
+		}), /Unsafe or invalid CSS value/);
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: customTheme,
+			root: { type: "box", theme: "custom-link-theme.smoke-custom-link.quiet" },
+		}), /registered custom node types/);
+
 		const definition = createTheme({
 			id: "safe-theme",
 			tokens: { colors: { text: "#fff" } },

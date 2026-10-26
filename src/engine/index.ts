@@ -16,6 +16,7 @@ export type {
 	EngineCustomPropSchema,
 	EngineCustomPropType,
 	EngineCustomReactComponent,
+	EngineCustomThemeStyles,
 } from "./core/EngineCustomComponent";
 
 // Generation 3 compiler/runtime foundation. Server-only request helpers remain
