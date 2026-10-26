@@ -10,7 +10,6 @@ This is the curated starting point for the current Gen 3 implementation. Canonic
 | Need | Guide |
 |---|---|
 | Get started with the current API | [Developer reference](./readme.md) |
-| Migrate from Gen 2.6 / understand dev diagnostics | [Migration from Gen 2.x](./migration-from-2x.md) |
 | Use styling props | [Styling — simple](./styling.md) |
 | Understand style compilation and collection | [Styling — detailed](./styling-detailed.md) |
 | Understand compiler/runtime internals, artifact caching, build budgets, and security checks | [Compiler deep dive](./compiler-deep-dive.md) |
