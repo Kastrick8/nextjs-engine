@@ -23,6 +23,9 @@ type CustomSelectChangeHandler = (value: string, option: SelectOption | null) =>
 type CustomSelectComponentProps = Omit<CustomSelectProps, "onChange" | "value"> & {
 	value?: string;
 	onChange?: string | CustomSelectChangeHandler;
+	ariaLabel?: string;
+	searchPlaceholder?: string;
+	emptyLabel?: string;
 };
 
 const SIZE_CONFIG = {
@@ -126,6 +129,9 @@ export const CustomSelect = memo(function CustomSelect({
 	defaultValue,
 	value: controlledValue,
 	onChange,
+	ariaLabel,
+	searchPlaceholder = "Search…",
+	emptyLabel = "{emptyLabel}",
 	searchable = false,
 	clearable = false,
 	size = "md",
@@ -429,7 +435,7 @@ export const CustomSelect = memo(function CustomSelect({
 					aria-expanded={isOpen}
 					aria-controls={listboxId}
 					aria-activedescendant={activeOptionId}
-					aria-label={label ?? placeholder}
+					aria-label={ariaLabel ?? label ?? placeholder}
 					onClick={toggle}
 					onKeyDown={handleTriggerKeyDown}
 					style={triggerStyle}
@@ -461,9 +467,9 @@ export const CustomSelect = memo(function CustomSelect({
 								<input
 									ref={searchRef}
 									type="text"
-									placeholder="Search…"
+									placeholder={searchPlaceholder}
 									value={search}
-									aria-label={`Search ${label ?? name}`}
+									aria-label={ariaLabel ? ariaLabel + " search" : "Search " + (label ?? name)}
 									aria-controls={listboxId}
 									aria-activedescendant={activeOptionId}
 									onChange={(event) => {
