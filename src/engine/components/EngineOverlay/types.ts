@@ -43,6 +43,8 @@ export interface EngineOverlayCommonProps extends Omit<BaseNodeProps, "onClick">
 	defaultOpen?: boolean;
 	onOpenChange?: EngineOverlayOpenChange;
 	trigger?: ReactNode;
+	/** Opt in to using a native button trigger as the actual control, without nesting buttons. */
+	triggerAsChild?: boolean;
 	triggerLabel?: string;
 	triggerClassName?: string;
 	triggerStyle?: CSSProperties;

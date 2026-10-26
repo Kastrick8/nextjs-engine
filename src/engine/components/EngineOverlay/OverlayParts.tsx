@@ -15,6 +15,16 @@ const BUTTON_BASE: CSSProperties = {
 	cursor: "pointer",
 };
 
+const INTERACTIVE_TRIGGER_TAGS = new Set(["button", "a", "input", "select", "textarea", "summary"]);
+
+/** Prevent known interactive descendants from being nested inside the generated trigger button. */
+function containsInteractiveTrigger(node: ReactNode): boolean {
+	if (Array.isArray(node)) return node.some(containsInteractiveTrigger);
+	if (!React.isValidElement(node)) return false;
+	if (typeof node.type === "string" && INTERACTIVE_TRIGGER_TAGS.has(node.type)) return true;
+	return containsInteractiveTrigger((node.props as { children?: ReactNode }).children);
+}
+
 function OverlayActionButton({ action, close, theme }: { action: EngineOverlayAction; close: () => void; theme?: EngineOverlayResolvedTheme }) {
 	const namedHandler = useHandler(typeof action.onClick === "string" ? action.onClick : "");
 	const variant = action.variant ?? "secondary";
@@ -82,9 +92,10 @@ export function OverlayContent({ title, description, children, actions, close, s
 	);
 }
 
-export function OverlayTrigger({ label, children, className, style, disabled, expanded, controls, hasPopup, ariaLabel, onClick, triggerRef }: {
+export function OverlayTrigger({ label, children, asChild = false, className, style, disabled, expanded, controls, hasPopup, ariaLabel, onClick, triggerRef }: {
 	label?: string;
 	children?: ReactNode;
+	asChild?: boolean;
 	className?: string;
 	style?: CSSProperties;
 	disabled?: boolean;
@@ -96,6 +107,42 @@ export function OverlayTrigger({ label, children, className, style, disabled, ex
 	triggerRef: React.RefObject<HTMLButtonElement | null>;
 }) {
 	if (label == null && children == null) return null;
+	if (asChild) {
+		if (!React.isValidElement(children) || children.type !== "button") {
+			throw new Error("[EngineOverlay] triggerAsChild requires exactly one native <button> element.");
+		}
+		const child = children as React.ReactElement<{
+			ref?: React.Ref<HTMLButtonElement>;
+			onClick?: React.MouseEventHandler<HTMLButtonElement>;
+			disabled?: boolean;
+			className?: string;
+			style?: CSSProperties;
+			"aria-label"?: string;
+		}>;
+		const childRef = child.props.ref;
+		return React.cloneElement(child, {
+			ref: (node: HTMLButtonElement | null) => {
+				if (typeof childRef === "function") childRef(node);
+				else if (childRef && typeof childRef === "object") (childRef as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+				triggerRef.current = node;
+			},
+			type: "button",
+			disabled: Boolean(disabled || child.props.disabled),
+			"aria-label": ariaLabel ?? child.props["aria-label"],
+			"aria-haspopup": hasPopup,
+			"aria-expanded": expanded,
+			"aria-controls": controls,
+			className: [child.props.className, className].filter(Boolean).join(" ") || undefined,
+			style: { ...BUTTON_BASE, ...style, ...child.props.style },
+			onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+				child.props.onClick?.(event);
+				if (!event.defaultPrevented) onClick();
+			},
+		});
+	}
+	if (containsInteractiveTrigger(children)) {
+		throw new Error("[EngineOverlay] Interactive trigger elements must use triggerAsChild; nested interactive controls are not supported.");
+	}
 	return (
 		<button
 			ref={triggerRef}

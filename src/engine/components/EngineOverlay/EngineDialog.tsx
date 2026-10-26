@@ -24,6 +24,7 @@ export const EngineDialog = memo(function EngineDialog({
 	defaultOpen = false,
 	onOpenChange,
 	trigger,
+	triggerAsChild,
 	triggerLabel,
 	triggerClassName,
 	triggerStyle,
@@ -94,6 +95,7 @@ export const EngineDialog = memo(function EngineDialog({
 			<OverlayTrigger
 				label={triggerLabel}
 				children={trigger}
+				asChild={triggerAsChild}
 				className={triggerClassName}
 				style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }}
 				disabled={triggerDisabled}

@@ -149,7 +149,7 @@ export function OverlayExamples() {
 
 All three also accept normal Engine styling props through `BaseNodeProps`.
 
-**Trigger contract:** EngineOverlay renders its own native button around trigger / triggerLabel. Supply non-interactive trigger content; do not pass an existing button, link or other interactive element as trigger, because that can produce nested interactive HTML. If the application must own the interactive trigger element, use the controlled-open API and keep the actual trigger outside EngineOverlay until a dedicated trigger-composition API is available.
+**Trigger contract:** by default EngineOverlay renders its own native button around `trigger` / `triggerLabel`; pass non-interactive content. For an application-owned native button, set `triggerAsChild` and pass exactly one `<button>` as `trigger`. EngineOverlay merges the ref, click handler, disabled state, accessible label, popup state, class and style without nesting buttons. It intentionally rejects interactive children without `triggerAsChild`, and `triggerAsChild` rejects links or custom components until a broader typed contract can safely merge their semantics.
 
 ---
 
@@ -162,7 +162,8 @@ These props are shared by Dialog, Drawer and Popover unless noted otherwise.
 | `open` | `boolean` | controlled open state |
 | `defaultOpen` | `boolean` | `false` |
 | `onOpenChange` | handler name or function | called with the new boolean state |
-| `trigger` | `ReactNode` | custom trigger content |
+| `trigger` | `ReactNode` | custom trigger content; non-interactive by default, or one native button with `triggerAsChild` |
+| `triggerAsChild` | `boolean` | `false`; use a single native button as the trigger instead of generating a wrapper button |
 | `triggerLabel` | `string` | generated trigger text |
 | `triggerClassName` | `string` | class for generated trigger button |
 | `triggerStyle` | `CSSProperties` | style for generated trigger button |

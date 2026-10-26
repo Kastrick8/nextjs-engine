@@ -19,7 +19,7 @@ import type { EngineDrawerProps } from "./types";
 
 export const EngineDrawer = memo(function EngineDrawer({
 	children, engineOverlayTheme, open, defaultOpen = false, onOpenChange,
-	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
+	trigger, triggerAsChild, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = true, closeLabel = "Close drawer",
 	closeOnEscape = true, closeOnBackdrop = true, restoreFocus = true, initialFocus,
 	duration, portalTargetId, ariaLabel, overlayStyle, lockScroll = true, trapFocus = true,
@@ -76,7 +76,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} asChild={triggerAsChild} className={triggerClassName} style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
 			{target && present && createPortal(
 				<>
 					<div

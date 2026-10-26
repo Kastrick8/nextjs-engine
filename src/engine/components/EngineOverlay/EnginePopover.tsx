@@ -19,7 +19,7 @@ import type { EnginePopoverProps } from "./types";
 
 export const EnginePopover = memo(function EnginePopover({
 	children, engineOverlayTheme, open, defaultOpen = false, onOpenChange,
-	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
+	trigger, triggerAsChild, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = false, closeLabel = "Close popover",
 	closeOnEscape = true, restoreFocus = true, initialFocus, duration, portalTargetId, ariaLabel,
 	placement, align, offset, viewportPadding,
@@ -148,7 +148,7 @@ export const EnginePopover = memo(function EnginePopover({
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} asChild={triggerAsChild} className={triggerClassName} style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
 			{target && present && createPortal(
 				<div
 					ref={panelRef}

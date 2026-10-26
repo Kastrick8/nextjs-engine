@@ -2531,7 +2531,7 @@ Generation 3 exposes `EngineDialog`, `EngineDrawer`, and `EnginePopover` through
 
 EngineTheme can bind a shared `overlay` namespace and component-specific `dialog`, `drawer`, and `popover` namespaces through the existing `createPage()` / `createComponent()` schema path. Qualified node theme IDs are consumed during schema resolution; themes remain validated data and cannot provide executable component code. Explicit node props and local styles override theme defaults.
 
-Popover currently supports `role="dialog"` only. Menu/listbox roles are intentionally not advertised until the matching keyboard navigation and active-item accessibility contracts are implemented and tested. Avoid passing an interactive button or link as `trigger`; EngineOverlay currently generates the native trigger button itself. See [Generation 3 EngineOverlay documentation](docs/3/engine-components/engineoverlay.md) for props, theme bindings, limitations, and accessibility behavior.
+Popover currently supports `role="dialog"` only. Menu/listbox roles are intentionally not advertised until the matching keyboard navigation and active-item accessibility contracts are implemented and tested. By default, pass non-interactive `trigger` content because EngineOverlay generates the button. To supply your own native button without nesting controls, set `triggerAsChild`; links and custom component triggers are rejected until their semantics can be merged safely. See [Generation 3 EngineOverlay documentation](docs/3/engine-components/engineoverlay.md) for props, theme bindings, limitations, and accessibility behavior.
 
 ---
 
