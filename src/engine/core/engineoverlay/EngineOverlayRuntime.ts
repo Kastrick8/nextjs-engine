@@ -217,6 +217,8 @@ function syncModalBackgroundInertness(doc: Document, state: OverlayDocumentState
 			if ("inert" in child) shouldBeInert.add(child);
 		}
 	};
+	// Walking through containers (instead of inerting a container that owns a
+	// protected root) is what keeps nested popovers usable inside shared portals.
 	visit(body);
 
 	for (const [element, previouslyInert] of state.inertedElements) {
