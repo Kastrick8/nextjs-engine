@@ -104,7 +104,7 @@ async function testPublicThemeApi() {
 		assert.ok(nestedFenceInfo.includes("> Body"), "text after a nested code fence stays inside the info block");
 		assert.deepEqual(flattenEngineThemeTokens({ colors: { accent: "#826f9b", surface: "color(srgb 0.1 0.2 0.3)" }, typography: { bodyFontFamily: "Inter, system-ui, sans-serif", scale: 1.25, unsafe: "red; --escape: true", tracked: "url(https://evil.invalid/x)" }, ignored: true }), { "--e-theme-colors-accent": "#826f9b", "--e-theme-colors-surface": "color(srgb 0.1 0.2 0.3)", "--e-theme-typography-body-font-family": "Inter, system-ui, sans-serif", "--e-theme-typography-scale": "1.25" }, "safe semantic tokens are flattened to bounded CSS variables");
 		assert.deepEqual(normalizeEngineThemeVariables({ accent: "#fff", "--legacy-gap": "1rem", unsafe: "red; color: black", tracked: "url(https://evil.invalid/x)" }), { "--accent": "#fff", "--legacy-gap": "1rem" }, "legacy CSS vars preserve safe values and discard injection vectors");
-\t\tassert.deepEqual(flattenEngineThemeTokens({ typography: { escapedNetwork: "\\75 rl(https://evil.invalid/x)" } }), {}, "CSS escapes cannot bypass semantic token URL checks");
+    assert.deepEqual(flattenEngineThemeTokens({ typography: { escapedNetwork: "\\75 rl(https://evil.invalid/x)" } }), {}, "CSS escapes cannot bypass semantic token URL checks");
     assert.deepEqual(normalizeEngineThemeVariables({ "--escaped-network": "\\75 rl(https://evil.invalid/x)" }), {}, "CSS escapes cannot bypass legacy variable URL checks");
 		const normalizedInfo = normalizeEngineMarkdownSource(":::warning Build note\nRead this carefully.\n:::");
 		assert.ok(normalizedInfo.includes("> [!ENGINE-INFO warning] Build note"), "info blocks normalize to a safe blockquote marker");
@@ -796,7 +796,19 @@ async function testPublicThemeApi() {
 			}),
 			/unsafe CSS\/network primitive/,
 		);
-		const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
+		const commentObfuscatedCssContent = {
+            ...remoteContent,
+            id: "remote-comment-obfuscated-css",
+            markdown: { defaults: { codeBackground: "u/**/rl(https://evil.invalid/pixel)" } },
+        };
+        await assert.rejects(
+            loadRemoteEngineTheme("https://themes.example.com/remote-comment-obfuscated-css.etr", {
+                ...remoteOptions, expectedId: "remote-comment-obfuscated-css",
+                fetchImpl: async () => new Response(remoteTextFor("remote-comment-obfuscated-css", commentObfuscatedCssContent), { status: 200, headers: { "content-type": "application/json" } }),
+            }),
+            /unsafe CSS\\/network primitive|unsafe CSS value/,
+        );
+        const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
 		await assert.rejects(
 			loadRemoteEngineTheme("https://themes.example.com/unsafe-global-styles.etr", {
 				...remoteOptions, expectedId: "remote-unsafe-css-text",
