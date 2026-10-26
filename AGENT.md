@@ -8,13 +8,13 @@ A manual import workflow resolves a selected branch, tag, or commit to a full SH
 
 ## Directory contract
 
-Stable snapshots are grouped by major/minor and stored under their full SemVer version:
+Stable snapshots are grouped by major/minor. When the patch is zero, shorten the snapshot folder to the major/minor name while keeping full SemVer in `package.json`:
 
 ```text
-version/2.5/version/2.5.0/package.json
-version/2.5/version/2.5.0/index.ts
-version/2.5/version/2.5.0/engine/...
-version/2.6/version/2.6.0/...
+version/2.5/version/2.5/package.json
+version/2.5/version/2.5/index.ts
+version/2.5/version/2.5/engine/...
+version/2.6/version/2.6/...
 version/2.6/version/2.6.1/...
 version/2.6/version/2.6.2/...
 ```
@@ -60,7 +60,7 @@ The `publish-package.yml` workflow accepts tags such as `v2.6.3` and `v3.0.0-alp
 ## Review checklist
 
 - `UPSTREAM.md` records the exact selected source SHA.
-- The full folder version, `UPSTREAM.md`, and `package.json.version` agree.
+- The folder path follows the patch-zero shortening rule, and `package.json.version` is the full valid SemVer.
 - `index.ts` and all manifest export targets exist within that snapshot.
 - Run `npm run type-check` and `npm run pack:check` from the exact version folder.
 - Review missing files, cross-version imports, accidental build artifacts/secrets, and unintended edits to other version directories.

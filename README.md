@@ -4,13 +4,13 @@
 
 ## Layout
 
-- Stable: `version/<major.minor>/version/<full-version>/`
+- Stable: `version/<major.minor>/version/<snapshot-dir>/` (patch-zero releases use the short directory name)
 - Alpha: `alpha/version/<major>.alpha/version/<full-semver-prerelease>/`
 
-Every version owns a complete package, including its own `package.json`, `index.ts`, `engine/`, and its relevant docs. For example:
+Every version owns a complete package, including its own `package.json`, `index.ts`, `engine/`, and its relevant docs. Patch-zero folder names are shortened without changing the manifest SemVer: `version/2.5/version/2.5/package.json` declares `2.5.0`. For example:
 
 ```text
-version/2.5/version/2.5.0/index.ts
+version/2.5/version/2.5/index.ts
 version/2.6/version/2.6.2/index.ts
 alpha/version/3.alpha/version/3.0.0-alpha.1/index.ts
 ```

@@ -46,7 +46,9 @@ jobs:
             DIST_TAG="alpha"
           elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
-            DIR="version/$MAJOR.$MINOR/version/$VERSION"
+            SNAPSHOT="$VERSION"
+            if [[ "$PATCH" == "0" ]]; then SNAPSHOT="$MAJOR.$MINOR"; fi
+            DIR="version/$MAJOR.$MINOR/version/$SNAPSHOT"
             DIST_TAG="latest"
           else
             echo "Expected v2.6.3 or v3.0.0-alpha.2, got $GITHUB_REF_NAME" >&2
