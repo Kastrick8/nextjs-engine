@@ -86,5 +86,6 @@ export interface EnginePopoverProps extends EngineOverlayCommonProps {
 	matchTriggerWidth?: boolean;
 	autoFocus?: boolean;
 	trapFocus?: boolean;
-	role?: "dialog" | "menu" | "listbox";
+	/** Only dialog semantics are supported until menu/listbox keyboard behavior exists. */
+	role?: "dialog";
 }

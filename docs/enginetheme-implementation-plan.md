@@ -763,7 +763,7 @@ Use measurements from a page with zero overlays, one open popover, many mounted-
 
 Some explicit gaps are visible in the current component contracts:
 
-- EnginePopoverProps allows role="menu" and role="listbox", but the shared overlay behavior currently provides Tab trapping/Escape handling rather than menu/listbox-specific arrow-key navigation and active-item semantics. Either implement the correct interaction contract for those roles, or constrain the supported roles to those the component actually implements.
+- EnginePopover now restricts its role type to `dialog` until menu/listbox-specific arrow-key navigation and active-item semantics are implemented and tested. Visual menu compositions remain possible, but they do not claim composite-widget ARIA behavior.
 - OverlayTrigger always creates a native button around the supplied trigger React node. If the caller supplies a button, link, or other interactive element, the output can create nested interactive controls. Design a typed trigger contract such as a render-prop/slot or explicit asChild behavior with safe ref/event/ARIA composition; do not blindly clone arbitrary elements.
 - getFocusableElements() filters focusable descendants by visibility, disabled, and the element's own aria-hidden, but does not explicitly model hidden/inert ancestors or every native focusability edge case. Review this against real browser/assistive-tech tests before replacing the current focused helper.
 - The dialog advertises aria-modal="true"; verify background inertness/interaction, focus trapping and focus restoration across nested overlays and portals. Cover removal of the trigger while an overlay is open, changing initialFocus, and close/reopen during an exit transition.

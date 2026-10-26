@@ -143,7 +143,7 @@ export const EnginePopover = memo(function EnginePopover({
 		},
 	});
 	const panelClass = [className, useCpropClass(cprop)].filter(Boolean).join(" ") || undefined;
-	const hasPopup: React.AriaAttributes["aria-haspopup"] = role === "menu" ? "menu" : role === "listbox" ? "listbox" : "dialog";
+	const hasPopup: React.AriaAttributes["aria-haspopup"] = "dialog";
 
 	return (
 		<>

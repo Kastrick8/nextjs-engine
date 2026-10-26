@@ -324,7 +324,7 @@ There is intentionally no separate `sheet` primitive because it would duplicate 
 
 Popover is anchored to its generated trigger and is non-modal by default.
 
-**Keyboard-role limitation:** the current type permits role: menu and role: listbox, but EnginePopover does not implement the complete menu/listbox composite-widget keyboard contract (for example, arrow-key item movement and active-item semantics). Do not interpret those role values as a complete menu/listbox implementation. Use the default dialog semantics unless the application supplies and tests the required role-specific keyboard/ARIA behavior.
+**Keyboard-role contract:** EnginePopover currently supports only `role="dialog"`. It does not advertise `menu` or `listbox` roles until the corresponding arrow-key navigation, active-item semantics and assistive-technology behavior are implemented and tested. Compose visual menus with the Popover, but keep dialog semantics until that contract is available.
 
 | Prop | Default | Meaning |
 |---|---|---|
@@ -336,7 +336,7 @@ Popover is anchored to its generated trigger and is non-modal by default.
 | `matchTriggerWidth` | `false` | panel min-width follows trigger width |
 | `autoFocus` | `false` | focuses the first panel control |
 | `trapFocus` | `false` | keeps Tab inside the popover |
-| `role` | `dialog` | `dialog`, `menu`, `listbox` |
+| `role` | `dialog` | `dialog` only until composite-widget keyboard behavior is supported |
 | `duration` | `140` | animation duration in ms |
 
 The open Popover repositions when:
@@ -526,7 +526,7 @@ Do not create a new core primitive merely because a product pattern has a famili
 
 ```text
 Command Palette = Dialog + Input + result list
-Context Menu    = Popover(role="menu") + menu actions
+Context Menu    = Popover + menu actions (dialog semantics until menu keyboard support exists)
 Dropdown Menu   = Popover + Stack + Buttons
 Account Menu    = Popover + links/actions
 Mobile Sheet    = Drawer(side="bottom")
@@ -564,6 +564,7 @@ import {
 	isTopOverlay,
 	lockBodyScroll,
 	registerOverlay,
+	subscribeOverlayViewport,
 } from "nextjs-engine";
 ```
 
