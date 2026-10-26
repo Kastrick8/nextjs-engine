@@ -112,6 +112,14 @@ The limit is three subtheme segments after the component segment. Variants inher
 
 Local themes can be supplied directly as a theme object. Global themes are registered in-process and can be referenced by ID. Missing global groups or variants produce an error. A remote ID resolves only after loadRemoteEngineTheme() explicitly loads and verifies its .etr artifact; render and module initialization never perform network requests.
 
+## Registered custom component theme bindings
+
+Generation 3 also supports theme styling for trusted, locally authored schema-node components. Define the implementation with `createComponent({ mode: "custom", ... })`, declare its prop and named-slot contract, register it under an application-owned node type, and bind that node to a component namespace such as `site.link.quiet`.
+
+The live fixture at [`/engine-custom-link-test`](../../app/engine-custom-link-test/page.tsx) demonstrates the full path: `createTheme()`, a typed `createComponent()` adapter, `registerComponent()`, base/variant style resolution, a named `leading` slot, internal navigation, external `target="_blank"` rel protections, and fail-closed handling for unsafe schemes. Its browser regression lives in `tests/browser/engine-custom-link.spec.ts`.
+
+Theme data controls appearance only; trusted application code owns navigation and behavior. The resolver validates the bounded CSS property/value vocabulary and applies explicit node styles after theme defaults/variants. A remote `.etr` file cannot provide React code or replace the registered component implementation.
+
 ## Migration and compatibility
 
 The public import remains `nextjs-engine`; applications should not import the internal `src/engine/components/engineTheme/` files directly. Moving those implementation files does not change the public API.
