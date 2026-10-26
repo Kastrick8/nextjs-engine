@@ -64,14 +64,32 @@ jobs:
           if [[ "$TRACK" == "alpha" ]]; then
             [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]] || { echo "Alpha version must be full SemVer, e.g. 3.0.0-alpha.2" >&2; exit 1; }
             MAJOR="${VERSION%%.*}"
-            TARGET="alpha/version/$MAJOR.alpha/version/$VERSION"
-            TEMPLATE="alpha/version/3.alpha/version/3.0.0-alpha.1"
+            FAMILY="$MAJOR.alpha"
+            TARGET="alpha/version/$FAMILY/version/$VERSION"
+            FAMILY_DIR="archive/alpha/version/$FAMILY/version"
+            if [[ -d "$FAMILY_DIR" ]]; then
+              TEMPLATE_DIR="$(find "$FAMILY_DIR" -mindepth 1 -maxdepth 1 -type d ! -path "*/$VERSION" | sort -V | tail -n 1 || true)"
+            fi
+            if [[ -z "${TEMPLATE_DIR:-}" ]]; then TEMPLATE_DIR="archive/alpha/version/3.alpha/version/3.0.0-alpha.1"; fi
+            TEMPLATE="${TEMPLATE_DIR#archive/}"
           else
             [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Stable version must be full SemVer, e.g. 2.6.3" >&2; exit 1; }
             IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
-            TARGET="version/$MAJOR.$MINOR/version/$VERSION"
-            TEMPLATE="version/2.6/version/2.6.2"
+            FAMILY="$MAJOR.$MINOR"
+            TARGET="version/$FAMILY/version/$VERSION"
+            FAMILY_DIR="archive/version/$FAMILY/version"
+            if [[ -d "$FAMILY_DIR" ]]; then
+              TEMPLATE_DIR="$(find "$FAMILY_DIR" -mindepth 1 -maxdepth 1 -type d ! -path "*/$VERSION" | sort -V | tail -n 1 || true)"
+            fi
+            if [[ -z "${TEMPLATE_DIR:-}" ]]; then
+              if [[ "$MAJOR" == "1" ]]; then TEMPLATE_DIR="archive/version/1.0/version/1.0.0"
+              elif [[ "$MAJOR" == "3" ]]; then TEMPLATE_DIR="archive/alpha/version/3.alpha/version/3.0.0-alpha.1"
+              else TEMPLATE_DIR="archive/version/2.6/version/2.6.2"
+              fi
+            fi
+            TEMPLATE="${TEMPLATE_DIR#archive/}"
           fi
+
           SOURCE_SHA="$(git -C source rev-parse HEAD)"
           if [[ -d source/src/engine ]]; then ENGINE_DIR="source/src/engine"
           elif [[ -d source/engine ]]; then ENGINE_DIR="source/engine"
@@ -81,6 +99,11 @@ jobs:
             echo "Snapshot already exists: $TARGET. Enable replace_existing only for an intentional repair." >&2
             exit 1
           fi
+          # Save templates before a replacement can remove the folder used as its template.
+          cp "archive/$TEMPLATE/package.json" "$RUNNER_TEMP/package-template.json"
+          cp "archive/$TEMPLATE/tsconfig.json" "$RUNNER_TEMP/tsconfig-template.json"
+          TEMPLATE_FILE="$RUNNER_TEMP/package-template.json"
+          TSCONFIG_FILE="$RUNNER_TEMP/tsconfig-template.json"
           if [[ "$REPLACE_EXISTING" == "true" && -e "archive/$TARGET" ]]; then rm -rf -- "archive/$TARGET"; fi
           mkdir -p "archive/$TARGET/engine"
           cp -a "$ENGINE_DIR/." "archive/$TARGET/engine/"
@@ -88,14 +111,14 @@ jobs:
             if [[ -f "source/$file" ]]; then cp "source/$file" "archive/$TARGET/$file"; fi
           done
           if [[ -d source/docs ]]; then cp -a source/docs "archive/$TARGET/docs"; fi
-          cp "archive/$TEMPLATE/tsconfig.json" "archive/$TARGET/tsconfig.json"
+          cp "$TSCONFIG_FILE" "archive/$TARGET/tsconfig.json"
           printf '%s\n' 'export * from "./engine";' > "archive/$TARGET/index.ts"
-          export TARGET TEMPLATE SOURCE_SHA ENGINE_DIR
+          export TARGET TEMPLATE_FILE SOURCE_SHA ENGINE_DIR
           node --input-type=module <<'NODE'
           import fs from "node:fs";
-          const {TARGET,TEMPLATE,VERSION,SOURCE_REF,SOURCE_SHA,TRACK,ENGINE_DIR}=process.env;
+          const {TARGET,TEMPLATE_FILE,VERSION,SOURCE_REF,SOURCE_SHA,TRACK,ENGINE_DIR,TEMPLATE}=process.env;
           const root=`archive/${TARGET}`;
-          const manifest=JSON.parse(fs.readFileSync(`archive/${TEMPLATE}/package.json`,"utf8"));
+          const manifest=JSON.parse(fs.readFileSync(TEMPLATE_FILE,"utf8"));
           manifest.version=VERSION;
           manifest.files=(manifest.files||[]).filter((p)=>fs.existsSync(`${root}/${p}`));
           for(const [key,value] of Object.entries(manifest.exports||{})){
