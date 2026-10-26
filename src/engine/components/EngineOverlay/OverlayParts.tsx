@@ -111,14 +111,7 @@ export function OverlayTrigger({ label, children, asChild = false, className, st
 		if (!React.isValidElement(children) || children.type !== "button") {
 			throw new Error("[EngineOverlay] triggerAsChild requires exactly one native <button> element.");
 		}
-		const child = children as React.ReactElement<{
-			ref?: React.Ref<HTMLButtonElement>;
-			onClick?: React.MouseEventHandler<HTMLButtonElement>;
-			disabled?: boolean;
-			className?: string;
-			style?: CSSProperties;
-			"aria-label"?: string;
-		}>;
+		const child = children as React.ReactElement<React.ComponentPropsWithRef<"button">>;
 		const childRef = child.props.ref;
 		return React.cloneElement(child, {
 			ref: (node: HTMLButtonElement | null) => {
