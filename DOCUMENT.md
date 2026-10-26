@@ -2525,6 +2525,16 @@ Used internally by `EngineSection` (inner content wrapper) and `EngineCard` (cov
 
 ---
 
+## EngineOverlay — Dialog, Drawer, and Popover
+
+Generation 3 exposes `EngineDialog`, `EngineDrawer`, and `EnginePopover` through schema nodes and direct React exports. Their shared browser runtime owns document-scoped stacking and scroll-lock state, shared reduced-motion preference tracking, focus handling, and shared viewport subscriptions for open popovers.
+
+EngineTheme can bind a shared `overlay` namespace and component-specific `dialog`, `drawer`, and `popover` namespaces through the existing `createPage()` / `createComponent()` schema path. Qualified node theme IDs are consumed during schema resolution; themes remain validated data and cannot provide executable component code. Explicit node props and local styles override theme defaults.
+
+Popover currently supports `role="dialog"` only. Menu/listbox roles are intentionally not advertised until the matching keyboard navigation and active-item accessibility contracts are implemented and tested. Avoid passing an interactive button or link as `trigger`; EngineOverlay currently generates the native trigger button itself. See [Generation 3 EngineOverlay documentation](docs/3/engine-components/engineoverlay.md) for props, theme bindings, limitations, and accessibility behavior.
+
+---
+
 ## Metadata Integration (SEO)
 
 Generation 3 applications should use `EngineSEO`. The older `generateEngineMetadata()` helper remains supported for existing pages.
