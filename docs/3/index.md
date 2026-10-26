@@ -9,7 +9,7 @@ This is the curated starting point for the current Gen 3 implementation. Canonic
 
 | Need | Guide |
 |---|---|
-| Get started with the current API | [Developer reference](../readme.md) |
+| Get started with the current API | [Developer reference](./readme.md) |
 | Use styling props | [Styling — simple](./styling.md) |
 | Understand style compilation and collection | [Styling — detailed](./styling-detailed.md) |
 | Understand compiler/runtime internals, artifact caching, build budgets, and security checks | [Compiler deep dive](./compiler-deep-dive.md) |
@@ -31,7 +31,7 @@ This is the curated starting point for the current Gen 3 implementation. Canonic
 
 ## Engine components
 
-These component references describe the implementation on `main-3`. The file paths remain under `docs/engine-components/` for compatibility with existing links.
+These component references describe the implementation on `main-3`. Canonical guides live under `docs/3/engine-components/`; copies under `docs/engine-components/` remain only for compatibility with older links.
 
 | Component / system | Guide |
 |---|---|
