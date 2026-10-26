@@ -489,11 +489,13 @@ function resolveCustomComponentThemeStyles(
 ): EngineCustomThemeStyles {
 	const slots = getComponentThemeSlots(nodeType);
 	const styles: Record<string, Record<string, unknown>> = { root: {} };
+	// Defaults provide the base values; the resolved namespace/variant's direct
+	// CSS fields override them, and the named styles adapter overrides both.
+	collectCustomComponentStyle(styles.root, definition.defaults, nodeType + ".defaults", false);
+	collectCustomComponentStyle(styles.root, definition.props, nodeType + ".props", false);
 	collectCustomComponentStyle(styles.root, Object.fromEntries(
 		Object.entries(definition).filter(([key]) => isCustomComponentStyleKey(key)),
 	), nodeType, false);
-	collectCustomComponentStyle(styles.root, definition.defaults, nodeType + ".defaults", false);
-	collectCustomComponentStyle(styles.root, definition.props, nodeType + ".props", false);
 
 	const declaredStyles = definition.styles;
 	if (declaredStyles !== undefined) {
