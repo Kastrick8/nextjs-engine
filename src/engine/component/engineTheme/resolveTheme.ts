@@ -102,7 +102,7 @@ function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject, themeId?: 
 	return { props, styles };
 }
 
-const OVERLAY_NODE_NAMESPACES: Readonly<Record<string, "dialog" | "drawer" | "popover"> = {
+const OVERLAY_NODE_NAMESPACES: Readonly<Record<string, "dialog" | "drawer" | "popover">> = {
 	dialog: "dialog",
 	EngineDialog: "dialog",
 	drawer: "drawer",
