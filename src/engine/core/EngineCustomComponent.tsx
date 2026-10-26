@@ -60,55 +60,55 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 const THEME_STYLE_PROPERTIES = new Set([
-\t"color", "background", "backgroundColor", "backgroundImage", "border", "borderColor",
-\t"borderWidth", "borderStyle", "borderRadius", "boxShadow", "outline", "outlineColor",
-\t"outlineWidth", "outlineStyle", "fontFamily", "fontSize", "fontWeight", "fontStyle",
-\t"lineHeight", "letterSpacing", "textAlign", "textTransform", "textDecoration",
-\t"textDecorationColor", "textDecorationThickness", "textUnderlineOffset", "padding",
-\t"paddingBlock", "paddingBlockStart", "paddingBlockEnd", "paddingInline", "paddingInlineStart",
-\t"paddingInlineEnd", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "margin",
-\t"marginBlock", "marginInline", "marginTop", "marginRight", "marginBottom", "marginLeft",
-\t"gap", "rowGap", "columnGap", "width", "minWidth", "maxWidth", "height", "minHeight",
-\t"maxHeight", "display", "opacity", "cursor", "boxSizing", "verticalAlign", "whiteSpace",
-\t"wordBreak", "overflowWrap", "textOverflow", "objectFit", "alignItems", "justifyContent",
-\t"alignSelf", "justifySelf", "flex", "flexGrow", "flexShrink", "flexBasis", "flexDirection",
-\t"flexWrap", "gridTemplateColumns", "gridTemplateRows", "aspectRatio", "transition",
-\t"transform", "filter", "backdropFilter",
+	"color", "background", "backgroundColor", "backgroundImage", "border", "borderColor",
+	"borderWidth", "borderStyle", "borderRadius", "boxShadow", "outline", "outlineColor",
+	"outlineWidth", "outlineStyle", "fontFamily", "fontSize", "fontWeight", "fontStyle",
+	"lineHeight", "letterSpacing", "textAlign", "textTransform", "textDecoration",
+	"textDecorationColor", "textDecorationThickness", "textUnderlineOffset", "padding",
+	"paddingBlock", "paddingBlockStart", "paddingBlockEnd", "paddingInline", "paddingInlineStart",
+	"paddingInlineEnd", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "margin",
+	"marginBlock", "marginInline", "marginTop", "marginRight", "marginBottom", "marginLeft",
+	"gap", "rowGap", "columnGap", "width", "minWidth", "maxWidth", "height", "minHeight",
+	"maxHeight", "display", "opacity", "cursor", "boxSizing", "verticalAlign", "whiteSpace",
+	"wordBreak", "overflowWrap", "textOverflow", "objectFit", "alignItems", "justifyContent",
+	"alignSelf", "justifySelf", "flex", "flexGrow", "flexShrink", "flexBasis", "flexDirection",
+	"flexWrap", "gridTemplateColumns", "gridTemplateRows", "aspectRatio", "transition",
+	"transform", "filter", "backdropFilter",
 ]);
 const UNSAFE_THEME_CSS_VALUE = /url\s*\(|expression\s*\(|javascript\s*:|@import|behavior\s*:|-moz-binding|[;{}]|[\u0000-\u001f\u007f]/i;
 
 function safeThemeStyleValue(value: unknown): value is string | number {
-\tif (typeof value === "number") return Number.isFinite(value) && Math.abs(value) <= 1_000_000;
-\treturn typeof value === "string" && value.length <= 256 && !UNSAFE_THEME_CSS_VALUE.test(value);
+	if (typeof value === "number") return Number.isFinite(value) && Math.abs(value) <= 1_000_000;
+	return typeof value === "string" && value.length <= 256 && !UNSAFE_THEME_CSS_VALUE.test(value);
 }
 
 /** Validate style data from a theme before it reaches a trusted local component. */
 export function sanitizeEngineCustomThemeStyles(
-\tvalue: unknown,
-\tdeclaredSlots: readonly string[],
-\tlabel = "EngineTheme custom styles",
+	value: unknown,
+	declaredSlots: readonly string[],
+	label = "EngineTheme custom styles",
 ): EngineCustomThemeStyles {
-\tif (!isPlainObject(value)) throw new TypeError(label + " must be an object of named style slots.");
-\tif (Object.keys(value).length > 33) throw new TypeError(label + " exceeds the maximum number of style slots.");
-\tconst allowedSlots = new Set(["root", ...declaredSlots]);
-\tconst output: Record<string, CSSProperties> = {};
-\tfor (const [slot, candidate] of Object.entries(value)) {
-\t\tif (!allowedSlots.has(slot)) throw new TypeError("Unsupported " + label + " slot '" + slot + "'.");
-\t\tif (!isPlainObject(candidate)) throw new TypeError(label + " slot '" + slot + "' must be an object.");
-\t\tif (Object.keys(candidate).length > 80) throw new TypeError(label + " slot '" + slot + "' exceeds 80 properties.");
-\t\tconst style: Record<string, string | number> = {};
-\t\tfor (const [property, item] of Object.entries(candidate)) {
-\t\t\tif (!THEME_STYLE_PROPERTIES.has(property) && !/^--[A-Za-z0-9_-]{1,128}$/.test(property)) {
-\t\t\t\tthrow new TypeError("Unsupported CSS property '" + property + "' in " + label + " slot '" + slot + "'.");
-\t\t\t}
-\t\t\tif (!safeThemeStyleValue(item)) {
-\t\t\t\tthrow new TypeError("Unsafe or invalid CSS value for '" + property + "' in " + label + " slot '" + slot + "'.");
-\t\t\t}
-\t\t\tstyle[property] = item;
-\t\t}
-\t\toutput[slot] = style as CSSProperties;
-\t}
-\treturn output;
+	if (!isPlainObject(value)) throw new TypeError(label + " must be an object of named style slots.");
+	if (Object.keys(value).length > 33) throw new TypeError(label + " exceeds the maximum number of style slots.");
+	const allowedSlots = new Set(["root", ...declaredSlots]);
+	const output: Record<string, CSSProperties> = {};
+	for (const [slot, candidate] of Object.entries(value)) {
+	\tif (!allowedSlots.has(slot)) throw new TypeError("Unsupported " + label + " slot '" + slot + "'.");
+	\tif (!isPlainObject(candidate)) throw new TypeError(label + " slot '" + slot + "' must be an object.");
+	\tif (Object.keys(candidate).length > 80) throw new TypeError(label + " slot '" + slot + "' exceeds 80 properties.");
+	\tconst style: Record<string, string | number> = {};
+	\tfor (const [property, item] of Object.entries(candidate)) {
+	\t\tif (!THEME_STYLE_PROPERTIES.has(property) && !/^--[A-Za-z0-9_-]{1,128}$/.test(property)) {
+	\t\t\tthrow new TypeError("Unsupported CSS property '" + property + "' in " + label + " slot '" + slot + "'.");
+	\t\t}
+	\t\tif (!safeThemeStyleValue(item)) {
+	\t\t\tthrow new TypeError("Unsafe or invalid CSS value for '" + property + "' in " + label + " slot '" + slot + "'.");
+	\t\t}
+	\t\tstyle[property] = item;
+	\t}
+	\toutput[slot] = style as CSSProperties;
+	}
+	return output;
 }
 
 function isReactNode(value: unknown, depth = 0): boolean {
