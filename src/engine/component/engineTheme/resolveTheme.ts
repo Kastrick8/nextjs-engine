@@ -109,6 +109,44 @@ function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject, themeId?: 
 	return { props, styles };
 }
 
+interface EngineThemeResolutionContext {
+	groupId?: string;
+	components: Record<string, EngineThemeJsonObject>;
+	selectedComponents: Record<string, EngineThemeJsonObject>;
+	globallyRegistered: boolean;
+}
+
+function namespaceDefinition(
+	context: EngineThemeResolutionContext,
+	namespace: string,
+	selection?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+	return selection ?? withoutVariants(context.components[namespace]);
+}
+
+function resolveLocalVariant(
+	definition: EngineThemeJsonObject | undefined,
+	subthemes: string[],
+	themeId: string,
+): Record<string, unknown> | undefined {
+	if (!definition) {
+		throw new Error("EngineTheme '" + themeId + "' references a missing component namespace.");
+	}
+	let active: Record<string, unknown> = definition;
+	let merged: Record<string, unknown> = withoutVariants(definition) ?? { ...definition };
+	for (const segment of subthemes) {
+		const variants = active.variants;
+		const selected = isThemeRecord(variants) ? variants[segment] : undefined;
+		if (!isThemeRecord(selected)) {
+			throw new Error("EngineTheme '" + themeId + "' references missing subtheme '" + segment + "'.");
+		}
+		merged = mergeThemeData(merged, selected);
+		active = selected;
+	}
+	delete merged.variants;
+	return merged;
+}
+
 const OVERLAY_NODE_NAMESPACES: Readonly<Record<string, "dialog" | "drawer" | "popover">> = {
 	dialog: "dialog",
 	EngineDialog: "dialog",
