@@ -403,10 +403,16 @@ function applyResolvedThemeToNode(
 	context: EngineThemeResolutionContext,
 	markdownTheme?: ResolvedMarkdownTheme,
 ): SchemaNode {
-	const mappedChildren = Array.isArray(node.children)
-		? node.children.map((child) => typeof child === "string" ? child : applyResolvedThemeToNode(child, context, markdownTheme))
-		: node.children;
-	let result: SchemaNode = mappedChildren === node.children ? node : { ...node, children: mappedChildren };
+	let children = node.children;
+	if (Array.isArray(node.children)) {
+		const mappedChildren = node.children.map((child) => (
+			typeof child === "string" ? child : applyResolvedThemeToNode(child, context, markdownTheme)
+		));
+		if (mappedChildren.some((child, index) => child !== node.children?.[index])) {
+			children = mappedChildren;
+		}
+	}
+	let result: SchemaNode = children === node.children ? node : { ...node, children };
 
 	const namespace = OVERLAY_NODE_NAMESPACES[result.type];
 	if (namespace) {
