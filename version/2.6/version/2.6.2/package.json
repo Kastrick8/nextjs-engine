@@ -1,5 +1,5 @@
 {
-	"name": "nextjs-engine",
+	"name": "@kastrick/nextjs-engine",
 	"version": "2.6.2",
 	"description": "A schema-driven rendering layer for Next.js and React with responsive UI primitives, EngineCanvas graphics, APIStatic endpoints, and Manim animation support.",
 	"private": false,

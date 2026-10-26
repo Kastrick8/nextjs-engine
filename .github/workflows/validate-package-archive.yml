@@ -65,7 +65,7 @@ jobs:
           import fs from "node:fs";
           import path from "node:path";
           const p=JSON.parse(fs.readFileSync("package.json","utf8"));
-          if(p.name!=="nextjs-engine") throw new Error("Unexpected package name: "+p.name);
+          if(p.name!=="@kastrick/nextjs-engine") throw new Error("Unexpected package name: "+p.name);
           if(!p.version) throw new Error("Missing full package version");
           if(!fs.existsSync("index.ts")||!fs.existsSync("engine/index.ts")) throw new Error("Snapshot entrypoint missing");
           const version=p.version.match(/^(\d+)\.(\d+)\.(\d+)(-alpha\.\d+)?$/);

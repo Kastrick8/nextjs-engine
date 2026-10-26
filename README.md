@@ -25,8 +25,9 @@ Historical release tags have some stale/mismatched source `package.json.version`
 
 After a reviewed snapshot is committed to `package/main`, create a full-version tag on that archive commit, such as `v2.6.3` or `v3.0.0-alpha.2`. `publish-package.yml` validates and publishes only the matching snapshot directory.
 
-- Stable versions publish under npm dist-tag `latest`.
-- Alpha versions publish under npm dist-tag `alpha`; consumers may opt in with `npm install nextjs-engine@alpha`.
+- The newest stable snapshot publishes under npm dist-tag `latest`; install it with `npm install @kastrick/nextjs-engine`.
+- Older stable snapshots receive version-specific `release-<version>` dist-tags so historical tag runs cannot race to replace `latest`.
+- The newest alpha snapshot publishes under npm dist-tag `alpha`; install it with `npm install @kastrick/nextjs-engine@alpha`.
 
 Configure npm Trusted Publishing before a real publish. See `AGENT.md`.
 

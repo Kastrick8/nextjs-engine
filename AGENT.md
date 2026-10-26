@@ -41,12 +41,16 @@ Each version directory owns its own `package.json`, `index.ts`, `engine/`, and d
 8. Do not invent provenance. If the source commit for an old snapshot is not proven, state that limitation in `UPSTREAM.md`.
 9. No npm publish occurs on import, pull-request, or ordinary branch commits.
 
+## Package identity
+
+Every archived snapshot is published as `@kastrick/nextjs-engine`. New imports must normalize the manifest name to this organization scope. Public installation uses `npm install @kastrick/nextjs-engine` (stable) or `npm install @kastrick/nextjs-engine@alpha` (prerelease).
+
 ## Publishing
 
 The `publish-package.yml` workflow accepts tags such as `v2.6.3` and `v3.0.0-alpha.2`. It verifies the tag is in `package/main` history, resolves exactly one snapshot directory, matches the tag and package manifest version, validates type-check/packed contents, then publishes that directory.
 
-- Stable packages use npm dist-tag `latest`.
-- Alpha prereleases use npm dist-tag `alpha`.
+- The highest stable version present in the archive uses npm dist-tag `latest`; older stable versions use `release-<version>` to avoid clobbering `latest` during parallel historical seeding.
+- The highest alpha version present in the archive uses npm dist-tag `alpha`; older alpha snapshots use `release-<version>`.
 - Prefer npm Trusted Publishing using GitHub Actions OIDC; do not put npm write tokens in this repository. Configure the npm trusted publisher for owner `Kate-alt-69`, repo `nextjs-engine`, workflow filename `publish-package.yml`, and leave environment empty unless the workflow later adopts a GitHub deployment environment. Trusted publishing requires a GitHub-hosted runner, `id-token: write`, Node.js 22.14+ and npm 11.5.1+.
 
 ## Branch safety
