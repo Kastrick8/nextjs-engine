@@ -199,29 +199,25 @@ function syncModalBackgroundInertness(doc: Document, state: OverlayDocumentState
 		return;
 	}
 
+	// Only the top modal and overlays registered above it remain interactive.
+	// Walk through shared portal containers so sibling branches inside the same
+	// container are still inerted, while a separate active portal branch is kept.
 	const protectedRoots = state.stack
 		.slice(modalIndex)
 		.map((registration) => registration.root)
 		.filter((root): root is HTMLElement => Boolean(root));
-	const protectedElements = new Set<HTMLElement>();
 	const shouldBeInert = new Set<HTMLElement>();
-
-	for (const root of protectedRoots) {
-		let current: HTMLElement | null = root;
-		while (current && current !== body) {
-			protectedElements.add(current);
-			const parent = current.parentElement;
-			if (!parent) break;
-			for (const sibling of Array.from(parent.children)) {
-				if (sibling !== current && "inert" in sibling) {
-					shouldBeInert.add(sibling as HTMLElement);
-				}
+	const visit = (container: HTMLElement) => {
+		for (const child of Array.from(container.children) as HTMLElement[]) {
+			if (protectedRoots.some((root) => root === child)) continue;
+			if (protectedRoots.some((root) => child.contains(root))) {
+				visit(child);
+				continue;
 			}
-			if (parent === body) break;
-			current = parent as HTMLElement;
+			if ("inert" in child) shouldBeInert.add(child);
 		}
-	}
-	for (const protectedElement of protectedElements) shouldBeInert.delete(protectedElement);
+	};
+	visit(body);
 
 	for (const [element, previouslyInert] of state.inertedElements) {
 		if (shouldBeInert.has(element)) continue;

@@ -118,11 +118,24 @@ function main() {
 		releaseOtherDocument();
 
 		const modalBody = { children: [], parentElement: null };
-		const makeBodyChild = () => {
-			const element = { inert: false, children: [], parentElement: modalBody };
-			modalBody.children.push(element);
+		const makeChild = (parent) => {
+			const element = {
+				inert: false,
+				children: [],
+				parentElement: parent,
+				contains(target) {
+					let current = target;
+					while (current) {
+						if (current === element) return true;
+						current = current.parentElement;
+					}
+					return false;
+				},
+			};
+			parent.children.push(element);
 			return element;
 		};
+		const makeBodyChild = () => makeChild(modalBody);
 		const pageBackground = makeBodyChild();
 		const modalRoot = makeBodyChild();
 		const popoverRoot = makeBodyChild();
@@ -144,6 +157,30 @@ function main() {
 		unregisterPopover();
 		unregisterModal();
 		assert.equal(pageBackground.inert, false, "closing the final modal restores prior inert state");
+
+		const nestedBody = { children: [], parentElement: null };
+		const portalContainer = makeChild(nestedBody);
+		const nestedBackground = makeChild(nestedBody);
+		const nestedDialogRoot = makeChild(portalContainer);
+		const inactivePortalBranch = makeChild(portalContainer);
+		const nestedPopoverRoot = makeChild(portalContainer);
+		const nestedDocument = { body: nestedBody };
+		const unregisterNestedDialog = runtime.registerOverlay("nested-container-dialog", nestedDocument, {
+			root: nestedDialogRoot, modal: true,
+		});
+		assert.equal(nestedBackground.inert, true, "background outside a shared portal container becomes inert");
+		assert.equal(inactivePortalBranch.inert, true, "inactive sibling branches inside a portal container become inert");
+		assert.equal(nestedPopoverRoot.inert, true, "an unregistered sibling portal is initially inert");
+		const unregisterNestedPopover = runtime.registerOverlay("nested-container-popover", nestedDocument, {
+			root: nestedPopoverRoot, modal: false,
+		});
+		assert.equal(nestedPopoverRoot.inert, false, "registering a non-modal portal restores its own branch");
+		assert.equal(nestedDialogRoot.inert, false, "the active modal remains interactive");
+		assert.equal(inactivePortalBranch.inert, true, "other branches in the same portal stay inert");
+		unregisterNestedPopover();
+		unregisterNestedDialog();
+		assert.equal(nestedBackground.inert, false, "shared-container inertness is restored after closing the modal");
+		assert.equal(inactivePortalBranch.inert, false, "previous state for sibling branches is restored");
 
 		const scheduledFrames = new Map();
 		let frameToken = 0;
