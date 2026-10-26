@@ -99,7 +99,6 @@ export const EngineManim = memo(function EngineManim({
 			width={width}
 			height={height}
 			responsive={!width && !height}
-			alpha={compiled.settings.background === "transparent"}
 			adaptive
 			pauseWhenOffscreen
 			className={className}

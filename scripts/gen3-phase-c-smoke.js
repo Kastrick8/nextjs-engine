@@ -30,12 +30,17 @@ const requiredFiles = [
 	"src/engine/core/nenc/NENCManifest.ts",
 	"src/engine/core/nenc/NENCClient.ts",
 	"src/engine/core/nenc/NENCDeviceProof.ts",
+	"src/engine/core/nenc/NENCOrigin.ts",
 	"src/engine/core/nenc/NENCSessionAuth.ts",
 	"src/engine/core/nenc/NENCCommandSecurity.ts",
 	"src/engine/core/nenc/NENCCommandAPI.ts",
 	"src/engine/plugins/nencCompiler.js",
 	"src/engine/plugins/nencPlugin.js",
 	"src/engine/core/EngineCORS.ts",
+	"examples/gen3-private-search/commands.ts",
+	"examples/gen3-private-search/nenc.server.ts",
+	"examples/gen3-private-search/client.ts",
+	"examples/gen3-private-search/sessionStore.ts",
 ];
 
 for (const file of requiredFiles) {
@@ -104,13 +109,22 @@ check(compiler.includes('createHmac("sha256"'), "wire ids are build-derived with
 check(!compiler.includes("/_static/command/"), "NENC compiler does not emit per-command routes");
 
 const nencPlugin = read("src/engine/plugins/nencPlugin.js");
-check(nencPlugin.includes('"_static", "command", "route.ts"'), "NENC plugin owns exactly one App Router command route");
+check(nencPlugin.includes('NEXT_APP_ENDPOINT_SEGMENT, "command", "route.ts"'), "NENC plugin owns exactly one App Router command route");
+check(nencPlugin.includes('NEXT_APP_ENDPOINT_SEGMENT = "%5Fstatic"'), "NENC route escapes Next.js private-folder syntax");
 check(nencPlugin.includes("Refusing to overwrite the existing route"), "NENC plugin preserves hand-written routes");
 check(nencPlugin.includes("outputDir cannot be inside public/"), "server manifest cannot be emitted into public assets");
 
 const cors = read("src/engine/core/EngineCORS.ts");
 check(cors.includes("Credentialed CORS cannot use a wildcard origin"), "credentialed CORS rejects wildcard origins");
 check(cors.includes("Vary: \"Origin\""), "CORS responses vary by origin");
+
+const privateSearchServer = read("examples/gen3-private-search/nenc.server.ts");
+check(privateSearchServer.includes("createNENCDeviceSignatureVerifier"), "private-search login and sessions require device proof");
+check(privateSearchServer.includes("PRIVATE_BACKEND_TOKEN"), "private backend credentials remain in the server handler");
+
+const privateSearchClient = read("examples/gen3-private-search/client.ts");
+check(!privateSearchClient.includes("PRIVATE_BACKEND_TOKEN"), "private backend credentials are absent from the browser client");
+check(privateSearchClient.includes("EngineCommand.run"), "private-search browser calls use EngineCommand transport");
 
 if (failures > 0) {
 	console.error(`\nGeneration 3 Phase C foundation smoke failed with ${failures} issue(s).`);

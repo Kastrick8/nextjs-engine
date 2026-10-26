@@ -14,28 +14,79 @@ export type {
 // Generation 3 compiler/runtime foundation. Server-only request helpers remain
 // in `nextjs-engine/server`; this barrel only exposes browser/server-safe APIs.
 export {
+	ENGINE_DEFAULT_FALLBACK_POLICIES,
+	assertEngineBuildBudgets,
+	assertEngineSecurityDiagnostics,
 	compilePage,
+	compileEngineUsedFeatureManifest,
+	compileEngineFallbackPlan,
+	compileEngineArtifact,
+	compileEngineSecurityDiagnostics,
+	evaluateEngineBuildBudgets,
 	explainCompiledNode,
+	fingerprintEngineArtifact,
 	findCompiledNode,
 	getEngineRuntimeProfile,
+	getEngineRuntimeRegistryRevision,
+	inspectEngineArtifactGraph,
+	invalidateEngineArtifacts,
 	registerEngineRuntimeProfile,
+	resolveEngineFallbackPlan,
 	resolveNodeRuntime,
 	unregisterEngineRuntimeProfile,
 } from "./compiler";
 export type {
 	EngineAssetKind,
+	EngineBuildAttribution,
+	EngineBuildBudgetLimits,
+	EngineBuildBudgetMetric,
+	EngineBuildBudgetReport,
+	EngineBuildBudgetResult,
+	EngineBuildMeasurements,
+	EngineArtifactDescriptor,
+	EngineArtifactInspection,
+	EngineArtifactKind,
+	EngineArtifactReference,
+	EngineArtifactResult,
 	EngineCapability,
 	EngineCompileOptions,
 	EngineCompiledAsset,
 	EngineCompiledNode,
 	EngineCompiledPage,
 	EngineCompilerDiagnostic,
+	EngineCompilerProgressEvent,
 	EngineCompilerSummary,
 	EngineDeviceTarget,
+	EngineCompiledFeatureFallback,
+	EngineCompatibilityImportance,
+	EngineFallbackFidelity,
+	EngineFallbackKind,
+	EngineFallbackPlan,
+	EngineFallbackStrategy,
+	EngineFeatureFallbackPolicy,
+	EngineFeatureSupportResolver,
+	EngineLegacyContent,
+	EngineLegacyRenderPlan,
+	EngineResolvedFallbackPlan,
+	EngineResolvedFallbackStatus,
+	EngineResolvedFeatureFallback,
 	EngineRuntimeKind,
 	EngineRuntimeProfile,
+	EngineUsedFeature,
+	EngineUsedFeatureManifest,
+	EngineUsedFeatureSource,
 	EngineWorkClass,
 } from "./compiler";
+export {
+	createEngineBrowserSupportResolver,
+	EngineCompatibilityDialog,
+	resolveEngineBrowserCompatibility,
+	supportsEngineBrowserFeature,
+} from "./core/enginecompatibility";
+export type {
+	EngineCompatibilityDialogProps,
+	EngineFeatureSupportOverrides,
+} from "./core/enginecompatibility";
 export { compileAdaptiveSchema } from "./compiler/EngineAdaptiveCompiler";
 export type {
 	EngineAdaptiveChange,
@@ -48,23 +99,135 @@ export type { EngineScheduleListener, EngineSchedulePolicy, EngineScheduleSnapsh
 export { useEngineSchedule, useEngineVisible } from "./hooks/useEngineScheduler";
 export type { UseEngineScheduleReturn } from "./hooks/useEngineScheduler";
 export { EngineModel } from "./core/EngineModel";
-export type { EngineModelAction, EngineModelKeyListener, EngineModelListener, EngineModelState } from "./core/EngineModel";
+export type {
+	EngineModelAction,
+	EngineModelConsumerInspection,
+	EngineModelInspection,
+	EngineModelKeyListener,
+	EngineModelListener,
+	EngineModelOptions,
+	EngineModelState,
+} from "./core/EngineModel";
 export { useEngineModel, useEngineModelValue } from "./hooks/useEngineModel";
 export { EngineViewport } from "./core/EngineViewport";
 export type { EngineViewportSnapshot } from "./core/EngineViewport";
 export { useEngineViewport } from "./hooks/useEngineViewport";
 
+export { EngineBrowserUpdateDialog } from "./components/EngineCompatibilityDialog";
+export type { EngineBrowserUpdateDialogProps } from "./components/EngineCompatibilityDialog";
+export {
+	detectEngineBrowserFeature,
+	engineFallbackPlanNeedsCompatibilityCheck,
+	evaluateEngineBrowserCompatibility,
+} from "./core/EngineBrowserCompatibility";
+export type {
+	EngineCompatibilityIssue,
+	EngineCompatibilityReport,
+} from "./core/EngineBrowserCompatibility";
+
 export { generateEngineMetadata } from "./core/engineMetadata";
+export {
+	EngineSEO,
+	EngineSEOJsonLd,
+	compileEngineSEOJsonLd,
+	compileEngineSEOMetadata,
+	compileEngineSEORobots,
+	compileEngineSEOSitemap,
+	createEngineSEO,
+	inferEngineSEOSchema,
+	serializeEngineSEOJsonLd,
+} from "./core/engineseo";
+export type {
+	EngineSEOBuilder,
+	EngineSEOCustomPreview,
+	EngineSEOGeneratedPreview,
+	EngineSEOGeneratorProps,
+	EngineSEOImage,
+	EngineSEOInput,
+	EngineSEOJsonLdNode,
+	EngineSEOJsonLdProps,
+	EngineSEOJsonValue,
+	EngineSEOPageSchema,
+	EngineSEOPreview,
+	EngineSEOResolver,
+	EngineSEORobotsSchema,
+	EngineSEOSchema,
+	EngineSEOSetters,
+	EngineSEOSitemapLastModifiedMode,
+	EngineSEOSitemapRoute,
+	EngineSEOSitemapSchema,
+	EngineSEOSiteSchema,
+	EngineSEOSocialSchema,
+	EngineSEOSource,
+	EngineSEOVerificationSchema,
+	EngineSEOWebsitePreview,
+} from "./core/engineseo";
 
 export { validateSchema, validatePageSchema } from "./core/validateSchema";
 export type { ValidationError, ValidationResult } from "./core/validateSchema";
 
+export { createTheme, parseEngineThemeId } from "./component/engineTheme/createTheme";
+export type { ParsedEngineThemeId } from "./component/engineTheme/createTheme";
+
+export {
+	registerEngineHighlighterProvider,
+	unregisterEngineHighlighterProvider,
+	listEngineHighlighterProviders,
+	listEngineHighlighterLanguages,
+	listEngineHighlighterThemes,
+	highlightEngineCode,
+	normalizeEngineHighlightLanguage,
+	normalizeEngineThemeColor,
+} from "./component/engineTheme/highlighting";
+export { createShikiEngineHighlighterProvider } from "./component/engineTheme/shikiProvider";
+export type { EngineShikiHighlighter, EngineShikiProviderOptions } from "./component/engineTheme/shikiProvider";
 export type {
-	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineConfig,
+	EngineHighlighterProvider,
+	EngineHighlighterProviderInfo,
+	EngineHighlighterThemeInfo,
+	EngineHighlighterToken,
+	EngineHighlighterContext,
+} from "./component/engineTheme/highlighting";
+
+export {
+	registerEngineThemeDataHandler,
+	unregisterEngineThemeDataHandler,
+	listEngineThemeDataHandlers,
+	dispatchEngineThemeDataEvent,
+} from "./component/engineTheme/dataApi";
+
+export {
+	registerEngineThemeTemplateAdapter,
+	unregisterEngineThemeTemplateAdapter,
+	listEngineThemeTemplateAdapters,
+	renderEngineThemeTemplate,
+} from "./component/engineTheme/templates";
+
+export {
+	loadRemoteEngineTheme,
+	clearRemoteEngineThemeCache,
+	getRemoteEngineThemeCacheSize,
+	unregisterRemoteEngineTheme,
+} from "./component/engineTheme/remoteTheme";
+export type { EngineThemeArtifact, LoadRemoteEngineThemeOptions } from "./component/engineTheme/remoteTheme";
+
+export type {
+	EngineThemeTemplateAdapter,
+	EngineThemeTemplateContext,
+} from "./component/engineTheme/templates";
+
+export type {
+	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,
+	EngineThemeScope, EngineThemeJsonValue, EngineThemeJsonObject, EngineConfig,
+	EngineThemeJoinDirection, EngineThemeDataEventType, EngineThemeDataEventBinding, EngineThemeDataEventContext,
+	EngineThemeDataEvent, EngineThemeDataCompositionResult, EngineThemeDataHandlerResult, EngineThemeDataHandler,
+	EngineThemeTemplateNodeType, EngineThemeTemplateNode, EngineThemeTemplateDefinition, EngineThemeTemplateOptions,
+	EngineThemeTemplatePlacement, EngineThemeTemplateMerge, EngineThemeTemplateLayout, EngineThemeTemplateDataApiBinding, EngineMarkdownThemeTemplates,
+	EngineHighlighterTokenKind, EngineMarkdownTokenPalette, EngineMarkdownPrettyPleaseConfig,
 	NodeType, BuiltinNodeType, Breakpoint, ResponsiveValue,
 	CpropValue, SelectOption,
 	BoxProps, StackProps, GridProps, TextProps, TextPart, TextVariant,
-	MarkdownProps, HeadingProps, ImageNodeProps, ButtonProps,
+	MarkdownProps, EngineMarkdownStyleSlot, EngineMarkdownStyles, HeadingProps, ImageNodeProps, ButtonProps,
 	ButtonVariant, ButtonSize, SectionProps, HeroProps, CardProps,
 	SpacerProps, DividerProps, EngineScrollProps, CustomSelectProps,
 	OptionProps, OptGroupProps, SlotProps,
@@ -90,14 +253,9 @@ export type { EngineLinkConfig, EngineLinkProps } from "./components/EngineLink"
 export { EngineNav, renderEngineAnchor } from "./components/EngineNav";
 export { EngineTransitionLink } from "./components/EngineTransitionLink";
 export type { EngineTransitionLinkProps } from "./components/EngineTransitionLink";
-export { EngineExpandLink } from "./components/EngineExpandLink";
-export type { EngineExpandLinkProps } from "./components/EngineExpandLink";
-export { EngineSwipeDeck } from "./components/EngineSwipeDeck";
-export type { EngineSwipeDeckProps } from "./components/EngineSwipeDeck";
-export { EngineAutoRail } from "./components/EngineAutoRail";
-export type { EngineAutoRailProps } from "./components/EngineAutoRail";
 export {
 	ENGINE_TRANSITIONS,
+	coordinateEngineViewTransition,
 	isKnownEngineTransition,
 	navigateWithEngineTransition,
 	normalizeEngineTransitionType,
@@ -118,6 +276,9 @@ export type {
 	EngineTransitionRunContext,
 	EngineTransitionShape,
 	EngineTransitionsController,
+	EngineViewTransitionConflict,
+	EngineViewTransitionOptions,
+	EngineViewTransitionStatus,
 	ResolvedEngineTransition,
 } from "./core/enginetransitions";
 export { EngineManim, EngineManim3D } from "./components/EngineManim";
@@ -161,10 +322,12 @@ export type {
 	RenderingEngine as ECRenderingEngine, ECRenderContext,
 } from "./core/enginecanvas";
 export { EngineMarkdown } from "./components/EngineMarkdown";
+export { EngineUrlIcon } from "./components/EngineUrlIcon";
+export type { EngineUrlIconProps } from "./components/EngineUrlIcon";
+export { normalizeEngineUrlIconSize, resolveEngineFaviconUrl } from "./core/engineUrlIcon";
+export type { EngineUrlIconSize } from "./core/engineUrlIcon";
 export { EngineHero } from "./components/EngineHero";
 export { LazyMount, LazySection } from "./components/LazyMount";
-export { EngineReveal } from "./components/EngineReveal";
-export type { EngineRevealEffect, EngineRevealProps } from "./components/EngineReveal";
 export { CustomSelect } from "./components/CustomSelect";
 export { EngineSuspense } from "./components/EngineSuspense";
 export { EngineForm, EngineInput, EngineTextarea, EngineCheckbox, EngineLabel } from "./components/EngineForms";
@@ -243,6 +406,7 @@ export {
 
 export {
 	EngineScroll,
+	EngineScrollBehavior,
 	EngineScrollProvider,
 	useEngineScroll,
 	useEngineScrollTimeline,
@@ -288,7 +452,11 @@ export type {
 	EngineScrollAlignment,
 	EngineScrollDirection,
 	EngineScrollEasingName,
+	EngineScrollBehaviorPolicy,
 	EngineScrollMoveOptions,
+	EngineScrollBehaviorMode,
+	EngineScrollReducedMotion,
+	EngineScrollResolvedBehaviorPolicy,
 	EngineScrollSnapMode,
 	EngineScrollSnapOptions,
 	EngineScrollTimelineActivityEvent,
@@ -339,3 +507,15 @@ export type { EngineProviderProps } from "./providers/EngineProvider";
 export { default as DefaultNotFoundPage } from "./not-found";
 
 export { BREAKPOINTS, BREAKPOINT_ORDER } from "./schema/types";
+
+export type { EngineAnsiColor, EngineAnsiPalette, EngineAnsiSegment } from "./core/markdownParser";
+
+// Roavio proposal components retained for the app and its schema nodes.
+export { EngineExpandLink } from "./components/EngineExpandLink";
+export type { EngineExpandLinkProps } from "./components/EngineExpandLink";
+export { EngineSwipeDeck } from "./components/EngineSwipeDeck";
+export type { EngineSwipeDeckProps } from "./components/EngineSwipeDeck";
+export { EngineAutoRail } from "./components/EngineAutoRail";
+export type { EngineAutoRailProps } from "./components/EngineAutoRail";
+export { EngineReveal } from "./components/EngineReveal";
+export type { EngineRevealEffect, EngineRevealProps } from "./components/EngineReveal";

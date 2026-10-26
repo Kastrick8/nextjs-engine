@@ -9,5 +9,17 @@ tsconfig.tsbuildinfo
 app/gemini/**.tsx
 app/asdf/**.tsx
 .engine-api-compiled.json
+.nextjs-engine/config/.apiconfig.json
+.nextjs-engine/nenc/manifest.json
+.nextjs-engine/tree-shaking-proof/
 /public/_static/endpoint/
 /public/_static/shader/
+.next/
+test-results/
+playwright-report/
+certificates/
+/app/%5Fengine/
+/src/app/%5Fengine/
+.nextjs-engine/.cache/
+.nextjs-engine/gen3/theme/
+/public/nextjs-engine/fonts/

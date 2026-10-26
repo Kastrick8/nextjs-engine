@@ -1,5 +1,7 @@
 # APIStatic
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 APIStatic is the in-house static API system for Next.js Engine. It is intentionally separate from `.EngineAPIConfig/*.api` provider configuration.
 
 Use APIStatic when the application needs small programmable endpoint modules for browser-safe work such as math, parsing, transformations, public API composition, or explicitly proxied backend work without creating a new Next.js `route.ts` for every operation.
@@ -445,12 +447,12 @@ run.proxy(
 
 The backend bridge owns authentication, cookies, secrets, databases, private user state, or other server-only capabilities.
 
-## Plugin setup
+## Generation 2 — legacy standalone plugin setup
 
 Installed package:
 
 ```js
-const withEngineAPI = require("nextjs-engine/plugin")
+const withEngineAPI = require("nextjs-engine/api-plugin")
 
 module.exports = withEngineAPI(nextConfig)
 ```
@@ -475,7 +477,22 @@ module.exports = withEngineAPI(nextConfig, {
 })
 ```
 
-If you customize `staticOutputDir` so its public URL changes, configure APIStatic with the matching `basePath`. If you customize `staticManifestFile`, pass the same `manifestFile` to `APIStatic`/`configureAPIStatic`.
+If you customize `staticOutputDir` so its public URL changes, configure APIStatic with the matching `basePath`.
+## Generation 3 — combined plugin
+
+For Gen 3, use the combined `withEngine()` plugin. APIStatic still compiles its `.route` programs and public endpoint manifest, while the provider-config JSON is stored at `.nextjs-engine/config/.apiconfig.json`:
+
+```js
+const withEngine = require("nextjs-engine/plugin")
+
+module.exports = withEngine(nextConfig, {
+	api: { configDir: ".EngineAPIConfig", endpointDir: "data/endpoint" },
+})
+```
+
+The `.EngineAPIConfig/*.api` directory remains the compatibility source input. The Gen 2 standalone plugin keeps its legacy `.engine-api-compiled.json` output.
+
+ If you customize `staticManifestFile`, pass the same `manifestFile` to `APIStatic`/`configureAPIStatic`.
 
 During `next dev`, existing `.route` and `.api` source directories are watched. Editing, creating, or deleting matching files recompiles output without restarting Next. Set `NEXTJS_ENGINE_API_WATCH=0` to disable the watcher or `NEXTJS_ENGINE_API_WATCH=1` to force it for a custom development launcher.
 

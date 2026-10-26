@@ -1,5 +1,7 @@
 # EngineScroll Point Groups
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineScroll point groups let one page keep multiple independent navigation and
 snapping sets without creating separate scroll runtimes.
 
@@ -37,7 +39,7 @@ The existing `point` field still supplies the point name and, when no explicit
 Manual registration remains available outside normal schema rendering:
 
 ```ts
-import { EngineScrollPointManager } from "@/engine";
+import { EngineScrollPointManager } from "nextjs-engine";
 
 EngineScrollPointManager.registerElement("intro", introElement, {
 	group: "slides",

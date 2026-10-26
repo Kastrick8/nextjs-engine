@@ -1,5 +1,7 @@
 # EngineMobile + EngineDevice
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineMobile applies optional schema patches on the server based on the request
 User-Agent. Device detection is split into pure/shared, client, and server
 modules so `next/headers` does not leak into the browser module graph.

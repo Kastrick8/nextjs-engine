@@ -22,16 +22,13 @@ import { usePathname } from "next/navigation";
 import { staticClass, useCpropClass, usePropStyles } from "../hooks/usePropStyles";
 import { useStyleCollector } from "../providers/EngineProvider";
 import type { BaseNodeProps } from "../schema/types";
+import { EngineUrlIcon } from "./EngineUrlIcon";
+import type { EngineUrlIconSize } from "../core/engineUrlIcon";
 import type { EngineTransitionInput } from "../core/enginetransitions";
 
 const LazyEngineTransitionLink = lazy(async () => {
 	const transitionModule = await import("./EngineTransitionLink");
 	return { default: transitionModule.EngineTransitionLink as React.ComponentType<any> };
-});
-
-const LazyEngineNavManimIcon = lazy(async () => {
-	const iconModule = await import("./EngineNavManimIcon");
-	return { default: iconModule.EngineNavManimIcon as React.ComponentType<{ open: boolean }> };
 });
 
 export interface EngineAnchorConfig {
@@ -45,6 +42,8 @@ export interface EngineAnchorConfig {
 	style?: CSSProperties;
 	"aria-label"?: string;
 	"aria-current"?: React.AriaAttributes["aria-current"];
+	"emd_show-url-icon"?: boolean;
+	"emd_url-icon-size"?: EngineUrlIconSize;
 }
 
 function isExternalHref(href: string, target?: string): boolean {
@@ -79,19 +78,22 @@ export function renderEngineAnchor(cfg: EngineAnchorConfig): ReactElement {
 		href, target, transition, className, children, onClick, ref, style,
 		"aria-label": ariaLabel, "aria-current": ariaCurrent,
 	} = cfg;
+	const anchorChildren = cfg["emd_show-url-icon"] === true
+		? <>{<EngineUrlIcon href={href} size={cfg["emd_url-icon-size"] ?? "auto"} />}{children}</>
+		: children;
 	if (isExternalHref(href, target)) {
 		return (
 			<a ref={ref} href={href} target={target ?? "_blank"} rel="noopener noreferrer" className={className} onClick={onClick} style={style} aria-label={ariaLabel} aria-current={ariaCurrent}>
-				{children}
+				{anchorChildren}
 			</a>
 		);
 	}
 	if (hasAnimatedTransition(transition)) {
-		const nextAnchor = renderNextAnchor(cfg);
+		const nextAnchor = renderNextAnchor({ ...cfg, children: anchorChildren });
 		return (
 			<Suspense fallback={nextAnchor}>
 				<LazyEngineTransitionLink ref={ref} href={href} transition={transition} target={target} className={className} onClick={onClick} style={style} aria-label={ariaLabel} aria-current={ariaCurrent}>
-					{children}
+					{anchorChildren}
 				</LazyEngineTransitionLink>
 			</Suspense>
 		);
@@ -104,6 +106,8 @@ export interface EngineNavItem {
 	href?: string;
 	target?: string;
 	cprop?: { link?: { transition?: EngineTransitionInput; href?: string } };
+	"emd_show-url-icon"?: boolean;
+	"emd_url-icon-size"?: EngineUrlIconSize;
 	active?: boolean;
 	children?: EngineNavItem[];
 }
@@ -208,7 +212,16 @@ const NavItem = memo(function NavItem({ item, pathname, variant }: NavItemProps)
 
 	return (
 		<div className={itemClass}>
-			{renderEngineAnchor({ href, target: item.target, transition, className: anchorClass, children: item.label, "aria-current": isActive ? "page" : undefined })}
+			{renderEngineAnchor({
+				href,
+				target: item.target,
+				transition,
+				className: anchorClass,
+				children: item.label,
+				"aria-current": isActive ? "page" : undefined,
+				"emd_show-url-icon": item["emd_show-url-icon"],
+				"emd_url-icon-size": item["emd_url-icon-size"],
+			})}
 		</div>
 	);
 });
@@ -223,12 +236,8 @@ export const EngineNav = memo(
 		const routerPathname = usePathname() ?? "";
 		const [pathname, setPathname] = useState("");
 		const [mobileOpen, setMobileOpen] = useState(false);
-		const [mobileAnimated, setMobileAnimated] = useState(false);
 		useEffect(() => setPathname(routerPathname), [routerPathname]);
-		const toggleMobile = useCallback(() => {
-			setMobileAnimated(true);
-			setMobileOpen((value) => !value);
-		}, []);
+		const toggleMobile = useCallback(() => setMobileOpen((value) => !value), []);
 		const hoverClass = useCpropClass(cprop);
 		const navStyle = usePropStyles(restProps as any, style ?? {});
 
@@ -237,6 +246,7 @@ export const EngineNav = memo(
 				display: "flex",
 				alignItems: variant === "vertical" ? "flex-start" : "center",
 				flexDirection: variant === "vertical" ? "column" : "row",
+				boxSizing: "border-box",
 				position: sticky ? "sticky" : "relative",
 				top: sticky ? 0 : undefined,
 				zIndex: sticky ? 40 : undefined,
@@ -292,10 +302,8 @@ export const EngineNav = memo(
 					{children}
 					{items.length > 0 && (
 						<button aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} aria-controls="engine-nav-mobile" onClick={toggleMobile} className={mobileToggleClass}>
-							{mobileAnimated ? (
-								<Suspense fallback={<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" /></svg>}>
-									<LazyEngineNavManimIcon open={mobileOpen} />
-								</Suspense>
+							{mobileOpen ? (
+								<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" /></svg>
 							) : (
 								<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" /></svg>
 							)}

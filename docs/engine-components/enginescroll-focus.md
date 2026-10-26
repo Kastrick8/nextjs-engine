@@ -1,5 +1,7 @@
 # EngineScroll Viewport Focus
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 `viewport.current` is EngineScroll's logical reading/attention point inside the visible viewport. It is separate from the exact physical edges exposed as `viewport.top` and `viewport.bottom`.
 
 ## v2.6.2 default: progressive focus

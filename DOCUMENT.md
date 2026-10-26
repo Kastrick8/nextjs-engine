@@ -1,9 +1,25 @@
 # Next.js Engine — Technical Documentation
 
-> **Last updated:** 2026-09-11
+> **Scope:** Combined historical technical reference covering both generations. Use the maintained Gen 2 and Gen 3 indexes for the current generation-specific contract; older implementation notes below may be superseded.
+
+> **Last updated:** 2026-10-26
+> - **Versioned documentation audit** — The maintained navigation roots are [`docs/2/index.md`](./docs/2/index.md) and [`docs/3/index.md`](./docs/3/index.md). Public examples now use the package entry point where appropriate; unsupported `RawComponentRenderer` / `type: "raw"` examples were removed from canonical and compatibility component guides. EngineTheme and `.etr` are implemented by merged PR #45; see [`docs/3/engine-components/enginetheme.md`](./docs/3/engine-components/enginetheme.md).
+> - **Windows native SWC / Turbopack troubleshooting** — The Gen 3 compatibility guide now separates native SWC-load failures, WASM fallback, and Turbopack's native-binding requirement, with a supported recovery checklist: [`docs/3/compatibility-debugging-hardening.md`](./docs/3/compatibility-debugging-hardening.md).
+> - **CSS collection accuracy correction** — Marked the old render-count CSS-tier description as historical. The current Gen 2/Gen 3 source uses provider-scoped style collection and only emits global CSS registered through `StyleCollector.addGlobal()`.
+> - **Generation 3 alpha candidate and EngineDebug preview lifecycle** — Prepared `3.0.0-alpha.1` candidate notes describing the compiler-first/server-first architectural shift from Generation 2. EngineDebug now has an accessible WAITING overlay with indeterminate progress, a persistent WAITING/READY/ERROR status, reload and Problems actions, plus regression coverage for the pending-preview state. The candidate is not a published GitHub Release; the latest published stable release remains v2.5.0; v2.6.2 is a prepared patch, not a published GitHub Release.
 > **Changes in this update:**
+> - **Generation 3 EngineAPI config placement** — The combined Gen 3 plugin compiles provider JSON to `.nextjs-engine/config/.apiconfig.json` and removes stale root `.engine-api-compiled.json` output when using the default path. The standalone Generation 2 API plugin retains `.engine-api-compiled.json`; older sections below that describe the root artifact are historical Gen 2 behavior. `.EngineAPIConfig/*.api` remains the source format during this migration. See `docs/gen3/overview.md` and `docs/engine-components/engineapi.md`.
+> - **Generation 3 EngineDebug workbench** — Added the development-only `/_engine/debug` workbench with application route exploration, live preview, compiler-node picking, static/server/client/deferred boundary overlays, live scheduler states and transitions, and desktop/tablet/phone/custom device simulation. The plugin removes its generated route before production route discovery, and CI proves no debug route or workbench module enters the production output.
+> - **Generation 3 EngineSEO** — Added a JSON-style SEO schema and `engineseo.set.*` builder that generate Next.js metadata, canonical/OpenGraph/Twitter tags, Google/Bing verification, sitemap and robots results, safely escaped JSON-LD, dynamic `ImageResponse` cards, custom previews, and real website-screenshot previews. The combined plugin can discover static routes and generate protected Next metadata files without overwriting application-owned files.
+> - **Generation 3 server-first Markdown** — Schema Markdown now compiles as deterministic static markup in `EngineServerRenderer`, including CSS-only text/block animations. The CommonMark/GFM parser and legacy client adapter stay out of server-first route bundles; direct `<EngineMarkdown />` imports remain compatible. The built-in 404 is server-first too, so its fallback boundary no longer preloads the full client barrel on every page.
+> - **EngineMarkdown CommonMark/GFM upgrade** — Replaced the regex-only renderer with a safe AST pipeline supporting inline/fenced code, whitespace-preserving scrollable code surfaces, nested lists, tables, task lists, blockquotes, strikethrough, images, and autolinks. Added compatibility repair for compact one-line code fences while keeping raw HTML disabled and URL validation enforced.
+> - **Generation 3 compiler/runtime hardening** — Added dev-only NENC/Cookie/Model/capability/WHY inspector contracts, dependency-aware artifact caching and scoped HMR, optional attributed build budgets, build-blocking security diagnostics, emitted-bundle tree-shaking proofs, and desktop/phone/tablet/high-refresh/network/Chromium/Firefox/WebKit/older-browser test matrices. Canvas adaptation no longer lowers backing resolution.
+> - **Generation 3 browser compatibility dialog** — Added isolated capability probes plus `EngineCompatibilityDialog`, which resolves only the compiled page's used features, auto-opens for real fallback/unavailable outcomes, stays empty during SSR and on fully native pages, supports fail-closed custom capability overrides, and can reveal stable compiler source paths.
+> - **EngineScroll behavior policy** — Added global and provider-scoped `smooth`, `native`, and `instant` movement ownership. NE smooth movement is RAF-driven and independent of browser CSS smooth-scroll settings; reduced motion supports `respect` (default), `reduce`, and explicit `ignore` policies, with per-movement overrides.
+> - **EngineTransitions+ native coordinator** — Page navigation and app-level theme/visual updates can now share one `coordinateEngineViewTransition()` owner for the browser View Transitions API. Conflicting app-level animations skip their extra visual transition while still applying the update, newer NE navigation can replace an older visual transition, native cancellation is handled as a normal result, and real update-callback failures still propagate.
+> - **Generation 3 private login/search proofs** — Added both a portable browser-to-backend example and a real Next.js device-bound login/private-search page using the generated single NENC endpoint, hashed HttpOnly sessions, origin/replay/rate/permission enforcement, server-only credentials, sanitized results, and copied-cookie rejection coverage. network/security subsystem is complete.
 > - **Generation 3 backend proving flows** — NENC now selects credential-scoped `EngineAPIResolver` instances from a frozen, sanitized command context, forwards command `input` to ordinary HTTP request bodies, and proves that unauthorized calls cannot reach private backends or obtain their credentials.
-> - **Generation 3 NENC build plugin** — Added opt-in static command discovery, split frozen client/server manifests, protected generation of the single `app/_static/command/route.ts` endpoint, safe artifact replacement, and debounced development recompilation.
+> - **Generation 3 NENC build plugin** — Added opt-in static command discovery, split frozen client/server manifests, protected generation of the single `app/%5Fstatic/command/route.ts` endpoint (served as `/_static/command`), safe artifact replacement, and debounced development recompilation.
 > - **Generation 3 command security** — Added per-command replay guards and fixed-window rate policies with principal-aware keys, replaceable atomic stores, generic failures, and `Retry-After` responses.
 > - **Generation 3 account sessions** — Added a fail-closed NENC account-session policy with duplicate-cookie rejection, SHA-256 token-hash lookup, expiry/origin/command restrictions, permission authorization, and optional verified device-key binding.
 > - **Generation 3 EngineCookie vault** — Added metadata-authenticated AES-256-GCM credential sealing with opaque storage ids, controlled callback-only plaintext use, Trust List checks, command restrictions, and tamper detection.
@@ -32,7 +48,7 @@
 > **Changes in previous update:**
 > - **Core Component Additions** — New `EngineLink` (transition-aware), `EngineHero` (layout variants), `EngineSuspense` (loading presets), and `EngineForms` suite (Form, Input, etc).
 > - **`EngineAPIResolver`** — Declarative networking class for centralized fetch orchestration with multi-tier overrides and native auth support.
-> - **CSS Tier System** — `StyleCollector` now classifies every CSS block into one of three tiers based on how many page renders have used it: **Global** (10+ renders, or explicitly marked — layout/header CSS), **Group** (3–9 renders — shared across several pages), **Local** (1–2 renders — page-unique). Output order is always Global → Group → Local. `EngineGlobalStyles` component exported for `layout.tsx` injection of early global CSS.
+> - **Legacy CSS Tier System (historical)** — Earlier code described automatic Global / Group / Local tiers based on render counts. This is not the current `main-2` or `main-3` StyleCollector contract; see the explicit accuracy note in the section below.
 > - **Image optimization** — `next.config.js` now routes images through AVIF → WebP → original format automatically. `EngineImage` gains `qualityPreset` ("performance" 65 / "balanced" 75 / "sharp" 90), per-viewport `qualityMobile`/`qualityDesktop` fields, smarter `sizes` auto-generation, resolution-aware placeholder shimmer, and `imageRendering` browser hint prop.
 > - **`sides` prop** — new per-side spacing system. `sides: [1,2,3,4]` where 1=top 2=left 3=right 4=bottom. Pair with `sideDistance` and `sideType` ("margin" | "padding").
 > - **`vars` prop** — set CSS custom properties (`--var: value`) inline on any element. Cascades to all children.
@@ -41,7 +57,7 @@
 > - **Markdown heading anchors** — `EngineMarkdown` now generates stable slug ids for headings, so schema links/buttons can use `href: "#section-name"` for smooth in-page document navigation. Optional `headingIdPrefix` can namespace generated heading ids.
 > - **`createPage` markdown shorthand** — `createPage` now accepts compact local Markdown page objects with `filePath`, optional `title`, `description`, `meta`, `theme`, `markdown`, and `section` fields. It also accepts direct `{ meta, theme, root }` schemas again, matching the older engine examples.
 > - **Bug fix:** `createPage.tsx` — removed top-level `node:fs/promises` import that crashed webpack. Now uses a dynamic `import("fs/promises")` inside the async resolver so webpack never sees a static `node:` URI. `next.config.js` also gets a client-side `fs` fallback as defence-in-depth.
-> - **`EngineMarkdown`** — lazy-loaded by default when below the fold (added to `lazyDetect.ts`). New props: `textAnimation` (`fade-in` | `slide-up`), `blockAnimation` (per-block staggered), `animationDuration`, `animationStagger`, `fontFamily`, `bodySize`, `bodyLineHeight`. Animation CSS is injected once on first mount and respects `prefers-reduced-motion`.
+> - **`EngineMarkdown` legacy adapter** — Direct component imports preserve the existing client style hooks. Gen 3 schema Markdown renders on the server and collects the same animation CSS without hydration. Props remain compatible: `textAnimation`, `blockAnimation`, `animationDuration`, `animationStagger`, `fontFamily`, `bodySize`, and `bodyLineHeight`.
 > - **`MarkdownProps`** in `types.ts` updated with all new props above.
 > **Changes in this update:** Added support for common long-form style aliases in the engine style bridge, including `fontSize`, `fontWeight`, `width`, `height`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `alignItems`, `justifyContent`, `gridTemplateColumns`, `gridTemplateRows`, `backgroundImage`, `backgroundSize`, `backgroundRepeat`, `backgroundPosition`, `boxShadow`, `transition`, `backdrop`, and `backdropFilter`. `bg` now writes to CSS `background`, so gradients render correctly. Added `createComponent`, an engine helper for reusable schema-rendered components with runtime slots. Component children are available inside the schema as a slot named `children`.
 
@@ -71,11 +87,15 @@ Sensitive sessions can be stored in `EngineCookieVault`. The index contains meta
 
 `NENCCommandSecurityPolicy` can assign stricter replay windows and fixed-window rate limits to individual logical commands, with an optional explicit `"*"` fallback. Replay claims are command-namespaced. Rate keys are application-defined after authentication, so account commands can isolate budgets by the authenticated subject or session without trusting client-supplied identifiers. Production multi-instance deployments should provide shared atomic replay and rate stores.
 
-The opt-in NENC build plugin statically discovers inline command declarations, emits separate frozen browser/server manifests, and creates exactly `app/_static/command/route.ts`. It refuses dynamic security metadata, public server-manifest output, and overwriting hand-written routes. Replay and rate rules remain server-only runtime policy rather than generated command metadata.
+The opt-in NENC build plugin statically discovers inline command declarations, emits separate frozen browser/server manifests, and creates exactly `app/%5Fstatic/command/route.ts`, which Next.js exposes as `/_static/command`. It refuses dynamic security metadata, public server-manifest output, and overwriting hand-written routes. Replay and rate rules remain server-only runtime policy rather than generated command metadata.
 
 The NENC dispatcher can select an `EngineAPIResolver` from a frozen, sanitized command context containing only command metadata, principal, origin, and signal. The resolver factory receives no raw request, cookie, proof fields, or unvalidated input. This keeps private provider credentials in the server handler, prevents unauthenticated or unauthorized commands from obtaining a backend capability, and lets ordinary non-NENC REST services receive command input as a normal JSON request body. Commands explicitly sanitize private responses before returning browser-visible data.
 
-See `docs/gen3/phase-c-network.md` for the current security invariants and remaining Phase C work.
+The `examples/gen3-private-search` proof connects a browser login and private search to an ordinary backend without exposing its credentials or response internals. Its session store retains only token hashes and binds each account session to the login device key. The CI proof rejects replayed signed requests, copied cookies used with another key, and proofs signed for another origin before private backend access.
+
+The `/engine-private-search` proving application completes the network/security integration path: a browser-created non-exportable key is registered during login, the server stores only a session-token hash and issues an HttpOnly device-bound cookie, and `EngineCommand.run("privateSearch")` crosses the generated opaque endpoint into a credential-scoped ordinary HTTP backend. Browser regressions verify copied-cookie and wrong-origin rejection plus removal of backend credentials and internal fields from the result.
+
+See `docs/3/networking-credentials-security.md` for the network-security invariants and `docs/3/compatibility-debugging-hardening.md` for browser compatibility and EngineDebug.
 
 ---
 
@@ -597,7 +617,7 @@ Page section with a centered max-width content column.
 
 ### markdown
 
-Renders a Markdown string as semantic HTML inside an `<article>`. Lazy-loaded when below the fold (400px rootMargin). Parsed blocks: headings `#`–`######`, paragraphs, `**bold**`, `*italic*`, `[links](url)`, unordered/ordered lists, `---` horizontal rules.
+Renders CommonMark plus GitHub Flavored Markdown as safe semantic HTML inside an `<article>`. In the default Generation 3 `createPage` path it is static server markup rather than a hydrated island. Supported syntax includes headings, nested lists, blockquotes, inline/fenced code, links, images, tables, task lists, strikethrough, and thematic breaks; raw HTML remains disabled.
 
 **Content loading:**
 
@@ -682,6 +702,8 @@ The primary routing primitive. It handles external URLs automatically and integr
 **Transition Pipeline:**
 - `page-to-page`: Uses the View Transitions API for seamless full-page animations.
 - `instant`: Standard high-speed client-side navigation.
+
+Native View Transition ownership is centralized in EngineTransitions+. App-level theme, class, and attribute changes that would otherwise call `document.startViewTransition()` directly should call `coordinateEngineViewTransition(update)` instead. Its default conflict policy always applies the requested update but skips starting another native visual transition while NE navigation is active. Superseded native animations resolve as normal cancellation instead of leaking `AbortError` rejections.
 
 **Routing pipeline:** `EngineLink` delegates all anchor rendering to `renderEngineAnchor` exported from `EngineNav`. The three-strategy routing (external / animated / native) lives in one place.
 
@@ -1429,9 +1451,11 @@ Add this to `tsconfig.json` for clean imports:
 
 ---
 
-## CSS Tier System
+## CSS Tier System — Historical Implementation
 
-The engine automatically classifies every CSS block into one of three tiers based on how many page renders have used it. Output order is always **Global → Group → Local** so the cascade is correct.
+> **Accuracy note (current source checked 2026-10-25):** The automatic render-count promotion described in this historical section is not implemented by the current `StyleCollector` on `main-2` or `main-3`. Current generated CSS is collected by the nearest `EngineProvider` and deduplicated inside that collector. `EngineGlobalStyles()` emits only CSS explicitly registered through `StyleCollector.addGlobal()`; it does not automatically gather provider-collected CSS. See the versioned styling guides under `docs/2` and `docs/3` for the current contracts.
+
+The tier model below is preserved as historical context, not current API behavior. Earlier versions described automatic classification into Global, Group, and Local tiers based on render counts.
 
 ```
  Tier        Threshold           Typical source
@@ -1530,7 +1554,7 @@ A canvas node that uses the GPU correctly and doesn't lag.
 | `responsive` | `boolean` | `true` when no width/height | Fill container, resize automatically |
 | `dpr` | `number\|"auto"` | `"auto"` | Device pixel ratio for sharp rendering |
 | `maxDpr` | `number` | `2` | DPR cap — prevents 3× rendering on 3× displays |
-| `adaptive` | `boolean` | `true` | Reduce DPR when FPS < 30, restore when > 55 |
+| `adaptive` | `boolean` | `true` | Compatibility switch for scheduling integrations; never reduces DPR or visual quality |
 | `pauseWhenOffscreen` | `boolean` | `true` | Stop RAF when canvas leaves viewport |
 | `pauseWhenHidden` | `boolean` | `true` | Stop RAF when browser tab is hidden |
 | `alpha` | `boolean` | `false` | Transparent canvas — set false for a free GPU win |
@@ -1686,6 +1710,31 @@ EngineScrollNavigator.move("current", 5);        // scroll forward 5 points
 EngineScrollNavigator.move("top");
 EngineScrollNavigator.move("bottom");
 ```
+
+### Movement behavior policy
+
+```ts
+EngineScroll.configure({
+	behavior: "smooth",       // "smooth" | "native" | "instant"
+	duration: 420,
+	easing: "easeOutCubic",
+	interruptible: true,
+	reducedMotion: "respect", // "respect" | "reduce" | "ignore"
+});
+```
+
+`"smooth"` is the default and uses NE's RAF scheduler, so it works even when
+native browser/CSS smooth scrolling is disabled. `"native"` delegates movement
+to the browser. `"instant"` forces an immediate jump. Reduced motion is
+respected by default; `"reduce"` always jumps, while `"ignore"` explicitly
+keeps animation enabled.
+
+Use `<EngineScrollProvider policy={{ ... }}>` for a React-tree-scoped policy.
+`EngineScroll.getPolicy()` reads the active policy and
+`EngineScroll.resetPolicy()` restores global defaults. `behavior`, `duration`,
+`easing`, `interruptible`, and `reducedMotion` can also be overridden on one
+`move()` call. The policy does not hijack physical wheel/trackpad input or
+ordinary hash anchors.
 
 **`EngineScrollTarget` type:**
 
@@ -1851,7 +1900,7 @@ Supported for backwards compatibility. New projects should use `EngineScrollProv
 | Duration control | ❌ browser decides | ✅ configurable ms |
 | Easing curve | ❌ browser decides | ✅ full easing library |
 | Safari compatibility | ⚠️ bugs on `<body>` | ✅ works everywhere |
-| `prefers-reduced-motion` | ✅ browser handles | ✅ instant jump |
+| `prefers-reduced-motion` | ✅ browser handles | ✅ configurable, respects by default |
 | Interrupt on new scroll | ❌ fights native | ✅ RAF cancels cleanly |
 
 ## cprop — Custom CSS Props
@@ -2477,6 +2526,25 @@ Used internally by `EngineSection` (inner content wrapper) and `EngineCard` (cov
 ---
 
 ## Metadata Integration (SEO)
+
+Generation 3 applications should use `EngineSEO`. The older `generateEngineMetadata()` helper remains supported for existing pages.
+
+```ts
+import { EngineSEO } from "@/engine";
+
+const engineseo = EngineSEO.create({
+	site: { name: "Kastrick", url: "https://kastrick.example" },
+	page: { title: "Next.js Engine", description: "Schema-driven Next.js rendering.", path: "/engine" },
+	structuredData: "auto",
+});
+
+engineseo.set.preview.customImage("/social/engine.png");
+export const generateMetadata = engineseo.generateMetadata;
+```
+
+EngineSEO also exposes `sitemap`, `robots`, and `jsonLd()` outputs. `EngineSEOJsonLd` safely serializes the structured data, `nextjs-engine/seo` owns dynamic `ImageResponse` rendering, and `nextjs-engine/seo-plugin` can generate protected Next metadata routes or capture a reachable website into a real 1200×630 preview image. See `docs/engine-components/engineseo.md` for the complete schema and setup.
+
+### Legacy helper
 
 ```ts
 // app/some-page/page.tsx

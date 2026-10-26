@@ -2,11 +2,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // EngineCanvas compatibility + EngineShader facade
 //
-// Generation 3 keeps visual resolution stable by default. The legacy adaptive
-// DPR path remains available only when a developer explicitly opts into it.
+// Generation 3 keeps visual resolution stable. Compatibility scheduling props
+// never reduce Canvas or Shader backing resolution.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { memo, useCallback, useEffect, type CSSProperties } from "react";
+import React, { memo, useCallback, type CSSProperties } from "react";
 import {
 	EngineCanvas as CoreEngineCanvas,
 	useEngineCanvas as useCoreEngineCanvas,
@@ -35,8 +35,6 @@ export const EngineCanvas = memo(function EngineCanvas({
 	...props
 }: EngineCanvasProps) {
 	const adaptive = adaptiveProp ?? false;
-
-	useEffect(() => EngineScheduler.acquireFrameMonitor(), []);
 
 	if (!shader) return <CoreEngineCanvas {...props} adaptive={adaptive} />;
 
@@ -80,9 +78,8 @@ export const EngineCanvas = memo(function EngineCanvas({
 /**
  * Generation 3 low-level Canvas hook.
  *
- * The v2 core hook keeps its historical adaptive-DPR default for compatibility.
- * The public Gen 3 facade changes only the default: resolution stays stable unless
- * the caller explicitly passes `adaptive: true` to setup().
+ * The compatibility adaptive option is forwarded for scheduling integrations,
+ * but neither the facade nor core lowers backing resolution.
  */
 export function useEngineCanvas(
 	options: Parameters<typeof useCoreEngineCanvas>[0] = {},

@@ -1,5 +1,7 @@
 # EngineScroll Range
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 `EngineScrollRange` is the non-reactive geometry layer for a reusable scroll interval. Use it when code needs to reason about `start -> end`, convert normalized progress into an EngineScroll point, measure progress at an arbitrary point, or move somewhere inside a range without creating a Timeline subscription.
 
 A Range does not attach a scroll listener and does not request animation frames. It only resolves geometry when one of its methods is called.
@@ -7,7 +9,7 @@ A Range does not attach a scroll listener and does not request animation frames.
 ## Create a range
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 const chapter = EngineScroll.range({
 	start: "#intro",

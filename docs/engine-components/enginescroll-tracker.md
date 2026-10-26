@@ -1,5 +1,7 @@
 # EngineScroll Point Tracking
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineScroll point tracking is the scroll-spy layer for named EngineScroll points. It identifies the active point for the current viewport position, exposes the previous/next point and local progress, and can notify only when the active named point changes.
 
 It runs on the existing EngineScroll runtime subscription. It does not attach another browser scroll listener or requestAnimationFrame loop.
@@ -7,7 +9,7 @@ It runs on the existing EngineScroll runtime subscription. It does not attach an
 ## Track the current chapter
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 const chapters = EngineScroll.trackPoints({
 	group: "chapters",

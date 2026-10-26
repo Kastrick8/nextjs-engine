@@ -5,7 +5,7 @@
 //
 // Keeps expensive work out of the hot frame path:
 // · built-in graphics engines are dynamically imported only when selected
-// · adaptive DPR follows the observed display cadence instead of assuming 60 Hz
+// · refresh-aware timing adapts behavior without reducing visual resolution
 // · responsive CSS sizing is never replaced with fixed inline pixel sizing
 // · offscreen + hidden pause reasons cannot accidentally resume each other
 // · callback/scene refs stay current without tearing down the canvas runtime
@@ -17,17 +17,17 @@ import React, {
 	useCallback,
 	useEffect,
 	useRef,
+	useState,
 	type CSSProperties,
 } from "react";
 import type { ECScene } from "./ECTypes";
 import type { ECRenderContext, RenderingEngine } from "./RenderingEngine";
 import {
 	ECFrameClock,
-	getAdaptiveFrameThresholds,
-	resolveAdaptiveTargetFps,
 	type ECFrameTiming,
 } from "./ECFrameClock";
 import { useHandler } from "../../providers/EngineProvider";
+import { EngineScheduler } from "../enginescheduler/EngineScheduler";
 
 type Mode = "2d" | "webgl" | "webgl2" | "auto";
 type Ctx2D = CanvasRenderingContext2D;
@@ -46,7 +46,9 @@ export interface EngineCanvasProps {
 	responsive?: boolean;
 	dpr?: number | "auto";
 	maxDpr?: number;
+	/** Compatibility switch retained for scheduling integrations. Visual resolution is never reduced. */
 	adaptive?: boolean;
+	/** Compatibility target hint; retained without using it to lower quality. */
 	adaptiveTargetFps?: number | "display";
 	pauseWhenOffscreen?: boolean;
 	pauseWhenHidden?: boolean;
@@ -147,8 +149,13 @@ function resolveGraphicsMode(mode: Mode, graphicsEngine?: string): Mode {
 }
 
 function getTargetDpr(dpr: number | "auto", maxDpr: number): number {
-	const rawDpr = dpr === "auto" ? window.devicePixelRatio || 1 : dpr;
-	return Math.max(0.5, Math.min(rawDpr, maxDpr));
+	const deviceDpr = window.devicePixelRatio;
+	const fallbackDpr = Number.isFinite(deviceDpr) && deviceDpr > 0 ? deviceDpr : 1;
+	const requestedDpr = dpr === "auto"
+		? fallbackDpr
+		: Number.isFinite(dpr) ? dpr : fallbackDpr;
+	const requestedMaxDpr = Number.isFinite(maxDpr) ? maxDpr : 2;
+	return Math.max(0.5, Math.min(requestedDpr, Math.max(0.5, requestedMaxDpr)));
 }
 
 function getCanvasCssSize(
@@ -160,22 +167,6 @@ function getCanvasCssSize(
 		width: (width ?? canvas.clientWidth) || 300,
 		height: (height ?? canvas.clientHeight) || 150,
 	};
-}
-
-function resolveAdaptiveDpr(
-	currentDpr: number,
-	targetDpr: number,
-	averageFps: number,
-	targetFps: number,
-): number {
-	const thresholds = getAdaptiveFrameThresholds(targetFps);
-	if (averageFps < thresholds.degradeBelow && currentDpr > 0.5) {
-		return Math.max(0.5, currentDpr - 0.25);
-	}
-	if (averageFps > thresholds.recoverAbove && currentDpr < targetDpr - 0.05) {
-		return Math.min(targetDpr, currentDpr + 0.25);
-	}
-	return currentDpr;
 }
 
 export const EngineCanvas = memo(function EngineCanvas({
@@ -215,10 +206,13 @@ export const EngineCanvas = memo(function EngineCanvas({
 		| undefined;
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const onSetupRef = useRef(resolvedOnSetup);
 	const onDrawRef = useRef(resolvedOnDraw);
 	const onResizeRef = useRef(resolvedOnResize);
 	const graphicsRef = useRef(graphics);
 	const requestLoopRef = useRef<() => void>(() => {});
+	const [contextVersion, setContextVersion] = useState(0);
+	onSetupRef.current = resolvedOnSetup;
 	onDrawRef.current = resolvedOnDraw;
 	onResizeRef.current = resolvedOnResize;
 	graphicsRef.current = graphics;
@@ -244,11 +238,12 @@ export const EngineCanvas = memo(function EngineCanvas({
 		const context = contextResult.ctx;
 		let graphicsEngine: RenderingEngine | null = null;
 		let disposed = false;
+		let contextLost = false;
 		let raf = 0;
 		let running = false;
+		let releaseFrameMonitor: (() => void) | null = null;
 		let drawCompleted = false;
 		let frame = 0;
-		let lastDprAdjustment = 0;
 		let currentDpr = getTargetDpr(dprProp, maxDpr);
 		let lastCssWidth = 0;
 		let lastCssHeight = 0;
@@ -287,37 +282,29 @@ export const EngineCanvas = memo(function EngineCanvas({
 
 		const initialSize = getCanvasCssSize(canvas, width, height);
 		resizeBackingStore(initialSize.width, initialSize.height, currentDpr, false);
-		const userCleanup = resolvedOnSetup?.(context, canvas);
+		const userCleanup = onSetupRef.current?.(context, canvas);
 
-		const shouldPause = (): boolean => offscreenPaused || hiddenPaused;
+		const shouldPause = (): boolean => offscreenPaused || hiddenPaused || contextLost;
 
 		const stopLoop = (): void => {
-			if (!running) return;
-			running = false;
-			cancelAnimationFrame(raf);
-			frameClock.discontinuity();
+			if (running) {
+				running = false;
+				if (raf !== 0) cancelAnimationFrame(raf);
+				raf = 0;
+				frameClock.discontinuity();
+			}
+			releaseFrameMonitor?.();
+			releaseFrameMonitor = null;
 		};
 
 		const tick = (now: number): void => {
 			if (disposed || shouldPause()) {
-				running = false;
-				frameClock.discontinuity();
+				stopLoop();
 				return;
 			}
 
 			const timing = frameClock.step(now);
 			const delta = timing.delta;
-
-			if (adaptive && timing.averageFps > 0 && now - lastDprAdjustment >= 750) {
-				const targetDpr = getTargetDpr(dprProp, maxDpr);
-				const targetFps = resolveAdaptiveTargetFps(adaptiveTargetFps, timing.refreshRate);
-				const nextDpr = resolveAdaptiveDpr(currentDpr, targetDpr, timing.averageFps, targetFps);
-
-				if (Math.abs(nextDpr - currentDpr) >= 0.05) {
-					resizeBackingStore(lastCssWidth, lastCssHeight, nextDpr, true);
-				}
-				lastDprAdjustment = now;
-			}
 
 			const currentGraphics = graphicsRef.current;
 			if (currentGraphics) {
@@ -325,12 +312,12 @@ export const EngineCanvas = memo(function EngineCanvas({
 			} else {
 				const draw = onDrawRef.current;
 				if (!draw) {
-					running = false;
+					stopLoop();
 					return;
 				}
 				if (draw(context, canvas, delta, frame++, timing) === false) {
 					drawCompleted = true;
-					running = false;
+					stopLoop();
 					return;
 				}
 			}
@@ -342,6 +329,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 			if (running || disposed || shouldPause()) return;
 			if (!graphicsRef.current && (drawCompleted || !onDrawRef.current)) return;
 			running = true;
+			releaseFrameMonitor ??= EngineScheduler.acquireFrameMonitor();
 			frameClock.discontinuity();
 			raf = requestAnimationFrame(tick);
 		};
@@ -356,6 +344,21 @@ export const EngineCanvas = memo(function EngineCanvas({
 			if (shouldPause()) stopLoop();
 			else startLoop();
 		};
+
+		const handleContextLost = (event: Event): void => {
+			if (contextResult.resolvedMode === "2d") return;
+			event.preventDefault();
+			contextLost = true;
+			stopLoop();
+		};
+		const handleContextRestored = (): void => {
+			if (contextResult.resolvedMode === "2d") return;
+			setContextVersion((version) => version + 1);
+		};
+		if (contextResult.resolvedMode !== "2d") {
+			canvas.addEventListener("webglcontextlost", handleContextLost);
+			canvas.addEventListener("webglcontextrestored", handleContextRestored);
+		}
 
 		let resizeObserver: ResizeObserver | undefined;
 		if (isResponsive && typeof ResizeObserver !== "undefined") {
@@ -375,6 +378,23 @@ export const EngineCanvas = memo(function EngineCanvas({
 			});
 			resizeObserver.observe(canvas);
 		}
+
+		const handleWindowResize = (): void => {
+			const nextSize = getCanvasCssSize(canvas, width, height);
+			const nextPixelRatio = getTargetDpr(dprProp, maxDpr);
+			const dprChanged = nextPixelRatio !== currentDpr;
+			const cssSizeChanged = nextSize.width !== lastCssWidth || nextSize.height !== lastCssHeight;
+			const expectedWidth = Math.max(1, Math.round(nextSize.width * nextPixelRatio));
+			const expectedHeight = Math.max(1, Math.round(nextSize.height * nextPixelRatio));
+			const backingStoreChanged = canvas.width !== expectedWidth || canvas.height !== expectedHeight;
+			if (!dprChanged && !cssSizeChanged && !backingStoreChanged) return;
+			const resized = resizeBackingStore(nextSize.width, nextSize.height, nextPixelRatio, true);
+			if (resized && !graphicsRef.current && onDrawRef.current) {
+				drawCompleted = false;
+				startLoop();
+			}
+		};
+		window.addEventListener("resize", handleWindowResize, { passive: true });
 
 		let intersectionObserver: IntersectionObserver | undefined;
 		if (pauseWhenOffscreen && typeof IntersectionObserver !== "undefined") {
@@ -434,6 +454,11 @@ export const EngineCanvas = memo(function EngineCanvas({
 			graphicsEngine = null;
 			resizeObserver?.disconnect();
 			intersectionObserver?.disconnect();
+			if (contextResult.resolvedMode !== "2d") {
+				canvas.removeEventListener("webglcontextlost", handleContextLost);
+				canvas.removeEventListener("webglcontextrestored", handleContextRestored);
+			}
+			window.removeEventListener("resize", handleWindowResize);
 			if (pauseWhenHidden) document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
 	}, [
@@ -452,7 +477,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 		pauseWhenOffscreen,
 		pauseWhenHidden,
 		graphics?.engine,
-		resolvedOnSetup,
+		contextVersion,
 	]);
 
 	useEffect(() => {
@@ -507,11 +532,8 @@ export function useEngineCanvas(
 
 		const context = contextResult.ctx;
 		const maxDpr = handlers.maxDpr ?? 2;
-		const adaptive = handlers.adaptive ?? true;
-		const adaptiveTargetFps = handlers.adaptiveTargetFps ?? "display";
 		const frameClock = new ECFrameClock(48);
 		let currentDpr = getTargetDpr("auto", maxDpr);
-		let lastDprAdjustment = 0;
 		let frame = 0;
 		let raf = 0;
 
@@ -532,14 +554,6 @@ export function useEngineCanvas(
 		const tick = (now: number): void => {
 			const timing = frameClock.step(now);
 			const delta = timing.delta;
-
-			if (adaptive && timing.averageFps > 0 && now - lastDprAdjustment >= 750) {
-				const targetDpr = getTargetDpr("auto", maxDpr);
-				const targetFps = resolveAdaptiveTargetFps(adaptiveTargetFps, timing.refreshRate);
-				const nextDpr = resolveAdaptiveDpr(currentDpr, targetDpr, timing.averageFps, targetFps);
-				if (Math.abs(nextDpr - currentDpr) >= 0.05) resize(nextDpr);
-				lastDprAdjustment = now;
-			}
 
 			if (handlers.onDraw?.(context, canvas, delta, frame++, timing) === false) return;
 			raf = requestAnimationFrame(tick);

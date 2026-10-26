@@ -1,5 +1,7 @@
 # EngineScroll Timeline
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineScroll timelines are part of the core EngineScroll runtime. They do not
 create a second scroll listener or requestAnimationFrame loop. Timeline
 subscribers, crossings, activity events, tracks, and style bindings are driven
@@ -9,7 +11,7 @@ viewport state, physics, snapping, and programmatic movement.
 ## Create a timeline
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 const timeline = EngineScroll.timeline({
 	start: "#hero",
@@ -228,7 +230,7 @@ timeline.seek(1, {
 ## React
 
 ```tsx
-import { useEngineScrollTimeline } from "@/engine";
+import { useEngineScrollTimeline } from "nextjs-engine";
 
 function HeroProgress() {
 	const timeline = useEngineScrollTimeline({

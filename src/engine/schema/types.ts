@@ -4,6 +4,8 @@
 
 import type { CSSProperties, JSX, ReactNode, MouseEventHandler } from "react";
 import type { ECScene } from "../core/enginecanvas/ECTypes";
+import type { EngineAnsiPalette } from "../core/markdownParser";
+import type { EngineUrlIconSize } from "../core/engineUrlIcon";
 
 export type Breakpoint = "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
 
@@ -43,6 +45,11 @@ export interface BaseNodeProps {
 	style?: EngineStyleObject;
 	point?: string;
 	cprop?: CpropValue;
+
+	/** Add an external-domain favicon before links; disabled by default. */
+	"emd_show-url-icon"?: boolean;
+	/** Favicon display size in CSS pixels, clamped to 8–64; "auto" follows text size. */
+	"emd_url-icon-size"?: EngineUrlIconSize;
 
 	/** Force/disable schema lazy mounting where the renderer supports it. */
 	lazy?: boolean;
@@ -298,6 +305,99 @@ export interface TextProps extends BaseNodeProps {
 	parts?: TextPart[];
 }
 
+export type EngineMarkdownStyleSlot =
+	| "heading" | "paragraph" | "link" | "blockquote" | "inlineCode"
+	| "codeBlock" | "codeLanguage" | "table" | "tableHeader" | "tableCell" | "infoBlock" | "horizontalRule";
+
+export type EngineMarkdownStyles = Partial<Record<EngineMarkdownStyleSlot, CSSProperties>>;
+
+export type EngineHighlighterTokenKind =
+	| "plain" | "keyword" | "string" | "comment" | "number"
+	| "type" | "function" | "property" | "constant" | "operator" | "punctuation";
+
+/** A complete token palette; omitted token categories fall back to foreground. */
+export interface EngineMarkdownTokenPalette extends Partial<Record<EngineHighlighterTokenKind, string>> {
+	foreground?: string;
+	background?: string;
+}
+
+export interface EngineMarkdownPrettyPleaseConfig {
+	/** auto highlights recognized languages; none leaves source code uncolored. */
+	mode?: "auto" | "none";
+	/** engine-lite or a locally registered provider ID. */
+	provider?: string;
+	/** Built-in palette or a theme ID exposed by the selected provider. */
+	theme?: string;
+	/** An authoritative replacement palette for this Markdown theme/language profile. */
+	palette?: EngineMarkdownTokenPalette;
+	/** Authoritative palette overrides per language ID or alias, e.g. typescript or nodejs. */
+	languagePalettes?: Record<string, EngineMarkdownTokenPalette>;
+}
+
+/** Declarative subset of Engine Schema accepted as a reusable theme template. */
+export type EngineThemeTemplateNodeType = "box" | "stack" | "grid" | "text" | "heading" | "divider" | "spacer" | "slot";
+
+export interface EngineThemeTemplateNode {
+	type: EngineThemeTemplateNodeType;
+	props?: EngineThemeJsonObject;
+	children?: Array<EngineThemeTemplateNode | string>;
+}
+
+export type EngineThemeTemplatePlacement = "left" | "right" | "top" | "bottom";
+export type EngineThemeTemplateMerge = "replace" | "append" | "prepend" | "wrap";
+
+/** Bounded layout options for a template root or an additional template part. */
+export interface EngineThemeTemplateLayout {
+	display?: "block" | "inline" | "flex" | "inline-flex" | "grid";
+	direction?: "row" | "column" | "row-reverse" | "column-reverse";
+	align?: "start" | "center" | "end" | "stretch" | "baseline";
+	justify?: "start" | "center" | "end" | "between" | "around" | "evenly";
+	gap?: string | number;
+	order?: number;
+	wrap?: boolean;
+	/** Flex wrapping or grid auto-fit/minmax for narrow containers. */
+	responsive?: boolean;
+	/** Explicit grid columns, used when display is grid and responsive is false. */
+	columns?: string;
+	/** Responsive grid minimum column width; defaults to 16rem. */
+	minColumnWidth?: string;
+}
+
+/** Events are dispatched only to handlers registered by trusted project code. */
+export interface EngineThemeTemplateDataApiBinding {
+	handlerId: string;
+	event: EngineThemeDataEventType;
+	slotId?: string;
+	/** Bounded JSON defaults; render-context values take precedence. */
+	existing?: EngineThemeJsonValue;
+	incoming?: EngineThemeJsonValue;
+	metadata?: EngineThemeJsonObject;
+}
+
+export interface EngineThemeTemplateOptions {
+	/** Physical side, independent from append/prepend DOM order; defaults are bottom for append and top for prepend. */
+	placement?: EngineThemeTemplatePlacement;
+	/** wrap preserves existing content slots; replacement/additive modes are explicit. */
+	merge?: EngineThemeTemplateMerge;
+	layout?: EngineThemeTemplateLayout;
+	dataApi?: EngineThemeTemplateDataApiBinding;
+}
+
+export type EngineThemeTemplateDefinition =
+	| (EngineThemeTemplateOptions & { schema: EngineThemeTemplateNode; adapterId?: never })
+	| (EngineThemeTemplateOptions & { adapterId: string; schema?: never });
+
+export interface EngineMarkdownThemeTemplates {
+	/** Wrap a fenced code block; slots include languageLabel and content (the PRE). */
+	codeBlock?: EngineThemeTemplateDefinition;
+	/** Compose content inside the semantic table header cell. */
+	tableHeader?: EngineThemeTemplateDefinition;
+	/** Compose content inside the semantic table data cell. */
+	tableCell?: EngineThemeTemplateDefinition;
+	/** Optional template for recognized information/admonition blocks. */
+	infoBlock?: EngineThemeTemplateDefinition;
+}
+
 export interface MarkdownProps extends BaseNodeProps {
 	content?: string;
 	filePath?: string;
@@ -316,6 +416,26 @@ export interface MarkdownProps extends BaseNodeProps {
 	blockAnimation?: "none" | "fade-in" | "slide-up";
 	animationDuration?: string;
 	animationStagger?: number;
+	codeBackground?: string;
+	codeColor?: string;
+	inlineCodeBackground?: string;
+	inlineCodeColor?: string;
+	codeBorderColor?: string;
+	codeFontFamily?: string;
+	showCodeLanguage?: boolean;
+	/** Pretty-please syntax highlighting; providers are registered by trusted project code. */
+	prettyPlease?: EngineMarkdownPrettyPleaseConfig;
+	/** Safe declarative templates or registered local adapters for Markdown sub-blocks. */
+	themeTemplates?: EngineMarkdownThemeTemplates;
+	/** Internal EngineTheme group ID propagated for template Data-API context. */
+	engineThemeId?: string;
+	/** Per-element style overrides for reusable documentation themes. */
+	markdownStyles?: EngineMarkdownStyles;
+	/** Custom colors for ANSI 16-color/bright terminal palettes. */
+	ansiPalette?: EngineAnsiPalette;
+	/** Default foreground/background for ANSI terminal output. */
+	ansiForeground?: string;
+	ansiBackground?: string;
 }
 
 export interface HeadingProps extends TextProps {
@@ -603,6 +723,8 @@ export interface SchemaNode {
 	type: NodeType;
 	name?: string;
 	key?: string;
+	/** Whether missing browser capabilities owned by this node should recommend an update. */
+	compatibility?: "required" | "optional";
 	props?: Record<string, unknown>;
 	children?: SchemaNode[] | string;
 }
@@ -620,14 +742,92 @@ export interface PageMeta {
 	viewport?: string;
 }
 
+export type EngineThemeScope = "local" | "global" | "remote";
+
+/** JSON-only data allowed in a portable EngineTheme / .etr artifact. */
+export type EngineThemeJsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| EngineThemeJsonValue[]
+	| { [key: string]: EngineThemeJsonValue };
+
+export type EngineThemeJsonObject = { [key: string]: EngineThemeJsonValue };
+
+/**
+ * EngineTheme supports legacy inline styling fields plus namespaced component
+ * definitions. Component definitions must remain serializable data; runtime
+ * React/Next.js handlers are registered separately and are never embedded in
+ * remote .etr files.
+ */
 export interface EngineTheme {
+	/** Group ID, or a qualified component/subtheme ID when used as a schema reference. */
+	id?: string;
+	scope?: EngineThemeScope;
+	/** Optional explicit URL for a remote .etr artifact. */
+	sourceUrl?: string;
+	name?: string;
+
+	/** Legacy inline theme properties retained for backwards compatibility. */
 	vars?: Record<string, string>;
 	fonts?: string[];
 	globalStyles?: string;
+
+	/** Reusable semantic tokens, such as colors, typography and spacing. */
+	tokens?: EngineThemeJsonObject;
+	/** Component-scoped theme definitions, e.g. markdown, buttons, or canvas. */
+	components?: Record<string, EngineThemeJsonObject>;
+
+	/** Direct component namespaces are supported by createTheme(), e.g. markdown: {...}. */
+	[component: string]: EngineThemeJsonValue | undefined;
 }
+
+/** Input accepted by createTheme(); scope defaults to local. */
+export interface EngineThemeDefinition extends EngineTheme {
+	id: string;
+}
+
+export interface EngineThemeReference {
+	id: string;
+	sourceUrl?: string;
+}
+
+export type EngineThemeJoinDirection = "left" | "right" | "top" | "bottom";
+export type EngineThemeDataEventType = `join:${EngineThemeJoinDirection}`;
+
+export interface EngineThemeDataEventBinding {
+	/** ID of a trusted handler registered by local application code. */
+	handlerId: string;
+}
+
+export interface EngineThemeDataEventContext {
+	themeId: string;
+	componentId: string;
+	slotId: string;
+	direction?: EngineThemeJoinDirection;
+	existing?: EngineThemeJsonValue;
+	incoming?: EngineThemeJsonValue;
+	metadata?: EngineThemeJsonObject;
+}
+
+export interface EngineThemeDataEvent {
+	type: EngineThemeDataEventType;
+	context: EngineThemeDataEventContext;
+}
+
+/** A handler may return a bounded composition instruction for a theme template. */
+export interface EngineThemeDataCompositionResult {
+	operation: EngineThemeTemplateMerge;
+	value?: EngineThemeJsonValue | ReactNode;
+}
+
+export type EngineThemeDataHandlerResult = EngineThemeJsonValue | ReactNode | EngineThemeDataCompositionResult | undefined;
+export type EngineThemeDataHandler = (event: Readonly<EngineThemeDataEvent>) => EngineThemeDataHandlerResult;
 
 export interface PageSchema {
 	meta?: PageMeta;
+	/** Either legacy inline styles or an ID reference resolved by the theme pipeline. */
 	theme?: EngineTheme;
 	root: SchemaNode;
 }

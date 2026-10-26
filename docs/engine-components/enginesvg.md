@@ -1,5 +1,7 @@
 # EngineSVG
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 EngineSVG is the SVG renderer inside EngineCanvas.
 
 It uses the same `ECScene` / `ECMesh` graphics model as Engine2D, but renders that scene as retained DOM SVG instead of painting pixels into Canvas 2D.

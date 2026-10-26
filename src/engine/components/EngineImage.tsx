@@ -8,11 +8,10 @@ import React, {
 	useCallback,
 	useEffect,
 	useMemo,
-	useRef,
 	useState,
 	type CSSProperties,
 } from "react";
-import Image, { getImageProps, type ImageLoader } from "next/image";
+import Image, { getImageProps } from "next/image";
 import type { ImageNodeProps } from "../schema/types";
 import { useEngineSchedule } from "../hooks/useEngineScheduler";
 
@@ -68,17 +67,7 @@ export interface EngineImageProps extends Omit<ImageNodeProps, "type" | "objectF
 	qualityPreset?: "performance" | "balanced" | "sharp";
 	qualityMobile?: number;
 	qualityDesktop?: number;
-	loader?: ImageLoader;
-	/** Explicit browser loading policy. Priority images default to eager. */
-	loading?: "eager" | "lazy";
-	/** Override EngineScheduler's automatic media pre-mount distance. */
-	nearMargin?: string;
-	/** Classify far-away media as sleeping so the image DOM can be released. */
-	releaseWhenFar?: boolean;
-	/** Bypass the Next image optimizer and request `src` exactly as supplied. */
-	unoptimized?: boolean;
 	onLoad?: () => void;
-	onError?: () => void;
 }
 
 export const EngineImage = memo(function EngineImage({
@@ -98,23 +87,15 @@ export const EngineImage = memo(function EngineImage({
 	rounded,
 	caption,
 	blurDataURL,
-	loader,
-	loading,
-	nearMargin,
-	releaseWhenFar = true,
-	unoptimized = false,
 	onLoad,
-	onError,
 	style,
 	className,
 }: EngineImageProps) {
 	const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
-	const imageRef = useRef<HTMLImageElement | null>(null);
 	const loaded = loadedSrc === src;
 	const schedule = useEngineSchedule<HTMLDivElement>({
 		priority,
-		nearMargin: nearMargin ?? getRootMargin(width, height),
-		releaseWhenFar,
+		nearMargin: getRootMargin(width, height),
 	});
 	const shouldLoad = priority
 		|| schedule.visible
@@ -129,17 +110,11 @@ export const EngineImage = memo(function EngineImage({
 		onLoad?.();
 	}, [onLoad, src]);
 
-	const handleError = useCallback(() => {
-		onError?.();
-	}, [onError]);
-
 	const resolvedQuality = quality ?? QUALITY_PRESET[qualityPreset] ?? 78;
 	const usePerViewport = qualityMobile !== undefined || qualityDesktop !== undefined;
 	const mobileQuality = qualityMobile ?? resolvedQuality;
 	const desktopQuality = qualityDesktop ?? resolvedQuality;
 	const resolvedSizes = sizes ?? autoSizes(fill, width);
-	const resolvedLoading = loading ?? (priority ? "eager" : undefined);
-	const resolvedFetchPriority = priority ? "high" as const : undefined;
 	const resolvedAspectRatio = aspectRatio ?? (
 		!fill &&
 		typeof width === "number" && width > 0 &&
@@ -163,10 +138,6 @@ export const EngineImage = memo(function EngineImage({
 			alt,
 			sizes: resolvedSizes,
 			priority,
-			loading: resolvedLoading,
-			fetchPriority: resolvedFetchPriority,
-			loader,
-			unoptimized,
 			...sizing,
 		};
 
@@ -174,17 +145,7 @@ export const EngineImage = memo(function EngineImage({
 			mobile: getImageProps({ ...baseProps, quality: mobileQuality }),
 			desktop: getImageProps({ ...baseProps, quality: desktopQuality }),
 		};
-	}, [alt, desktopQuality, fill, height, loader, mobileQuality, priority, resolvedFetchPriority, resolvedLoading, resolvedSizes, src, unoptimized, usePerViewport, width]);
-
-	// Cached images can already be complete by the time React commits the node,
-	// especially when a route is hard-refreshed or restored from the back/forward
-	// cache. Do not leave those images permanently transparent waiting for an
-	// onLoad event that has effectively already happened.
-	useEffect(() => {
-		if (!shouldLoad || loaded) return;
-		const image = imageRef.current;
-		if (image?.complete && image.naturalWidth > 0) handleLoad();
-	}, [handleLoad, loaded, responsiveProps, shouldLoad, src]);
+	}, [alt, desktopQuality, fill, height, mobileQuality, priority, resolvedSizes, src, usePerViewport, width]);
 
 	const wrapperStyle: CSSProperties = {
 		position: "relative",
@@ -229,10 +190,6 @@ export const EngineImage = memo(function EngineImage({
 		alt,
 		sizes: resolvedSizes,
 		priority,
-		loading: resolvedLoading,
-		fetchPriority: resolvedFetchPriority,
-		loader,
-		unoptimized,
 		style: imageStyle,
 		...(fill ? { fill: true } : { width: width ?? 800, height: height ?? 600 }),
 	};
@@ -245,11 +202,11 @@ export const EngineImage = memo(function EngineImage({
 				<picture style={{ display: "block", width: "100%", height: fill || resolvedAspectRatio ? "100%" : "auto" }}>
 					<source media="(max-width: 767px)" srcSet={responsiveProps.mobile.props.srcSet} sizes={responsiveProps.mobile.props.sizes} />
 					<source media="(min-width: 768px)" srcSet={responsiveProps.desktop.props.srcSet} sizes={responsiveProps.desktop.props.sizes} />
-					<img ref={imageRef} {...responsiveProps.desktop.props} style={{ ...generatedStyle, ...imageStyle }} onLoad={handleLoad} onError={handleError} />
+					<img {...responsiveProps.desktop.props} style={{ ...generatedStyle, ...imageStyle }} onLoad={handleLoad} />
 				</picture>
 			);
 		} else {
-			imageNode = <Image ref={imageRef} {...commonImageProps} quality={resolvedQuality} onLoad={handleLoad} onError={handleError} />;
+			imageNode = <Image {...commonImageProps} quality={resolvedQuality} onLoad={handleLoad} />;
 		}
 	}
 

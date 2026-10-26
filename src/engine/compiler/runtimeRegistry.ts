@@ -12,6 +12,7 @@ const DEFAULT_PROFILE: EngineRuntimeProfile = {
 };
 
 const profiles = new Map<NodeType, EngineRuntimeProfile>();
+let registryRevision = 0;
 
 function setBuiltin(type: NodeType, profile: EngineRuntimeProfile): void {
 	profiles.set(type, Object.freeze({ ...profile }));
@@ -25,14 +26,21 @@ for (const type of ["box", "stack", "grid", "text", "heading", "section", "card"
 	});
 }
 
+setBuiltin("grid", {
+	runtime: "static",
+	reason: "This built-in renders deterministic CSS Grid markup without browser state.",
+	capabilities: ["css-grid"],
+	defaultWorkClass: "visible",
+});
+
 setBuiltin("slot", {
 	runtime: "server",
 	reason: "Slots are resolved by the page/component owner and can remain in the server tree.",
 	defaultWorkClass: "visible",
 });
 setBuiltin("markdown", {
-	runtime: "client",
-	reason: "The current Markdown renderer still owns client animation/style behavior; Gen 3 can server-compile it after the parser is split from that runtime.",
+	runtime: "static",
+	reason: "Markdown compiles to deterministic semantic markup and CSS without browser state.",
 	defaultWorkClass: "near",
 });
 setBuiltin("image", {
@@ -68,22 +76,6 @@ for (const type of ["dialog", "EngineDialog", "drawer", "EngineDrawer", "popover
 		runtime: "client",
 		reason: "Overlay focus, dismissal, portals and viewport positioning require browser interaction.",
 		capabilities: ["dom", "visual-viewport"],
-		defaultWorkClass: "visible",
-	});
-}
-for (const type of ["reveal", "EngineReveal"] as NodeType[]) {
-	setBuiltin(type, {
-		runtime: "client",
-		reason: "EngineReveal coordinates EngineScroll timeline activity, viewport release and compositor-only entrance motion in the browser.",
-		capabilities: ["dom", "request-animation-frame", "intersection-observer"],
-		defaultWorkClass: "near",
-	});
-}
-for (const type of ["expand-link", "EngineExpandLink"] as NodeType[]) {
-	setBuiltin(type, {
-		runtime: "client",
-		reason: "EngineExpandLink coordinates route navigation with a browser-side card-to-viewport spatial handoff.",
-		capabilities: ["dom", "visual-viewport", "request-animation-frame"],
 		defaultWorkClass: "visible",
 	});
 }
@@ -133,14 +125,24 @@ setBuiltin("suspense", {
 
 export function registerEngineRuntimeProfile(type: NodeType, profile: EngineRuntimeProfile): void {
 	profiles.set(type, Object.freeze({ ...profile }));
+	registryRevision += 1;
 }
 
 export function unregisterEngineRuntimeProfile(type: NodeType): void {
-	profiles.delete(type);
+	if (profiles.delete(type)) registryRevision += 1;
+}
+
+export function getEngineRuntimeRegistryRevision(): number {
+	return registryRevision;
 }
 
 export function getEngineRuntimeProfile(type: NodeType): EngineRuntimeProfile {
 	return profiles.get(type) ?? DEFAULT_PROFILE;
+}
+
+/** Returns whether a node type has an explicit Engine or application runtime profile. */
+export function hasEngineRuntimeProfile(type: NodeType): boolean {
+	return profiles.has(type);
 }
 
 function hasClientBehavior(node: SchemaNode): boolean {
@@ -154,8 +156,10 @@ function hasClientBehavior(node: SchemaNode): boolean {
 	if (props.parallax === true || props.interactive === true) return true;
 	if (props.shader !== undefined && props.shader !== null) return true;
 	if (props.pointGroup !== undefined || props.pointAlign !== undefined || props.pointOffset !== undefined) return true;
-	if (props.textAnimation && props.textAnimation !== "none") return true;
-	if (props.blockAnimation && props.blockAnimation !== "none") return true;
+	// EngineMarkdown entrance effects are emitted as deterministic CSS and do
+	// not require a hydrated animation controller.
+	if (node.type !== "markdown" && props.textAnimation && props.textAnimation !== "none") return true;
+	if (node.type !== "markdown" && props.blockAnimation && props.blockAnimation !== "none") return true;
 	return false;
 }
 

@@ -2,6 +2,7 @@
 
 import React, { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { EngineScroll } from "../core/enginescroll";
+import { EngineScheduler } from "../core/enginescheduler/EngineScheduler";
 import {
 	EngineShaderScheduler,
 	loadEngineShader,
@@ -125,7 +126,19 @@ function uploadVariable(
 }
 
 function variableSignature(value: EngineShaderVariableValue): string {
-	return Array.isArray(value) ? value.join(",") : String(value);
+	return Array.isArray(value)
+		? `array:${JSON.stringify(value)}`
+		: `${typeof value}:${String(value)}`;
+}
+
+function variableSetSignature(
+	values: Record<string, EngineShaderVariableValue> | undefined,
+): string {
+	if (!values) return "";
+	return JSON.stringify(Object.keys(values).sort().map((name) => [
+		name,
+		variableSignature(values[name]),
+	]));
 }
 
 function boundedFps(value: number | undefined, layer: boolean): number {
@@ -135,12 +148,21 @@ function boundedFps(value: number | undefined, layer: boolean): number {
 }
 
 function desiredDpr(maxDpr: number, resolutionScale: number): number {
-	const deviceDpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
-	return Math.max(0.125, Math.min(deviceDpr, maxDpr) * resolutionScale);
+	const deviceDpr = typeof window === "undefined" ? 1 : window.devicePixelRatio;
+	const safeDeviceDpr = Number.isFinite(deviceDpr) && deviceDpr > 0 ? deviceDpr : 1;
+	const safeMaxDpr = Number.isFinite(maxDpr) ? Math.max(0.5, maxDpr) : 2;
+	const safeResolutionScale = Number.isFinite(resolutionScale)
+		? Math.max(0.125, Math.min(2, resolutionScale))
+		: 1;
+	const scaledDpr = Math.min(safeDeviceDpr, safeMaxDpr) * safeResolutionScale;
+	return Math.max(0.125, Math.min(scaledDpr, safeMaxDpr));
 }
 
 export const EngineShader = memo(function EngineShader(props: EngineShaderProps) {
 	const config = normalizeConfig(props);
+	const variableSignatureKey = variableSetSignature(config?.variables);
+	const frameIntervalRef = useRef(1000 / boundedFps(config?.fps, props.layer === true));
+	frameIntervalRef.current = 1000 / boundedFps(config?.fps, props.layer === true);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const variablesRef = useRef<Record<string, EngineShaderVariableValue>>(config?.variables ?? {});
 	const requestDrawRef = useRef<() => void>(() => {});
@@ -183,7 +205,7 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 
 	useEffect(() => {
 		requestDrawRef.current();
-	}, [props.variables, props.shader]);
+	}, [variableSignatureKey]);
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -233,6 +255,7 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		gl.useProgram(program);
 		gl.enableVertexAttribArray(position);
 		gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+		gl.clearColor(0, 0, 0, 0);
 
 		const builtins = {
 			resolution: gl.getUniformLocation(program, "e_resolution"),
@@ -250,9 +273,11 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 
 		const dependencySet = new Set(plan.dependencies);
 		const layer = props.layer === true;
-		const targetFps = boundedFps(config.fps, layer);
-		const frameInterval = 1000 / targetFps;
-		const maxDpr = Math.max(0.5, config.maxDpr ?? (layer ? 1.5 : 2));
+
+		const configuredMaxDpr = config.maxDpr;
+		const maxDpr = typeof configuredMaxDpr === "number" && Number.isFinite(configuredMaxDpr)
+			? Math.max(0.5, configuredMaxDpr)
+			: layer ? 1.5 : 2;
 		const resolutionScale = Math.max(0.125, Math.min(2, plan.render.resolution || 1));
 		const reducedMotion = (config.respectReducedMotion ?? true)
 			&& window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -270,19 +295,20 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		let pointerDirty = false;
 		let scrollProgress = 0;
 		let offscreen = false;
+		let contextLost = false;
 		let disposed = false;
 		let eventFrame = 0;
 		let animationCleanup: (() => void) | null = null;
-		let adaptiveWindowStart = performance.now();
-		let adaptiveSamples = 0;
-		let adaptiveTotal = 0;
+		let animationMonitorCleanup: (() => void) | null = null;
 
-		const resizeBackingStore = () => {
+		const resizeBackingStore = (): boolean => {
 			const width = Math.max(1, Math.round(cssWidth * currentDpr));
 			const height = Math.max(1, Math.round(cssHeight * currentDpr));
+			if (canvas.width === width && canvas.height === height) return false;
 			if (canvas.width !== width) canvas.width = width;
 			if (canvas.height !== height) canvas.height = height;
 			gl.viewport(0, 0, width, height);
+			return true;
 		};
 		resizeBackingStore();
 
@@ -305,14 +331,11 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		};
 
 		const draw = (timestamp: number) => {
-			if (disposed || offscreen || ((config.pauseWhenHidden ?? true) && document.hidden)) return;
+			if (disposed || contextLost || offscreen || ((config.pauseWhenHidden ?? true) && document.hidden)) return;
 			syncPointer();
 			const delta = lastDrawTimestamp === 0 ? 0 : Math.min(250, timestamp - lastDrawTimestamp);
 			lastDrawTimestamp = timestamp;
 			frameNumber += 1;
-			gl.useProgram(program);
-			gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-			gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 			gl.uniform2f(builtins.resolution, canvas.width, canvas.height);
 			gl.uniform1f(builtins.time, timestamp / 1000);
 			gl.uniform1f(builtins.delta, delta / 1000);
@@ -320,7 +343,6 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			gl.uniform2f(builtins.pointer, pointerX, pointerY);
 			gl.uniform1f(builtins.scroll, scrollProgress);
 			uploadVariables();
-			gl.clearColor(0, 0, 0, 0);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 			gl.drawArrays(gl.TRIANGLES, 0, 3);
 			if (!readyRef.current) {
@@ -330,7 +352,8 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		};
 
 		const requestEventDraw = () => {
-			if (eventFrame !== 0) return;
+			if (eventFrame !== 0 || disposed || contextLost || offscreen
+				|| ((config.pauseWhenHidden ?? true) && document.hidden)) return;
 			eventFrame = requestAnimationFrame((timestamp) => {
 				eventFrame = 0;
 				draw(timestamp);
@@ -342,43 +365,40 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 		const animationFrame = (timestamp: number) => {
 			if (lastTimestamp !== 0) {
 				const interval = timestamp - lastTimestamp;
-				if (interval + 0.5 < frameInterval) return;
-				adaptiveTotal += interval;
-				adaptiveSamples += 1;
+				if (interval + 0.5 < frameIntervalRef.current) return;
 			}
 			lastTimestamp = timestamp;
 			draw(timestamp);
-			if ((config.adaptive ?? true) && timestamp - adaptiveWindowStart >= 1200 && adaptiveSamples > 0) {
-				const average = adaptiveTotal / adaptiveSamples;
-				const target = desiredDpr(maxDpr, resolutionScale);
-				let nextDpr = currentDpr;
-				if (average > frameInterval * 1.5 && currentDpr > 0.125) {
-					nextDpr = Math.max(0.125, currentDpr - 0.125);
-				} else if (average < frameInterval * 1.15 && currentDpr < target - 0.05) {
-					nextDpr = Math.min(target, currentDpr + 0.125);
-				}
-				if (Math.abs(nextDpr - currentDpr) >= 0.05) {
-					currentDpr = nextDpr;
-					resizeBackingStore();
-				}
-				adaptiveWindowStart = timestamp;
-				adaptiveSamples = 0;
-				adaptiveTotal = 0;
+		};
+
+		const scheduledAnimationFrame = (timestamp: number) => {
+			try {
+				animationFrame(timestamp);
+			} catch (reason) {
+				animationCleanup?.();
+				animationCleanup = null;
+				animationMonitorCleanup?.();
+				animationMonitorCleanup = null;
+				throw reason;
 			}
 		};
 
 		const syncAnimationSubscription = () => {
 			const shouldAnimate = plan.execution === "animated"
 				&& !reducedMotion
+				&& !contextLost
 				&& !offscreen
 				&& !((config.pauseWhenHidden ?? true) && document.hidden);
 			if (shouldAnimate && !animationCleanup) {
 				lastTimestamp = 0;
 				lastDrawTimestamp = 0;
-				animationCleanup = EngineShaderScheduler.add(animationFrame);
+				animationMonitorCleanup = EngineScheduler.acquireFrameMonitor();
+				animationCleanup = EngineShaderScheduler.add(scheduledAnimationFrame);
 			} else if (!shouldAnimate && animationCleanup) {
 				animationCleanup();
 				animationCleanup = null;
+				animationMonitorCleanup?.();
+				animationMonitorCleanup = null;
 			}
 		};
 
@@ -403,17 +423,29 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			updateScroll();
 			cleanups.push(EngineScroll.subscribe(updateScroll));
 		}
+		const syncCanvasSize = (observedSize?: { width: number; height: number }) => {
+			const nextWidth = Math.max(1, observedSize?.width || host.clientWidth || canvas.clientWidth || 1);
+			const nextHeight = Math.max(1, observedSize?.height || host.clientHeight || canvas.clientHeight || 1);
+			const nextDpr = desiredDpr(maxDpr, resolutionScale);
+			const changed = nextWidth !== cssWidth || nextHeight !== cssHeight || nextDpr !== currentDpr;
+			if (!changed) return;
+			cssWidth = nextWidth;
+			cssHeight = nextHeight;
+			currentDpr = nextDpr;
+			resizeBackingStore();
+			if (plan.execution !== "animated") requestEventDraw();
+		};
 		if (typeof ResizeObserver !== "undefined") {
 			const resizeObserver = new ResizeObserver(([entry]) => {
 				if (!entry) return;
-				cssWidth = Math.max(1, entry.contentRect.width || host.clientWidth || 1);
-				cssHeight = Math.max(1, entry.contentRect.height || host.clientHeight || 1);
-				resizeBackingStore();
-				if (plan.execution !== "animated") requestEventDraw();
+				syncCanvasSize({ width: entry.contentRect.width, height: entry.contentRect.height });
 			});
 			resizeObserver.observe(host);
 			cleanups.push(() => resizeObserver.disconnect());
 		}
+		const handleWindowResize = () => syncCanvasSize();
+		window.addEventListener("resize", handleWindowResize, { passive: true });
+		cleanups.push(() => window.removeEventListener("resize", handleWindowResize));
 		if ((config.pauseWhenOffscreen ?? true) && typeof IntersectionObserver !== "undefined") {
 			const intersectionObserver = new IntersectionObserver(([entry]) => {
 				offscreen = !entry?.isIntersecting;
@@ -439,8 +471,22 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			requestEventDraw();
 		}
 
-		const onContextLost = (event: Event) => event.preventDefault();
-		const onContextRestored = () => setContextVersion((version) => version + 1);
+		const onContextLost = (event: Event) => {
+			event.preventDefault();
+			contextLost = true;
+			if (eventFrame !== 0) {
+				cancelAnimationFrame(eventFrame);
+				eventFrame = 0;
+			}
+			animationCleanup?.();
+			animationCleanup = null;
+			animationMonitorCleanup?.();
+			animationMonitorCleanup = null;
+		};
+		const onContextRestored = () => {
+			contextLost = false;
+			setContextVersion((version) => version + 1);
+		};
 		canvas.addEventListener("webglcontextlost", onContextLost);
 		canvas.addEventListener("webglcontextrestored", onContextRestored);
 		cleanups.push(() => {
@@ -454,6 +500,8 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 			if (eventFrame !== 0) cancelAnimationFrame(eventFrame);
 			animationCleanup?.();
 			animationCleanup = null;
+			animationMonitorCleanup?.();
+			animationMonitorCleanup = null;
 			for (const cleanup of cleanups) cleanup();
 			gl.deleteBuffer(positionBuffer);
 			gl.deleteProgram(program);
@@ -461,9 +509,7 @@ export const EngineShader = memo(function EngineShader(props: EngineShaderProps)
 	}, [
 		plan,
 		config?.src,
-		config?.fps,
 		config?.maxDpr,
-		config?.adaptive,
 		config?.pauseWhenOffscreen,
 		config?.pauseWhenHidden,
 		config?.respectReducedMotion,

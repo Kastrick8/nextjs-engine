@@ -1,5 +1,7 @@
 # EngineScroll Director
 
+> **GENERATION 3 · ALPHA** · Source branch: `main-3`.
+
 `EngineScrollDirector` coordinates many named EngineScroll timelines through one
 shared EngineScroll runtime subscription.
 
@@ -10,7 +12,7 @@ scroll-linked interfaces.
 ## Create a director
 
 ```ts
-import { EngineScroll } from "@/engine";
+import { EngineScroll } from "nextjs-engine";
 
 const director = EngineScroll.direct({
 	hero: {
