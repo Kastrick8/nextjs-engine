@@ -1,37 +1,40 @@
 /**
  * CSS values are data, not executable theme code. Decode CSS escapes before
  * looking for network/execution primitives so escaped spellings cannot bypass
- * the same checks applied to literal \`url(...)\`, \`expression(...)\`, etc.
+ * the same checks applied to literal url(...), expression(...), and similar forms.
  */
 const UNSAFE_CSS_NETWORK_PATTERN = /url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|@import\b|-moz-binding\s*:|behavior\s*:/i;
 
 function decodeCssEscapes(value: string): string {
-\treturn value.replace(
-\t\t/\\([0-9a-fA-F]{1,6})[ \t\r\n\f]?|\\(?:\r\n|[\n\r\f])|\\([^\r\n\f])/g,
-\t\t(_match, hex: string | undefined, escaped: string | undefined) => {
-\t\t\tif (hex !== undefined) {
-\t\t\t\tconst codePoint = Number.parseInt(hex, 16);
-\t\t\t\tif (codePoint === 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
-\t\t\t\t\treturn "\uFFFD";
-\t\t\t\t}
-\t\t\t\treturn String.fromCodePoint(codePoint);
-\t\t\t}
-\t\t\treturn escaped ?? "";
-\t\t},
-\t);
+  return value.replace(
+    /\\([0-9a-fA-F]{1,6})[ \t\r\n\f]?|\\(?:\r\n|[\n\r\f])|\\([^\r\n\f])/g,
+    (_match, hex: string | undefined, escaped: string | undefined) => {
+      if (hex !== undefined) {
+        const codePoint = Number.parseInt(hex, 16);
+        if (codePoint === 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+          return "\uFFFD";
+        }
+        return String.fromCodePoint(codePoint);
+      }
+      return escaped ?? "";
+    },
+  );
 }
 
 /** Detect CSS network/execution primitives after interpreting CSS escapes. */
 export function hasUnsafeEngineThemeCssNetworkPrimitive(value: string): boolean {
-\treturn UNSAFE_CSS_NETWORK_PATTERN.test(decodeCssEscapes(value));
+  const decoded = decodeCssEscapes(value);
+  if (UNSAFE_CSS_NETWORK_PATTERN.test(decoded)) return true;
+  // CSS comments can split a dangerous token, e.g. u/**/rl(...).
+  return UNSAFE_CSS_NETWORK_PATTERN.test(decoded.replace(/\/\*[\s\S]*?\*\//g, ""));
 }
 
 /** Validate a single bounded CSS scalar before it reaches a style or token. */
 export function isSafeEngineThemeCssValue(value: unknown, maxLength = 256): value is string {
-\tif (typeof value !== "string" || value.length > maxLength) return false;
-\tconst decoded = decodeCssEscapes(value);
-\treturn !/[\u0000-\u001f\u007f{};<>]/.test(value)
-\t\t&& !/[\u0000-\u001f\u007f{};<>]/.test(decoded)
-\t\t&& !/\/\*|\*\//.test(decoded)
-\t\t&& !UNSAFE_CSS_NETWORK_PATTERN.test(decoded);
+  if (typeof value !== "string" || value.length > maxLength) return false;
+  const decoded = decodeCssEscapes(value);
+  return !/[\u0000-\u001f\u007f{};<>]/.test(value)
+    && !/[\u0000-\u001f\u007f{};<>]/.test(decoded)
+    && !/\/\*|\*\//.test(decoded)
+    && !UNSAFE_CSS_NETWORK_PATTERN.test(decoded);
 }

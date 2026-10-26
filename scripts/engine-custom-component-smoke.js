@@ -66,13 +66,13 @@ try {
 	assert.throws(() => CustomLink({ href: "/guide", onClick: () => undefined }), /Undeclared custom component prop 'onClick'/);
 	assert.throws(() => CustomLink({ href: "/guide", leading: { invalid: true } }), /must be a valid ReactNode/);
 	assert.throws(() => CustomLink({
-\t\thref: "/guide",
-\t\tengineThemeStyles: { leading: { background: "url(https://bad.invalid/x)" } },
-\t}), /Unsafe or invalid CSS value/);
-\tassert.throws(() => CustomLink({
-\t\thref: "/guide",
-\t\tengineThemeStyles: { leading: { background: "\\75 rl(https://bad.invalid/x)" } },
-\t}), /Unsafe or invalid CSS value/, "escaped CSS URL functions cannot bypass custom slot validation");
+    href: "/guide",
+    engineThemeStyles: { leading: { background: "url(https://bad.invalid/x)" } },
+  }), /Unsafe or invalid CSS value/);
+  assert.throws(() => CustomLink({
+    href: "/guide",
+    engineThemeStyles: { leading: { background: "\\75 rl(https://bad.invalid/x)" } },
+  }), /Unsafe or invalid CSS value/, "escaped CSS URL functions cannot bypass custom slot validation");
 
 	const validCustomElement = CustomLink({
 		href: "/guide",
