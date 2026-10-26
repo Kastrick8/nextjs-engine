@@ -1,0 +1,147 @@
+name: Import package snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Source branch, tag, or commit SHA"
+        required: true
+        type: string
+      version:
+        description: "Full npm SemVer, e.g. 2.6.3 or 3.0.0-alpha.2"
+        required: true
+        type: string
+      track:
+        description: "Stable or alpha archive"
+        required: true
+        type: choice
+        options: [stable, alpha]
+      replace_existing:
+        description: "Replace an existing snapshot directory; use only for a deliberate repair"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: package-import-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  import-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout workflow repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Checkout package archive
+        uses: actions/checkout@v6
+        with:
+          ref: package/main
+          path: archive
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Checkout requested source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build versioned package candidate
+        id: prepare
+        shell: bash
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
+          REPLACE_EXISTING: ${{ inputs.replace_existing }}
+        run: |
+          set -euo pipefail
+          if [[ "$TRACK" == "alpha" ]]; then
+            [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]] || { echo "Alpha version must be full SemVer, e.g. 3.0.0-alpha.2" >&2; exit 1; }
+            MAJOR="${VERSION%%.*}"
+            TARGET="alpha/version/$MAJOR.alpha/version/$VERSION"
+            TEMPLATE="alpha/version/3.alpha/version/3.0.0-alpha.1"
+          else
+            [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Stable version must be full SemVer, e.g. 2.6.3" >&2; exit 1; }
+            IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
+            TARGET="version/$MAJOR.$MINOR/version/$VERSION"
+            TEMPLATE="version/2.6/version/2.6.2"
+          fi
+          SOURCE_SHA="$(git -C source rev-parse HEAD)"
+          if [[ -d source/src/engine ]]; then ENGINE_DIR="source/src/engine"
+          elif [[ -d source/engine ]]; then ENGINE_DIR="source/engine"
+          else echo "Source has neither src/engine/ nor engine/; refusing to guess." >&2; exit 1
+          fi
+          if [[ -e "archive/$TARGET" && "$REPLACE_EXISTING" != "true" ]]; then
+            echo "Snapshot already exists: $TARGET. Enable replace_existing only for an intentional repair." >&2
+            exit 1
+          fi
+          if [[ "$REPLACE_EXISTING" == "true" && -e "archive/$TARGET" ]]; then rm -rf -- "archive/$TARGET"; fi
+          mkdir -p "archive/$TARGET/engine"
+          cp -a "$ENGINE_DIR/." "archive/$TARGET/engine/"
+          for file in README.md DOCUMENT.md; do
+            if [[ -f "source/$file" ]]; then cp "source/$file" "archive/$TARGET/$file"; fi
+          done
+          if [[ -d source/docs ]]; then cp -a source/docs "archive/$TARGET/docs"; fi
+          cp "archive/$TEMPLATE/tsconfig.json" "archive/$TARGET/tsconfig.json"
+          printf '%s\n' 'export * from "./engine";' > "archive/$TARGET/index.ts"
+          export TARGET TEMPLATE SOURCE_SHA ENGINE_DIR
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const {TARGET,TEMPLATE,VERSION,SOURCE_REF,SOURCE_SHA,TRACK,ENGINE_DIR}=process.env;
+          const root=`archive/${TARGET}`;
+          const manifest=JSON.parse(fs.readFileSync(`archive/${TEMPLATE}/package.json`,"utf8"));
+          manifest.version=VERSION;
+          manifest.files=(manifest.files||[]).filter((p)=>fs.existsSync(`${root}/${p}`));
+          for(const [key,value] of Object.entries(manifest.exports||{})){
+            if(key===".") continue;
+            const paths=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
+            if(paths.some((p)=>!fs.existsSync(`${root}/${p.replace(/^\.\//,"")}`))) delete manifest.exports[key];
+          }
+          fs.writeFileSync(`${root}/package.json`,JSON.stringify(manifest,null,"\t")+"\n");
+          fs.writeFileSync(`${root}/UPSTREAM.md`,
+            `# Snapshot provenance\n\n- Full package version: \`${VERSION}\`\n- Archive track: \`${TRACK}\`\n- Requested source ref: \`${SOURCE_REF}\`\n- Resolved source commit: \`${SOURCE_SHA}\`\n- Engine source path: \`${ENGINE_DIR}\`\n- Manifest template: \`${TEMPLATE}/package.json\`\n\nThe engine source was copied from the resolved commit above. The manifest version was set to the full snapshot version; exports without existing targets were removed. This is a source copy, not a live link.\n`
+          );
+          NODE
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+      - name: Validate exact package candidate
+        working-directory: archive/${{ steps.prepare.outputs.target }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          test -f package.json && test -f index.ts && test -d engine
+          node -e 'const p=require("./package.json"); if(p.name!=="nextjs-engine"||p.version!==process.env.VERSION) process.exit(1)'
+          npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+          npm run type-check
+          npm run pack:check
+      - name: Remove install artifacts and push review candidate
+        working-directory: archive
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+          SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          rm -rf -- "$TARGET/node_modules"
+          BRANCH="package/import-$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create "$BRANCH"
+          git add -- "$TARGET"
+          git commit -m "Prepare package snapshot $VERSION from $SOURCE_SHA"
+          git push --set-upstream origin "$BRANCH"
+          {
+            echo "## Package candidate prepared"
+            echo "- Candidate branch: `$BRANCH`"
+            echo "- Source commit: `$SOURCE_SHA`"
+            echo "- Review and merge manually into `package/main`."
+            echo "- This workflow does not update `package/main` or publish to npm."
+          } >> "$GITHUB_STEP_SUMMARY"
