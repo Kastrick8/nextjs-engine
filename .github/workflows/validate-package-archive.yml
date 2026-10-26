@@ -68,7 +68,7 @@ jobs:
           if(p.name!=="nextjs-engine") throw new Error("Unexpected package name: "+p.name);
           if(!p.version) throw new Error("Missing full package version");
           if(!fs.existsSync("index.ts")||!fs.existsSync("engine/index.ts")) throw new Error("Snapshot entrypoint missing");
-          const version=p.version.match(/^(\\d+)\\.(\\d+)\\.(\\d+)(-alpha\\.\\d+)?$/);
+          const version=p.version.match(/^(\d+)\.(\d+)\.(\d+)(-alpha\.\d+)?$/);
           if(!version) throw new Error("Manifest version is not full SemVer: "+p.version);
           const expectedDir=version[4]?p.version:(Number(version[3])===0?`${version[1]}.${version[2]}`:p.version);
           const expectedFamily=version[4]?`${version[1]}.alpha`:`${version[1]}.${version[2]}`;
