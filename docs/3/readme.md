@@ -327,7 +327,7 @@ registerComponent("pricing-card", PricingCard);
 
 A schema node can then use `type: "pricing-card"` with the serializable props and children that `PricingCard` expects. The current schema validator checks general node/props shape and selected built-in requirements; it does not validate custom props against the component's TypeScript interface at runtime. Validate custom input yourself when its source is not trusted.
 
-createComponent({ schema }) currently composes a schema tree into a reusable React component. It is not yet the planned advanced custom-React-component factory described in [the Gen 3 plan](../../plan.md#14-custom-ui-components-registry-integration-and-enginetheme-bindings). Keep using the implemented registerComponent() contract for custom React node types until that planned mode is implemented and documented.
+The `createComponent({ mode: "custom", ... })` overload creates a validated adapter around trusted local React code. Declare a stable `id`, optional prop and slot contracts, and an optional base EngineTheme namespace, then register it explicitly with `registerComponent(id, component)`. The existing `createComponent({ schema })` composition overload remains unchanged; remote themes cannot provide executable component code.
 
 ## createPage API
 
@@ -407,7 +407,7 @@ The returned component accepts runtime slots and children:
 </SiteChrome>
 ~~~
 
-Named slots are injected through the schema slot nodes. This is the existing schema-composition API; the advanced custom React component authoring mode through createComponent remains a separate planned enhancement and should not be presented as implemented.
+Named slots are injected through schema slot nodes in the composition overload. In the custom-component overload, declared slots are validated as ReactNode inputs and can receive named visual styles through `engineThemeStyles`.
 
 ## defineSchema
 

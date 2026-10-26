@@ -16,6 +16,7 @@ import { createComponent, registerComponent } from "nextjs-engine";
 const SiteLink = createComponent({
   mode: "custom",
   id: "site-link",
+  theme: "site.link",
   component: SiteLinkImplementation,
   props: {
     href: { type: "string", required: true, maxLength: 2048 },
@@ -30,11 +31,13 @@ registerComponent("site-link", SiteLink);
 
 The prop contract supports string, number, boolean, object, array, function and ReactNode values, plus required/nullability, enum, length and numeric bounds. The `strictProps` option rejects undeclared props while allowing common DOM attributes and `aria-*` / `data-*` attributes. Reserved dangerous HTML and prototype-related keys are rejected. Built-in Engine registry IDs cannot be replaced or unregistered; custom IDs remain explicitly registered application code.
 
-This is the trusted local-component contract, not a remote component loader: .etr themes remain data only and cannot supply React implementations. Custom component theme-namespace/variant resolution and per-app registry isolation remain separate acceptance criteria.
+The optional `theme` field names a **base** group/namespace such as `site.link`; it cannot contain a variant segment. A `SchemaNode` can use `theme: "site.link.quiet"` to select a variant in that same group and namespace, or omit the node-level ID to inherit the base styles. The namespace may differ from the registered schema node ID. Explicit node `style` overrides theme-generated root styles; declared named-slot styles are delivered in the validated `engineThemeStyles` prop.
+
+This is the trusted local-component contract, not a remote component loader: `.etr` themes remain data only and cannot supply React implementations. Custom namespace and variant resolution are implemented for registered custom nodes; per-app/request registry isolation, richer custom-link behavior tests, and final browser/assistive-technology coverage remain open.
 
 ## Current runtime scope
 
-The public createTheme() API, versioned .etr compiler/loader, templates, Data-API, highlighting adapters and font pipeline are implemented. The current schema resolver applies component-specific theme props/styles to EngineMarkdown. Although the JSON definition supports component namespaces, generic component-specific styling is not automatically applied to every registered component yet; dialog/drawer/popover and arbitrary custom-node theme bindings are separate future work.
+The public createTheme() API, versioned `.etr` compiler/loader, templates, Data-API, highlighting adapters and font pipeline are implemented. Generation 3 resolves component-specific styles for EngineMarkdown, EngineDialog/Drawer/Popover, and registered custom schema-node types. Custom-node styles are restricted to a validated visual-property vocabulary; trusted application code still owns component behavior and accessibility. Per-app/request registry isolation and broader built-in adapters remain unfinished.
 
 This distinction matters: EngineTheme is implemented, while the component-binding coverage is still being expanded. Use page-level vars and other documented supported theme fields where appropriate, or ordinary Engine styling props for components without a theme resolver.
 

@@ -322,9 +322,9 @@ This section proposes a future custom-component authoring path on top of the alr
 
 The current API already exports `createComponent()`, `registerComponent()`, `unregisterComponent()`, `getComponent()`, `hasComponent()`, and `registeredTypes()`.
 
-- `createComponent(options)` accepts a `PageSchema` (or direct schema options) and returns a React component that renders that schema. It is currently a schema-backed composition helper, not a factory for defining a new component type.
+- `createComponent(options)` preserves `PageSchema`/direct-schema composition and adds a discriminated `mode: "custom"` overload for trusted local React implementations. The custom adapter validates a bounded props/slot contract and carries a stable registry ID.
 - `registerComponent(type, component)` puts a trusted React component into the runtime schema-node registry. Schema nodes can then refer to that registered node type.
-- EngineTheme now supports reusable groups, `components` namespaces, named variants/qualified IDs, local/global/remote scopes, Markdown theme resolution, deterministic `.etr` artifacts, and explicit verified remote loading. What remains open is the general contract binding EngineTheme IDs/values to arbitrary registered schema-node components, props and slots.
+- EngineTheme supports reusable groups, `components` namespaces, named variants/qualified IDs, local/global/explicitly preloaded remote scopes, Markdown and overlay resolution, deterministic `.etr` artifacts, and validated visual styles for registered custom schema-node components. Remaining work includes app/request-scoped registry ownership, broader custom-link behavior/accessibility tests, Data-API extensions and final server-first/browser validation.
 - The registry is currently a module-level mutable map. That is simple, but custom registrations need clear ownership and isolation rules for multi-app builds, tests, server rendering, and development hot reload.
 
 These facts mean the pieces are adjacent, but a stable custom-component contract and a request-safe, general EngineTheme-to-custom-component binding path still need to be designed. The existing Markdown resolver and EngineTheme Data-API contracts should remain compatible.
@@ -346,7 +346,7 @@ The goal is one public authoring path with basic and advanced modes—not a seco
 
 ### Illustrative API shape
 
-The following is a design sketch for the future custom-component API, not code that should be copied as an implemented contract. `createTheme()` and its Markdown theme/variant resolution already exist; the advanced `createComponent()` mode, custom-component theme bindings and the sample prop/slot schema are still proposals.
+The following example illustrates the implemented advanced custom-component and theme-binding contract. Request-scoped registry ownership and the remaining acceptance criteria later in this section are still open.
 
 ~~~tsx
 import {
@@ -405,14 +405,13 @@ This sketch intentionally leaves the exact prop/slot representation open: curren
 
 ### Theme resolution and precedence
 
-Use one shared resolver for built-in and custom components. The EngineTheme group/variant mechanism and Markdown-specific precedence are already implemented; the following precedence is proposed only for the future generic custom-component binding path, and must not silently change current Markdown behavior:
+The custom-node resolver applies a bounded visual-style precedence using validated EngineTheme group/variant data. Markdown-specific precedence remains unchanged. The custom-component precedence is:
 
-1. Engine/built-in component defaults.
-2. Theme-group shared tokens and the component's base theme.
-3. Inherited named variants.
-4. Component-definition default theme reference.
-5. Schema-node theme ID/variant.
-6. Explicit, validated per-node style overrides.
+1. Trusted component implementation and its built-in defaults.
+2. The selected EngineTheme namespace base styles.
+3. The selected named variant, merged through the existing theme resolver.
+4. Explicit per-node `style` values, which override theme-generated root styles.
+5. Declared named-slot styles delivered through the validated `engineThemeStyles` prop.
 
 Integrate this proposed precedence with the implemented group tokens, variant inheritance, `vars`, `fonts`, and `globalStyles` behavior without changing their existing contract. Do not allow a custom component to bypass schema validation or override reserved engine/runtime attributes. Unknown theme IDs, incompatible component IDs, inheritance cycles, and invalid values should produce actionable development diagnostics and deterministic production fallbacks.
 
@@ -452,9 +451,9 @@ The implemented EngineTheme Data-API already provides typed `join:left`, `join:r
 
 ### Suggested implementation order and acceptance criteria
 
-1. Finalize a typed, discriminated `createComponent()` contract that preserves existing schema-composition calls and supports advanced custom component authoring; add backward-compatibility tests plus direct `registerComponent(type, component)` tests.
-2. Implement the advanced `createComponent()` path and safe registry integration, including app/request isolation decisions.
-3. Add component theme IDs and variant resolution to schema validation and the shared theme resolver.
+1. [x] Finalize the typed, discriminated `createComponent()` contract while preserving schema-composition calls; smoke coverage exercises both the custom props/slots contract and direct registry protection.
+2. [x, partial] Implement the advanced local-component factory and safe registration. Per-app/request registry isolation is still outstanding.
+3. [x] Add qualified theme IDs and variant resolution for registered custom nodes through the shared theme resolver, with a bounded style allowlist and local-style precedence.
 4. Implement the custom link example as the first registered custom component, with keyboard/accessibility and URL-safety tests.
 5. Connect the declarative Data-API contract only for explicitly supported events and slots.
 6. Add server-first, browser-compatibility, cache invalidation, malformed theme, missing component, unknown theme, and cross-request isolation tests.

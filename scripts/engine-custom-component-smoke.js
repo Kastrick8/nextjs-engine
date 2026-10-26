@@ -136,7 +136,7 @@ try {
 	}), /same ID/);
 	assert.throws(() => resolveEngineThemeSchema({
 		theme: createTheme({
-			id: "unsafe-custom-theme",
+			id: "custom-link-theme",
 			scope: "local",
 			components: { link: { styles: { root: { background: "url(https://bad.invalid/x)" } } } },
 		}),
