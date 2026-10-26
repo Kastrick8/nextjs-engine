@@ -33,6 +33,8 @@ Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, 
 | EngineBrowser | SSR-safe capability, clipboard, media, speech, network, and interaction helpers |
 | EngineForms | Schema-native form controls wired to named handlers |
 | EngineMarkdown | Markdown rendering, heading anchors, styling, and safe links |
+| EngineTheme | Reusable themes/tokens and variants, Markdown styling, safe declarative templates/Data-API, `.etr` artifacts, optional highlighting/font compilation |
+| EngineSEO | Schema-driven metadata, robots/sitemap, JSON-LD and social preview generation |
 | EngineNav / Link | Next.js-aware internal routing plus optional Transitions+ navigation |
 | EngineAPIResolver | External HTTP/API orchestration, provider config, auth, HMAC/PNP, FormData |
 | APIStatic | Compiled browser-side `.route` endpoint programs under `/_static/endpoint` |
@@ -431,6 +433,8 @@ Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture
 | Gen 3 styling — detailed | [`docs/3/styling-detailed.md`](./docs/3/styling-detailed.md) |
 | Gen 3 compiler internals | [`docs/3/compiler-deep-dive.md`](./docs/3/compiler-deep-dive.md) |
 | Runtime/performance | [`docs/runtime-performance.md`](./docs/runtime-performance.md) |
+| EngineTheme and `.etr` | [`docs/3/engine-components/enginetheme.md`](./docs/3/engine-components/enginetheme.md) |
+| EngineSEO and crawler metadata | [`docs/3/engine-components/engineseo.md`](./docs/3/engine-components/engineseo.md) |
 | APIStatic | [`docs/3/engine-components/apistatic.md`](./docs/3/engine-components/apistatic.md) |
 | External APIs | [`docs/3/engine-components/engineapi.md`](./docs/3/engine-components/engineapi.md) |
 | Diagnostics | [`docs/schema-diagnostics.md`](./docs/schema-diagnostics.md) |
