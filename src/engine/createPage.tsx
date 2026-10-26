@@ -97,6 +97,12 @@ function isDirectSchemaOption(options: CreatePageOptions): options is CreateDire
 	return "root" in options && options.root !== undefined;
 }
 
+function isCustomComponentOption(
+	options: CreateComponentOptions,
+): options is CreateCustomComponentOptions<any> {
+	return "mode" in options && options.mode === "custom";
+}
+
 function normalizeMarkdownPath(filePath: string): string {
 	const cwd = process.cwd().replace(/\\/g, "/").replace(/\/$/, "");
 	const normalizedPath = filePath.replace(/\\/g, "/");
@@ -290,7 +296,7 @@ export function createPage(options: CreatePageOptions): EnginePageComponent {
 export function createComponent<P extends object>(options: CreateCustomComponentOptions<P>): EngineCustomReactComponent<P>;
 export function createComponent(options: CreateSchemaPageOptions | CreateDirectPageOptions): React.FC<EngineComponentProps>;
 export function createComponent(options: CreateComponentOptions): React.ComponentType<any> {
-	if ("mode" in options && options.mode === "custom") {
+	if (isCustomComponentOption(options)) {
 		return createTrustedEngineComponent(options);
 	}
 	const normalized = normalizeCreateOptions(options);
