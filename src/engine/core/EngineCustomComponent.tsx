@@ -53,6 +53,63 @@ export type EngineCustomReactComponent<P extends object> = ComponentType<P & {
 };
 
 const CUSTOM_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
+
+/**
+ * Lightweight metadata for explicitly registered custom schema components.
+ * Kept separate from core/registry so EngineTheme resolution never imports
+ * the default built-in component graph just to inspect custom theme bindings.
+ */
+export interface RegisteredEngineCustomComponentMetadata {
+	id: string;
+	slots: readonly string[];
+	themeId?: string;
+}
+
+const registeredCustomComponentMetadata = new Map<string, RegisteredEngineCustomComponentMetadata>();
+
+export function registerEngineCustomComponentMetadata(type: string, component: unknown): void {
+	if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(type)
+		|| type === "__proto__" || type === "prototype" || type === "constructor") {
+		throw new TypeError("Custom component metadata requires a safe schema-node identifier.");
+	}
+	const metadata = component && (typeof component === "function" || typeof component === "object")
+		? component as {
+			engineCustomComponentId?: unknown;
+			engineCustomSlots?: unknown;
+			engineCustomThemeId?: unknown;
+		}
+		: undefined;
+	if (typeof metadata?.engineCustomComponentId === "string" && metadata.engineCustomComponentId !== type) {
+		throw new Error("Custom component metadata ID does not match registry type '" + type + "'.");
+	}
+	const slots = Array.isArray(metadata?.engineCustomSlots)
+		? metadata.engineCustomSlots.filter((slot): slot is string => typeof slot === "string")
+		: [];
+	const themeId = typeof metadata?.engineCustomThemeId === "string" ? metadata.engineCustomThemeId : undefined;
+	registeredCustomComponentMetadata.set(type, Object.freeze({
+		id: type,
+		slots: Object.freeze(slots),
+		...(themeId ? { themeId } : {}),
+	}));
+}
+
+export function unregisterEngineCustomComponentMetadata(type: string): void {
+	registeredCustomComponentMetadata.delete(type);
+}
+
+export function isRegisteredEngineCustomComponent(type: string): boolean {
+	return registeredCustomComponentMetadata.has(type);
+}
+
+export function getRegisteredEngineCustomComponentSlots(type: string): readonly string[] {
+	return registeredCustomComponentMetadata.get(type)?.slots ?? [];
+}
+
+export function getRegisteredEngineCustomComponentThemeId(type: string): string | undefined {
+	return registeredCustomComponentMetadata.get(type)?.themeId;
+}
+
+
 const RESERVED_IDS = new Set(["__proto__", "prototype", "constructor"]);
 const RESERVED_PROPS = new Set(["dangerouslySetInnerHTML", "__proto__", "prototype", "constructor"]);
 const STANDARD_PROPS = new Set(["children", "id", "className", "style", "title", "role", "tabIndex", "engineThemeStyles"]);

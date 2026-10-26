@@ -15,8 +15,13 @@ import {
 	parseEngineThemeId,
 	resolveRegisteredEngineTheme,
 } from "./createTheme";
-import { getComponentThemeId, getComponentThemeSlots, isCustomComponentType } from "../../core/registry";
-import { sanitizeEngineCustomThemeStyles, type EngineCustomThemeStyles } from "../../core/EngineCustomComponent";
+import {
+	getRegisteredEngineCustomComponentThemeId as getComponentThemeId,
+	getRegisteredEngineCustomComponentSlots as getComponentThemeSlots,
+	isRegisteredEngineCustomComponent as isCustomComponentType,
+	sanitizeEngineCustomThemeStyles,
+	type EngineCustomThemeStyles,
+} from "../../core/EngineCustomComponent";
 
 interface ResolvedMarkdownTheme {
 	props: Record<string, unknown>;

@@ -4,6 +4,7 @@
 
 import { lazy, type ComponentType } from "react";
 import type { NodeType } from "../schema/types";
+import { getRegisteredEngineCustomComponentSlots, getRegisteredEngineCustomComponentThemeId, registerEngineCustomComponentMetadata, unregisterEngineCustomComponentMetadata } from "./EngineCustomComponent";
 import {
 	EngineBox, EngineStack, EngineGrid, EngineText, EngineHeading,
 	EngineSection, EngineButton, EngineCard, EngineSpacer, EngineDivider,
@@ -147,6 +148,7 @@ export function registerComponent<P extends object>(type: NodeType, component: C
 	if (typeof declaredId === "string" && declaredId !== type) {
 		throw new Error("Custom component ID '" + declaredId + "' does not match registry type '" + type + "'.");
 	}
+	registerEngineCustomComponentMetadata(type, component);
 	_registry.set(type, component as unknown as EngineComponent);
 }
 
@@ -155,6 +157,7 @@ export function unregisterComponent(type: NodeType): void {
 		throw new Error("Cannot unregister built-in Engine component type '" + type + "'.");
 	}
 	_registry.delete(type);
+	unregisterEngineCustomComponentMetadata(type);
 }
 
 export function getComponent(type: NodeType): EngineComponent | undefined {
@@ -171,16 +174,12 @@ export function isCustomComponentType(type: NodeType): boolean {
 
 export function getComponentThemeSlots(type: NodeType): readonly string[] {
 	if (BUILTIN_COMPONENT_TYPES.has(type)) return [];
-	const component = _registry.get(type) as unknown as { engineCustomSlots?: unknown } | undefined;
-	return component && Array.isArray(component.engineCustomSlots)
-		? component.engineCustomSlots.filter((slot): slot is string => typeof slot === "string")
-		: [];
+	return getRegisteredEngineCustomComponentSlots(type);
 }
 
 export function getComponentThemeId(type: NodeType): string | undefined {
 	if (BUILTIN_COMPONENT_TYPES.has(type)) return undefined;
-	const component = _registry.get(type) as unknown as { engineCustomThemeId?: unknown } | undefined;
-	return typeof component?.engineCustomThemeId === "string" ? component.engineCustomThemeId : undefined;
+	return getRegisteredEngineCustomComponentThemeId(type);
 }
 
 export function isSplitComponent(component: EngineComponent): boolean {
