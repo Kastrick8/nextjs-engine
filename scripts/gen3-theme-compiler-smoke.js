@@ -146,8 +146,6 @@ async function testPublicThemeApi() {
 		assert.equal(themedCustomSchema.root.props.engineThemeStyles.leading.marginRight, "0.5rem");
 		assert.equal(themedCustomSchema.root.props.engineThemeStyles.leading.gap, "4px", "declared slot styles merge across variants");
 		assert.equal(themedCustomSchema.root.props.engineThemeStyles.root.fontWeight, 600);
-		unregisterComponent("smoke-custom-link");
-
 		assert.throws(() => resolveEngineThemeSchema({
 			theme: customTheme,
 			root: { type: "smoke-custom-link", theme: "custom-link-theme.other.quiet" },
@@ -164,6 +162,7 @@ async function testPublicThemeApi() {
 			theme: customTheme,
 			root: { type: "box", theme: "custom-link-theme.smoke-custom-link.quiet" },
 		}), /registered custom node types/);
+		unregisterComponent("smoke-custom-link");
 
 		const definition = createTheme({
 			id: "safe-theme",
