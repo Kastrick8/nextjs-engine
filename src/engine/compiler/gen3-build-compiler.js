@@ -1,6 +1,7 @@
 "use strict";
 
-const compiler = require("../src/engine/plugins/gen3BuildCompiler");
+require("./loadTypeScriptCompiler");
+const compiler = require("./build.compiler.ts");
 
 if (require.main === module) {
 	compiler.runCLI().then((code) => { process.exitCode = code; }, (error) => {

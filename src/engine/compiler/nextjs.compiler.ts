@@ -66,7 +66,7 @@ function startCompiler(projectDir) {
 	const resolvedProjectDir = path.resolve(projectDir || process.cwd());
 	const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-"));
 	const manifestFile = path.join(tempDirectory, "compiler-manifest.json");
-	const compilerScript = path.join(__dirname, "../../../scripts/gen3-build-compiler.js");
+	const compilerScript = path.join(__dirname, "gen3-build-compiler.js");
 	const compiler = require("./build.compiler.ts");
 	const bannerOwner = compiler.printBannerOnce(resolvedProjectDir);
 	const stopNextBuildOutputBridge = nencLogger.installNextBuildOutputBridge();
