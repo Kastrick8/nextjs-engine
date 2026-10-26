@@ -298,7 +298,7 @@ function sanitizeRemoteThemeContent(
 			if (!/^--[A-Za-z0-9_-]{1,80}$/.test(key)) {
 				throw new Error("Remote EngineTheme CSS variable names must start with -- and use safe identifier characters.");
 			}
-			if (typeof value !== "string" || !isSafeEngineThemeCssValue(value, 256) {
+			if (typeof value !== "string" || !isSafeEngineThemeCssValue(value, 256)) {
 				throw new Error("Remote EngineTheme CSS variable '" + key + "' contains an unsafe CSS value.");
 			}
 			normalizedVars[key] = value;
