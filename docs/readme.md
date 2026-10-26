@@ -325,7 +325,7 @@ function PricingCard({ plan, price, children }: PricingCardProps) {
 registerComponent("pricing-card", PricingCard);
 ~~~
 
-A schema node can then use type: pricing-card with validated, serializable props and children.
+A schema node can then use `type: "pricing-card"` with the serializable props and children that `PricingCard` expects. The current schema validator checks general node/props shape and selected built-in requirements; it does not validate custom props against the component's TypeScript interface at runtime. Validate custom input yourself when its source is not trusted.
 
 createComponent({ schema }) currently composes a schema tree into a reusable React component. It is not yet the planned advanced custom-React-component factory described in [the Gen 3 plan](../plan.md#14-custom-ui-components-registry-integration-and-enginetheme-bindings). Keep using the implemented registerComponent() contract for custom React node types until that planned mode is implemented and documented.
 
