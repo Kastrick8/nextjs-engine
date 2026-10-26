@@ -76,13 +76,15 @@ jobs:
             [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Stable version must be full SemVer, e.g. 2.6.3" >&2; exit 1; }
             IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
             FAMILY="$MAJOR.$MINOR"
-            TARGET="version/$FAMILY/version/$VERSION"
+            SNAPSHOT="$VERSION"
+            if [[ "$PATCH" == "0" ]]; then SNAPSHOT="$FAMILY"; fi
+            TARGET="version/$FAMILY/version/$SNAPSHOT"
             FAMILY_DIR="archive/version/$FAMILY/version"
             if [[ -d "$FAMILY_DIR" ]]; then
               TEMPLATE_DIR="$(find "$FAMILY_DIR" -mindepth 1 -maxdepth 1 -type d ! -path "*/$VERSION" | sort -V | tail -n 1 || true)"
             fi
             if [[ -z "${TEMPLATE_DIR:-}" ]]; then
-              if [[ "$MAJOR" == "1" ]]; then TEMPLATE_DIR="archive/version/1.0/version/1.0.0"
+              if [[ "$MAJOR" == "1" ]]; then TEMPLATE_DIR="archive/version/1.0/version/1.0"
               elif [[ "$MAJOR" == "3" ]]; then TEMPLATE_DIR="archive/alpha/version/3.alpha/version/3.0.0-alpha.1"
               else TEMPLATE_DIR="archive/version/2.6/version/2.6.2"
               fi
