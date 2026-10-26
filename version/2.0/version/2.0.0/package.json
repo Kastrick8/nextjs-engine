@@ -1,0 +1,52 @@
+{
+	"name": "nextjs-engine",
+	"version": "2.0.0",
+	"description": "A schema-driven rendering layer for Next.js and React with responsive UI primitives, EngineCanvas graphics, APIStatic endpoints, and Manim animation support.",
+	"private": false,
+	"sideEffects": false,
+	"files": [
+		"engine",
+		"docs",
+		"DOCUMENT.md",
+		"README.md",
+		"index.ts"
+	],
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"import": "./index.ts",
+			"default": "./index.ts"
+		},
+		"./api-plugin": {
+			"require": "./engine/plugins/engineApiPlugin.js",
+			"default": "./engine/plugins/engineApiPlugin.js"
+		}
+	},
+	"types": "./index.ts",
+	"scripts": {
+		"type-check": "tsc --noEmit",
+		"pack:check": "npm pack --dry-run"
+	},
+	"peerDependencies": {
+		"next": "^16.2.9",
+		"next-view-transitions": "^0.3.5",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"three": "^0.184.0"
+	},
+	"devDependencies": {
+		"@types/node": "^20.10.0",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"@types/three": "^0.185.0",
+		"typescript": "^5.9.3"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Kate-alt-69/nextjs-engine.git"
+	},
+	"homepage": "https://github.com/Kate-alt-69/nextjs-engine#readme",
+	"dependencies": {
+		"typescript": "^5.9.3"
+	}
+}

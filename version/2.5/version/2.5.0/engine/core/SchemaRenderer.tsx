@@ -1,0 +1,255 @@
+"use client";
+// ─────────────────────────────────────────────────────────────────────────────
+//  Engine — SchemaRenderer
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { memo, useEffect, type CSSProperties, type ReactNode } from "react";
+import {
+	BREAKPOINTS,
+	BREAKPOINT_ORDER,
+	type Breakpoint,
+	type PageSchema,
+	type SchemaNode,
+} from "../schema/types";
+import { getComponent } from "./registry";
+import { validatePageSchema } from "./validateSchema";
+import { decideLazy } from "./lazyDetect";
+import { globalStyleCollector } from "./StyleCollector";
+import { EngineScrollPointManager } from "./enginescroll";
+import { LazyMount, LazySection } from "../components/LazyMount";
+import { useSlot } from "../providers/EngineProvider";
+
+interface VisibilityRule {
+	className: string;
+	css: string;
+}
+
+const visibilityRuleCache = new Map<string, VisibilityRule>();
+
+function shortHash(value: string): string {
+	let hashValue = 5381;
+	for (let index = 0; index < value.length; index++) {
+		hashValue = ((hashValue << 5) + hashValue + value.charCodeAt(index)) | 0;
+	}
+	return Math.abs(hashValue).toString(36).slice(0, 7);
+}
+
+function UnknownNodeWarning({ type }: { type: string }) {
+	if (process.env.NODE_ENV === "production") return null;
+	return (
+		<div
+			style={{
+				border: "2px dashed #f59e0b",
+				borderRadius: "6px",
+				padding: "0.75rem 1rem",
+				background: "#fffbeb",
+				color: "#92400e",
+				fontFamily: "monospace",
+				fontSize: "0.8rem",
+			}}
+		>
+			⚠ Engine: Unknown node type <strong>"{type}"</strong> — register it with{" "}
+			<code>registerComponent("{type}", YourComponent)</code>
+		</div>
+	);
+}
+
+function SlotNode({ name, fallback, depth }: { name: string; fallback?: SchemaNode; depth: number }) {
+	const slotContent = useSlot(name);
+	if (slotContent != null) return <>{slotContent}</>;
+	if (fallback) return <NodeRenderer node={fallback} depth={depth} />;
+	return null;
+}
+
+function PointRegistration({ name, domId }: { name: string; domId: string }) {
+	useEffect(() => {
+		const element = document.getElementById(domId);
+		if (!element) return;
+
+		EngineScrollPointManager.registerElement(name, element);
+		return () => {
+			const registered = EngineScrollPointManager.get(name);
+			if (registered?.element === element) {
+				EngineScrollPointManager.unregister(name);
+			}
+		};
+	}, [domId, name]);
+	return null;
+}
+
+function buildVisibilityClass(props: Record<string, unknown>): string | undefined {
+	const hideOn = Array.isArray(props.hideOn) ? props.hideOn as Breakpoint[] : [];
+	const showOnly = Array.isArray(props.showOnly) ? props.showOnly as Breakpoint[] : [];
+	if (hideOn.length === 0 && showOnly.length === 0) return undefined;
+
+	const hiddenBreakpoints = BREAKPOINT_ORDER.filter((breakpoint) => {
+		const allowedByShowOnly = showOnly.length === 0 || showOnly.includes(breakpoint);
+		return !allowedByShowOnly || hideOn.includes(breakpoint);
+	});
+	if (hiddenBreakpoints.length === 0) return undefined;
+
+	const signature = hiddenBreakpoints.join("|");
+	let cachedRule = visibilityRuleCache.get(signature);
+	if (!cachedRule) {
+		const className = `e-v-${shortHash(signature)}`;
+		const cssRules: string[] = [];
+
+		for (const breakpoint of hiddenBreakpoints) {
+			const breakpointIndex = BREAKPOINT_ORDER.indexOf(breakpoint);
+			const minWidth = BREAKPOINTS[breakpoint];
+			const nextBreakpoint = BREAKPOINT_ORDER[breakpointIndex + 1];
+			const maxWidth = nextBreakpoint ? BREAKPOINTS[nextBreakpoint] - 0.02 : undefined;
+			const selectorRule = `.${className}{display:none!important}`;
+
+			if (minWidth === 0 && maxWidth !== undefined) {
+				cssRules.push(`@media(max-width:${maxWidth}px){${selectorRule}}`);
+			} else if (maxWidth === undefined) {
+				cssRules.push(`@media(min-width:${minWidth}px){${selectorRule}}`);
+			} else {
+				cssRules.push(`@media(min-width:${minWidth}px) and (max-width:${maxWidth}px){${selectorRule}}`);
+			}
+		}
+
+		cachedRule = { className, css: cssRules.join("\n") };
+		visibilityRuleCache.set(signature, cachedRule);
+	}
+
+	globalStyleCollector.add(cachedRule.css);
+	return cachedRule.className;
+}
+
+function getLazyAspectRatio(node: SchemaNode, props: Record<string, unknown>): string | undefined {
+	if (props.aspectRatio !== undefined && props.aspectRatio !== null) {
+		return String(props.aspectRatio);
+	}
+	if (node.type === "video") return "16 / 9";
+	if (node.type === "image" && typeof props.width === "number" && typeof props.height === "number" && props.height > 0) {
+		return `${props.width} / ${props.height}`;
+	}
+	return undefined;
+}
+
+interface NodeRendererProps {
+	node: SchemaNode;
+	depth: number;
+}
+
+function NodeRenderer({ node, depth }: NodeRendererProps) {
+	if (node.type === "slot") {
+		const props = (node.props ?? {}) as { name?: string; fallback?: SchemaNode };
+		return (
+			<SlotNode
+				name={props.name ?? ""}
+				fallback={props.fallback}
+				depth={depth}
+			/>
+		);
+	}
+
+	let renderedChildren: ReactNode = null;
+	const hasTreeChildren = node.children !== undefined;
+
+	if (typeof node.children === "string") {
+		renderedChildren = node.children;
+	} else if (Array.isArray(node.children) && node.children.length > 0) {
+		renderedChildren = node.children.map((child, index) => (
+			<NodeRenderer
+				key={child.key ?? `${child.type}-${index}`}
+				node={child}
+				depth={depth + 1}
+			/>
+		));
+	}
+
+	const Component = getComponent(node.type);
+	if (!Component) return <UnknownNodeWarning type={node.type} />;
+
+	const lazy = decideLazy(node, depth);
+	const extraStyle: CSSProperties = lazy.contentVisibility && !lazy.lazy
+		? {
+			contentVisibility: "auto" as CSSProperties["contentVisibility"],
+			containIntrinsicHeight: lazy.placeholderHeight,
+		}
+		: {};
+
+	const originalProps = node.props ?? {};
+	const visibilityClass = buildVisibilityClass(originalProps);
+	const originalClassName = typeof originalProps.className === "string" ? originalProps.className : undefined;
+	const mergedClassName = [originalClassName, visibilityClass].filter(Boolean).join(" ") || undefined;
+	const pointName = typeof originalProps.point === "string" && originalProps.point.length > 0
+		? originalProps.point
+		: undefined;
+	const explicitId = typeof originalProps.id === "string" && originalProps.id.length > 0
+		? originalProps.id
+		: undefined;
+	const resolvedDomId = explicitId ?? pointName;
+	const nodeProps = {
+		...originalProps,
+		...(resolvedDomId ? { id: resolvedDomId } : {}),
+		...(mergedClassName ? { className: mergedClassName } : {}),
+		...(Object.keys(extraStyle).length > 0
+			? {
+				style: {
+					...((originalProps.style as CSSProperties) ?? {}),
+					...extraStyle,
+				},
+			}
+			: {}),
+	};
+
+	const effectiveChildren = hasTreeChildren
+		? renderedChildren
+		: (originalProps.children as ReactNode | undefined) ?? null;
+	const element = <Component {...nodeProps}>{effectiveChildren}</Component>;
+	const anchoredElement = pointName && resolvedDomId
+		? (
+			<>
+				<PointRegistration name={pointName} domId={resolvedDomId} />
+				{element}
+			</>
+		)
+		: element;
+
+	if (!lazy.lazy) return anchoredElement;
+
+	const isSection = node.type === "section" || node.type === "hero";
+	if (isSection) {
+		return (
+			<LazySection
+				className={visibilityClass}
+				height={lazy.placeholderHeight}
+				rootMargin={lazy.rootMargin}
+				contentVisibility={lazy.contentVisibility}
+				containIntrinsicHeight={lazy.placeholderHeight}
+			>
+				{anchoredElement}
+			</LazySection>
+		);
+	}
+
+	return (
+		<LazyMount
+			className={visibilityClass}
+			height={lazy.placeholderHeight}
+			aspectRatio={getLazyAspectRatio(node, originalProps)}
+			rootMargin={lazy.rootMargin}
+		>
+			{anchoredElement}
+		</LazyMount>
+	);
+}
+
+interface SchemaRendererProps {
+	schema: PageSchema;
+}
+
+export const SchemaRenderer = memo(function SchemaRenderer({ schema }: SchemaRendererProps) {
+	if (
+		process.env.NODE_ENV !== "production" ||
+		process.env.NEXT_PUBLIC_ENGINE_VALIDATE === "1"
+	) {
+		validatePageSchema(schema);
+	}
+
+	return <NodeRenderer node={schema.root} depth={0} />;
+});
