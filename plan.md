@@ -749,7 +749,7 @@ This implementation deliberately keeps `createComponent()` as the schema-backed 
 
 ### P0 — Shared overlay runtime and low-end performance
 
-The current implementation still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. Overlay stack and scroll-lock ownership now live in a WeakMap keyed by the owning Document, avoiding a process-wide stack/lock counter leaking across iframe or alternate-document contexts. Reduced-motion preference uses one shared external store/subscription across mounted overlay instances, and popover position state retains its previous object when top/left/placement are unchanged. Per-instance popover listeners/ResizeObservers and the full shared runtime are still outstanding.
+The current implementation still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. Overlay stack and scroll-lock ownership now live in a WeakMap keyed by the owning Document, avoiding a process-wide stack/lock counter leaking across iframe or alternate-document contexts. Reduced-motion preference uses one shared external store/subscription across mounted overlay instances, and popover position state retains its previous object when top/left/placement are unchanged. Popover viewport resize/scroll/visualViewport listeners are now shared per Document and released when the final subscriber closes. Per-instance ResizeObservers and the frame-coalesced read/write scheduler are still outstanding.
 
 Continue with a targeted shared-runtime improvement rather than rewriting the components into a large new abstraction:
 

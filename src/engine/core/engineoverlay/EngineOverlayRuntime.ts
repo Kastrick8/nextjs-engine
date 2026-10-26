@@ -42,6 +42,8 @@ interface OverlayDocumentState {
 	bodyLockCount: number;
 	previousOverflow: string;
 	previousPaddingRight: string;
+	viewportSubscribers: Set<() => void>;
+	viewportCleanup: (() => void) | null;
 }
 
 const overlayDocuments = new WeakMap<Document, OverlayDocumentState>();
@@ -55,6 +57,8 @@ function getOverlayDocumentState(ownerDocument: Document): OverlayDocumentState 
 			bodyLockCount: 0,
 			previousOverflow: "",
 			previousPaddingRight: "",
+			viewportSubscribers: new Set(),
+			viewportCleanup: null,
 		};
 		overlayDocuments.set(ownerDocument, state);
 	}
@@ -183,6 +187,39 @@ export function isTopOverlay(id: string, ownerDocument?: Document): boolean {
 	if (!doc) return false;
 	const stack = getOverlayDocumentState(doc).stack;
 	return stack[stack.length - 1]?.id === id;
+}
+
+/**
+ * Share viewport listeners between all open popovers in one Document.
+ * The first subscriber attaches listeners; the last one removes them.
+ */
+export function subscribeOverlayViewport(callback: () => void, ownerDocument?: Document): () => void {
+	const doc = resolveOwnerDocument(ownerDocument);
+	const view = doc?.defaultView;
+	if (!doc || !view) return () => undefined;
+	const state = getOverlayDocumentState(doc);
+	state.viewportSubscribers.add(callback);
+	if (state.viewportSubscribers.size === 1) {
+		const notify = () => {
+			for (const subscriber of state.viewportSubscribers) subscriber();
+		};
+		const viewport = view.visualViewport;
+		view.addEventListener("resize", notify, { passive: true });
+		view.addEventListener("scroll", notify, { passive: true, capture: true });
+		viewport?.addEventListener("resize", notify, { passive: true });
+		viewport?.addEventListener("scroll", notify, { passive: true });
+		state.viewportCleanup = () => {
+			view.removeEventListener("resize", notify);
+			view.removeEventListener("scroll", notify, true);
+			viewport?.removeEventListener("resize", notify);
+			viewport?.removeEventListener("scroll", notify);
+			state.viewportCleanup = null;
+		};
+	}
+	return () => {
+		state.viewportSubscribers.delete(callback);
+		if (state.viewportSubscribers.size === 0) state.viewportCleanup?.();
+	};
 }
 
 export function lockBodyScroll(ownerDocument?: Document): () => void {

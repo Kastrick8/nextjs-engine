@@ -4,7 +4,7 @@ import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState }
 import { createPortal } from "react-dom";
 import { useCpropClass } from "../../hooks/usePropStyles";
 import { usePrimitiveStyles } from "../../hooks/usePrimitiveStyles";
-import { computePopoverPosition, isTopOverlay, type EnginePopoverPlacement } from "../../core/engineoverlay";
+import { computePopoverPosition, isTopOverlay, subscribeOverlayViewport, type EnginePopoverPlacement } from "../../core/engineoverlay";
 import {
 	SURFACE_BASE,
 	clampDuration,
@@ -93,19 +93,13 @@ export const EnginePopover = memo(function EnginePopover({
 			});
 		};
 		update();
-		window.addEventListener("resize", update, { passive: true });
-		window.addEventListener("scroll", update, { passive: true, capture: true });
-		window.visualViewport?.addEventListener("resize", update, { passive: true });
-		window.visualViewport?.addEventListener("scroll", update, { passive: true });
+		const unsubscribeViewport = subscribeOverlayViewport(update, document);
 		const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
 		if (observer && triggerRef.current) observer.observe(triggerRef.current);
 		if (observer && panelRef.current) observer.observe(panelRef.current);
 		return () => {
 			cancelAnimationFrame(frame);
-			window.removeEventListener("resize", update);
-			window.removeEventListener("scroll", update, true);
-			window.visualViewport?.removeEventListener("resize", update);
-			window.visualViewport?.removeEventListener("scroll", update);
+			unsubscribeViewport();
 			observer?.disconnect();
 		};
 	}, [resolvedAlign, resolvedMatchTriggerWidth, resolvedOffset, resolvedPlacement, present, target, resolvedViewportPadding]);
