@@ -484,6 +484,135 @@ async function testPublicThemeApi() {
 		});
 		assert.equal(localPage.root.props.codeColor, "#abcdef", "a local theme definition can be applied directly");
 
+		const overlayTheme = createTheme({
+			id: "overlay-runtime-smoke",
+			scope: "global",
+			overlay: {
+				defaults: { duration: 75 },
+				styles: {
+					panel: { borderColor: "#123456", borderRadius: "12px" },
+					backdrop: { background: "rgba(0,0,0,.4)" },
+				},
+			},
+			dialog: {
+				defaults: { duration: 180 },
+				styles: {
+					panel: { background: "#222222", color: "#f8fafc" },
+					title: { fontSize: "1.5rem" },
+				},
+				variants: {
+					danger: {
+						defaults: { duration: 260 },
+						styles: { panel: { background: "#7f1d1d" } },
+					},
+				},
+			},
+			drawer: {
+				defaults: { side: "left", size: "28rem" },
+				styles: { panel: { borderRadius: "0" } },
+			},
+			popover: {
+				defaults: { placement: "top", align: "start", offset: 12, viewportPadding: 10, matchTriggerWidth: true },
+				styles: { panel: { background: "#111827" } },
+			},
+		});
+		const themedOverlayPage = resolveEngineThemeSchema({
+			theme: { id: "overlay-runtime-smoke" },
+			root: {
+				type: "section",
+				children: [
+					{
+						type: "dialog",
+						theme: "overlay-runtime-smoke.dialog.danger",
+						props: { duration: 440, style: { color: "#ffffff" } },
+					},
+					{ type: "drawer", props: { size: "400px" } },
+					{ type: "popover", props: { offset: 24 } },
+				],
+			},
+		});
+		const [themedDialog, themedDrawer, themedPopover] = themedOverlayPage.root.children;
+		assert.equal(themedDialog.theme, undefined, "node theme IDs are consumed during schema resolution");
+		assert.equal(themedDialog.props.engineOverlayTheme.defaults.duration, 260,
+			"component variant defaults override shared overlay defaults");
+		assert.deepEqual(themedDialog.props.engineOverlayTheme.styles.panel, {
+			borderColor: "#123456",
+			borderRadius: "12px",
+			background: "#7f1d1d",
+			color: "#f8fafc",
+		}, "shared overlay slots and component-variant slots merge with component values taking precedence");
+		assert.equal(themedDialog.props.style.color, "#ffffff", "explicit local style remains untouched and wins at render time");
+		assert.equal(themedDrawer.props.engineOverlayTheme.defaults.side, "left");
+		assert.equal(themedDrawer.props.engineOverlayTheme.defaults.size, "28rem");
+		assert.equal(themedDrawer.props.size, "400px", "local drawer size overrides themed defaults");
+		assert.equal(themedPopover.props.engineOverlayTheme.defaults.placement, "top");
+		assert.equal(themedPopover.props.engineOverlayTheme.defaults.matchTriggerWidth, true);
+		assert.equal(themedPopover.props.offset, 24, "local popover offset overrides themed defaults");
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: overlayTheme,
+			root: { type: "popover", theme: "overlay-runtime-smoke.drawer" },
+		}), /must use an EngineTheme ID qualified for 'overlay' or 'popover'/,
+		"component namespace bindings cannot be applied to the wrong overlay type");
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: overlayTheme,
+			root: { type: "dialog", theme: "overlay-runtime-smoke.dialog.missing" },
+		}), /missing subtheme 'missing'/, "unknown theme variants fail with a focused diagnostic");
+		assert.throws(() => resolveEngineThemeSchema({
+			root: { type: "dialog", theme: "overlay-runtime-smoke.dialog" },
+		}), /requires PageSchema.theme/, "node-level theme references cannot bypass the page theme context");
+		const unsafeOverlayTheme = createTheme({
+			id: "unsafe-overlay-runtime-smoke",
+			scope: "local",
+			dialog: { styles: { panel: { background: "url(https://evil.invalid/pixel)", borderRadius: "8px" } } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: unsafeOverlayTheme,
+			root: { type: "dialog" },
+		}), /Unsafe or invalid CSS value/, "unsafe CSS/network values in theme slots fail closed");
+		const unsupportedOverlayStyle = createTheme({
+			id: "unsupported-overlay-style-smoke",
+			scope: "local",
+			dialog: { styles: { panel: { position: "fixed" } } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: unsupportedOverlayStyle,
+			root: { type: "dialog" },
+		}), /Unsupported CSS property 'position'/, "overlay styles reject properties outside the allowlisted CSS vocabulary");
+		const invalidOverlayDefaults = createTheme({
+			id: "invalid-overlay-defaults-smoke",
+			scope: "local",
+			dialog: { defaults: { side: "left" } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: invalidOverlayDefaults,
+			root: { type: "dialog" },
+		}), /Unsupported EngineTheme default 'side'/, "component namespaces reject defaults that could change the wrong component");
+
+		const localVarsOnlyTheme = createTheme({
+			id: "local-vars-only-theme-smoke",
+			scope: "local",
+			vars: { "--local-only": "#010203" },
+		});
+		const localVarsOnlyPage = resolveEngineThemeSchema({
+			theme: localVarsOnlyTheme,
+			root: { type: "dialog" },
+		});
+		assert.equal(localVarsOnlyPage.theme.vars["--local-only"], "#010203",
+			"local groups with page-level vars are treated as definitions, not registry lookups");
+
+		const localOverlayTheme = createTheme({
+			id: "local-overlay-runtime-smoke",
+			scope: "local",
+			drawer: { defaults: { side: "bottom" }, styles: { panel: { color: "#abcdef" } } },
+		});
+		const localOverlayPage = resolveEngineThemeSchema({
+			theme: localOverlayTheme,
+			root: { type: "drawer", theme: "local-overlay-runtime-smoke.drawer" },
+		});
+		assert.equal(localOverlayPage.root.props.engineOverlayTheme.defaults.side, "bottom",
+			"local definitions resolve through the same component namespace contract");
+		assert.equal(localOverlayPage.root.props.engineOverlayTheme.styles.panel.color, "#abcdef");
+
 		assert.throws(() => resolveEngineThemeSchema({
 			theme: { id: "missing-theme.markdown.dark" },
 			root: { type: "markdown", props: { content: "missing" } },
@@ -502,6 +631,14 @@ async function testPublicThemeApi() {
 			markdown: {
 				defaults: { codeColor: "#ffeeaa" },
 				variants: { dark: { defaults: { codeBackground: "#121212" } } },
+			},
+			overlay: {
+				defaults: { duration: 125 },
+				styles: { panel: { borderRadius: "16px" } },
+			},
+			popover: {
+				defaults: { placement: "top" },
+				styles: { panel: { background: "#123456" } },
 			},
 		};
 		const remotePayload = {
@@ -551,6 +688,13 @@ async function testPublicThemeApi() {
 		assert.equal(Object.isFrozen(loadedRemote), true, "loaded remote theme definitions are frozen");
 		assert.equal(loadedRemote.vars["--remote-accent"], "#aabbcc");
 		assert.deepEqual(loadedRemote.fonts, ["https://themes.example.com/engine-theme-fonts.css"], "remote font URLs are normalized to an allowlisted HTTPS origin");
+		const resolvedRemoteOverlayPage = resolveEngineThemeSchema({
+			theme: { id: "remote-smoke", scope: "remote" },
+			root: { type: "popover" },
+		});
+		assert.equal(resolvedRemoteOverlayPage.root.props.engineOverlayTheme.defaults.placement, "top",
+			"verified remote .etr artifacts resolve component namespaces without executing code");
+		assert.equal(resolvedRemoteOverlayPage.root.props.engineOverlayTheme.styles.panel.background, "#123456");
 		const cacheHit = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", remoteOptions);
 		assert.equal(cacheHit, loadedRemote, "repeated loads reuse the in-process cache entry");
 		assert.equal(remoteFetchCalls, 1, "cache hits do not issue another request");

@@ -19,6 +19,7 @@ import type { EngineDialogProps } from "./types";
 
 export const EngineDialog = memo(function EngineDialog({
 	children,
+	engineOverlayTheme,
 	open,
 	defaultOpen = false,
 	onOpenChange,
@@ -57,7 +58,7 @@ export const EngineDialog = memo(function EngineDialog({
 	const titleId = `${panelId}-title`;
 	const descriptionId = `${panelId}-description`;
 	const [isOpen, setOpen] = useOverlayState(open, defaultOpen, onOpenChange);
-	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration);
+	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration ?? engineOverlayTheme?.defaults?.duration);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -72,6 +73,7 @@ export const EngineDialog = memo(function EngineDialog({
 	const panelStyle = usePrimitiveStyles(props as any, {
 		defaults: {
 			...SURFACE_BASE,
+			...engineOverlayTheme?.styles?.panel,
 			position: "relative",
 			width: "min(32rem, calc(100vw - 2rem))",
 			maxHeight: "min(85vh, 52rem)",
@@ -93,7 +95,7 @@ export const EngineDialog = memo(function EngineDialog({
 				label={triggerLabel}
 				children={trigger}
 				className={triggerClassName}
-				style={triggerStyle}
+				style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }}
 				disabled={triggerDisabled}
 				expanded={isOpen}
 				controls={panelId}
@@ -115,6 +117,7 @@ export const EngineDialog = memo(function EngineDialog({
 						backdropFilter: "blur(6px)",
 						opacity: active ? 1 : 0,
 						transition: `opacity ${transitionMs}ms ease`,
+						...engineOverlayTheme?.styles?.backdrop,
 						...overlayStyle,
 					}}
 					onPointerDown={(event) => {
@@ -134,7 +137,7 @@ export const EngineDialog = memo(function EngineDialog({
 						style={panelStyle}
 						data-state={active ? "open" : "closed"}
 					>
-						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} theme={engineOverlayTheme}>{children}</OverlayContent>
 					</div>
 				</div>,
 				target,

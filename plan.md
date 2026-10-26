@@ -731,20 +731,21 @@ The connector could not resolve v2.6.2 as a Git ref, so this section does not cl
 
 The audit also found branch changes in EngineLink, EngineNav, EngineCanvas, EngineVideo, EngineImage, EngineMarkdown, EngineScroll, usePropStyles, EngineProvider, and StyleCollector. These should not be put into a blanket “rewrite Gen 2” bucket; review them against their existing Gen 3 implementation and tests instead.
 
-### P0 — Finish generic EngineTheme integration through createComponent()
+### P0 — Generic EngineTheme integration through createComponent() (implementation in progress)
 
-PR #45 implements EngineTheme group definitions, variants, token handling, Markdown resolution, the .etr pipeline and remote loading. Do not redo any of that. The current resolveEngineThemeSchema() resolves the markdown namespace and applies the resulting props/styles specifically to Markdown nodes; non-Markdown nodes are recursively visited but their component theme namespaces are not applied. This leaves the declared generic components namespace underused for built-in components such as dialog, drawer, and popover.
+PR #45 supplies the EngineTheme group/variant model, token handling, Markdown resolver, .etr pipeline and remote loader. The overlay namespace gap is being closed in this branch without duplicating that machinery.
 
-Plan a bounded generalization of the existing resolver:
+Implemented in this slice:
 
-- Add component-theme resolution for EngineOverlay using its existing components/variant data shape and the existing EngineTheme ID parser/inheritance rules.
-- Keep createComponent() as the public entry point for selecting/declaring component theme bindings; do not add a standalone General API facade.
-- Resolve the theme reference through schema/compiler context rather than passing an unvalidated theme string down as an ordinary style prop. Local per-node overrides should win over resolved defaults; theme variants should not alter behavior such as URL handling, Escape dismissal, navigation or focus restoration.
-- Use shared tokens plus component namespaces. The proposed namespaces are overlay for shared surface/backdrop/motion/stack defaults and dialog, drawer, and popover for component-specific defaults, variants and style slots.
-- Keep existing vars, fonts, globalStyles, Markdown props, and Markdown template precedence backward-compatible. If .etr data can already carry the new JSON-only namespaces, no format bump is needed; only increment the theme schema version if a real schema-contract change requires it.
-- Fail with a clear diagnostic for unknown component theme/variant IDs, invalid values, and a variant bound to the wrong component. Remote themes remain data-only and cannot provide component code.
+- `SchemaNode.theme` is a reserved component/variant binding resolved by `resolveEngineThemeSchema()` before rendering. `createPage()` and `createComponent()` share this path.
+- Shared `overlay` and per-component `dialog`, `drawer`, and `popover` namespaces resolve from global definitions, explicit node-level variants, local theme objects, and already-verified remote .etr data. IDs are consumed before rendering; raw IDs are not forwarded as React props.
+- Shared style slots merge first, then component styles/variants; explicit node style/behavior props remain the final override. Theme defaults are bounded to supported behavior-neutral keys: shared duration; dialog duration; drawer duration/side/size; popover duration/placement/alignment/offset/viewport padding/trigger-width matching.
+- Style slots use an allowlisted CSS vocabulary. Unsafe URL/network CSS, unknown style slots/properties, unsupported defaults, missing variants, missing group context, and wrong-component IDs produce clear errors. Remote themes remain JSON-only, with no .etr format bump.
+- Focused smoke coverage now exercises group/variant resolution, shared/component style merging, local overrides, local/global/remote group handling, unsafe CSS rejection and invalid binding diagnostics.
 
-Suggested overlay theme slots include trigger, backdrop, panel, header, title, description, content, actions, actionPrimary, actionSecondary, actionDanger, closeButton, and popoverArrow. Prefer a validated style/token vocabulary or safe declarative Engine Schema templates over allowing arbitrary remote CSS/code. Existing CSS-variable hooks (--e-overlay-bg, --e-overlay-color, --e-overlay-border, --e-overlay-shadow, --e-overlay-radius, --e-overlay-trigger-*, --e-overlay-action-bg, --e-overlay-muted) provide a compatibility bridge for the first pass.
+Current first-pass style slots are `trigger`, `backdrop`, `panel`, `header`, `title`, `description`, `content`, `actions`, `actionPrimary`, `actionSecondary`, `actionDanger`, and `closeButton`. The proposed `popoverArrow` slot is deferred until an actual arrow element exists. Existing CSS-variable hooks (`--e-overlay-bg`, `--e-overlay-color`, `--e-overlay-border`, `--e-overlay-shadow`, `--e-overlay-radius`, `--e-overlay-trigger-*`, `--e-overlay-action-bg`, `--e-overlay-muted`) remain compatible.
+
+This implementation deliberately keeps `createComponent()` as the schema-backed public composition entry point; it does not add the separate proposed General API facade.
 
 ### P0 — Shared overlay runtime and low-end performance
 
@@ -794,7 +795,7 @@ These are candidates for focused tests and targeted improvements, not automatic 
 
 ### Suggested order for the first Gen 3 release
 
-1. **Theme contract:** implement overlay, dialog, drawer, and popover namespace resolution through the existing EngineTheme resolver and createComponent() path; test local/global theme selection, variants, per-node precedence, and current .etr round-trips.
+1. **Theme contract — implemented in this branch; CI pending:** overlay, dialog, drawer, and popover namespace resolution through the existing EngineTheme resolver and createComponent() path, with local/global/remote selection, variants, per-node precedence and .etr round-trip coverage.
 2. **Overlay runtime:** implement document-scoped stack/scroll-lock ownership, shared reduced-motion subscription, coalesced popover repositioning and stable stacking; preserve zero-overhead behavior when overlays are absent.
 3. **Accessibility matrix:** add keyboard/ARIA/trigger contract, modal inertness, focus restoration, nested overlay and escape/outside-click coverage across Chromium, Firefox and WebKit.
 4. **Carry-over contracts:** audit EngineForms serialization semantics and EngineTransitionLink option forwarding; test CustomSelect and EngineManim before changing their implementation.

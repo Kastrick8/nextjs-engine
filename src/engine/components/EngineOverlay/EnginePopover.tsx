@@ -18,20 +18,25 @@ import { OverlayContent, OverlayTrigger } from "./OverlayParts";
 import type { EnginePopoverProps } from "./types";
 
 export const EnginePopover = memo(function EnginePopover({
-	children, open, defaultOpen = false, onOpenChange,
+	children, engineOverlayTheme, open, defaultOpen = false, onOpenChange,
 	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = false, closeLabel = "Close popover",
 	closeOnEscape = true, restoreFocus = true, initialFocus, duration, portalTargetId, ariaLabel,
-	placement = "bottom", align = "center", offset = 8, viewportPadding = 8,
-	closeOnOutsideClick = true, matchTriggerWidth = false, autoFocus = false, trapFocus = false,
+	placement, align, offset, viewportPadding,
+	closeOnOutsideClick = true, matchTriggerWidth, autoFocus = false, trapFocus = false,
 	role = "dialog", style, className, cprop, id, point, zIndex = 1100, ...props
 }: EnginePopoverProps) {
 	const uid = useId();
 	const panelId = id ?? point ?? `e-popover-${uid.replace(/:/g, "")}`;
+	const resolvedPlacement = placement ?? engineOverlayTheme?.defaults?.placement ?? "bottom";
+	const resolvedAlign = align ?? engineOverlayTheme?.defaults?.align ?? "center";
+	const resolvedOffset = offset ?? engineOverlayTheme?.defaults?.offset ?? 8;
+	const resolvedViewportPadding = viewportPadding ?? engineOverlayTheme?.defaults?.viewportPadding ?? 8;
+	const resolvedMatchTriggerWidth = matchTriggerWidth ?? engineOverlayTheme?.defaults?.matchTriggerWidth ?? false;
 	const titleId = `${panelId}-title`;
 	const descriptionId = `${panelId}-description`;
 	const [isOpen, setOpen] = useOverlayState(open, defaultOpen, onOpenChange);
-	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration, 140);
+	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration ?? engineOverlayTheme?.defaults?.duration, 140);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -59,8 +64,8 @@ export const EnginePopover = memo(function EnginePopover({
 				const viewportHeight = visualViewport?.height ?? window.innerHeight;
 				const viewportLeft = visualViewport?.offsetLeft ?? 0;
 				const viewportTop = visualViewport?.offsetTop ?? 0;
-				if (matchTriggerWidth) {
-					const usableViewportWidth = Math.max(0, viewportWidth - viewportPadding * 2);
+				if (resolvedMatchTriggerWidth) {
+					const usableViewportWidth = Math.max(0, viewportWidth - resolvedViewportPadding * 2);
 					panelElement.style.setProperty(
 						"--e-popover-trigger-width",
 						`${Math.min(triggerRect.width, usableViewportWidth)}px`,
@@ -70,14 +75,14 @@ export const EnginePopover = memo(function EnginePopover({
 				}
 				const panelRect = panelElement.getBoundingClientRect();
 				setPosition(computePopoverPosition(triggerRect, panelRect, {
-					placement,
-					align,
-					offset,
+					placement: resolvedPlacement,
+					align: resolvedAlign,
+					offset: resolvedOffset,
 					viewportWidth,
 					viewportHeight,
 					viewportLeft,
 					viewportTop,
-					viewportPadding,
+					viewportPadding: resolvedViewportPadding,
 				}));
 			});
 		};
@@ -97,7 +102,7 @@ export const EnginePopover = memo(function EnginePopover({
 			window.visualViewport?.removeEventListener("scroll", update);
 			observer?.disconnect();
 		};
-	}, [align, matchTriggerWidth, offset, placement, present, target, viewportPadding]);
+	}, [resolvedAlign, resolvedMatchTriggerWidth, resolvedOffset, resolvedPlacement, present, target, resolvedViewportPadding]);
 
 	useEffect(() => {
 		if (!isOpen || !closeOnOutsideClick) return;
@@ -111,7 +116,7 @@ export const EnginePopover = memo(function EnginePopover({
 		return () => document.removeEventListener("pointerdown", onPointerDown, true);
 	}, [close, closeOnOutsideClick, isOpen, panelId]);
 
-	const actualPlacement = position?.placement ?? placement;
+	const actualPlacement = position?.placement ?? resolvedPlacement;
 	const hiddenTransform = actualPlacement === "top" ? "translateY(6px)"
 		: actualPlacement === "bottom" ? "translateY(-6px)"
 			: actualPlacement === "left" ? "translateX(6px)" : "translateX(-6px)";
@@ -119,11 +124,12 @@ export const EnginePopover = memo(function EnginePopover({
 		defaults: {
 			...SURFACE_BASE,
 			position: "fixed",
-			minWidth: matchTriggerWidth ? "var(--e-popover-trigger-width, 12rem)" : "12rem",
+			minWidth: resolvedMatchTriggerWidth ? "var(--e-popover-trigger-width, 12rem)" : "12rem",
 			maxWidth: "min(24rem, calc(100vw - 1rem))",
 			maxHeight: "min(70vh, 36rem)",
 			overflow: "auto",
 			padding: "1rem",
+			...engineOverlayTheme?.styles?.panel,
 		},
 		style,
 		runtime: {
@@ -141,7 +147,7 @@ export const EnginePopover = memo(function EnginePopover({
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={triggerStyle} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
 			{target && present && createPortal(
 				<div
 					ref={panelRef}
@@ -156,7 +162,7 @@ export const EnginePopover = memo(function EnginePopover({
 					data-state={active ? "open" : "closed"}
 					data-placement={actualPlacement}
 				>
-					<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+					<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} theme={engineOverlayTheme}>{children}</OverlayContent>
 				</div>,
 				target,
 			)}

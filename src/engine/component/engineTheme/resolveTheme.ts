@@ -1,11 +1,18 @@
+import type { CSSProperties } from "react";
 import type {
 	EngineTheme,
 	EngineThemeJsonObject,
 	PageSchema,
 	SchemaNode,
 } from "../../schema/types";
+import type {
+	EngineOverlayResolvedTheme,
+	EngineOverlayThemeDefaults,
+	EngineOverlayThemeSlot,
+} from "../../components/EngineOverlay/types";
 import {
 	getEngineThemeComponentDefinitions,
+	parseEngineThemeId,
 	resolveRegisteredEngineTheme,
 } from "./createTheme";
 
@@ -95,31 +102,287 @@ function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject, themeId?: 
 	return { props, styles };
 }
 
+const OVERLAY_NODE_NAMESPACES: Readonly<Record<string, "dialog" | "drawer" | "popover"> = {
+	dialog: "dialog",
+	EngineDialog: "dialog",
+	drawer: "drawer",
+	EngineDrawer: "drawer",
+	popover: "popover",
+	EnginePopover: "popover",
+};
+
+const OVERLAY_STYLE_SLOTS: readonly EngineOverlayThemeSlot[] = [
+	"trigger", "backdrop", "panel", "header", "title", "description",
+	"content", "actions", "actionPrimary", "actionSecondary", "actionDanger",
+	"closeButton",
+];
+
+const OVERLAY_DEFAULT_KEYS = new Set([
+	"duration", "size", "side", "placement", "align", "offset", "viewportPadding", "matchTriggerWidth",
+]);
+const OVERLAY_SHARED_DEFAULT_KEYS = ["duration"] as const;
+const OVERLAY_COMPONENT_DEFAULT_KEYS: Readonly<Record<"dialog" | "drawer" | "popover", readonly string[]>> = {
+	dialog: ["duration"],
+	drawer: ["duration", "size", "side"],
+	popover: ["duration", "placement", "align", "offset", "viewportPadding", "matchTriggerWidth"],
+};
+
+const OVERLAY_STYLE_PROPERTIES = new Set([
+	"background", "backgroundColor", "color", "border", "borderColor", "borderWidth",
+	"borderStyle", "borderRadius", "boxShadow", "outline", "outlineColor", "outlineWidth",
+	"outlineStyle", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight",
+	"letterSpacing", "textAlign", "textTransform", "textDecoration", "textDecorationColor",
+	"padding", "paddingBlock", "paddingBlockStart", "paddingBlockEnd", "paddingInline",
+	"paddingInlineStart", "paddingInlineEnd", "paddingTop", "paddingRight", "paddingBottom",
+	"paddingLeft", "margin", "marginBlock", "marginInline", "gap", "rowGap", "columnGap",
+	"width", "minWidth", "maxWidth", "height", "minHeight", "maxHeight", "whiteSpace",
+	"wordBreak", "overflowWrap", "textOverflow", "backdropFilter",
+]);
+
+const UNSAFE_OVERLAY_CSS_VALUE = /url\s*\(|expression\s*\(|javascript\s*:|@import|behavior\s*:|-moz-binding|[;{}]/i;
+
+function mergeThemeData(
+	base: Record<string, unknown>,
+	overlay: Record<string, unknown>,
+): Record<string, unknown> {
+	const merged: Record<string, unknown> = { ...base };
+	for (const [key, next] of Object.entries(overlay)) {
+		const previous = merged[key];
+		merged[key] = isThemeRecord(previous) && isThemeRecord(next)
+			? mergeThemeData(previous, next)
+			: next;
+	}
+	return merged;
+}
+
+function isSafeThemeScalar(value: unknown): value is string | number {
+	if (typeof value === "number") return Number.isFinite(value) && Math.abs(value) <= 1_000_000;
+	return typeof value === "string"
+		&& value.length <= 256
+		&& !UNSAFE_OVERLAY_CSS_VALUE.test(value);
+}
+
+function sanitizeOverlayStyles(value: unknown): EngineOverlayResolvedTheme["styles"] | undefined {
+	if (value === undefined) return undefined;
+	if (!isThemeRecord(value)) throw new TypeError("EngineTheme overlay styles must be an object of named style slots.");
+	const result: Partial<Record<EngineOverlayThemeSlot, CSSProperties>> = {};
+	for (const [slot, candidate] of Object.entries(value)) {
+		if (!OVERLAY_STYLE_SLOTS.includes(slot as EngineOverlayThemeSlot)) {
+			throw new TypeError("Unsupported EngineTheme overlay style slot '" + slot + "'.");
+		}
+		if (!isThemeRecord(candidate)) {
+			throw new TypeError("EngineTheme overlay style slot '" + slot + "' must be a plain object.");
+		}
+		const style: Record<string, string | number> = {};
+		for (const [property, item] of Object.entries(candidate)) {
+			if (!OVERLAY_STYLE_PROPERTIES.has(property)) {
+				throw new TypeError("Unsupported CSS property '" + property + "' in EngineTheme overlay slot '" + slot + "'.");
+			}
+			if (!isSafeThemeScalar(item)) {
+				throw new TypeError("Unsafe or invalid CSS value for '" + property + "' in EngineTheme overlay slot '" + slot + "'.");
+			}
+			style[property] = item;
+		}
+		if (Object.keys(style).length > 0) result[slot as EngineOverlayThemeSlot] = style as unknown as CSSProperties;
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function isAllowedDefaultKey(key: string, allowed: readonly string[]): boolean {
+	return allowed.includes(key);
+}
+
+function readOverlayDefaults(
+	definition: Record<string, unknown> | undefined,
+	allowedKeys: readonly string[],
+	label: string,
+): Record<string, unknown> {
+	if (!definition) return {};
+	const result: Record<string, unknown> = {};
+	for (const key of OVERLAY_DEFAULT_KEYS) {
+		if (Object.prototype.hasOwnProperty.call(definition, key) && !allowedKeys.includes(key)) {
+			throw new TypeError("Unsupported EngineTheme default '" + key + "' in " + label + ".");
+		}
+	}
+	for (const key of allowedKeys) {
+		if (Object.prototype.hasOwnProperty.call(definition, key)) result[key] = definition[key];
+	}
+	for (const field of ["defaults", "props"] as const) {
+		const nested = definition[field];
+		if (nested === undefined) continue;
+		if (!isThemeRecord(nested)) {
+			throw new TypeError("EngineTheme overlay " + label + "." + field + " must be an object.");
+		}
+		for (const key of Object.keys(nested)) {
+			if (key === "styles") continue;
+			if (!isAllowedDefaultKey(key, allowedKeys)) {
+				throw new TypeError("Unsupported EngineTheme default '" + key + "' in " + label + "." + field + ".");
+			}
+			result[key] = nested[key];
+		}
+	}
+	return result;
+}
+
+function sanitizeOverlayDefaults(value: Record<string, unknown>): EngineOverlayThemeDefaults | undefined {
+	const result: EngineOverlayThemeDefaults = {};
+	for (const [key, item] of Object.entries(value)) {
+		if (!OVERLAY_DEFAULT_KEYS.has(key)) {
+			throw new TypeError("Unsupported EngineTheme overlay default '" + key + "'.");
+		}
+		switch (key) {
+			case "duration":
+				if (typeof item !== "number" || !Number.isFinite(item)) {
+					throw new TypeError("EngineTheme overlay duration must be a finite number.");
+				}
+				result.duration = Math.min(1200, Math.max(0, item));
+				break;
+			case "size":
+				if (typeof item === "number" && Number.isFinite(item) && item > 0 && item <= 2048) {
+					result.size = item;
+				} else if (typeof item === "string" && item.length > 0 && item.length <= 64 && !UNSAFE_OVERLAY_CSS_VALUE.test(item)) {
+					result.size = item;
+				} else {
+					throw new TypeError("EngineTheme drawer size must be a positive bounded number or a safe CSS size.");
+				}
+				break;
+			case "side":
+				if (item !== "left" && item !== "right" && item !== "top" && item !== "bottom") {
+					throw new TypeError("EngineTheme drawer side must be left, right, top, or bottom.");
+				}
+				result.side = item;
+				break;
+			case "placement":
+				if (item !== "left" && item !== "right" && item !== "top" && item !== "bottom") {
+					throw new TypeError("EngineTheme popover placement must be left, right, top, or bottom.");
+				}
+				result.placement = item;
+				break;
+			case "align":
+				if (item !== "start" && item !== "center" && item !== "end") {
+					throw new TypeError("EngineTheme popover align must be start, center, or end.");
+				}
+				result.align = item;
+				break;
+			case "offset":
+			case "viewportPadding":
+				if (typeof item !== "number" || !Number.isFinite(item) || item < 0) {
+					throw new TypeError("EngineTheme popover " + key + " must be a finite non-negative number.");
+				}
+				result[key] = Math.min(128, item);
+				break;
+			case "matchTriggerWidth":
+				if (typeof item !== "boolean") {
+					throw new TypeError("EngineTheme popover matchTriggerWidth must be boolean.");
+				}
+				result.matchTriggerWidth = item;
+				break;
+		}
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function getOverlayStylePart(value: unknown, path: string): Record<string, unknown> | undefined {
+	if (value === undefined) return undefined;
+	if (!isThemeRecord(value)) {
+		throw new TypeError("EngineTheme overlay styles at '" + path + "' must be a plain object.");
+	}
+	return value;
+}
+
+function overlayThemeFromDefinitions(
+	shared: Record<string, unknown> | undefined,
+	specific: Record<string, unknown> | undefined,
+	namespace: "dialog" | "drawer" | "popover",
+): EngineOverlayResolvedTheme | undefined {
+	const defaults = {
+		...readOverlayDefaults(shared, OVERLAY_SHARED_DEFAULT_KEYS, "overlay"),
+		...readOverlayDefaults(specific, OVERLAY_COMPONENT_DEFAULT_KEYS[namespace], namespace),
+	};
+	const safeDefaults = sanitizeOverlayDefaults(defaults);
+
+	const styleParts = [
+		getOverlayStylePart(shared?.styles, "overlay.styles"),
+		getOverlayStylePart(shared?.overlayStyles, "overlay.overlayStyles"),
+		getOverlayStylePart(isThemeRecord(shared?.defaults) ? shared.defaults.styles : undefined, "overlay.defaults.styles"),
+		getOverlayStylePart(isThemeRecord(shared?.props) ? shared.props.styles : undefined, "overlay.props.styles"),
+		getOverlayStylePart(specific?.styles, namespace + ".styles"),
+		getOverlayStylePart(specific?.overlayStyles, namespace + ".overlayStyles"),
+		getOverlayStylePart(isThemeRecord(specific?.defaults) ? specific.defaults.styles : undefined, namespace + ".defaults.styles"),
+		getOverlayStylePart(isThemeRecord(specific?.props) ? specific.props.styles : undefined, namespace + ".props.styles"),
+	].filter((item): item is Record<string, unknown> => item !== undefined);
+	const mergedStyles = styleParts.reduce<Record<string, unknown>>(
+		(result, part) => mergeThemeData(result, part),
+		{},
+	);
+	const styles = sanitizeOverlayStyles(mergedStyles);
+	if (!safeDefaults && !styles) return undefined;
+	return {
+		...(safeDefaults ? { defaults: safeDefaults } : {}),
+		...(styles ? { styles } : {}),
+	};
+}
+
+function resolveNodeOverlayTheme(
+	node: SchemaNode,
+	namespace: "dialog" | "drawer" | "popover",
+	context: EngineThemeResolutionContext,
+): EngineOverlayResolvedTheme | undefined {
+	const explicitId = node.theme;
+	let sharedSelection = context.selectedComponents.overlay
+		? { ...(context.selectedComponents.overlay as Record<string, unknown>) }
+		: namespaceDefinition(context, "overlay");
+	let componentSelection = context.selectedComponents[namespace]
+		? { ...(context.selectedComponents[namespace] as Record<string, unknown>) }
+		: namespaceDefinition(context, namespace);
+
+	if (explicitId !== undefined) {
+		if (typeof explicitId !== "string" || !explicitId) {
+			throw new TypeError("SchemaNode.theme must be a qualified EngineTheme component ID.");
+		}
+		const parsed = parseEngineThemeId(explicitId);
+		if (!parsed.componentId || (parsed.componentId !== "overlay" && parsed.componentId !== namespace)) {
+			throw new Error(
+				"Schema node <" + node.type + "> must use an EngineTheme ID qualified for 'overlay' or '" + namespace + "'; received '" + explicitId + "'.",
+			);
+		}
+		if (context.groupId && parsed.groupId !== context.groupId) {
+			throw new Error(
+				"Schema node theme '" + explicitId + "' must use the same EngineTheme group '" + context.groupId + "' as its PageSchema.",
+			);
+		}
+			if (!context.groupId) {
+			throw new Error(
+				"Schema node theme '" + explicitId + "' requires PageSchema.theme to select its EngineTheme group first.",
+			);
+		}
+		let selected: Record<string, unknown> | undefined;
+		if (context.globallyRegistered) {
+			selected = resolveRegisteredEngineTheme(explicitId).components[parsed.componentId];
+		} else {
+			selected = resolveLocalVariant(context.components[parsed.componentId], parsed.subthemes, explicitId);
+		}
+		if (!selected) {
+			throw new Error("EngineTheme '" + explicitId + "' did not resolve to a component namespace.");
+		}
+		if (parsed.componentId === "overlay") sharedSelection = selected;
+		else componentSelection = selected;
+	}
+
+	return overlayThemeFromDefinitions(sharedSelection, componentSelection, namespace);
+}
+
 function applyMarkdownThemeToNode(node: SchemaNode, markdownTheme: ResolvedMarkdownTheme): SchemaNode {
-	let children = node.children;
-	if (Array.isArray(node.children)) {
-		const mapped = node.children.map((child) => typeof child === "string"
-			? child
-			: applyMarkdownThemeToNode(child, markdownTheme));
-		if (mapped.some((child, index) => child !== node.children?.[index])) children = mapped;
-	}
-
-	if (node.type !== "markdown") {
-		return children === node.children ? node : { ...node, children };
-	}
-
-	const resolved = markdownTheme;
+	if (node.type !== "markdown") return node;
 	const originalProps = node.props ?? {};
-	const themeProps = resolved.props;
+	const themeProps = markdownTheme.props;
 	const localStyles = originalProps.markdownStyles;
-	const mergedStyles = mergeMarkdownStyleSlots(resolved.styles, localStyles);
+	const mergedStyles = mergeMarkdownStyleSlots(markdownTheme.styles, localStyles);
 	const nextProps: Record<string, unknown> = {
 		...themeProps,
 		...originalProps,
 	};
 	if (isThemeRecord(themeProps.prettyPlease) || isThemeRecord(originalProps.prettyPlease)) {
-		// Per-node provider/theme settings override the corresponding shared
-		// options, but an explicitly supplied palette remains a full replacement.
 		nextProps.prettyPlease = {
 			...(isThemeRecord(themeProps.prettyPlease) ? themeProps.prettyPlease : {}),
 			...(isThemeRecord(originalProps.prettyPlease) ? originalProps.prettyPlease : {}),
@@ -132,31 +395,80 @@ function applyMarkdownThemeToNode(node: SchemaNode, markdownTheme: ResolvedMarkd
 		};
 	}
 	if (mergedStyles) nextProps.markdownStyles = mergedStyles;
+	return { ...node, props: nextProps as SchemaNode["props"] };
+}
 
-	return {
-		...node,
-		...(children !== node.children ? { children } : {}),
-		props: nextProps as SchemaNode["props"],
-	};
+function applyResolvedThemeToNode(
+	node: SchemaNode,
+	context: EngineThemeResolutionContext,
+	markdownTheme?: ResolvedMarkdownTheme,
+): SchemaNode {
+	const mappedChildren = Array.isArray(node.children)
+		? node.children.map((child) => typeof child === "string" ? child : applyResolvedThemeToNode(child, context, markdownTheme))
+		: node.children;
+	let result: SchemaNode = mappedChildren === node.children ? node : { ...node, children: mappedChildren };
+
+	const namespace = OVERLAY_NODE_NAMESPACES[result.type];
+	if (namespace) {
+		const overlayTheme = resolveNodeOverlayTheme(result, namespace, context);
+		const originalProps = result.props ?? {};
+		const hasInjectedTheme = Object.prototype.hasOwnProperty.call(originalProps, "engineOverlayTheme");
+		if (overlayTheme !== undefined || result.theme !== undefined || hasInjectedTheme) {
+			const nextProps: Record<string, unknown> = { ...originalProps };
+			// This is reserved internal data: schema authors cannot bypass the resolver
+			// by injecting an unchecked object directly into the props.
+			delete nextProps.engineOverlayTheme;
+			if (overlayTheme) nextProps.engineOverlayTheme = overlayTheme;
+			const { theme: _consumedTheme, ...themedNode } = result;
+			result = {
+				...themedNode,
+				props: nextProps as SchemaNode["props"],
+			};
+		}
+	} else if (result.theme !== undefined) {
+		throw new Error(
+			"SchemaNode.theme currently supports EngineDialog, EngineDrawer, and EnginePopover nodes only; received <" + result.type + ">.",
+		);
+	}
+
+	if (markdownTheme) result = applyMarkdownThemeToNode(result, markdownTheme);
+	return result;
+}
+
+function schemaHasNodeTheme(node: SchemaNode): boolean {
+	if (node.theme !== undefined) return true;
+	return Array.isArray(node.children)
+		&& node.children.some((child) => typeof child !== "string" && schemaHasNodeTheme(child));
 }
 
 export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 	const theme = schema.theme;
-	if (!theme || typeof theme.id !== "string" || !theme.id) return schema;
+	if (!theme || typeof theme.id !== "string" || !theme.id) {
+		if (schemaHasNodeTheme(schema.root)) {
+			throw new Error("SchemaNode.theme requires PageSchema.theme to identify an EngineTheme group.");
+		}
+		return schema;
+	}
 
 	const themeRecord = theme as Record<string, unknown>;
 	const keys = Object.keys(themeRecord);
-	const isQualifiedReference = theme.id.includes(".");
-	const isBareReference = keys.every((key) => THEME_REFERENCE_KEYS.has(key));
+	const isQualifiedReference = typeof theme.id === "string" && theme.id.includes(".");
+	const isBareReference = theme.scope !== "local"
+		&& typeof theme.id === "string"
+		&& keys.every((key) => THEME_REFERENCE_KEYS.has(key));
 	const isReference = isQualifiedReference || isBareReference;
+	const parsedThemeId = typeof theme.id === "string" && theme.id ? parseEngineThemeId(theme.id) : undefined;
 
 	let resolvedCssTheme: EngineTheme = theme;
-	let markdownThemes = getEngineThemeComponentDefinitions(theme);
+	let components = getEngineThemeComponentDefinitions(theme);
+	let selectedComponents: Record<string, EngineThemeJsonObject> = {};
+	let globallyRegistered = false;
 
-	if (isReference) {
+	if (isReference || theme.scope === "global" || theme.scope === "remote") {
+		if (!parsedThemeId) throw new TypeError("EngineTheme reference requires a valid ID.");
 		if (themeRecord.sourceUrl || themeRecord.scope === "remote") {
 			try {
-				resolveRegisteredEngineTheme(theme.id);
+				resolveRegisteredEngineTheme(parsedThemeId.groupId);
 			} catch {
 				throw new Error(
 					"Remote EngineTheme references are resolved only after an explicit loadRemoteEngineTheme() call "
@@ -164,43 +476,45 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 				);
 			}
 		}
-		const resolved = resolveRegisteredEngineTheme(theme.id);
+		const baseResolved = resolveRegisteredEngineTheme(parsedThemeId.groupId);
 		resolvedCssTheme = {
-			...resolved.group,
-			...(isThemeRecord(themeRecord.vars)
-				? { vars: { ...(resolved.group.vars ?? {}), ...(themeRecord.vars as Record<string, string>) } }
-				: {}),
-			...(Array.isArray(themeRecord.fonts)
-				? { fonts: [...(resolved.group.fonts ?? []), ...(themeRecord.fonts as string[])] }
-				: {}),
-			...(typeof themeRecord.globalStyles === "string"
-				? { globalStyles: themeRecord.globalStyles }
-				: {}),
+			...baseResolved.group,
+			...(isThemeRecord(themeRecord.vars) ? { vars: { ...(baseResolved.group.vars ?? {}), ...(themeRecord.vars as Record<string, string>) } } : {}),
+			...(Array.isArray(themeRecord.fonts) ? { fonts: [...(baseResolved.group.fonts ?? []), ...(themeRecord.fonts as string[])] } : {}),
+			...(typeof themeRecord.globalStyles === "string" ? { globalStyles: themeRecord.globalStyles } : {}),
 		};
-		markdownThemes = resolved.components;
-	} else if (theme.scope === "global") {
-		// Calling createTheme() registered the group in this module instance.
-		// Resolve by root ID so unknown/redefined IDs fail consistently.
-		const resolved = resolveRegisteredEngineTheme(theme.id);
-		markdownThemes = resolved.components;
+		components = baseResolved.components;
+		globallyRegistered = true;
+		if (parsedThemeId.componentId) {
+			const selected = resolveRegisteredEngineTheme(theme.id!);
+			selectedComponents = selected.components;
+		}
 	}
 
-	const markdownTheme = markdownThemes.markdown;
-	if (!markdownTheme) {
-		return resolvedCssTheme === theme ? schema : { ...schema, theme: resolvedCssTheme };
-	}
+	const markdownBase = components.markdown;
+	const markdownSelected = selectedComponents.markdown;
+	const markdownDefinition = markdownSelected ?? (withoutVariants(markdownBase) as EngineThemeJsonObject | undefined);
+	const resolvedMarkdownTheme = markdownDefinition
+		? resolveMarkdownThemeDefinition(markdownDefinition, typeof resolvedCssTheme.id === "string" ? resolvedCssTheme.id.split(".")[0] : undefined)
+		: undefined;
 
-	const resolvedMarkdownTheme = resolveMarkdownThemeDefinition(
-		markdownTheme,
-		typeof resolvedCssTheme.id === "string" ? resolvedCssTheme.id.split(".")[0] : undefined,
+	const context: EngineThemeResolutionContext = {
+		groupId: parsedThemeId?.groupId ?? (typeof resolvedCssTheme.id === "string" ? resolvedCssTheme.id : undefined),
+		components,
+		selectedComponents,
+		globallyRegistered,
+	};
+	const needsNodeResolution = Boolean(
+		resolvedMarkdownTheme
+		|| schemaHasNodeTheme(schema.root)
+		|| ["overlay", "dialog", "drawer", "popover"].some((name) => components[name] || selectedComponents[name]),
 	);
-	const hasMarkdownDefaults = Object.keys(resolvedMarkdownTheme.props).length > 0
-		|| resolvedMarkdownTheme.styles !== undefined;
+	const root = needsNodeResolution
+		? applyResolvedThemeToNode(schema.root, context, resolvedMarkdownTheme)
+		: schema.root;
 	return {
 		...schema,
 		theme: resolvedCssTheme,
-		...(hasMarkdownDefaults
-			? { root: applyMarkdownThemeToNode(schema.root, resolvedMarkdownTheme) }
-			: {}),
+		...(root !== schema.root ? { root } : {}),
 	};
 }

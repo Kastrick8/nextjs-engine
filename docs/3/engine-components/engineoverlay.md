@@ -410,9 +410,68 @@ The portal runtime is client-side only; the trigger can still participate in nor
 
 ---
 
-## EngineTheme integration status
+## EngineTheme integration
 
-The current EngineTheme runtime resolves Markdown component defaults/styles and page-level theme fields. It does not yet apply component-specific theme namespaces directly to EngineDialog, EngineDrawer or EnginePopover. For overlays, use the documented styling props and CSS variables below; do not assume a components.overlay, components.dialog, components.drawer or components.popover theme namespace is wired in this alpha. The planned integration is tracked in [plan.md](../../../plan.md#16-gen-3-first-release-gap-assessment-engineoverlay-and-reused-gen-2-surfaces).
+Generation 3 resolves overlay themes before rendering, through the same `createPage()` and `createComponent()` schema pipeline used by Markdown themes. A theme can define shared `overlay` styles and focused `dialog`, `drawer`, and `popover` defaults/variants. No event handlers or component code are loaded from a theme.
+
+```tsx
+import { createComponent, createTheme } from "nextjs-engine";
+
+createTheme({
+  id: "app-overlays",
+  scope: "global",
+  overlay: {
+    defaults: { duration: 180 },
+    styles: {
+      backdrop: { background: "rgba(2, 6, 23, .42)" },
+      panel: { borderRadius: "16px" },
+    },
+  },
+  dialog: {
+    defaults: { duration: 240 },
+    styles: {
+      panel: { background: "#0b1220", color: "#e2e8f0" },
+      title: { color: "#f8fafc" },
+    },
+    variants: {
+      danger: { styles: { panel: { borderColor: "#b91c1c" } } },
+    },
+  },
+  drawer: { defaults: { side: "left", size: "28rem" } },
+  popover: {
+    defaults: {
+      placement: "bottom",
+      align: "start",
+      offset: 10,
+      viewportPadding: 10,
+      matchTriggerWidth: true,
+    },
+  },
+});
+
+export const ConfirmDialog = createComponent({
+  schema: {
+    theme: { id: "app-overlays" },
+    root: {
+      type: "dialog",
+      theme: "app-overlays.dialog.danger",
+      props: {
+        triggerLabel: "Delete item",
+        title: "Delete item?",
+        description: "This action cannot be undone.",
+      },
+    },
+  },
+});
+```
+
+The page-level `theme.id` selects a group that was registered by `createTheme({ scope: "global" })`. A node-level `theme` selects a qualified component/variant ID of the same group; the ID is consumed by the schema resolver and is never forwarded as a normal React prop. A local theme can instead be passed as the actual `schema.theme` object, with node-level IDs qualified by that local group's ID.
+
+The `overlay` namespace provides shared `duration` and named style slots. `dialog` may set `duration`; `drawer` may set `duration`, `side`, and `size`; `popover` may set `duration`, `placement`, `align`, `offset`, `viewportPadding`, and `matchTriggerWidth`. Component-specific values override shared defaults. Explicit node props (for example `side`, `size`, or `offset`) override theme defaults, and local panel `style` props override theme panel styles.
+
+Supported style slots are `trigger`, `backdrop`, `panel`, `header`, `title`, `description`, `content`, `actions`, `actionPrimary`, `actionSecondary`, `actionDanger`, and `closeButton`. Theme styles use a bounded CSS-property vocabulary. Unknown slots/properties, unsafe URL/network CSS values, invalid defaults, missing variants, and bindings to the wrong overlay component fail with a diagnostic. Use shared `tokens` or `vars` for CSS custom properties; a theme slot cannot inject arbitrary CSS text. The `popoverArrow` slot remains deferred until EnginePopover renders an arrow element.
+
+The .etr artifact schema version remains unchanged: the added namespaces are ordinary validated JSON data and remote artifacts remain code-free. The focused theme compiler smoke test covers local/global/remote namespace resolution, style merging, variant and wrong-component diagnostics, unsafe styles, and local-prop precedence.
 
 ---
 

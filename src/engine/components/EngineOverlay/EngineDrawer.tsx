@@ -18,12 +18,12 @@ import { OverlayContent, OverlayTrigger } from "./OverlayParts";
 import type { EngineDrawerProps } from "./types";
 
 export const EngineDrawer = memo(function EngineDrawer({
-	children, open, defaultOpen = false, onOpenChange,
+	children, engineOverlayTheme, open, defaultOpen = false, onOpenChange,
 	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = true, closeLabel = "Close drawer",
 	closeOnEscape = true, closeOnBackdrop = true, restoreFocus = true, initialFocus,
 	duration, portalTargetId, ariaLabel, overlayStyle, lockScroll = true, trapFocus = true,
-	side = "right", size = "min(26rem, 92vw)", style, className, cprop, id, point,
+	side, size, style, className, cprop, id, point,
 	zIndex = 1000, ...props
 }: EngineDrawerProps) {
 	const uid = useId();
@@ -31,7 +31,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 	const titleId = `${panelId}-title`;
 	const descriptionId = `${panelId}-description`;
 	const [isOpen, setOpen] = useOverlayState(open, defaultOpen, onOpenChange);
-	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration, 220);
+	const transitionMs = useReducedMotion() ? 0 : clampDuration(transitionDuration, 220);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -43,24 +43,28 @@ export const EngineDrawer = memo(function EngineDrawer({
 	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, restoreFocus, trapFocus]);
 	useOverlayBehavior(behavior);
 
-	const horizontal = side === "left" || side === "right";
-	const hiddenTransform = side === "left" ? "translateX(-100%)"
-		: side === "right" ? "translateX(100%)"
-			: side === "top" ? "translateY(-100%)" : "translateY(100%)";
-	const edgeStyle = side === "left" ? { left: 0, top: 0, bottom: 0 }
-		: side === "right" ? { right: 0, top: 0, bottom: 0 }
-			: side === "top" ? { top: 0, left: 0, right: 0 }
+	const resolvedSide = side ?? engineOverlayTheme?.defaults?.side ?? "right";
+	const resolvedSize = size ?? engineOverlayTheme?.defaults?.size ?? "min(26rem, 92vw)";
+	const transitionDuration = duration ?? engineOverlayTheme?.defaults?.duration;
+	const horizontal = resolvedSide === "left" || resolvedSide === "right";
+	const hiddenTransform = resolvedSide === "left" ? "translateX(-100%)"
+		: resolvedSide === "right" ? "translateX(100%)"
+			: resolvedSide === "top" ? "translateY(-100%)" : "translateY(100%)";
+	const edgeStyle = resolvedSide === "left" ? { left: 0, top: 0, bottom: 0 }
+		: resolvedSide === "right" ? { right: 0, top: 0, bottom: 0 }
+			: resolvedSide === "top" ? { top: 0, left: 0, right: 0 }
 				: { bottom: 0, left: 0, right: 0 };
 	const panelStyle = usePrimitiveStyles(props as any, {
 		defaults: {
 			...SURFACE_BASE,
 			position: "fixed",
 			...edgeStyle,
-			width: horizontal ? size : "100%",
-			height: horizontal ? "100%" : size,
+			width: horizontal ? resolvedSize : "100%",
+			height: horizontal ? "100%" : resolvedSize,
 			borderRadius: 0,
 			overflow: "auto",
 			padding: "1.25rem",
+			...engineOverlayTheme?.styles?.panel,
 		},
 		style,
 		runtime: {
@@ -73,12 +77,12 @@ export const EngineDrawer = memo(function EngineDrawer({
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={triggerStyle} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
 			{target && present && createPortal(
 				<>
 					<div
 						aria-hidden="true"
-						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...overlayStyle }}
+						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...engineOverlayTheme?.styles?.backdrop, ...overlayStyle }}
 						onPointerDown={() => {
 							if (closeOnBackdrop && isTopOverlay(panelId)) close();
 						}}
@@ -95,9 +99,9 @@ export const EngineDrawer = memo(function EngineDrawer({
 						className={panelClass}
 						style={{ ...panelStyle, zIndex: zIndex + 1 }}
 						data-state={active ? "open" : "closed"}
-						data-side={side}
+						data-side={resolvedSide}
 					>
-						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} theme={engineOverlayTheme}>{children}</OverlayContent>
 					</div>
 				</>,
 				target,

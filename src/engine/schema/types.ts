@@ -722,6 +722,8 @@ export interface CanvasNodeProps extends Omit<BaseNodeProps, "width" | "height">
 export interface SchemaNode {
 	type: NodeType;
 	name?: string;
+	/** Optional EngineTheme component/variant ID resolved before schema rendering. */
+	theme?: string;
 	key?: string;
 	/** Whether missing browser capabilities owned by this node should recommend an update. */
 	compatibility?: "required" | "optional";
