@@ -22,112 +22,61 @@ jobs:
     if: ${{ inputs.dry_run == true || inputs.confirm == 'DELETE-GENERATED-SYNC-BRANCHES' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Preview or delete only generated package-sync refs
+      - uses: actions/github-script@v7
         env:
-          GH_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ inputs.dry_run }}
           CONFIRM: ${{ inputs.confirm }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$DRY_RUN" == "true" ]]; then
-            MODE="preview"
-          elif [[ "$CONFIRM" == "DELETE-GENERATED-SYNC-BRANCHES" ]]; then
-            MODE="delete"
-          else
-            echo "Confirmation mismatch; refusing to delete refs." >&2
-            exit 1
-          fi
-
-          mapfile -t BRANCHES < <(
-            gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[] | select(.protected == false) | .name' |
-              grep -E '^sync/main-3-package-[0-9a-f]{7}-[0-9]+
-          )
-          mapfile -t OPEN_PR_HEADS < <(
-            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].head.ref'
-          )
-
-          echo "Matching generated refs: ${#BRANCHES[@]}"
-          deleted=0
-          skipped=0
-          failed=0
-
-          for branch in "${BRANCHES[@]}"; do
-            if printf '%s\n' "${OPEN_PR_HEADS[@]}" | grep -Fxq "$branch"; then
-              echo "SKIP open PR uses branch: $branch"
-              skipped=$((skipped+1))
-              continue
-            fi
-            if [[ "$MODE" == "preview" ]]; then
-              echo "DRY RUN would delete: $branch"
-              continue
-            fi
-            if gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch" >/dev/null; then
-              echo "DELETED: $branch"
-              deleted=$((deleted+1))
-            else
-              echo "FAILED (possibly protected or permission denied): $branch"
-              failed=$((failed+1))
-            fi
-          done
-
-          {
-            echo "## Generated branch cleanup"
-            echo "- Matching refs: ${#BRANCHES[@]}"
-            echo "- Deleted: $deleted"
-            echo "- Skipped due to open PR: $skipped"
-            echo "- Failed: $failed"
-            echo "- Mode: $MODE"
-            echo
-            echo "Only refs matching `sync/main-3-package-<7-hex-sha>-<attempt>` were eligible."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ "$failed" -gt 0 ]]; then
-            echo "$failed matching branch deletion(s) failed." >&2
-            exit 1
-          fi
- || true
-          )
-          mapfile -t OPEN_PR_HEADS < <(
-            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].head.ref'
-          )
-
-          echo "Matching generated refs: ${#BRANCHES[@]}"
-          deleted=0
-          skipped=0
-          failed=0
-
-          for branch in "${BRANCHES[@]}"; do
-            if printf '%s\n' "${OPEN_PR_HEADS[@]}" | grep -Fxq "$branch"; then
-              echo "SKIP open PR uses branch: $branch"
-              skipped=$((skipped+1))
-              continue
-            fi
-            if [[ "$MODE" == "preview" ]]; then
-              echo "DRY RUN would delete: $branch"
-              continue
-            fi
-            if gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch" >/dev/null; then
-              echo "DELETED: $branch"
-              deleted=$((deleted+1))
-            else
-              echo "FAILED (possibly protected or permission denied): $branch"
-              failed=$((failed+1))
-            fi
-          done
-
-          {
-            echo "## Generated branch cleanup"
-            echo "- Matching refs: ${#BRANCHES[@]}"
-            echo "- Deleted: $deleted"
-            echo "- Skipped due to open PR: $skipped"
-            echo "- Failed: $failed"
-            echo "- Mode: $MODE"
-            echo
-            echo "Only refs matching `sync/main-3-package-<7-hex-sha>-<attempt>` were eligible."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ "$failed" -gt 0 ]]; then
-            echo "$failed matching branch deletion(s) failed." >&2
-            exit 1
-          fi
+        with:
+          script: |
+            const dryRun = process.env.DRY_RUN === "true";
+            const confirm = process.env.CONFIRM || "";
+            if (!dryRun && confirm !== "DELETE-GENERATED-SYNC-BRANCHES") {
+              throw new Error("Refusing deletion without explicit typed confirmation.");
+            }
+            const { owner, repo } = context.repo;
+            const branches = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
+            const pulls = await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 });
+            const openHeads = new Set(pulls.map((pull) => pull.head.ref));
+            const matcher = /^sync\/main-3-package-[0-9a-f]{7}-[0-9]+$/;
+            const candidates = branches.filter((branch) => !branch.protected && matcher.test(branch.name));
+            const deleted = [];
+            const skipped = branches.filter((branch) => matcher.test(branch.name) && (branch.protected || openHeads.has(branch.name)))
+              .map((branch) => ({ name: branch.name, reason: branch.protected ? "protected branch" : "used by an open PR" }));
+            const preview = [];
+            const failed = [];
+            for (const branch of candidates) {
+              if (openHeads.has(branch.name)) {
+                skipped.push({ name: branch.name, reason: "used by an open PR" });
+                continue;
+              }
+              if (dryRun) {
+                preview.push(branch.name);
+                continue;
+              }
+              try {
+                await github.rest.git.deleteRef({ owner, repo, ref: "heads/" + branch.name });
+                deleted.push(branch.name);
+              } catch (error) {
+                failed.push({ name: branch.name, reason: String(error.message || error) });
+              }
+            }
+            core.summary.addHeading("Generated package-sync branch cleanup")
+              .addTable([
+                [{ data: "Result", header: true }, { data: "Count", header: true }],
+                ["Matching candidates", String(candidates.length)],
+                ["Would delete (dry run)", String(preview.length)],
+                ["Deleted", String(deleted.length)],
+                ["Skipped", String(skipped.length)],
+                ["Failed", String(failed.length)]
+              ])
+              .addHeading("Preview")
+              .addList(preview.map((name) => "`" + name + "`"))
+              .addHeading("Deleted")
+              .addList(deleted.map((name) => "`" + name + "`"))
+              .addHeading("Skipped")
+              .addList(skipped.map((item) => "`" + item.name + "`: " + item.reason))
+              .addHeading("Failed")
+              .addList(failed.map((item) => "`" + item.name + "`: " + item.reason))
+              .write();
+            core.info("Matched " + candidates.length + " eligible generated refs.");
+            if (failed.length) throw new Error(failed.length + " branch deletion(s) failed.");
