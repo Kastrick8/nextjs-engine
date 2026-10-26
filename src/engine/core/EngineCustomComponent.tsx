@@ -93,20 +93,20 @@ export function sanitizeEngineCustomThemeStyles(
 	const allowedSlots = new Set(["root", ...declaredSlots]);
 	const output: Record<string, CSSProperties> = {};
 	for (const [slot, candidate] of Object.entries(value)) {
-	\tif (!allowedSlots.has(slot)) throw new TypeError("Unsupported " + label + " slot '" + slot + "'.");
-	\tif (!isPlainObject(candidate)) throw new TypeError(label + " slot '" + slot + "' must be an object.");
-	\tif (Object.keys(candidate).length > 80) throw new TypeError(label + " slot '" + slot + "' exceeds 80 properties.");
-	\tconst style: Record<string, string | number> = {};
-	\tfor (const [property, item] of Object.entries(candidate)) {
-	\t\tif (!THEME_STYLE_PROPERTIES.has(property) && !/^--[A-Za-z0-9_-]{1,128}$/.test(property)) {
-	\t\t\tthrow new TypeError("Unsupported CSS property '" + property + "' in " + label + " slot '" + slot + "'.");
-	\t\t}
-	\t\tif (!safeThemeStyleValue(item)) {
-	\t\t\tthrow new TypeError("Unsafe or invalid CSS value for '" + property + "' in " + label + " slot '" + slot + "'.");
-	\t\t}
-	\t\tstyle[property] = item;
-	\t}
-	\toutput[slot] = style as CSSProperties;
+		if (!allowedSlots.has(slot)) throw new TypeError("Unsupported " + label + " slot '" + slot + "'.");
+		if (!isPlainObject(candidate)) throw new TypeError(label + " slot '" + slot + "' must be an object.");
+		if (Object.keys(candidate).length > 80) throw new TypeError(label + " slot '" + slot + "' exceeds 80 properties.");
+		const style: Record<string, string | number> = {};
+		for (const [property, item] of Object.entries(candidate)) {
+			if (!THEME_STYLE_PROPERTIES.has(property) && !/^--[A-Za-z0-9_-]{1,128}$/.test(property)) {
+				throw new TypeError("Unsupported CSS property '" + property + "' in " + label + " slot '" + slot + "'.");
+			}
+			if (!safeThemeStyleValue(item)) {
+				throw new TypeError("Unsafe or invalid CSS value for '" + property + "' in " + label + " slot '" + slot + "'.");
+			}
+			style[property] = item;
+		}
+		output[slot] = style as CSSProperties;
 	}
 	return output;
 }
