@@ -117,6 +117,31 @@ function main() {
 			"overlay stacks are isolated by their owning Document");
 		releaseOtherDocument();
 
+		const scheduledFrames = new Map();
+		let frameToken = 0;
+		const frameDocument = {
+			defaultView: {
+				requestAnimationFrame(callback) {
+					const token = ++frameToken;
+					scheduledFrames.set(token, callback);
+					return token;
+				},
+				cancelAnimationFrame(token) {
+					scheduledFrames.delete(token);
+				},
+			},
+		};
+		const frameResults = [];
+		runtime.scheduleOverlayFrame(() => frameResults.push("first"), frameDocument);
+		const cancelSecondFrame = runtime.scheduleOverlayFrame(() => frameResults.push("cancelled"), frameDocument);
+		cancelSecondFrame();
+		runtime.scheduleOverlayFrame(() => frameResults.push("third"), frameDocument);
+		assert.equal(scheduledFrames.size, 1, "overlay layout callbacks share one animation frame per Document");
+		const [scheduledId, runFrame] = scheduledFrames.entries().next().value;
+		scheduledFrames.delete(scheduledId);
+		runFrame(0);
+		assert.deepEqual(frameResults, ["first", "third"], "cancelled layout work is not executed");
+
 		console.log("EngineOverlay runtime smoke tests passed");
 	} finally {
 		fs.rmSync(tempRoot, { recursive: true, force: true });
