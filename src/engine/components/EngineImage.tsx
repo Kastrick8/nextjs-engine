@@ -68,6 +68,11 @@ export interface EngineImageProps extends Omit<ImageNodeProps, "type" | "objectF
 	qualityMobile?: number;
 	qualityDesktop?: number;
 	onLoad?: () => void;
+	onError?: () => void;
+	loading?: "eager" | "lazy";
+	nearMargin?: string;
+	releaseWhenFar?: boolean;
+	unoptimized?: boolean;
 }
 
 export const EngineImage = memo(function EngineImage({
@@ -88,6 +93,11 @@ export const EngineImage = memo(function EngineImage({
 	caption,
 	blurDataURL,
 	onLoad,
+	onError,
+	loading,
+	nearMargin,
+	releaseWhenFar = false,
+	unoptimized = false,
 	style,
 	className,
 }: EngineImageProps) {
@@ -95,8 +105,10 @@ export const EngineImage = memo(function EngineImage({
 	const loaded = loadedSrc === src;
 	const schedule = useEngineSchedule<HTMLDivElement>({
 		priority,
-		nearMargin: getRootMargin(width, height),
+		nearMargin: nearMargin ?? getRootMargin(width, height),
+		releaseWhenFar,
 	});
+	const resolvedLoading = loading ?? (priority ? "eager" : "lazy");
 	const shouldLoad = priority
 		|| schedule.visible
 		|| (schedule.near && !schedule.underFramePressure);
@@ -138,6 +150,8 @@ export const EngineImage = memo(function EngineImage({
 			alt,
 			sizes: resolvedSizes,
 			priority,
+			loading: priority ? undefined : resolvedLoading,
+			unoptimized,
 			...sizing,
 		};
 
@@ -145,7 +159,7 @@ export const EngineImage = memo(function EngineImage({
 			mobile: getImageProps({ ...baseProps, quality: mobileQuality }),
 			desktop: getImageProps({ ...baseProps, quality: desktopQuality }),
 		};
-	}, [alt, desktopQuality, fill, height, mobileQuality, priority, resolvedSizes, src, usePerViewport, width]);
+	}, [alt, desktopQuality, fill, height, mobileQuality, priority, resolvedLoading, resolvedSizes, src, unoptimized, usePerViewport, width]);
 
 	const wrapperStyle: CSSProperties = {
 		position: "relative",
@@ -190,6 +204,8 @@ export const EngineImage = memo(function EngineImage({
 		alt,
 		sizes: resolvedSizes,
 		priority,
+		loading: priority ? undefined : resolvedLoading,
+		unoptimized,
 		style: imageStyle,
 		...(fill ? { fill: true } : { width: width ?? 800, height: height ?? 600 }),
 	};
@@ -202,11 +218,11 @@ export const EngineImage = memo(function EngineImage({
 				<picture style={{ display: "block", width: "100%", height: fill || resolvedAspectRatio ? "100%" : "auto" }}>
 					<source media="(max-width: 767px)" srcSet={responsiveProps.mobile.props.srcSet} sizes={responsiveProps.mobile.props.sizes} />
 					<source media="(min-width: 768px)" srcSet={responsiveProps.desktop.props.srcSet} sizes={responsiveProps.desktop.props.sizes} />
-					<img {...responsiveProps.desktop.props} style={{ ...generatedStyle, ...imageStyle }} onLoad={handleLoad} />
+					<img {...responsiveProps.desktop.props} style={{ ...generatedStyle, ...imageStyle }} onLoad={handleLoad} onError={onError} />
 				</picture>
 			);
 		} else {
-			imageNode = <Image {...commonImageProps} quality={resolvedQuality} onLoad={handleLoad} />;
+			imageNode = <Image {...commonImageProps} quality={resolvedQuality} onLoad={handleLoad} onError={onError} />;
 		}
 	}
 

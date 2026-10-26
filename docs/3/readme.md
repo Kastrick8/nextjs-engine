@@ -52,6 +52,7 @@ export default createPage({ schema });
 ## Documentation map
 
 - [Gen 3 documentation index](./index.md)
+- [Migration from Gen 2.6 and dev diagnostics](./migration-from-2x.md)
 - [Gen 3 overview and server-first model](../gen3/overview.md)
 - [Simple styling](./styling.md) and [detailed styling](./styling-detailed.md)
 - [EngineTheme, createTheme(), .etr, templates, Data-API and fonts](./engine-components/enginetheme.md)
