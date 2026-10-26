@@ -19,6 +19,12 @@ import { useCpropClass } from "../hooks/usePropStyles";
 import { usePrimitiveStyles } from "../hooks/usePrimitiveStyles";
 import { useHandler } from "../providers/EngineProvider";
 
+type CustomSelectChangeHandler = (value: string, option: SelectOption | null) => void;
+type CustomSelectComponentProps = Omit<CustomSelectProps, "onChange" | "value"> & {
+	value?: string;
+	onChange?: string | CustomSelectChangeHandler;
+};
+
 const SIZE_CONFIG = {
 	sm: { fontSize: "0.8125rem", padding: "0.5rem 0.75rem", borderRadius: "6px", iconSize: 14 },
 	md: { fontSize: "0.9375rem", padding: "0.75rem 1rem", borderRadius: "8px", iconSize: 16 },
@@ -118,6 +124,7 @@ export const CustomSelect = memo(function CustomSelect({
 	options = [],
 	placeholder = "Select an option…",
 	defaultValue,
+	value: controlledValue,
 	onChange,
 	searchable = false,
 	clearable = false,
@@ -128,7 +135,7 @@ export const CustomSelect = memo(function CustomSelect({
 	className,
 	cprop,
 	...props
-}: CustomSelectProps) {
+}: CustomSelectComponentProps) {
 	const generatedId = useId();
 	const resolvedId = externalId ?? point;
 	const internalBaseId = resolvedId
@@ -136,14 +143,22 @@ export const CustomSelect = memo(function CustomSelect({
 		: `cs-${generatedId.replace(/:/g, "")}`;
 	const triggerId = `${internalBaseId}-trigger`;
 	const listboxId = `${internalBaseId}-listbox`;
-	const changeHandler = useHandler(onChange ?? "");
+	const registeredChangeHandler = useHandler(typeof onChange === "string" ? onChange : "");
+	const changeHandler: CustomSelectChangeHandler | undefined = typeof onChange === "function"
+		? onChange
+		: registeredChangeHandler
+			? (value, option) => registeredChangeHandler(value, option)
+			: undefined;
 
 	const [isOpen, setIsOpen] = useState(false);
-	const [selected, setSelected] = useState<SelectOption | null>(() =>
+	const [internalSelected, setInternalSelected] = useState<SelectOption | null>(() =>
 		defaultValue !== undefined
 			? (options.find((option) => option.value === defaultValue) ?? null)
 			: null,
 	);
+	const selected = controlledValue !== undefined
+		? (options.find((option) => option.value === controlledValue) ?? null)
+		: internalSelected;
 	const [search, setSearch] = useState("");
 	const [focusedIndex, setFocusedIndex] = useState(-1);
 
@@ -182,14 +197,14 @@ export const CustomSelect = memo(function CustomSelect({
 
 	const selectOption = useCallback((option: SelectOption): void => {
 		if (option.disabled) return;
-		setSelected(option);
+		setInternalSelected(option);
 		changeHandler?.(option.value, option);
 		close();
 	}, [changeHandler, close]);
 
 	const clearSelection = useCallback((event: React.MouseEvent<HTMLButtonElement>): void => {
 		event.preventDefault();
-		setSelected(null);
+		setInternalSelected(null);
 		changeHandler?.("", null);
 		close();
 	}, [changeHandler, close]);
