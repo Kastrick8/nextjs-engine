@@ -93,7 +93,23 @@ jobs:
           npm install --ignore-scripts --no-package-lock --no-audit --no-fund
           npm run type-check
           npm run pack:check
+      - name: Check whether this immutable version already exists on npm
+        id: registry-version
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        env:
+          PACKAGE_NAME: "@kastrick/nextjs-engine"
+          VERSION: ${{ steps.snapshot.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view "$PACKAGE_NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "$PACKAGE_NAME@$VERSION already exists; npm versions are immutable, so this workflow will not try to overwrite it."
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish the selected snapshot
+        if: steps.registry-version.outputs.should_publish == 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           DIST_TAG: ${{ steps.snapshot.outputs.dist_tag }}

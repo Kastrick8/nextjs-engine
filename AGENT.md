@@ -51,6 +51,8 @@ The `publish-package.yml` workflow accepts tags such as `v2.6.3` and `v3.0.0-alp
 
 - The highest stable version present in the archive uses npm dist-tag `latest`; older stable versions use `release-<version>` to avoid clobbering `latest` during parallel historical seeding.
 - The highest alpha version present in the archive uses npm dist-tag `alpha`; older alpha snapshots use `release-<version>`.
+- Before the first release, check whether `@kastrick/nextjs-engine` already exists. If not, publish the highest stable snapshot (`version/2.6/version/2.6.2`) once from an authenticated npm CLI using `npm publish --access public`. Then configure the package's npm Trusted Publisher for owner `Kate-alt-69`, repository `nextjs-engine`, workflow filename `publish-package.yml`, and no environment. Allow direct `npm publish`.
+- The publisher checks for an already-published immutable version and skips it rather than attempting an impossible overwrite. This permits the initial manually published version to be tagged later without making its tag-run fail.
 - Prefer npm Trusted Publishing using GitHub Actions OIDC; do not put npm write tokens in this repository. Configure the npm trusted publisher for owner `Kate-alt-69`, repo `nextjs-engine`, workflow filename `publish-package.yml`, and leave environment empty unless the workflow later adopts a GitHub deployment environment. Trusted publishing requires a GitHub-hosted runner, `id-token: write`, Node.js 22.14+ and npm 11.5.1+.
 
 ## Branch safety

@@ -23,13 +23,25 @@ Historical release tags have some stale/mismatched source `package.json.version`
 
 ## Release
 
-After a reviewed snapshot is committed to `package/main`, create a full-version tag on that archive commit, such as `v2.6.3` or `v3.0.0-alpha.2`. `publish-package.yml` validates and publishes only the matching snapshot directory.
+The published package name is `@kastrick/nextjs-engine`. After a reviewed snapshot is committed to `package/main`, create a full-version Git tag on that archive commit, such as `v2.6.3` or `v3.0.0-alpha.2`. `publish-package.yml` validates the tag's ancestry and the exact snapshot before publishing it.
 
 - The newest stable snapshot publishes under npm dist-tag `latest`; install it with `npm install @kastrick/nextjs-engine`.
 - Older stable snapshots receive version-specific `release-<version>` dist-tags so historical tag runs cannot race to replace `latest`.
 - The newest alpha snapshot publishes under npm dist-tag `alpha`; install it with `npm install @kastrick/nextjs-engine@alpha`.
 
-Configure npm Trusted Publishing before a real publish. See `AGENT.md`.
+### First publication
+
+If `@kastrick/nextjs-engine` does not exist on npm yet, publish the current highest stable snapshot once from an npm-authenticated terminal:
+
+```powershell
+cd version/2.6/version/2.6.2
+npm login
+npm publish --access public
+```
+
+Do this only if `npm view @kastrick/nextjs-engine@2.6.2 version` confirms that version is not already published. Then add the GitHub Actions Trusted Publisher in the package's npm Settings. Use owner `Kate-alt-69`, repository `nextjs-engine`, workflow filename `publish-package.yml`, and leave Environment blank. Enable direct `npm publish` for that publisher. See `AGENT.md`.
+
+After that setup, push release tags with normal Git credentials so GitHub receives the tag-push event and runs the publisher.
 
 ## Legacy branch cleanup
 
