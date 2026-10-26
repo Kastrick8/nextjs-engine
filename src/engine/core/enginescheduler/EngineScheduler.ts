@@ -216,6 +216,16 @@ class EngineSchedulerRuntime {
 		return this.framePressure;
 	}
 
+	isVisible(element: Element, insetPx = 0): boolean {
+		if (typeof window === "undefined" || typeof document === "undefined" || !element.isConnected) return false;
+		const rect = element.getBoundingClientRect();
+		const inset = Number.isFinite(insetPx) ? Math.max(0, insetPx) : 0;
+		const width = window.innerWidth || document.documentElement.clientWidth;
+		const height = window.innerHeight || document.documentElement.clientHeight;
+		return rect.bottom > inset && rect.right > inset
+			&& rect.top < height - inset && rect.left < width - inset;
+	}
+
 	subscribeFramePressure(listener: (underPressure: boolean) => void): () => void {
 		this.pressureListeners.add(listener);
 		return () => this.pressureListeners.delete(listener);
