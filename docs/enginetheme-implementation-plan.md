@@ -1,6 +1,6 @@
 # EngineTheme / createTheme / Pretty-please — Implementation Plan
 
-**Status:** Implementation complete on `feat/enginetheme-foundation`; runtime, compiler, integration, docs, and regression coverage are in place.  
+**Status:** Core EngineTheme runtime/compiler/highlighting/templates/Data-API/font work was implemented by PR #45. Gen 3 built-in component bindings and the remaining overlay runtime/accessibility criteria are still being completed through PR #48 and the master `plan.md`.  
 **Repository:** Kate-alt-69/nextjs-engine  
 **Baseline inspected:** main-3, 2026-10-24
 
@@ -195,7 +195,7 @@ The font compiler cache is `.nextjs-engine/.cache/gen3/fonts/`; manifest metadat
 
 | Path | Implemented responsibility |
 |---|---|
-| `src/engine/component/engineTheme/` | Public `createTheme` model, ID parsing/resolution, tokens, remote ETR loading, safe templates, Data-API handlers, and highlighter/provider registry. |
+| `src/engine/components/engineTheme/` | Public `createTheme` model, ID parsing/resolution, tokens, remote ETR loading, safe templates, Data-API handlers, and highlighter/provider registry. |
 | `src/engine/compiler/theme/3/compiler.ts` | Static NENC extraction, deterministic ETR generation, atomic output, and stale-artifact tracking. |
 | `src/engine/compiler/font/3/compiler.ts` | Production-only font CSS/font downloading, local asset output, origin and DNS policy, and cache/fallback/offline behavior. |
 | `src/engine/compiler/build.compiler.ts` | Coordinates Generation 3 discovery, compilation, and build integrations. |
@@ -212,7 +212,7 @@ The font compiler cache is `.nextjs-engine/.cache/gen3/fonts/`; manifest metadat
 | `app/engine-markdown-test/page.tsx`, `tests/browser/engine-markdown.spec.ts`, and EngineTheme docs | Theme/highlighting examples, browser regressions, and public behavior documentation. |
 | `.gitignore` | Ignores generated ETRs, schema/font caches, and emitted local font assets; publishing remains explicit. |
 
-Runtime modules stay in `src/engine/component/engineTheme/`, with static compile logic under `src/engine/compiler/theme/3/compiler.ts` and font compilation under `src/engine/compiler/font/3/compiler.ts`. Next.js hooks and compatibility links remain in `src/engine/plugins/`.
+Runtime modules stay in `src/engine/components/engineTheme/`, with static compile logic under `src/engine/compiler/theme/3/compiler.ts` and font compilation under `src/engine/compiler/font/3/compiler.ts`. Next.js hooks and compatibility links remain in `src/engine/plugins/`. The legacy `src/engine/component/engineTheme/` files are re-export shims only; all new internal imports target the plural directory.
 
 ## 9. Implementation record — complete
 

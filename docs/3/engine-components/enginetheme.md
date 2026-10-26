@@ -2,7 +2,7 @@
 
 > **GENERATION 3 · ALPHA** · Source branch: main-3. The theme pipeline and .etr work were implemented by merged PR #45.
 
-**Implementation layout:** EngineTheme runtime modules live in `src/engine/component/engineTheme/`. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`.
+**Implementation layout:** EngineTheme runtime modules live in `src/engine/components/engineTheme/`. Legacy imports from `src/engine/component/engineTheme/` remain available through compatibility re-exports; new code should use the plural canonical path. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`.
 
 EngineTheme is the data-only theming layer for Next.js Engine. The current foundation provides a validated createTheme() API, qualified theme IDs, local/global/explicitly preloaded remote theme resolution for Markdown, static NENC .etr generation, lightweight Pretty-please highlighting, safe declarative UI templates, and a typed event-driven Data-API.
 
@@ -14,7 +14,7 @@ This distinction matters: EngineTheme is implemented, while the component-bindin
 
 ## Module layout
 
-`createTheme()`, ID resolution, highlighting, declarative templates, remote `.etr` loading, font URL policy, and the event-driven Data-API are implemented in `src/engine/component/engineTheme/`. `src/engine/compiler/theme/3/compiler.ts` owns static NENC theme extraction and `.etr` generation; `src/engine/compiler/font/3/compiler.ts` owns production font asset compilation. The `src/engine/plugins/gen3ThemeCompiler.js` file is only a compatibility link to the theme compiler. Runtime theme code and compiler logic do not live in `plugins/`.
+`createTheme()`, ID resolution, highlighting, declarative templates, remote `.etr` loading, font URL policy, and the event-driven Data-API are implemented in `src/engine/components/engineTheme/`. `src/engine/compiler/theme/3/compiler.ts` owns static NENC theme extraction and `.etr` generation; `src/engine/compiler/font/3/compiler.ts` owns production font asset compilation. The `src/engine/plugins/gen3ThemeCompiler.js` file is only a compatibility link to the theme compiler. Runtime theme code and compiler logic do not live in `plugins/`.
 
 ## Define a theme group
 
@@ -85,7 +85,7 @@ Local themes can be supplied directly as a theme object. Global themes are regis
 
 ## Migration and compatibility
 
-The public import remains `nextjs-engine`; applications should not import the internal `src/engine/component/engineTheme/` files directly. Moving those implementation files does not change the public API.
+The public import remains `nextjs-engine`; applications should not import the internal `src/engine/components/engineTheme/` files directly. Moving those implementation files does not change the public API.
 
 Existing inline theme objects remain valid:
 

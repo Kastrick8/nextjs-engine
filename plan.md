@@ -70,7 +70,7 @@ Every feature in this repository is governed by four non-negotiable pillars:
 	- `EngineTransitions`: `src/engine/core/enginetransitions/` (`EngineTransitions.ts`, `ViewTransitionCoordinator.ts`, `TransitionCompatibility.ts`, `TransitionPresets.ts`) & `src/engine/components/EngineTransitionLink.tsx`.
 	- `EngineOverlay`: `src/engine/core/engineoverlay/EngineOverlayRuntime.ts` & `src/engine/components/EngineOverlay/` (`EngineDialog.tsx`, `EngineDrawer.tsx`, `EnginePopover.tsx`, `OverlayParts.tsx`, `OverlayShared.tsx`).
 	- `EngineMarkdown`: `src/engine/core/markdownParser.ts`, `src/engine/components/EngineMarkdown.tsx`, `EngineMarkdownRenderer.tsx`, `EngineUrlIcon.tsx`, `app/%5Fstatic/emd/favicon/route.ts`.
-	- `EngineTheme`: `src/engine/component/engineTheme/` (`createTheme.ts`, `resolveTheme.ts`, `remoteTheme.ts`, `tokens.ts`, `templates.tsx`, `dataApi.ts`, `fontUrls.ts`, `highlighting.ts`, `shikiProvider.ts`).
+	- `EngineTheme`: `src/engine/components/engineTheme/` (`createTheme.ts`, `resolveTheme.ts`, `remoteTheme.ts`, `tokens.ts`, `templates.tsx`, `dataApi.ts`, `fontUrls.ts`, `highlighting.ts`, `shikiProvider.ts`).
 	- `EngineSEO`: `src/engine/core/engineseo/` (`EngineSEO.ts`, `EngineSEOImage.tsx`, `EngineSEOJsonLd.tsx`, `EngineSEOProviderSitemap.ts`, `EngineSEOTypes.ts`).
 	- `EngineDebug`: `src/engine/debug/` (`EngineDebugPage.tsx`, `EngineDebugIsolation.tsx`, `EngineDebugDiagnostics.ts`, `EngineDebugCodeActions.ts`, `EngineDebugFixEditor.tsx`, `EngineDebugInlineCallout.ts`, `EngineDebugRuntimeMonitor.tsx`, `EngineInspectors.ts`, `EngineDebugDynamicRoutePicker.tsx`).
 
@@ -383,7 +383,7 @@ export interface EngineBrowserStaticAcceleratorConfig {
 
 * [ ] **Remove Committed Zip Snapshot:** Delete the nested `nextjs-engine.zip` file from the repository root and add `*.zip` to `.gitignore`.
 * [ ] **Finish `docs/3/` Consolidation:** Ensure all component and compiler documentation in `docs/3/` is the single canonical source and remove outdated duplicate files in `docs/engine-components/` and `docs/gen3/` once links in `DOCUMENT.md` and `README.md` are updated.
-* [ ] **Normalize Theme Component Directory:** Alias or move `src/engine/component/engineTheme/` into `src/engine/components/engineTheme/` while keeping backwards-compatible re-exports in `src/engine/index.ts`.
+* [x] **Normalize Theme Component Directory:** Runtime modules now live canonically in `src/engine/components/engineTheme/`; the legacy `src/engine/component/engineTheme/` module paths remain compatibility re-exports, and the public entry points use the canonical path.
 * [ ] **Consolidate Private Search Example:** Unify duplicated example files between `examples/gen3-private-search/` and `src/example/private-search/` so `app/engine-private-search/` imports from a single canonical source.
 
 ---
