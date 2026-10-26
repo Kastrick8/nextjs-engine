@@ -5,6 +5,7 @@ import React, {
 	useEffect,
 	useRef,
 	useState,
+	useSyncExternalStore,
 	type CSSProperties,
 } from "react";
 import { useHandler } from "../../providers/EngineProvider";
@@ -28,21 +29,49 @@ export function clampDuration(value: number | undefined, fallback = 180): number
 	return Math.min(1200, Math.max(0, Number.isFinite(value) ? value! : fallback));
 }
 
+let reducedMotionQuery: MediaQueryList | null = null;
+let reducedMotionValue = false;
+const reducedMotionSubscribers = new Set<() => void>();
+let reducedMotionCleanup: (() => void) | null = null;
+
+function getReducedMotionSnapshot(): boolean {
+	if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+	if (!reducedMotionQuery) {
+		reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+		reducedMotionValue = reducedMotionQuery.matches;
+	}
+	return reducedMotionValue;
+}
+
+function subscribeReducedMotion(subscriber: () => void): () => void {
+	reducedMotionSubscribers.add(subscriber);
+	if (reducedMotionSubscribers.size === 1 && typeof window !== "undefined" && typeof window.matchMedia === "function") {
+		const query = reducedMotionQuery ?? window.matchMedia("(prefers-reduced-motion: reduce)");
+		reducedMotionQuery = query;
+		reducedMotionValue = query.matches;
+		const update = () => {
+			const next = query.matches;
+			if (next === reducedMotionValue) return;
+			reducedMotionValue = next;
+			for (const listener of reducedMotionSubscribers) listener();
+		};
+		if (typeof query.addEventListener === "function") query.addEventListener("change", update);
+		else query.addListener?.(update);
+		reducedMotionCleanup = () => {
+			if (typeof query.removeEventListener === "function") query.removeEventListener("change", update);
+			else query.removeListener?.(update);
+			reducedMotionQuery = null;
+			reducedMotionCleanup = null;
+		};
+	}
+	return () => {
+		reducedMotionSubscribers.delete(subscriber);
+		if (reducedMotionSubscribers.size === 0) reducedMotionCleanup?.();
+	};
+}
+
 export function useReducedMotion(): boolean {
-	const [reduced, setReduced] = useState(false);
-	useEffect(() => {
-		if (typeof window.matchMedia !== "function") return;
-		const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-		const update = () => setReduced(query.matches);
-		update();
-		if (typeof query.addEventListener === "function") {
-			query.addEventListener("change", update);
-			return () => query.removeEventListener("change", update);
-		}
-		query.addListener?.(update);
-		return () => query.removeListener?.(update);
-	}, []);
-	return reduced;
+	return useSyncExternalStore(subscribeReducedMotion, getReducedMotionSnapshot, () => false);
 }
 
 /** Resolve portal ownership only after mount so SSR and first hydration match. */

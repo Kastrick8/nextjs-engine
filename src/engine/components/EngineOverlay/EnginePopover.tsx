@@ -74,7 +74,7 @@ export const EnginePopover = memo(function EnginePopover({
 					panelElement.style.removeProperty("--e-popover-trigger-width");
 				}
 				const panelRect = panelElement.getBoundingClientRect();
-				setPosition(computePopoverPosition(triggerRect, panelRect, {
+				const nextPosition = computePopoverPosition(triggerRect, panelRect, {
 					placement: resolvedPlacement,
 					align: resolvedAlign,
 					offset: resolvedOffset,
@@ -83,7 +83,13 @@ export const EnginePopover = memo(function EnginePopover({
 					viewportLeft,
 					viewportTop,
 					viewportPadding: resolvedViewportPadding,
-				}));
+				});
+				setPosition((previous) => previous
+					&& previous.top === nextPosition.top
+					&& previous.left === nextPosition.left
+					&& previous.placement === nextPosition.placement
+					? previous
+					: nextPosition);
 			});
 		};
 		update();

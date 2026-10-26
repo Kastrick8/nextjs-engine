@@ -1,6 +1,6 @@
 # EngineTheme / createTheme / Pretty-please — Implementation Plan
 
-**Status:** Implementation complete on `feat/enginetheme-foundation`; runtime, compiler, integration, docs, and regression coverage are in place.  
+**Status:** Core EngineTheme API/compiler/Markdown/font pipeline is implemented on `feat/enginetheme-foundation`. PR #48 extends Gen 3 integration into EngineOverlay; overlay runtime/accessibility items remain tracked in Section 16 until separately implemented and verified.  
 **Repository:** Kate-alt-69/nextjs-engine  
 **Baseline inspected:** main-3, 2026-10-24
 
@@ -749,9 +749,9 @@ This implementation deliberately keeps `createComponent()` as the schema-backed 
 
 ### P0 — Shared overlay runtime and low-end performance
 
-The current implementation already shares overlay helpers but still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. EnginePopover owns a per-instance effect that registers window resize/scroll and visualViewport listeners plus a ResizeObserver; its update path measures trigger/panel boxes and writes a new position state after each scheduled frame. useReducedMotion() also creates a separate media-query subscription for each mounted overlay component instance. These are sensible first implementations, but they can do unnecessary listener and React render work on pages with several overlays.
+The current implementation still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. EnginePopover owns per-instance resize/scroll/visualViewport listeners and a ResizeObserver. Its update path measures trigger/panel boxes and may update React state even when the resulting geometry is unchanged. Reduced-motion preference now uses one shared external store/subscription across mounted overlay instances, and popover position state retains its previous object when top/left/placement are unchanged; this reduces redundant subscriptions and renders but does not complete the shared runtime.
 
-Plan a targeted shared-runtime improvement rather than rewriting the components into a large new abstraction:
+Continue with a targeted shared-runtime improvement rather than rewriting the components into a large new abstraction:
 
 1. Maintain per-document overlay state using a bounded document-scoped manager (or equivalent isolation) for stack order, top-overlay checks, scroll-lock reference counting, focus restoration and z-index ordering. Do not let request/app state leak through a server-global singleton.
 2. Share the prefers-reduced-motion subscription so mounted dialogs/popovers do not each add their own change listener. Preserve the reduced-motion fallback when matchMedia or modern listener APIs are missing.
