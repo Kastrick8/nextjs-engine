@@ -11,7 +11,8 @@
     "test:theme": "node scripts/gen3-theme-compiler-smoke.js",
     "test:browser": "playwright test",
     "clear": "pwsh -Command \"clear; Remove-Item ./.next, ./dist, -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item tsconfig.tsbuildinfo -Force -ErrorAction SilentlyContinue\"",
-    "test:theme:live-fonts": "node scripts/gen3-font-provider-live-smoke.js"
+    "test:theme:live-fonts": "node scripts/gen3-font-provider-live-smoke.js",
+    "test:migration": "node scripts/gen3-migration-diagnostics-smoke.js"
   },
   "dependencies": {
     "next": "^16.3.3",
