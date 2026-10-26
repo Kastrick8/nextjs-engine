@@ -15,7 +15,7 @@ import {
 	parseEngineThemeId,
 	resolveRegisteredEngineTheme,
 } from "./createTheme";
-import { getComponentThemeSlots, isCustomComponentType } from "../../core/registry";
+import { getComponentThemeId, getComponentThemeSlots, isCustomComponentType } from "../../core/registry";
 import { sanitizeEngineCustomThemeStyles, type EngineCustomThemeStyles } from "../../core/EngineCustomComponent";
 
 interface ResolvedMarkdownTheme {
@@ -534,37 +534,58 @@ function resolveCustomComponentThemeNode(
 		}
 		return node;
 	}
+
+	const declaredThemeId = getComponentThemeId(node.type);
+	const declaredTheme = declaredThemeId ? parseEngineThemeId(declaredThemeId) : undefined;
+	if (declaredTheme && (!declaredTheme.componentId || declaredTheme.subthemes.length > 0)) {
+		throw new Error("Registered custom component '" + node.type + "' has an invalid default EngineTheme namespace.");
+	}
+
 	let selection: Record<string, unknown> | undefined;
-	if (explicitId !== undefined) {
-		if (typeof explicitId !== "string" || !explicitId) {
+	let selectedId: string | undefined;
+	if (explicitId !== undefined || declaredThemeId !== undefined) {
+		selectedId = explicitId ?? declaredThemeId;
+		if (typeof selectedId !== "string" || !selectedId) {
 			throw new TypeError("SchemaNode.theme must be a qualified EngineTheme component ID.");
 		}
-		const parsed = parseEngineThemeId(explicitId);
-		if (parsed.componentId !== node.type) {
-			throw new Error("Schema node <" + node.type + "> must use an EngineTheme namespace with the same ID; received '" + explicitId + "'.");
+		const parsed = parseEngineThemeId(selectedId);
+		const expectedComponent = declaredTheme?.componentId ?? node.type;
+		if (parsed.componentId !== expectedComponent) {
+			if (declaredThemeId) {
+				throw new Error(
+					"Schema node <" + node.type + "> must use an EngineTheme namespace with the same ID as its declared default '" + declaredThemeId + "'; received '" + selectedId + "'.",
+				);
+			}
+			throw new Error("Schema node <" + node.type + "> must use an EngineTheme namespace with the same ID; received '" + selectedId + "'.");
+		}
+		if (declaredTheme && parsed.groupId !== declaredTheme.groupId) {
+			throw new Error("Schema node theme '" + selectedId + "' must use the same EngineTheme group as the declared default '" + declaredThemeId + "'.");
 		}
 		if (!context.groupId) {
 			throw new Error("SchemaNode.theme requires PageSchema.theme to identify an EngineTheme group.");
 		}
 		if (parsed.groupId !== context.groupId) {
-			throw new Error("Schema node theme '" + explicitId + "' must use the same EngineTheme group '" + context.groupId + "' as its PageSchema.");
+			throw new Error("Schema node theme '" + selectedId + "' must use the same EngineTheme group '" + context.groupId + "' as its PageSchema.");
 		}
 		if (context.globallyRegistered) {
-			selection = resolveRegisteredEngineTheme(explicitId).components[parsed.componentId!];
+			selection = resolveRegisteredEngineTheme(selectedId).components[parsed.componentId!];
 		} else {
-			selection = resolveLocalVariant(context.components[node.type], parsed.subthemes, explicitId);
+			selection = resolveLocalVariant(context.components[parsed.componentId!], parsed.subthemes, selectedId);
 		}
 	} else {
 		selection = context.selectedComponents[node.type]
 			? { ...(context.selectedComponents[node.type] as Record<string, unknown>) }
 			: namespaceDefinition(context, node.type);
 	}
+
 	if (!selection) {
-		if (explicitId !== undefined) {
-			throw new Error("EngineTheme '" + explicitId + "' did not resolve to a custom component namespace.");
-		}
-		return node;
+		const originalProps = node.props ?? {};
+		if (!Object.prototype.hasOwnProperty.call(originalProps, "engineThemeStyles")) return node;
+		const nextProps: Record<string, unknown> = { ...originalProps };
+		delete nextProps.engineThemeStyles;
+		return { ...node, props: nextProps as SchemaNode["props"] };
 	}
+
 	const safeStyles = resolveCustomComponentThemeStyles(selection, node.type);
 	const originalProps = node.props ?? {};
 	const nextProps: Record<string, unknown> = { ...originalProps };
@@ -581,7 +602,6 @@ function resolveCustomComponentThemeNode(
 	const { theme: _consumedTheme, ...themedNode } = node;
 	return { ...themedNode, props: nextProps as SchemaNode["props"] };
 }
-
 function applyResolvedThemeToNode(
 	node: SchemaNode,
 	context: EngineThemeResolutionContext,
@@ -624,7 +644,7 @@ function applyResolvedThemeToNode(
 }
 
 function schemaHasNodeTheme(node: SchemaNode): boolean {
-	if (node.theme !== undefined) return true;
+	if (node.theme !== undefined || getComponentThemeId(node.type) !== undefined) return true;
 	return Array.isArray(node.children)
 		&& node.children.some((child) => typeof child !== "string" && schemaHasNodeTheme(child));
 }

@@ -1,5 +1,6 @@
 import * as React from "react";
 import type { ComponentType, CSSProperties } from "react";
+import { parseEngineThemeId } from "../components/engineTheme/createTheme";
 
 export type EngineCustomPropType =
 	| "string"
@@ -33,6 +34,8 @@ export interface CreateCustomComponentOptions<P extends object> {
 	id: string;
 	/** Trusted application code; remote themes and schemas never provide component code. */
 	component: ComponentType<P>;
+	/** Optional base theme namespace, e.g. "site.link"; variants are selected on SchemaNode.theme. */
+	theme?: string;
 	/** Optional runtime contract for props received from schema nodes. */
 	props?: EngineCustomPropSchema;
 	/** Additional props declared as named ReactNode slots, such as "leading" or "trailing". */
@@ -46,6 +49,7 @@ export type EngineCustomReactComponent<P extends object> = ComponentType<P & {
 }> & {
 	readonly engineCustomComponentId: string;
 	readonly engineCustomSlots: readonly string[];
+	readonly engineCustomThemeId?: string;
 };
 
 const CUSTOM_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -222,6 +226,14 @@ export function createTrustedEngineComponent<P extends object>(
 	if (!options.component || (typeof options.component !== "function" && typeof options.component !== "object")) {
 		throw new TypeError("Custom component mode requires a trusted local React component.");
 	}
+	let defaultThemeId: string | undefined;
+	if (options.theme !== undefined) {
+		const parsedTheme = parseEngineThemeId(options.theme);
+		if (!parsedTheme.componentId || parsedTheme.subthemes.length > 0) {
+			throw new TypeError("Custom component theme must be a base EngineTheme namespace ID such as 'site.link', without a selected variant.");
+		}
+		defaultThemeId = options.theme;
+	}
 	if (options.props !== undefined) {
 		if (!isPlainObject(options.props) || Object.keys(options.props).length > 128) {
 			throw new TypeError("Custom component props schema must be a plain object with at most 128 fields.");
@@ -265,6 +277,12 @@ export function createTrustedEngineComponent<P extends object>(
 		enumerable: false,
 		writable: false,
 		value: Object.freeze([...(options.slots ?? [])]),
+	});
+	Object.defineProperty(EngineCustomComponent, "engineCustomThemeId", {
+		configurable: false,
+		enumerable: false,
+		writable: false,
+		value: defaultThemeId,
 	});
 	return EngineCustomComponent as EngineCustomReactComponent<P>;
 }

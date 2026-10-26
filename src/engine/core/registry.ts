@@ -177,6 +177,12 @@ export function getComponentThemeSlots(type: NodeType): readonly string[] {
 		: [];
 }
 
+export function getComponentThemeId(type: NodeType): string | undefined {
+	if (BUILTIN_COMPONENT_TYPES.has(type)) return undefined;
+	const component = _registry.get(type) as unknown as { engineCustomThemeId?: unknown } | undefined;
+	return typeof component?.engineCustomThemeId === "string" ? component.engineCustomThemeId : undefined;
+}
+
 export function isSplitComponent(component: EngineComponent): boolean {
 	return splitComponents.has(component as unknown as object);
 }

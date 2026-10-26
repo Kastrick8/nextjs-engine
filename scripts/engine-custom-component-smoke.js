@@ -44,6 +44,7 @@ try {
 	const CustomLink = createTrustedEngineComponent({
 		mode: "custom",
 		id: "smoke-custom-link",
+		theme: "custom-link-theme.link",
 		component: customLinkImplementation,
 		props: {
 			href: { type: "string", required: true, maxLength: 2048 },
@@ -54,6 +55,10 @@ try {
 	});
 
 	assert.equal(CustomLink.engineCustomComponentId, "smoke-custom-link");
+	assert.equal(CustomLink.engineCustomThemeId, "custom-link-theme.link", "factory declares its default theme namespace");
+	assert.throws(() => createTrustedEngineComponent({
+		mode: "custom", id: "invalid-default-theme", theme: "custom-link-theme.link.quiet", component: customLinkImplementation,
+	}), /base EngineTheme namespace ID/);
 	assert.deepEqual([...CustomLink.engineCustomSlots], ["children", "leading"]);
 	assert.throws(() => CustomLink({ target: "_blank", children: "Missing href" }), /requires prop 'href'/);
 	assert.throws(() => CustomLink({ href: 42 }), /must be string/);
@@ -87,7 +92,7 @@ try {
 		id: "custom-link-theme",
 		scope: "local",
 		components: {
-			"smoke-custom-link": {
+				link: {
 				defaults: { color: "#123456", textDecoration: "underline" },
 				styles: {
 					root: { fontSize: "1rem" },
@@ -106,7 +111,7 @@ try {
 		theme: customTheme,
 		root: {
 			type: "smoke-custom-link",
-			theme: "custom-link-theme.smoke-custom-link.quiet",
+			theme: "custom-link-theme.link.quiet",
 			props: { href: "/guide", style: { fontWeight: 700 } },
 		},
 	});
@@ -133,13 +138,13 @@ try {
 		theme: createTheme({
 			id: "unsafe-custom-theme",
 			scope: "local",
-			components: { "smoke-custom-link": { styles: { root: { background: "url(https://bad.invalid/x)" } } } },
+			components: { link: { styles: { root: { background: "url(https://bad.invalid/x)" } } } },
 		}),
 		root: { type: "smoke-custom-link" },
 	}), /Unsafe or invalid CSS value/);
 	assert.throws(() => resolveEngineThemeSchema({
 		theme: customTheme,
-		root: { type: "box", theme: "custom-link-theme.smoke-custom-link.quiet" },
+		root: { type: "box", theme: "custom-link-theme.link.quiet" },
 	}), /registered custom node types/);
 
 	console.log("Engine custom component and theme smoke tests passed");
