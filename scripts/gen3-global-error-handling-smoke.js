@@ -47,6 +47,7 @@ try {
 	assert.match(globalSource, /NECORE4002/);
 	assert.match(globalSource, /<html lang="en">/);
 	assert.match(instrumentation, /onRequestError/);
+	assert.match(instrumentation, /NECORE4003/, "the request hook uses the stable Error Book code");
 	assert.match(instrumentation, /installEngineUncaughtExceptionMonitor/);
 	assert.match(errorSource, /\.\.\/\.\.\/\.\.\/.*src\/engine\/errors\/engineErrorReporter/,
 		"consumer projects without a local src tree import the reporter beside the installed Engine plugin");
