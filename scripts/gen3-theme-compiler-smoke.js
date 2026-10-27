@@ -558,8 +558,8 @@ async function testPublicThemeApi() {
 					schemaVersion: 2,
 				}), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/schema version is not supported/,
-			"unsupported theme-schema versions are rejected before registration",
+			(error) => error.code === "NETH8001" && /schema version is not supported/.test(error.message),
+			"unsupported theme-schema versions are rejected before registration with an Error Book code",
 		);
 		const loadedRemote = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", remoteOptions);
 		assert.equal(loadedRemote.scope, "remote");
@@ -577,9 +577,21 @@ async function testPublicThemeApi() {
 		assert.equal(resolvedRemotePage.root.props.codeBackground, "#121212", "loaded remote subthemes resolve");
 		await assert.rejects(
 			loadRemoteEngineTheme("https://attacker.example.com/theme.etr", remoteOptions),
-			/not in allowedOrigins/,
+			(error) => error.code === "NESEC2001" && /not in allowedOrigins/.test(error.message),
 		);
 		assert.equal(remoteFetchCalls, 1, "disallowed origins are rejected before fetch");
+
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.com/not-json.etr", {
+				...remoteOptions,
+				expectedId: "remote-not-json",
+				fetchImpl: async () => new Response("<html>not a theme</html>", {
+					status: 200, headers: { "content-type": "text/html" },
+				}),
+			}),
+			(error) => error.code === "NETH8001" && /HTML, not a \.etr JSON artifact/.test(error.message),
+			"remote HTML responses use the stable resource/format code",
+		);
 
 		await assert.rejects(
 			loadRemoteEngineTheme("https://127.0.0.1/private.etr", {
@@ -608,14 +620,14 @@ async function testPublicThemeApi() {
 		};
 		await assert.rejects(
 			loadRemoteEngineTheme("https://themes.example.com/corrupt.etr", corruptRemoteOptions),
-			/SHA-256 verification failed/,
+			(error) => error.code === "NETH8001" && /SHA-256 verification failed/.test(error.message),
 		);
 		await assert.rejects(
 			loadRemoteEngineTheme("https://themes.example.com/wrong-version.etr", {
 				...remoteOptions,
 				expectedNextjsVersion: "16.4.3",
 			}),
-			/version mismatch/,
+			(error) => error.code === "NETH8001" && /version mismatch/.test(error.message),
 		);
 		const unsafeCssContent = { ...remoteContent, id: "remote-unsafe-css", vars: { "--remote-value": "red; background:url(https://evil.invalid/x)" } };
 		await assert.rejects(
@@ -631,7 +643,7 @@ async function testPublicThemeApi() {
 				...remoteOptions, expectedId: "remote-unsafe-font",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-font", unsafeFontContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/font stylesheet origin must be HTTPS and included in allowedOrigins/,
+			(error) => error.code === "NESEC2001" && /font stylesheet origin must be HTTPS and included in allowedOrigins/.test(error.message),
 		);
 		const unsafeNestedStyleContent = {
 			...remoteContent,

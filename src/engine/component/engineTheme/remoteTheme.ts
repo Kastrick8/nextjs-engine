@@ -54,6 +54,74 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<Readonly<EngineThemeDefinition & { scope: "remote" }>>>();
 
+type RemoteThemeDiagnosticCode = "NETH8001" | "NESEC2001" | "NESEC4001" | "NESEC8001";
+type RemoteThemeDiagnosticError = Error & {
+	code: RemoteThemeDiagnosticCode;
+	reason: string;
+	action: string;
+	cause?: unknown;
+};
+
+const REMOTE_THEME_ERROR_GUIDANCE: Readonly<Record<RemoteThemeDiagnosticCode, { reason: string; action: string }>> = Object.freeze({
+	NETH8001: {
+		reason: "The remote .etr resource could not be retrieved, decoded, version-checked, or integrity-verified.",
+		action: "Check HTTP status/content type, expected Engine and Next.js versions, response size, and SHA-256. Keep a trusted local fallback where possible.",
+	},
+	NESEC2001: {
+		reason: "The remote theme URL, host, redirect, or stylesheet origin failed the public HTTPS and exact-origin allowlist policy.",
+		action: "Use HTTPS on an explicitly allowed public origin. Do not allow redirects, private/local hosts, credentials, or wildcard origins.",
+	},
+	NESEC4001: {
+		reason: "Untrusted remote theme data contains a prohibited CSS/network primitive or violates the bounded declarative-data contract.",
+		action: "Remove arbitrary global CSS and unsafe CSS values. Use bounded declarative tokens and templates while retaining validation.",
+	},
+	NESEC8001: {
+		reason: "Remote theme integrity verification requires Web Crypto SHA-256, but the current runtime does not expose it.",
+		action: "Use a supported secure runtime with Web Crypto available. Fail closed rather than skipping the digest check.",
+	},
+});
+
+function decorateRemoteThemeError<T extends Error>(
+	error: T,
+	code: RemoteThemeDiagnosticCode,
+	cause?: unknown,
+): T & RemoteThemeDiagnosticError {
+	const guidance = REMOTE_THEME_ERROR_GUIDANCE[code];
+	const tagged = error as T & RemoteThemeDiagnosticError;
+	tagged.name = "EngineThemeLoadError";
+	tagged.code = code;
+	tagged.reason = guidance.reason;
+	tagged.action = guidance.action;
+	if (cause !== undefined) tagged.cause = cause;
+	return tagged;
+}
+
+function createRemoteThemeError(
+	code: RemoteThemeDiagnosticCode,
+	message: string,
+	cause?: unknown,
+): RemoteThemeDiagnosticError {
+	return decorateRemoteThemeError(new Error("[" + code + "] " + message), code, cause);
+}
+
+function createRemoteThemeTypeError(
+	code: RemoteThemeDiagnosticCode,
+	message: string,
+	cause?: unknown,
+): RemoteThemeDiagnosticError {
+	return decorateRemoteThemeError(new TypeError("[" + code + "] " + message), code, cause);
+}
+
+function isRemoteThemeDiagnosticError(value: unknown): value is RemoteThemeDiagnosticError {
+	if (!value || typeof value !== "object") return false;
+	const candidate = value as Partial<RemoteThemeDiagnosticError>;
+	return typeof candidate.code === "string"
+		&& Object.prototype.hasOwnProperty.call(REMOTE_THEME_ERROR_GUIDANCE, candidate.code)
+		&& typeof candidate.reason === "string"
+		&& typeof candidate.action === "string";
+}
+
+
 function canonicalJson(value: unknown): string {
 	if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
 	if (typeof value === "number") {
@@ -95,30 +163,30 @@ function assertRemoteOriginIsPublic(url: URL): void {
 		|| hostname.endsWith(".test") || hostname.endsWith(".invalid")
 		|| !hostname.includes(".") && !hostname.includes(":")
 		|| isPrivateOrNonPublicAddress(hostname)) {
-		throw new Error("Remote EngineTheme hosts must be public; local/private hosts are not permitted: " + hostname + ".");
+		throw createRemoteThemeError("NESEC2001", "Remote EngineTheme hosts must be public; local/private hosts are not permitted: " + hostname + ".");
 	}
 }
 
 function normalizeAllowedOrigins(origins: readonly string[], allowHttp: boolean): Set<string> {
 	if (!Array.isArray(origins) || origins.length === 0 || origins.length > 64) {
-		throw new TypeError("loadRemoteEngineTheme() requires 1–64 exact allowedOrigins.");
+		throw createRemoteThemeTypeError("NESEC2001", "loadRemoteEngineTheme() requires 1–64 exact allowedOrigins.");
 	}
 	const normalized = new Set<string>();
 	for (const origin of origins) {
 		if (typeof origin !== "string" || origin.length > 512 || origin.includes("*")) {
-			throw new TypeError("Remote theme origins must be exact origin URLs without wildcards.");
+			throw createRemoteThemeTypeError("NESEC2001", "Remote theme origins must be exact origin URLs without wildcards.");
 		}
 		let parsed: URL;
 		try {
 			parsed = new URL(origin);
 		} catch {
-			throw new TypeError("Invalid remote theme allowlist origin: " + origin);
+			throw createRemoteThemeTypeError("NESEC2001", "Invalid remote theme allowlist origin: " + origin);
 		}
 		if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-			throw new TypeError("Allowed origins must contain only scheme, host and optional port.");
+			throw createRemoteThemeTypeError("NESEC2001", "Allowed origins must contain only scheme, host and optional port.");
 		}
 		if (parsed.protocol !== "https:" && !(allowHttp && parsed.protocol === "http:")) {
-			throw new TypeError("Remote theme origins must use HTTPS.");
+			throw createRemoteThemeTypeError("NESEC2001", "Remote theme origins must use HTTPS.");
 		}
 		assertRemoteOriginIsPublic(parsed);
 		normalized.add(parsed.origin);
@@ -128,22 +196,22 @@ function normalizeAllowedOrigins(origins: readonly string[], allowHttp: boolean)
 
 function resolveAllowedUrl(input: string, options: LoadRemoteEngineThemeOptions): { url: URL; origin: string } {
 	if (typeof input !== "string" || input.length === 0 || input.length > 2048) {
-		throw new TypeError("Remote theme URL must be a non-empty string of at most 2048 characters.");
+		throw createRemoteThemeTypeError("NESEC2001", "Remote theme URL must be a non-empty string of at most 2048 characters.");
 	}
 	let url: URL;
 	try {
 		url = options.baseUrl ? new URL(input, options.baseUrl) : new URL(input);
 	} catch {
-		throw new TypeError("Remote theme URL must be absolute or have an explicit baseUrl.");
+		throw createRemoteThemeTypeError("NESEC2001", "Remote theme URL must be absolute or have an explicit baseUrl.");
 	}
-	if (url.username || url.password || url.hash) throw new TypeError("Remote theme URLs cannot contain credentials or fragments.");
+	if (url.username || url.password || url.hash) throw createRemoteThemeTypeError("NESEC2001", "Remote theme URLs cannot contain credentials or fragments.");
 	if (url.protocol !== "https:") {
-		throw new TypeError("Remote EngineTheme URLs must use HTTPS.");
+		throw createRemoteThemeTypeError("NESEC2001", "Remote EngineTheme URLs must use HTTPS.");
 	}
 	assertRemoteOriginIsPublic(url);
 	const allowed = normalizeAllowedOrigins(options.allowedOrigins, false);
 	if (!allowed.has(url.origin)) {
-		throw new Error("Remote EngineTheme origin '" + url.origin + "' is not in allowedOrigins.");
+		throw createRemoteThemeError("NESEC2001", "Remote EngineTheme origin '" + url.origin + "' is not in allowedOrigins.");
 	}
 	return { url, origin: url.origin };
 }
@@ -162,7 +230,7 @@ function bytesToHex(bytes: Uint8Array): string {
 async function computeSha256(value: string): Promise<string> {
 	const subtle = globalThis.crypto?.subtle;
 	if (!subtle) {
-		throw new Error("This runtime does not expose Web Crypto SHA-256; remote theme integrity checks cannot run.");
+		throw createRemoteThemeError("NESEC8001", "This runtime does not expose Web Crypto SHA-256; remote theme integrity checks cannot run.");
 	}
 	const digest = await subtle.digest("SHA-256", new TextEncoder().encode(value));
 	return bytesToHex(new Uint8Array(digest));
@@ -172,14 +240,14 @@ async function readBoundedResponse(response: Response, limit: number): Promise<s
 	const lengthHeader = response.headers.get("content-length");
 	if (lengthHeader !== null) {
 		const declared = Number(lengthHeader);
-		if (Number.isFinite(declared) && declared > limit) throw new Error("Remote .etr artifact exceeds the configured size limit.");
+		if (Number.isFinite(declared) && declared > limit) throw createRemoteThemeError("NETH8001", "Remote .etr artifact exceeds the configured size limit.");
 	}
 	const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-	if (contentType.includes("text/html")) throw new Error("Remote theme endpoint returned HTML, not a .etr JSON artifact.");
+	if (contentType.includes("text/html")) throw createRemoteThemeError("NETH8001", "Remote theme endpoint returned HTML, not a .etr JSON artifact.");
 
 	if (!response.body) {
 		const text = await response.text();
-		if (new TextEncoder().encode(text).byteLength > limit) throw new Error("Remote .etr artifact exceeds the configured size limit.");
+		if (new TextEncoder().encode(text).byteLength > limit) throw createRemoteThemeError("NETH8001", "Remote .etr artifact exceeds the configured size limit.");
 		return text;
 	}
 
@@ -194,7 +262,7 @@ async function readBoundedResponse(response: Response, limit: number): Promise<s
 			total += chunk.byteLength;
 			if (total > limit) {
 				try { await reader.cancel(); } catch { /* Preserve the size-limit error. */ }
-				throw new Error("Remote .etr artifact exceeds the configured size limit.");
+				throw createRemoteThemeError("NETH8001", "Remote .etr artifact exceeds the configured size limit.");
 			}
 			chunks.push(chunk);
 		}
@@ -211,30 +279,30 @@ async function readBoundedResponse(response: Response, limit: number): Promise<s
 }
 
 function validateArtifactShape(value: unknown): asserts value is EngineThemeArtifact {
-	if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Remote .etr artifact must be a JSON object.");
+	if (!value || typeof value !== "object" || Array.isArray(value)) throw createRemoteThemeTypeError("NETH8001", "Remote .etr artifact must be a JSON object.");
 	const artifact = value as Record<string, unknown>;
 	if (artifact.format !== "nextjs-engine-theme" || artifact.formatVersion !== 1 || artifact.schemaVersion !== 1 || artifact.generatedBy !== "NENC") {
-		throw new Error("Remote .etr artifact format, envelope version, or theme schema version is not supported by this EngineTheme loader.");
+		throw createRemoteThemeError("NETH8001", "Remote .etr artifact format, envelope version, or theme schema version is not supported by this EngineTheme loader.");
 	}
 	if (typeof artifact.id !== "string" || !SAFE_ID.test(artifact.id)) {
-		throw new TypeError("Remote .etr artifact has an invalid group ID.");
+		throw createRemoteThemeTypeError("NETH8001", "Remote .etr artifact has an invalid group ID.");
 	}
 	if (!artifact.createdWith || typeof artifact.createdWith !== "object" || Array.isArray(artifact.createdWith)) {
-		throw new TypeError("Remote .etr artifact is missing createdWith version metadata.");
+		throw createRemoteThemeTypeError("NETH8001", "Remote .etr artifact is missing createdWith version metadata.");
 	}
 	const createdWith = artifact.createdWith as Record<string, unknown>;
 	if (typeof createdWith.nextjs !== "string" || typeof createdWith.nextjsEngine !== "string") {
-		throw new TypeError("Remote .etr artifact has incomplete version metadata.");
+		throw createRemoteThemeTypeError("NETH8001", "Remote .etr artifact has incomplete version metadata.");
 	}
 	if (!artifact.content || typeof artifact.content !== "object" || Array.isArray(artifact.content)) {
-		throw new TypeError("Remote .etr artifact content must be a theme definition object.");
+		throw createRemoteThemeTypeError("NETH8001", "Remote .etr artifact content must be a theme definition object.");
 	}
 	const content = artifact.content as Record<string, unknown>;
 	if (content.id !== artifact.id || content.scope !== "remote") {
-		throw new Error("Remote .etr artifact content ID/scope does not match its envelope.");
+		throw createRemoteThemeError("NETH8001", "Remote .etr artifact content ID/scope does not match its envelope.");
 	}
 	if (typeof artifact.sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(artifact.sha256)) {
-		throw new TypeError("Remote .etr artifact has an invalid SHA-256 field.");
+		throw createRemoteThemeTypeError("NETH8001", "Remote .etr artifact has an invalid SHA-256 field.");
 	}
 }
 
@@ -249,11 +317,11 @@ function assertSafeRemoteThemeStrings(
 ): void {
 	state.nodes += 1;
 	if (state.nodes > 10_000 || depth > 32) {
-		throw new Error("Remote EngineTheme exceeds the nested-data validation budget at " + path + ".");
+		throw createRemoteThemeError("NESEC4001", "Remote EngineTheme exceeds the nested-data validation budget at " + path + ".");
 	}
 	if (typeof value === "string") {
 		if (REMOTE_CSS_NETWORK_PATTERN.test(value)) {
-			throw new Error("Remote EngineTheme contains an unsafe CSS/network primitive at " + path + ".");
+			throw createRemoteThemeError("NESEC4001", "Remote EngineTheme contains an unsafe CSS/network primitive at " + path + ".");
 		}
 		return;
 	}
@@ -282,25 +350,25 @@ function sanitizeRemoteThemeContent(
 	// not accepted from a remote theme artifact. Component styles are rendered
 	// through React style props / the safe template renderer instead.
 	if (typeof safe.globalStyles === "string" && safe.globalStyles.trim().length > 0) {
-		throw new Error("Remote EngineTheme globalStyles are disabled; use declarative tokens and component styles.");
+		throw createRemoteThemeError("NESEC4001", "Remote EngineTheme globalStyles are disabled; use declarative tokens and component styles.");
 	}
 	delete safe.globalStyles;
 
 	if (safe.vars !== undefined) {
 		if (!safe.vars || typeof safe.vars !== "object" || Array.isArray(safe.vars)) {
-			throw new TypeError("Remote EngineTheme vars must be a plain object of CSS custom properties.");
+			throw createRemoteThemeTypeError("NESEC4001", "Remote EngineTheme vars must be a plain object of CSS custom properties.");
 		}
 		const entries = Object.entries(safe.vars as Record<string, unknown>);
-		if (entries.length > 128) throw new Error("Remote EngineTheme vars exceed the property limit.");
+		if (entries.length > 128) throw createRemoteThemeError("NESEC4001", "Remote EngineTheme vars exceed the property limit.");
 		const normalizedVars: Record<string, string> = {};
 		for (const [key, value] of entries) {
 			if (!/^--[A-Za-z0-9_-]{1,80}$/.test(key)) {
-				throw new Error("Remote EngineTheme CSS variable names must start with -- and use safe identifier characters.");
+				throw createRemoteThemeError("NESEC4001", "Remote EngineTheme CSS variable names must start with -- and use safe identifier characters.");
 			}
 			if (typeof value !== "string" || value.length > 256
 				|| /[\u0000-\u001f\u007f{};<>]/.test(value)
 				|| /url\s*\(|expression\s*\(|javascript\s*:|@import|\/\*|\*\//i.test(value)) {
-				throw new Error("Remote EngineTheme CSS variable '" + key + "' contains an unsafe CSS value.");
+				throw createRemoteThemeError("NESEC4001", "Remote EngineTheme CSS variable '" + key + "' contains an unsafe CSS value.");
 			}
 			normalizedVars[key] = value;
 		}
@@ -309,23 +377,23 @@ function sanitizeRemoteThemeContent(
 
 	if (safe.fonts !== undefined) {
 		if (!Array.isArray(safe.fonts) || safe.fonts.length > 16) {
-			throw new Error("Remote EngineTheme fonts must contain at most 16 allowlisted stylesheet URLs.");
+			throw createRemoteThemeError("NESEC4001", "Remote EngineTheme fonts must contain at most 16 allowlisted stylesheet URLs.");
 		}
 		const allowedOrigins = normalizeAllowedOrigins(options.allowedOrigins, false);
 		const fontUrls = new Set<string>();
 		for (const font of safe.fonts) {
 			if (typeof font !== "string" || font.length === 0 || font.length > 2048) {
-				throw new TypeError("Remote EngineTheme font URLs must be short non-empty strings.");
+				throw createRemoteThemeTypeError("NESEC4001", "Remote EngineTheme font URLs must be short non-empty strings.");
 			}
 			let parsed: URL;
 			try {
 				parsed = new URL(font, artifactUrl.href);
 			} catch {
-				throw new TypeError("Remote EngineTheme contains an invalid font stylesheet URL.");
+				throw createRemoteThemeTypeError("NESEC4001", "Remote EngineTheme contains an invalid font stylesheet URL.");
 			}
 			if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.hash
 				|| !allowedOrigins.has(parsed.origin)) {
-				throw new Error("Remote EngineTheme font stylesheet origin must be HTTPS and included in allowedOrigins.");
+				throw createRemoteThemeError("NESEC2001", "Remote EngineTheme font stylesheet origin must be HTTPS and included in allowedOrigins.");
 			}
 			fontUrls.add(parsed.href);
 		}
@@ -344,26 +412,24 @@ async function parseAndRegisterArtifact(
 	try {
 		parsed = JSON.parse(text);
 	} catch {
-		throw new Error("Remote theme response is not valid JSON.");
+		throw createRemoteThemeError("NETH8001", "Remote theme response is not valid JSON.");
 	}
 	validateArtifactShape(parsed);
 	const artifact = parsed as EngineThemeArtifact;
 	if (options.expectedId && artifact.id !== options.expectedId) {
-		throw new Error("Remote .etr group ID '" + artifact.id + "' did not match expectedId '" + options.expectedId + "'.");
+		throw createRemoteThemeError("NETH8001", "Remote .etr group ID did not match expectedId.");
 	}
 	if (artifact.createdWith.nextjs !== options.expectedNextjsVersion) {
-		throw new Error("Remote .etr Next.js version mismatch: artifact " + artifact.createdWith.nextjs
-			+ ", expected " + options.expectedNextjsVersion + ".");
+		throw createRemoteThemeError("NETH8001", "Remote .etr Next.js version mismatch.");
 	}
 	if (artifact.createdWith.nextjsEngine !== options.expectedEngineVersion) {
-		throw new Error("Remote .etr Engine version mismatch: artifact " + artifact.createdWith.nextjsEngine
-			+ ", expected " + options.expectedEngineVersion + ".");
+		throw createRemoteThemeError("NETH8001", "Remote .etr Engine version mismatch.");
 	}
 	const payload: Record<string, unknown> = { ...artifact };
 	delete payload.sha256;
 	const expectedDigest = await computeSha256(canonicalJson(payload));
 	if (expectedDigest !== artifact.sha256.toLowerCase()) {
-		throw new Error("Remote .etr SHA-256 verification failed.");
+		throw createRemoteThemeError("NETH8001", "Remote .etr SHA-256 verification failed.");
 	}
 	const safeContent = sanitizeRemoteThemeContent(artifact.content, url, options);
 	const registered = registerLoadedRemoteEngineTheme(safeContent);
@@ -402,7 +468,7 @@ export async function loadRemoteEngineTheme(
 
 	const promise = (async () => {
 		const fetcher = options.fetchImpl ?? globalThis.fetch;
-		if (typeof fetcher !== "function") throw new Error("This runtime does not provide fetch() for remote themes.");
+		if (typeof fetcher !== "function") throw createRemoteThemeError("NETH8001", "This runtime does not provide fetch() for remote themes.");
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), timeoutMs);
 		const onExternalAbort = () => controller.abort();
@@ -417,11 +483,11 @@ export async function loadRemoteEngineTheme(
 				headers: { Accept: "application/json" },
 				signal: controller.signal,
 			});
-			if (response.redirected) throw new Error("Remote .etr redirects are disabled; serve the artifact at its final allowlisted URL.");
-			if (!response.ok) throw new Error("Remote .etr request failed with HTTP " + response.status + ".");
+			if (response.redirected) throw createRemoteThemeError("NESEC2001", "Remote .etr redirects are disabled; serve the artifact at its final allowlisted URL.");
+			if (!response.ok) throw createRemoteThemeError("NETH8001", "Remote .etr request failed with HTTP " + response.status + ".");
 			if (response.url) {
 				const finalUrl = new URL(response.url);
-				if (finalUrl.origin !== url.origin) throw new Error("Remote .etr response origin changed during retrieval.");
+				if (finalUrl.origin !== url.origin) throw createRemoteThemeError("NESEC2001", "Remote .etr response origin changed during retrieval.");
 			}
 			const text = await readBoundedResponse(response, maxBytes);
 			const theme = await parseAndRegisterArtifact(text, url, options);
@@ -435,8 +501,9 @@ export async function loadRemoteEngineTheme(
 			}
 			return theme;
 		} catch (error) {
-			if (controller.signal.aborted) throw new Error("Remote .etr retrieval timed out or was cancelled.");
-			throw error;
+			if (controller.signal.aborted) throw createRemoteThemeError("NETH8001", "Remote .etr retrieval timed out or was cancelled.", error);
+			if (isRemoteThemeDiagnosticError(error)) throw error;
+			throw createRemoteThemeError("NETH8001", "Remote .etr retrieval failed before a verified theme could be registered.", error);
 		} finally {
 			clearTimeout(timer);
 			options.signal?.removeEventListener("abort", onExternalAbort);

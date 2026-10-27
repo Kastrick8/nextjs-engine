@@ -333,7 +333,7 @@
     },
     {
       "code": "NETH8001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Remote theme could not be fetched/decoded",
       "doc": "theme.md#neth8001"
     },
@@ -621,7 +621,7 @@
     },
     {
       "code": "NESEC2001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Request origin not allowed",
       "doc": "security.md#nesec2001"
     },
@@ -633,13 +633,13 @@
     },
     {
       "code": "NESEC4001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Untrusted value rejected",
       "doc": "security.md#nesec4001"
     },
     {
       "code": "NESEC8001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Required crypto primitive unavailable",
       "doc": "security.md#nesec8001"
     }

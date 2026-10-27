@@ -7,10 +7,10 @@
 
 | Code | Diagnostic | Status |
 |---|---|---|
-| [NESEC2001](#nesec2001) | Request origin not allowed | Assigned |
+| [NESEC2001](#nesec2001) | Request origin not allowed | Emitted |
 | [NESEC2002](#nesec2002) | Identity/device proof rejected | Assigned |
-| [NESEC4001](#nesec4001) | Untrusted value rejected | Assigned |
-| [NESEC8001](#nesec8001) | Required crypto primitive unavailable | Assigned |
+| [NESEC4001](#nesec4001) | Untrusted value rejected | Emitted |
+| [NESEC8001](#nesec8001) | Required crypto primitive unavailable | Emitted |
 
 ## Details
 
@@ -18,11 +18,11 @@
 
 **Request origin not allowed**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-Request origin failed same-origin/allowlist policy.
+A remote theme URL, host, redirect, or font stylesheet failed the public HTTPS and exact-origin allowlist policy.
 
 **Why it happens**
 
@@ -30,7 +30,7 @@ Browser may be on another origin or caller may probe a private endpoint.
 
 **Recommended action**
 
-Verify origin and configure only explicit trusted origins.
+Use HTTPS on an explicitly allowed public origin. Do not allow redirects, private/local hosts, credentials, or wildcard origins.
 
 **Help URL**
 
@@ -66,11 +66,11 @@ Restart supported flow; inspect non-secret metadata only.
 
 **Untrusted value rejected**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-Input/output failed URL/path/schema/safe-output validation.
+Untrusted remote theme data contains a prohibited CSS/network primitive or violates the bounded declarative-data contract.
 
 **Why it happens**
 
@@ -78,7 +78,7 @@ Value may be malformed or try to bypass a trust boundary.
 
 **Recommended action**
 
-Correct input while retaining validation/escaping; don't disable security checks.
+Remove arbitrary global CSS and unsafe CSS values. Use bounded declarative tokens/templates and retain validation.
 
 **Help URL**
 
@@ -90,11 +90,11 @@ Correct input while retaining validation/escaping; don't disable security checks
 
 **Required crypto primitive unavailable**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-Private work cannot run without required crypto.
+Remote theme integrity verification cannot run without Web Crypto SHA-256.
 
 **Why it happens**
 
@@ -102,7 +102,7 @@ Runtime may lack supported Web Crypto/Node API.
 
 **Recommended action**
 
-Use a supported runtime and fail closed.
+Use a supported secure runtime with Web Crypto. Do not skip digest verification.
 
 **Help URL**
 

@@ -12,7 +12,7 @@
 | [NETH2001](#neth2001) | Theme ID collides in scope | Emitted |
 | [NETH2002](#neth2002) | Theme token value invalid | Emitted |
 | [NETH3001](#neth3001) | Theme artifact compilation failed | Emitted |
-| [NETH8001](#neth8001) | Remote theme could not be fetched/decoded | Assigned |
+| [NETH8001](#neth8001) | Remote theme could not be fetched/decoded | Emitted |
 
 ## Details
 
@@ -140,7 +140,7 @@ Fix the first theme diagnostic and regenerate `.etr`; do not hand-edit generated
 
 **Remote theme could not be fetched/decoded**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
