@@ -30,12 +30,14 @@ import {
 	EngineMarkdownRenderer,
 } from "../components/EngineMarkdownRenderer";
 import { EngineUrlIcon } from "../components/EngineUrlIcon";
+import type { EngineComponentRegistry } from "../core/registry";
 
 export interface EngineServerRendererProps {
 	schema: PageSchema;
 	plan: EngineCompiledPage;
 	config?: EngineConfig;
 	slots?: Record<string, ReactNode>;
+	registry?: EngineComponentRegistry;
 }
 
 const TEXT_TAGS: Record<TextVariant, ElementType> = {
@@ -368,6 +370,7 @@ function renderServerNode(
 	collector: StyleCollector,
 	config: EngineConfig | undefined,
 	slots: Record<string, ReactNode> | undefined,
+	registry?: EngineComponentRegistry,
 ): ReactNode {
 	const node = compiled.source;
 	const props = node.props ?? {};
@@ -375,8 +378,28 @@ function renderServerNode(
 
 	const renderChildren = (): ReactNode => {
 		if (typeof node.children === "string") return node.children;
-		return compiled.children.map((child) => renderServerNode(child, collector, config, slots));
+		return compiled.children.map((child) => renderServerNode(child, collector, config, slots, registry));
 	};
+
+	const ScopedCustomComponent = registry?.isCustomComponentType(node.type)
+		? registry.getComponent(node.type)
+		: undefined;
+	if (ScopedCustomComponent) {
+		const componentChildren = node.children !== undefined
+			? renderChildren()
+			: props.children as ReactNode | undefined;
+		const className = mergeClassName(node, collector);
+		return (
+			<ScopedCustomComponent
+				key={compiled.id}
+				{...props}
+				{...debug}
+				{...(className ? { className } : {})}
+			>
+				{componentChildren}
+			</ScopedCustomComponent>
+		);
+	}
 
 	if (compiled.runtime === "client" || !SERVER_RENDERED_TYPES.has(String(node.type))) {
 		const children = renderChildren();
@@ -908,9 +931,9 @@ function renderServerNode(
 	}
 }
 
-export function EngineServerRenderer({ plan, config, slots }: EngineServerRendererProps) {
+export function EngineServerRenderer({ plan, config, slots, registry }: EngineServerRendererProps) {
 	const collector = new StyleCollector();
-	const content = renderServerNode(plan.root, collector, config, slots);
+	const content = renderServerNode(plan.root, collector, config, slots, registry);
 	const css = collector.collect();
 	return (
 		<>

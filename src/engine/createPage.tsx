@@ -12,6 +12,7 @@ import type {
 	EngineTheme as EngineThemeConfig,
 } from "./schema/types";
 import { resolveEngineThemeSchema } from "./components/engineTheme/resolveTheme";
+import type { EngineComponentRegistry } from "./core/registry";
 import { createTrustedEngineComponent, type CreateCustomComponentOptions, type EngineCustomReactComponent } from "./core/EngineCustomComponent";
 import { normalizeEngineThemeFontHrefs } from "./components/engineTheme/fontUrls";
 import { flattenEngineThemeTokens, normalizeEngineThemeVariables } from "./components/engineTheme/tokens";
@@ -49,6 +50,8 @@ interface CreateOptionsBase {
 	/** Generation 3 tablet adaptation. Falls back to `mobile` when omitted. */
 	tablet?: EngineAdaptiveDeviceConfig;
 	compiler?: EngineCompilerOptions;
+	/** Isolates custom schema-node registrations from the process-global compatibility registry. */
+	registry?: EngineComponentRegistry;
 }
 
 export interface CreateSchemaPageOptions extends CreateOptionsBase {
@@ -142,17 +145,17 @@ function createMarkdownSchema(options: CreateMarkdownPageOptions): PageSchema {
 }
 
 function normalizeCreateOptions(options: CreatePageOptions): NormalizedCreateOptions {
-	const { config, handlers, slots, mobile, tablet, compiler } = options;
-	if (isSchemaOption(options)) return { schema: options.schema, config, handlers, slots, mobile, tablet, compiler };
+	const { config, handlers, slots, mobile, tablet, compiler, registry } = options;
+	if (isSchemaOption(options)) return { schema: options.schema, config, handlers, slots, mobile, tablet, compiler, registry };
 	if (isDirectSchemaOption(options)) {
 		return {
 			schema: { meta: options.meta, theme: options.theme, root: options.root },
-			config, handlers, slots, mobile, tablet, compiler,
+			config, handlers, slots, mobile, tablet, compiler, registry,
 		};
 	}
 	return {
 		schema: createMarkdownSchema(options),
-		config, handlers, slots, mobile, tablet, compiler,
+		config, handlers, slots, mobile, tablet, compiler, registry,
 	};
 }
 
@@ -219,15 +222,20 @@ function EngineTheme({ schema }: { schema: PageSchema }) {
 
 export function createPage(options: CreatePageOptions): EnginePageComponent {
 	const normalized = normalizeCreateOptions(options);
-	const schema = resolveEngineThemeSchema(normalized.schema);
+	const registry = normalized.registry;
+	const schema = resolveEngineThemeSchema(normalized.schema, registry);
 	const { config, handlers, slots, mobile, tablet, compiler } = normalized;
 	const shouldResolveMarkdown = nodeHasMarkdownFile(schema.root);
 	const usesAdaptiveLayout = mobile !== undefined || tablet !== undefined;
 	const hasNamedHandlers = handlers !== undefined && Object.keys(handlers).length > 0;
 	const useServerFirstRenderer = compiler?.serverFirst !== false && !hasNamedHandlers;
+	if (registry && !useServerFirstRenderer) {
+		throw new Error("An explicit EngineComponentRegistry requires the Generation 3 server-first renderer. Keep the registry scoped rather than switching this page to the legacy renderer.");
+	}
 	const basePlan = compilePage(schema, {
 		pageId: compiler?.pageId,
 		strict: compiler?.strict,
+		...(registry ? { customComponentTypes: registry.customComponentTypes() } : {}),
 	});
 
 	function renderCompatibility(plan: EngineCompiledPage) {
@@ -239,7 +247,7 @@ export function createPage(options: CreatePageOptions): EnginePageComponent {
 	function renderLegacyPage(resolvedSchema: PageSchema, resolvedPlan: EngineCompiledPage) {
 		return (
 			<EngineScrollProvider>
-				<EngineProvider config={config} handlers={handlers} slots={slots}>
+				<EngineProvider config={config} handlers={handlers} slots={slots} registry={registry}>
 					<EngineTheme schema={resolvedSchema} />
 					<SchemaRenderer schema={resolvedSchema} />
 					{process.env.NODE_ENV === "development" && <EngineDebugRuntimeMonitor />}
@@ -256,12 +264,13 @@ export function createPage(options: CreatePageOptions): EnginePageComponent {
 			: compilePage(resolvedSchema, {
 				pageId: compiler?.pageId,
 				strict: compiler?.strict,
+				...(registry ? { customComponentTypes: registry.customComponentTypes() } : {}),
 			});
 		if (!useServerFirstRenderer) return renderLegacyPage(resolvedSchema, resolvedPlan);
 		return (
 			<>
 				<EngineTheme schema={resolvedSchema} />
-				<EngineServerRenderer schema={resolvedSchema} plan={resolvedPlan} config={config} slots={slots} />
+				<EngineServerRenderer schema={resolvedSchema} plan={resolvedPlan} config={config} slots={slots} registry={registry} />
 				{process.env.NODE_ENV === "development" && <EngineDebugRuntimeMonitor />}
 				{renderCompatibility(resolvedPlan)}
 			</>
@@ -300,13 +309,18 @@ export function createComponent(options: CreateComponentOptions): React.Componen
 		return createTrustedEngineComponent(options);
 	}
 	const normalized = normalizeCreateOptions(options);
-	const schema = resolveEngineThemeSchema(normalized.schema);
+	const registry = normalized.registry;
+	const schema = resolveEngineThemeSchema(normalized.schema, registry);
 	const { config, handlers, slots, compiler } = normalized;
 	const hasNamedHandlers = handlers !== undefined && Object.keys(handlers).length > 0;
 	const useServerFirstRenderer = compiler?.serverFirst !== false && !hasNamedHandlers;
+	if (registry && !useServerFirstRenderer) {
+		throw new Error("An explicit EngineComponentRegistry requires the Generation 3 server-first renderer. Keep the registry scoped rather than switching this component to the legacy renderer.");
+	}
 	const basePlan = compilePage(schema, {
 		pageId: compiler?.pageId,
 		strict: compiler?.strict,
+		...(registry ? { customComponentTypes: registry.customComponentTypes() } : {}),
 	});
 
 	function EngineComponent({ children, slots: runtimeSlots }: EngineComponentProps) {
@@ -319,12 +333,12 @@ export function createComponent(options: CreateComponentOptions): React.Componen
 			return (
 				<>
 					<EngineTheme schema={schema} />
-					<EngineServerRenderer schema={schema} plan={basePlan} config={config} slots={mergedSlots} />
+					<EngineServerRenderer schema={schema} plan={basePlan} config={config} slots={mergedSlots} registry={registry} />
 				</>
 			);
 		}
 		return (
-			<EngineProvider config={config} handlers={handlers} slots={mergedSlots}>
+			<EngineProvider config={config} handlers={handlers} slots={mergedSlots} registry={registry}>
 				<EngineTheme schema={schema} />
 				<SchemaRenderer schema={schema} />
 				<EngineCollectedStyles />
