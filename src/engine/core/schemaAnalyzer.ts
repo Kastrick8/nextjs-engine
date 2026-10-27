@@ -77,6 +77,24 @@ const LEAF_TYPES = new Set([
 	"markdown", "canvas", "video",
 ]);
 
+const ERROR_BOOK_BASE_URL = "https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes";
+const ERROR_BOOK_DIAGNOSTICS: Record<string, { code: string; page: string; action: string }> = Object.freeze({
+	E001: { code: "NECMP1001", page: "components", action: "Use a registered component type or register the custom component before analysis." },
+	E002: { code: "NECMP1002", page: "components", action: "Provide the required prop listed by the component's contract." },
+	E003: { code: "NECMP2001", page: "components", action: "Use unique id/point values across the schema." },
+	E004: { code: "NECMP2002", page: "components", action: "Create distinct schema-node objects and remove ancestor cycles." },
+	E005: { code: "NECMP1005", page: "components", action: "Provide the PageSchema root node before compilation." },
+	E006: { code: "NECMP1004", page: "components", action: "Replace the malformed value with a plain node whose type is a non-empty string." },
+	W001: { code: "NEIMG1002", page: "images", action: "Set a meaningful alt or an empty string when decorative." },
+	W002: { code: "NECMP1006", page: "components", action: "Add accessible label/content or non-empty children." },
+	W003: { code: "NECMP1006", page: "components", action: "Add an id/point and matching label association." },
+	W004: { code: "NECMP1008", page: "components", action: "Consider pagination/virtualization for large direct-child collections." },
+	W005: { code: "NECMP1008", page: "components", action: "Flatten unnecessary nesting where practical." },
+	W006: { code: "NECMP1007", page: "components", action: "Remove schema children from this leaf-style node or use a component that supports them." },
+	W007: { code: "NECMP2003", page: "components", action: "Use unique SchemaNode.name values when a patch should target exactly one node." },
+	W008: { code: "NESCHED1002", page: "scheduler", action: "Add props.point or remove orphaned EngineScroll point metadata." },
+});
+
 const REQUIRED_PROPS: Record<string, string[]> = {
 	image: ["src"],
 	video: ["src"],
@@ -279,9 +297,15 @@ function walkNode(node: unknown, path: string, depth: number, state: AnalyzerSta
 function formatDiagnostics(diagnostics: EngineDiagnostic[]): string {
 	if (diagnostics.length === 0) return "Engine schema analyzer: no issues found.";
 	return diagnostics.map((diagnostic) => {
-		const severity = diagnostic.severity === "error" ? "Error" : diagnostic.severity === "warn" ? "Warning" : "Info";
-		const hint = diagnostic.hint ? `\n    hint: ${diagnostic.hint}` : "";
-		return `[schema:${diagnostic.path}] Engine${severity}(${diagnostic.code}): ${diagnostic.message}${hint}`;
+		const severity = diagnostic.severity === "error" ? "ERROR" : diagnostic.severity === "warn" ? "WARNING" : "INFO";
+		const legacySeverity = diagnostic.severity === "error" ? "Error" : diagnostic.severity === "warn" ? "Warning" : "Info";
+		const book = ERROR_BOOK_DIAGNOSTICS[diagnostic.code];
+		const prefix = book ? `[nextjs-engine][${severity} ${book.code}] ` : "";
+		const legacy = `[schema:${diagnostic.path}] Engine${legacySeverity}(${diagnostic.code}): ${diagnostic.message}`;
+		const action = diagnostic.hint || book?.action;
+		const actionLine = action ? `\n    action: ${action}` : "";
+		const helpLine = book ? `\n    help: ${ERROR_BOOK_BASE_URL}/${book.page}#${book.code.toLowerCase()}` : "";
+		return `${prefix}${legacy}${actionLine}${helpLine}`;
 	}).join("\n");
 }
 

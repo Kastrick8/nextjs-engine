@@ -9,7 +9,7 @@ export {
 	findCompiledNode,
 } from "./EngineCompiler";
 export { compileEngineUsedFeatureManifest } from "./EngineCompatibilityManifest";
-export { assertEngineBuildBudgets, evaluateEngineBuildBudgets } from "./EngineBuildBudgets";
+export { EngineBuildBudgetError, assertEngineBuildBudgets, evaluateEngineBuildBudgets } from "./EngineBuildBudgets";
 export { assertEngineSecurityDiagnostics, compileEngineSecurityDiagnostics } from "./EngineSecurityCompiler";
 export {
 	ENGINE_DEFAULT_FALLBACK_POLICIES,
