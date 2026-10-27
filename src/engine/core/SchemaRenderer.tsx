@@ -22,7 +22,7 @@ import { getComponent, isSplitComponent } from "./registry";
 import { validatePageSchema } from "./validateSchema";
 import { decideLazy } from "./lazyDetect";
 import { LazyMount, LazySection } from "../components/LazyMount";
-import { useSlot, useStyleCollector } from "../providers/EngineProvider";
+import { useEngineComponentRegistry, useSlot, useStyleCollector } from "../providers/EngineProvider";
 
 interface VisibilityRule {
 	className: string;
@@ -355,6 +355,7 @@ function DevelopmentNodeElement({ component: Component, props, path, nodeType, c
 
 function NodeRendererContent({ node, depth, path }: NodeRendererProps) {
 	const styleCollector = useStyleCollector();
+	const componentRegistry = useEngineComponentRegistry();
 
 	if (node.type === "slot") {
 		const props = (node.props ?? {}) as { name?: string; fallback?: SchemaNode };
@@ -384,7 +385,7 @@ function NodeRendererContent({ node, depth, path }: NodeRendererProps) {
 		));
 	}
 
-	const Component = getComponent(node.type);
+	const Component = getComponent(node.type, componentRegistry);
 	if (!Component) return <UnknownNodeWarning type={node.type} />;
 	const splitComponent = isSplitComponent(Component);
 

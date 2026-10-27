@@ -1,10 +1,12 @@
 import { isSafeEngineThemeCssValue } from "./cssSafety";
 import type { CSSProperties } from "react";
+import type { EngineComponentRegistry } from "../../core/registry";
 import type {
 	EngineTheme,
 	EngineThemeJsonObject,
 	PageSchema,
 	SchemaNode,
+	NodeType,
 } from "../../schema/types";
 import type {
 	EngineOverlayResolvedTheme,
@@ -17,12 +19,22 @@ import {
 	resolveRegisteredEngineTheme,
 } from "./createTheme";
 import {
-	getRegisteredEngineCustomComponentThemeId as getComponentThemeId,
-	getRegisteredEngineCustomComponentSlots as getComponentThemeSlots,
-	isRegisteredEngineCustomComponent as isCustomComponentType,
+	getRegisteredEngineCustomComponentThemeId as getGlobalComponentThemeId,
+	getRegisteredEngineCustomComponentSlots as getGlobalComponentThemeSlots,
+	isRegisteredEngineCustomComponent as isGlobalCustomComponentType,
 	sanitizeEngineCustomThemeStyles,
 	type EngineCustomThemeStyles,
 } from "../../core/EngineCustomComponent";
+
+function isCustomComponentType(type: string, registry?: EngineComponentRegistry): boolean {
+	return registry ? registry.isCustomComponentType(type as NodeType) : isGlobalCustomComponentType(type);
+}
+function getComponentThemeId(type: string, registry?: EngineComponentRegistry): string | undefined {
+	return registry ? registry.getComponentThemeId(type as NodeType) : getGlobalComponentThemeId(type);
+}
+function getComponentThemeSlots(type: string, registry?: EngineComponentRegistry): readonly string[] {
+	return registry ? registry.getComponentThemeSlots(type as NodeType) : getGlobalComponentThemeSlots(type);
+}
 
 interface ResolvedMarkdownTheme {
 	props: Record<string, unknown>;
@@ -490,8 +502,9 @@ function collectCustomComponentStyle(
 function resolveCustomComponentThemeStyles(
 	definition: Record<string, unknown>,
 	nodeType: string,
+	registry?: EngineComponentRegistry,
 ): EngineCustomThemeStyles {
-	const slots = getComponentThemeSlots(nodeType);
+	const slots = getComponentThemeSlots(nodeType, registry);
 	const styles: Record<string, Record<string, unknown>> = { root: {} };
 	// Defaults provide the base values; the resolved namespace/variant's direct
 	// CSS fields override them, and the named styles adapter overrides both.
@@ -528,9 +541,10 @@ function resolveCustomComponentThemeStyles(
 function resolveCustomComponentThemeNode(
 	node: SchemaNode,
 	context: EngineThemeResolutionContext,
+	registry?: EngineComponentRegistry,
 ): SchemaNode {
 	const explicitId = node.theme;
-	if (!isCustomComponentType(node.type)) {
+	if (!isCustomComponentType(node.type, registry)) {
 		if (explicitId !== undefined) {
 			throw new Error(
 				"SchemaNode.theme currently supports registered custom node types plus EngineDialog, EngineDrawer, and EnginePopover; received <" + node.type + ">.",
@@ -539,7 +553,7 @@ function resolveCustomComponentThemeNode(
 		return node;
 	}
 
-	const declaredThemeId = getComponentThemeId(node.type);
+	const declaredThemeId = getComponentThemeId(node.type, registry);
 	const declaredTheme = declaredThemeId ? parseEngineThemeId(declaredThemeId) : undefined;
 	if (declaredTheme && (!declaredTheme.componentId || declaredTheme.subthemes.length > 0)) {
 		throw new Error("Registered custom component '" + node.type + "' has an invalid default EngineTheme namespace.");
@@ -590,7 +604,7 @@ function resolveCustomComponentThemeNode(
 		return { ...node, props: nextProps as SchemaNode["props"] };
 	}
 
-	const safeStyles = resolveCustomComponentThemeStyles(selection, node.type);
+	const safeStyles = resolveCustomComponentThemeStyles(selection, node.type, registry);
 	const originalProps = node.props ?? {};
 	const nextProps: Record<string, unknown> = { ...originalProps };
 	delete nextProps.engineThemeStyles;
@@ -610,11 +624,12 @@ function applyResolvedThemeToNode(
 	node: SchemaNode,
 	context: EngineThemeResolutionContext,
 	markdownTheme?: ResolvedMarkdownTheme,
+	registry?: EngineComponentRegistry,
 ): SchemaNode {
 	let children = node.children;
 	if (Array.isArray(node.children)) {
 		const mappedChildren = node.children.map((child) => (
-			typeof child === "string" ? child : applyResolvedThemeToNode(child, context, markdownTheme)
+			typeof child === "string" ? child : applyResolvedThemeToNode(child, context, markdownTheme, registry)
 		));
 		if (mappedChildren.some((child, index) => child !== node.children?.[index])) {
 			children = mappedChildren;
@@ -640,23 +655,23 @@ function applyResolvedThemeToNode(
 			};
 		}
 	} else {
-		result = resolveCustomComponentThemeNode(result, context);
+		result = resolveCustomComponentThemeNode(result, context, registry);
 	}
 
 	if (markdownTheme) result = applyMarkdownThemeToNode(result, markdownTheme);
 	return result;
 }
 
-function schemaHasNodeTheme(node: SchemaNode): boolean {
-	if (node.theme !== undefined || getComponentThemeId(node.type) !== undefined) return true;
+function schemaHasNodeTheme(node: SchemaNode, registry?: EngineComponentRegistry): boolean {
+	if (node.theme !== undefined || getComponentThemeId(node.type, registry) !== undefined) return true;
 	return Array.isArray(node.children)
-		&& node.children.some((child) => typeof child !== "string" && schemaHasNodeTheme(child));
+		&& node.children.some((child) => typeof child !== "string" && schemaHasNodeTheme(child, registry));
 }
 
-export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
+export function resolveEngineThemeSchema(schema: PageSchema, registry?: EngineComponentRegistry): PageSchema {
 	const theme = schema.theme;
 	if (!theme || typeof theme.id !== "string" || !theme.id) {
-		if (schemaHasNodeTheme(schema.root)) {
+		if (schemaHasNodeTheme(schema.root, registry)) {
 			throw new Error("SchemaNode.theme requires PageSchema.theme to identify an EngineTheme group.");
 		}
 		return schema;
@@ -718,12 +733,12 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 	};
 	const needsNodeResolution = Boolean(
 		resolvedMarkdownTheme
-		|| schemaHasNodeTheme(schema.root)
+		|| schemaHasNodeTheme(schema.root, registry)
 		|| ["overlay", "dialog", "drawer", "popover"].some((name) => components[name] || selectedComponents[name])
-		|| Object.keys(components).some((name) => isCustomComponentType(name) && (components[name] || selectedComponents[name])),
+		|| Object.keys(components).some((name) => isCustomComponentType(name, registry) && (components[name] || selectedComponents[name])),
 	);
 	const root = needsNodeResolution
-		? applyResolvedThemeToNode(schema.root, context, resolvedMarkdownTheme)
+		? applyResolvedThemeToNode(schema.root, context, resolvedMarkdownTheme, registry)
 		: schema.root;
 	return {
 		...schema,

@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export { createPage, createComponent, defineSchema } from "./createPage";
+export { createEngineComponentRegistry, EngineComponentRegistry } from "./core/registry";
 export type {
 	CreateComponentOptions,
 	CreatePageOptions,

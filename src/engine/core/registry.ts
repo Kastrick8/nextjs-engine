@@ -133,8 +133,72 @@ function buildDefaultRegistry(): ComponentRegistry {
 	return registry;
 }
 
-const _registry: ComponentRegistry = buildDefaultRegistry();
-const BUILTIN_COMPONENT_TYPES = new Set<NodeType>(_registry.keys());
+const _builtinRegistry: ComponentRegistry = buildDefaultRegistry();
+const _registry: ComponentRegistry = new Map(_builtinRegistry);
+const BUILTIN_COMPONENT_TYPES = new Set<NodeType>(_builtinRegistry.keys());
+
+/**
+ * Application-owned component registry. Each instance reuses the built-in
+ * definitions but owns its custom registrations and metadata independently.
+ */
+export class EngineComponentRegistry {
+	private readonly components: ComponentRegistry;
+	private readonly builtInTypes: ReadonlySet<NodeType>;
+
+	constructor() {
+		this.components = new Map(_builtinRegistry);
+		this.builtInTypes = BUILTIN_COMPONENT_TYPES;
+	}
+
+	registerComponent<P extends object>(type: NodeType, component: ComponentType<P>): void {
+		if (typeof type !== "string" || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(type)
+			|| type === "__proto__" || type === "prototype" || type === "constructor") {
+			throw new TypeError("Custom component type must be a single safe schema-node identifier.");
+		}
+		if (this.builtInTypes.has(type)) {
+			throw new Error("Cannot replace built-in Engine component type '" + type + "'. Choose a new application-owned type ID.");
+		}
+		const metadata = component as unknown as {
+			engineCustomComponentId?: unknown;
+			engineCustomSlots?: unknown;
+			engineCustomThemeId?: unknown;
+		};
+		if (typeof metadata.engineCustomComponentId === "string" && metadata.engineCustomComponentId !== type) {
+			throw new Error("Custom component ID '" + metadata.engineCustomComponentId + "' does not match registry type '" + type + "'.");
+		}
+		this.components.set(type, component as unknown as EngineComponent);
+	}
+
+	unregisterComponent(type: NodeType): void {
+		if (this.builtInTypes.has(type)) throw new Error("Cannot unregister built-in Engine component type '" + type + "'.");
+		this.components.delete(type);
+	}
+
+	getComponent(type: NodeType): EngineComponent | undefined { return this.components.get(type); }
+	isBuiltInComponentType(type: NodeType): boolean { return this.builtInTypes.has(type); }
+	isCustomComponentType(type: NodeType): boolean { return this.components.has(type) && !this.builtInTypes.has(type); }
+	hasComponent(type: NodeType): boolean { return this.components.has(type); }
+	registeredTypes(): NodeType[] { return [...this.components.keys()]; }
+	customComponentTypes(): NodeType[] { return [...this.components.keys()].filter((type) => !this.builtInTypes.has(type)); }
+
+	getComponentThemeSlots(type: NodeType): readonly string[] {
+		if (this.builtInTypes.has(type)) return [];
+		const metadata = this.components.get(type) as unknown as { engineCustomSlots?: unknown } | undefined;
+		return Array.isArray(metadata?.engineCustomSlots)
+			? metadata.engineCustomSlots.filter((slot): slot is string => typeof slot === "string")
+			: [];
+	}
+
+	getComponentThemeId(type: NodeType): string | undefined {
+		if (this.builtInTypes.has(type)) return undefined;
+		const metadata = this.components.get(type) as unknown as { engineCustomThemeId?: unknown } | undefined;
+		return typeof metadata?.engineCustomThemeId === "string" ? metadata.engineCustomThemeId : undefined;
+	}
+}
+
+export function createEngineComponentRegistry(): EngineComponentRegistry {
+	return new EngineComponentRegistry();
+}
 
 export function registerComponent<P extends object>(type: NodeType, component: ComponentType<P>): void {
 	if (typeof type !== "string" || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(type)
@@ -160,24 +224,26 @@ export function unregisterComponent(type: NodeType): void {
 	unregisterEngineCustomComponentMetadata(type);
 }
 
-export function getComponent(type: NodeType): EngineComponent | undefined {
-	return _registry.get(type);
+export function getComponent(type: NodeType, registry?: EngineComponentRegistry): EngineComponent | undefined {
+	return registry ? registry.getComponent(type) : _registry.get(type);
 }
 
-export function isBuiltInComponentType(type: NodeType): boolean {
-	return BUILTIN_COMPONENT_TYPES.has(type);
+export function isBuiltInComponentType(type: NodeType, registry?: EngineComponentRegistry): boolean {
+	return registry ? registry.isBuiltInComponentType(type) : BUILTIN_COMPONENT_TYPES.has(type);
 }
 
-export function isCustomComponentType(type: NodeType): boolean {
-	return _registry.has(type) && !BUILTIN_COMPONENT_TYPES.has(type);
+export function isCustomComponentType(type: NodeType, registry?: EngineComponentRegistry): boolean {
+	return registry ? registry.isCustomComponentType(type) : _registry.has(type) && !BUILTIN_COMPONENT_TYPES.has(type);
 }
 
-export function getComponentThemeSlots(type: NodeType): readonly string[] {
+export function getComponentThemeSlots(type: NodeType, registry?: EngineComponentRegistry): readonly string[] {
+	if (registry) return registry.getComponentThemeSlots(type);
 	if (BUILTIN_COMPONENT_TYPES.has(type)) return [];
 	return getRegisteredEngineCustomComponentSlots(type);
 }
 
-export function getComponentThemeId(type: NodeType): string | undefined {
+export function getComponentThemeId(type: NodeType, registry?: EngineComponentRegistry): string | undefined {
+	if (registry) return registry.getComponentThemeId(type);
 	if (BUILTIN_COMPONENT_TYPES.has(type)) return undefined;
 	return getRegisteredEngineCustomComponentThemeId(type);
 }
@@ -186,12 +252,12 @@ export function isSplitComponent(component: EngineComponent): boolean {
 	return splitComponents.has(component as unknown as object);
 }
 
-export function hasComponent(type: NodeType): boolean {
-	return _registry.has(type);
+export function hasComponent(type: NodeType, registry?: EngineComponentRegistry): boolean {
+	return registry ? registry.hasComponent(type) : _registry.has(type);
 }
 
-export function registeredTypes(): NodeType[] {
-	return [..._registry.keys()];
+export function registeredTypes(registry?: EngineComponentRegistry): NodeType[] {
+	return registry ? registry.registeredTypes() : [..._registry.keys()];
 }
 
 export function getRegistry(): ComponentRegistry {
