@@ -866,6 +866,7 @@ jobs:
           fi
 
       - name: Skip an already-published immutable npm version
+        if: steps.snapshot.outputs.track == 'stable'
         id: registry-version
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
@@ -879,12 +880,13 @@ jobs:
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Publish the selected snapshot
-        if: steps.registry-version.outputs.should_publish == 'true'
+        if: steps.snapshot.outputs.track == 'stable' && steps.registry-version.outputs.should_publish == 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           DIST_TAG: ${{ steps.snapshot.outputs.version_tag }}
         run: npm publish --access public --tag "$DIST_TAG"
       - name: Apply npm dist-tags
+        if: steps.snapshot.outputs.track == 'stable'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
