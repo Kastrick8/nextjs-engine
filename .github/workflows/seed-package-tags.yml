@@ -36,6 +36,8 @@ jobs:
           git checkout --detach refs/remotes/origin/package/main
           git fetch --tags origin
           ARCHIVE_SHA="$(git rev-parse HEAD)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           node --input-type=module <<'NODE' > "$RUNNER_TEMP/package-tags.tsv"
           import fs from "node:fs";
           import path from "node:path";
