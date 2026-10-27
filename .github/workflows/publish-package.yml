@@ -300,6 +300,7 @@ jobs:
           VERSION: ${{ steps.release-meta.outputs.version }}
           TRACK: ${{ steps.release-meta.outputs.track }}
           SNAPSHOT_ACTION: ${{ steps.release-meta.outputs.snapshot_action }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "source_commit must be a lowercase 40-character SHA." >&2; exit 1; }
@@ -363,8 +364,12 @@ jobs:
           REFRESHED=false
           TEMPLATE_PROVENANCE="$TEMPLATE_DIR"
           if [[ -e "archive/$TARGET" ]]; then
-            if [[ "$SNAPSHOT_ACTION" == "refresh" ]]; then
-              [[ "$TRACK" == "alpha" ]] || { echo "Only alpha snapshots can be refreshed." >&2; exit 1; }
+            if [[ "$SNAPSHOT_ACTION" == "refresh" || "$EVENT_NAME" == "workflow_run" ]]; then
+              if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+                [[ "$TRACK" == "stable" ]] || { echo "Automatic refresh is restricted to stable releases." >&2; exit 1; }
+              else
+                [[ "$TRACK" == "alpha" ]] || { echo "Manual refresh is restricted to alpha snapshots." >&2; exit 1; }
+              fi
               [[ -f "archive/$TARGET/package.json" && -f "archive/$TARGET/UPSTREAM.md" ]] || {
                 echo "Refresh requires an existing snapshot with package.json and UPSTREAM.md." >&2
                 exit 1
