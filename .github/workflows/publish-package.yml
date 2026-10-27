@@ -1,0 +1,435 @@
+name: Publish versioned package
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: "Development branch containing the pinned source commit"
+        required: true
+        type: choice
+        options: [main-2, main-3]
+      source_commit:
+        description: "Exact 40-character commit SHA to package, not a moving branch name"
+        required: true
+        type: string
+      version:
+        description: "Full package SemVer, e.g. 2.6.3 or 3.0.0-alpha.2"
+        required: true
+        type: string
+      track:
+        description: "Stable or alpha release"
+        required: true
+        type: choice
+        options: [stable, alpha]
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: npm-release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release-from-source:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout package archive branch
+        uses: actions/checkout@v6
+        with:
+          ref: package/main
+          path: archive
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Checkout exact pinned source commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_commit }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js for npm Trusted Publishing
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Install npm CLI with OIDC support
+        run: npm install --global npm@^11.5.1
+
+      - name: Validate source pin and prepare immutable snapshot
+        id: prepare
+        shell: bash
+        env:
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "source_commit must be a lowercase 40-character SHA." >&2; exit 1; }
+          PINNED_SHA="$(git -C source rev-parse HEAD)"
+          [[ "$PINNED_SHA" == "$SOURCE_COMMIT" ]] || { echo "Checked-out commit does not match requested pin." >&2; exit 1; }
+
+          git -C archive fetch --no-tags origin "$SOURCE_BRANCH"
+          git -C archive merge-base --is-ancestor "$PINNED_SHA" FETCH_HEAD || {
+            echo "Pinned commit is not reachable from $SOURCE_BRANCH." >&2
+            exit 1
+          }
+          git -C archive fetch --no-tags origin package/main
+          git -C archive switch --force-create package/main origin/package/main
+
+          if [[ "$TRACK" == "alpha" ]]; then
+            [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-alpha\.([0-9]+)$ ]] || { echo "Alpha versions must look like 3.0.0-alpha.2." >&2; exit 1; }
+            MAJOR="${BASH_REMATCH[1]}"
+            FAMILY="$MAJOR.alpha"
+            TARGET="alpha/version/$FAMILY/version/$VERSION"
+            FAMILY_DIR="archive/alpha/version/$FAMILY/version"
+            if [[ -d "$FAMILY_DIR" ]]; then
+              TEMPLATE_DIR="$(find "$FAMILY_DIR" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+            else
+              TEMPLATE_DIR="archive/alpha/version/3.alpha/version/3.0.0-alpha.1"
+            fi
+          elif [[ "$TRACK" == "stable" ]]; then
+            [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || { echo "Stable versions must look like 2.6.3." >&2; exit 1; }
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            FAMILY="$MAJOR.$MINOR"
+            SNAPSHOT="$VERSION"
+            if [[ "$PATCH" == "0" ]]; then SNAPSHOT="$FAMILY"; fi
+            TARGET="version/$FAMILY/version/$SNAPSHOT"
+            FAMILY_DIR="archive/version/$FAMILY/version"
+            if [[ -d "$FAMILY_DIR" ]]; then
+              TEMPLATE_DIR="$(find "$FAMILY_DIR" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+            elif [[ "$MAJOR" == "1" ]]; then
+              TEMPLATE_DIR="archive/version/1.0/version/1.0"
+            else
+              TEMPLATE_DIR="archive/version/2.6/version/2.6.2"
+            fi
+          else
+            echo "track must be stable or alpha." >&2
+            exit 1
+          fi
+
+          [[ -f "$TEMPLATE_DIR/package.json" && -f "$TEMPLATE_DIR/tsconfig.json" ]] || { echo "Manifest template missing at $TEMPLATE_DIR." >&2; exit 1; }
+          REUSE_EXISTING=false
+          if [[ -e "archive/$TARGET" ]]; then
+            [[ -f "archive/$TARGET/UPSTREAM.md" ]] || { echo "Snapshot exists without provenance; refusing to overwrite." >&2; exit 1; }
+            grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "archive/$TARGET/UPSTREAM.md" || {
+              echo "Snapshot already exists with different or unknown provenance; refusing to overwrite." >&2
+              exit 1
+            }
+            REUSE_EXISTING=true
+          else
+            if [[ -d source/src/engine ]]; then ENGINE_DIR="source/src/engine"
+            elif [[ -d source/engine ]]; then ENGINE_DIR="source/engine"
+            else echo "Pinned source has neither src/engine/ nor engine/; refusing to guess." >&2; exit 1
+            fi
+            DEST="archive/$TARGET"
+            mkdir -p "$DEST/engine"
+            cp "$TEMPLATE_DIR/package.json" "$DEST/package.json"
+            cp "$TEMPLATE_DIR/tsconfig.json" "$DEST/tsconfig.json"
+            for file in README.md DOCUMENT.md; do
+              if [[ -f "$TEMPLATE_DIR/$file" ]]; then cp "$TEMPLATE_DIR/$file" "$DEST/$file"; fi
+              if [[ -f "source/$file" ]]; then cp "source/$file" "$DEST/$file"; fi
+            done
+            if [[ -d "$TEMPLATE_DIR/docs" ]]; then
+              mkdir -p "$DEST/docs"
+              cp -a "$TEMPLATE_DIR/docs/." "$DEST/docs/"
+            fi
+            if [[ -d source/docs ]]; then
+              rm -rf "$DEST/docs"
+              cp -a source/docs "$DEST/docs"
+            fi
+            cp -a "$ENGINE_DIR/." "$DEST/engine/"
+            printf '%s\n' 'export * from "./engine";' > "$DEST/index.ts"
+            export TARGET VERSION TRACK PINNED_SHA SOURCE_BRANCH ENGINE_DIR TEMPLATE_DIR
+            node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const {TARGET,VERSION,TRACK,PINNED_SHA,SOURCE_BRANCH,ENGINE_DIR,TEMPLATE_DIR}=process.env;
+          const root="archive/"+TARGET;
+          const manifest=JSON.parse(fs.readFileSync(root+"/package.json","utf8"));
+          manifest.name="@kastrick/nextjs-engine";
+          manifest.version=VERSION;
+          manifest.private=false;
+          manifest.files=(manifest.files||[]).filter(p=>fs.existsSync(root+"/"+p));
+          for(const [name,value] of Object.entries(manifest.exports||{})){
+            if(name===".") continue;
+            const targets=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
+            if(targets.some(p=>!fs.existsSync(root+"/"+p.replace(/^\.\//,"")))) delete manifest.exports[name];
+          }
+          fs.writeFileSync(root+"/package.json",JSON.stringify(manifest,null,"\t")+"\n");
+          const provenance=[
+            "# Snapshot provenance",
+            "",
+            "- Full package version: "+VERSION,
+            "- Package: @kastrick/nextjs-engine",
+            "- Archive track: "+TRACK,
+            "- Source branch: "+SOURCE_BRANCH,
+            "- Requested and resolved source commit: "+PINNED_SHA,
+            "- Engine source path: "+ENGINE_DIR,
+            "- Manifest/docs template: "+TEMPLATE_DIR,
+            "",
+            "The engine source was copied from the exact pinned commit above. The manifest name and version were normalized for the Kastrick npm package. Missing optional export targets were removed. This is an immutable source snapshot, not a live link.",
+            ""
+          ].join("\n");
+          fs.writeFileSync(root+"/UPSTREAM.md",provenance);
+          NODE
+          fi
+
+          node - "$TARGET" "$VERSION" <<'NODE'
+          const fs=require("node:fs");
+          const path=require("node:path");
+          const target=process.argv[2], version=process.argv[3];
+          const p=JSON.parse(fs.readFileSync(path.join("archive",target,"package.json"),"utf8"));
+          if(p.name!=="@kastrick/nextjs-engine"||p.version!==version) throw new Error("Manifest name/version mismatch: "+p.name+"@"+p.version);
+          for(const f of ["index.ts","engine/index.ts","tsconfig.json"]) if(!fs.existsSync(path.join("archive",target,f))) throw new Error("Missing "+f);
+          const expected=version.includes("-alpha.")?version:(version.endsWith(".0")?version.split(".").slice(0,2).join("."):version);
+          if(path.basename(target)!==expected) throw new Error("Snapshot path does not match "+version);
+          NODE
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "pinned_sha=$PINNED_SHA" >> "$GITHUB_OUTPUT"
+          echo "reuse_existing=$REUSE_EXISTING" >> "$GITHUB_OUTPUT"
+
+      - name: Type-check and inspect packed contents
+        working-directory: archive/${{ steps.prepare.outputs.target }}
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+          npm run type-check
+          npm run pack:check
+          rm -rf node_modules
+
+      - name: Commit the snapshot to package/main
+        working-directory: archive
+        env:
+          TARGET: ${{ steps.prepare.outputs.target }}
+          VERSION: ${{ inputs.version }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$TARGET"
+          if ! git diff --cached --quiet; then
+            git commit -m "Release @kastrick/nextjs-engine $VERSION from $PINNED_SHA"
+            git push origin HEAD:refs/heads/package/main
+          fi
+
+      - name: Create and push the version tag
+        working-directory: archive
+        env:
+          VERSION: ${{ inputs.version }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION"
+          git fetch --tags origin
+          if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
+            git cat-file -e "$TAG:$TARGET/package.json"
+            git show "$TAG:$TARGET/package.json" > "$RUNNER_TEMP/tag-package.json"
+            git show "$TAG:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
+            node - "$RUNNER_TEMP/tag-package.json" "$VERSION" <<'NODE'
+          const fs=require("node:fs");
+          const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          if(p.name!=="@kastrick/nextjs-engine"||p.version!==process.argv[3]) throw new Error("Existing tag points to a different package version.");
+          NODE
+            grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/tag-upstream.md" || {
+              echo "Tag $TAG exists but does not match source pin $PINNED_SHA." >&2; exit 1;
+            }
+            git merge-base --is-ancestor "$TAG^{commit}" origin/package/main || {
+              echo "Existing tag is not on package/main history." >&2; exit 1;
+            }
+          else
+            git tag -a "$TAG" -m "@kastrick/nextjs-engine $VERSION from $PINNED_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+
+      - name: Select npm dist-tag from archive ordering
+        id: dist-tag
+        working-directory: archive
+        env:
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import fs from "node:fs";
+          import path from "node:path";
+          const stable=[], alpha=[];
+          function walk(dir){
+            if(!fs.existsSync(dir)) return;
+            for(const item of fs.readdirSync(dir,{withFileTypes:true})){
+              const full=path.join(dir,item.name);
+              if(item.isDirectory()) walk(full);
+              else if(item.name==="package.json"){
+                const p=JSON.parse(fs.readFileSync(full,"utf8"));
+                if(p.name!=="@kastrick/nextjs-engine") continue;
+                if(/^\d+\.\d+\.\d+$/.test(p.version||"")) stable.push(p.version);
+                else if(/^\d+\.\d+\.\d+-alpha\.\d+$/.test(p.version||"")) alpha.push(p.version);
+              }
+            }
+          }
+          walk("version"); walk("alpha");
+          const cmp=(a,b)=>{const A=a.split(".").map(Number),B=b.split(".").map(Number);for(let i=0;i<3;i++)if(A[i]!==B[i])return A[i]-B[i];return 0;};
+          const alphaCmp=(a,b)=>{const A=a.match(/^(\d+)\.(\d+)\.(\d+)-alpha\.(\d+)$/).slice(1).map(Number),B=b.match(/^(\d+)\.(\d+)\.(\d+)-alpha\.(\d+)$/).slice(1).map(Number);for(let i=0;i<4;i++)if(A[i]!==B[i])return A[i]-B[i];return 0;};
+          stable.sort(cmp); alpha.sort(alphaCmp);
+          const newest=process.env.TRACK==="alpha"?alpha.at(-1):stable.at(-1);
+          if(!newest) throw new Error("No "+process.env.TRACK+" snapshots found.");
+          console.log("value="+(newest===process.env.VERSION?(process.env.TRACK==="alpha"?"alpha":"latest"):"release-"+process.env.VERSION));
+          NODE
+
+      - name: Skip an already-published immutable npm version
+        id: registry-version
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view "@kastrick/nextjs-engine@$VERSION" version >/dev/null 2>&1; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "@kastrick/nextjs-engine@$VERSION already exists; preserving the immutable version."
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish the pinned snapshot to npm
+        if: steps.registry-version.outputs.should_publish == 'true'
+        working-directory: archive/${{ steps.prepare.outputs.target }}
+        env:
+          DIST_TAG: ${{ steps.dist-tag.outputs.value }}
+        run: npm publish --access public --tag "$DIST_TAG"
+
+      - name: Release summary
+        if: always()
+        env:
+          VERSION: ${{ inputs.version }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          SOURCE_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+          DIST_TAG: ${{ steps.dist-tag.outputs.value }}
+          SHOULD_PUBLISH: ${{ steps.registry-version.outputs.should_publish }}
+        run: |
+          {
+            echo "## @kastrick/nextjs-engine release pin"
+            echo "- Version: $VERSION"
+            echo "- Source: $SOURCE_BRANCH@$SOURCE_SHA"
+            echo "- Archive snapshot: $TARGET"
+            echo "- Git tag: v$VERSION"
+            echo "- npm dist-tag: $DIST_TAG"
+            echo "- New npm publication required: $SHOULD_PUBLISH"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-tagged-snapshot:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout tagged archive commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - name: Set up Node.js for npm Trusted Publishing
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Install npm CLI with OIDC support
+        run: npm install --global npm@^11.5.1
+      - name: Verify tag and resolve selected snapshot
+        id: snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin package/main
+          git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD || { echo "Tag is not part of package/main history." >&2; exit 1; }
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-alpha\.([0-9]+)$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            DIR="alpha/version/$MAJOR.alpha/version/$VERSION"
+            TRACK="alpha"
+          elif [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
+            SNAPSHOT="$VERSION"
+            if [[ "$PATCH" == "0" ]]; then SNAPSHOT="$MAJOR.$MINOR"; fi
+            DIR="version/$MAJOR.$MINOR/version/$SNAPSHOT"
+            TRACK="stable"
+          else
+            echo "Unsupported tag version: $GITHUB_REF_NAME" >&2; exit 1
+          fi
+          test -f "$DIR/package.json" && test -f "$DIR/index.ts" && test -d "$DIR/engine"
+          export DIR VERSION TRACK
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import fs from "node:fs";
+          import path from "node:path";
+          const {DIR,VERSION,TRACK}=process.env;
+          const p=JSON.parse(fs.readFileSync(path.join(DIR,"package.json"),"utf8"));
+          if(p.name!=="@kastrick/nextjs-engine"||p.version!==VERSION) throw new Error("Manifest mismatch: "+p.name+"@"+p.version);
+          if(!fs.existsSync(path.join(DIR,"engine/index.ts"))) throw new Error("engine/index.ts is missing");
+          const versions=[];
+          function walk(dir){
+            if(!fs.existsSync(dir)) return;
+            for(const e of fs.readdirSync(dir,{withFileTypes:true})){
+              const full=path.join(dir,e.name);
+              if(e.isDirectory()) walk(full);
+              else if(e.name==="package.json"){
+                const x=JSON.parse(fs.readFileSync(full,"utf8"));
+                const pattern=TRACK==="alpha"?/^\d+\.\d+\.\d+-alpha\.\d+$/:/^\d+\.\d+\.\d+$/;
+                if(x.name==="@kastrick/nextjs-engine"&&pattern.test(x.version||"")) versions.push(x.version);
+              }
+            }
+          }
+          walk(TRACK==="alpha"?"alpha":"version");
+          const compare=(a,b)=>{
+            const rx=TRACK==="alpha"?/^(\d+)\.(\d+)\.(\d+)-alpha\.(\d+)$/:null;
+            const A=rx?a.match(rx).slice(1).map(Number):a.split(".").map(Number);
+            const B=rx?b.match(rx).slice(1).map(Number):b.split(".").map(Number);
+            for(let i=0;i<A.length;i++) if(A[i]!==B[i]) return A[i]-B[i];
+            return 0;
+          };
+          versions.sort(compare);
+          const newest=versions.at(-1);
+          console.log("version="+VERSION);
+          console.log("directory="+DIR);
+          console.log("dist_tag="+(newest===VERSION?(TRACK==="alpha"?"alpha":"latest"):"release-"+VERSION));
+          NODE
+      - name: Validate and pack the selected snapshot
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+          npm run type-check
+          npm run pack:check
+      - name: Skip an already-published immutable npm version
+        id: registry-version
+        env:
+          VERSION: ${{ steps.snapshot.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view "@kastrick/nextjs-engine@$VERSION" version >/dev/null 2>&1; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version already exists on npm; skipping immutable duplicate."
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish the selected snapshot
+        if: steps.registry-version.outputs.should_publish == 'true'
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        env:
+          DIST_TAG: ${{ steps.snapshot.outputs.dist_tag }}
+        run: npm publish --access public --tag "$DIST_TAG"
