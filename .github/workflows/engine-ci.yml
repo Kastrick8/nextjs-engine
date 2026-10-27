@@ -113,6 +113,9 @@ jobs:
           node scripts/gen3-debug-inspectors-smoke.js
           node scripts/gen3-incremental-hmr-smoke.js
           node scripts/gen3-budget-security-smoke.js
+      - name: Test Generation 3 migration diagnostics
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: npm run test:migration
       - name: Test Generation 3 EngineSEO contracts
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: |
@@ -149,6 +152,13 @@ jobs:
           total_bytes="$(find "$chunk_dir" -type f -name '*.js' -printf '%s\n' | awk '{ total += $1 } END { print total + 0 }')"
           chunk_count="$(find "$chunk_dir" -type f -name '*.js' | wc -l | tr -d ' ')"
           printf 'Total client JavaScript: %.1f KiB across %s chunks\n' "$(awk -v bytes="$total_bytes" 'BEGIN { print bytes / 1024 }')" "$chunk_count"
+
+      - name: Test Generation 3 global error reporting
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: npm run test:error-handling
+      - name: Test Generation 3 Error Code Book
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: npm run test:error-book
 
       # This pre-existing EngineDebug diagnostics smoke currently fails on main-3;
       # keep it last so it does not hide the independent build/type-check results.
