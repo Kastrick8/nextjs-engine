@@ -31,6 +31,7 @@ This is the curated starting point for the current Gen 3 implementation. Canonic
 | Full device-bound login/private-search example | [Private-search example](../gen3/private-search-example.md) |
 | Lazy work, observers, style collection, and bundle/runtime performance | [Runtime & performance](../runtime-performance.md) |
 | Schema validation and compiler diagnostics | [Schema diagnostics](../schema-diagnostics.md) |
+| CLI, channel updater, and release switching | [NE CLI and Channel Manager](./ne-cli.md) |
 
 ## Engine components
 
