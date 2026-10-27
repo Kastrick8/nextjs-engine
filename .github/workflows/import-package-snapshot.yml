@@ -15,7 +15,7 @@ on:
         description: "Stable or alpha archive"
         required: true
         type: choice
-        options: [stable, alpha]
+        options: [stable, alpha, beta]
       replace_existing:
         description: "Replace an existing snapshot directory; use only for a deliberate repair"
         required: true
@@ -67,6 +67,17 @@ jobs:
             FAMILY="$MAJOR.alpha"
             TARGET="alpha/version/$FAMILY/version/$VERSION"
             FAMILY_DIR="archive/alpha/version/$FAMILY/version"
+            if [[ -d "$FAMILY_DIR" ]]; then
+              TEMPLATE_DIR="$(find "$FAMILY_DIR" -mindepth 1 -maxdepth 1 -type d ! -path "*/$VERSION" | sort -V | tail -n 1 || true)"
+            fi
+            if [[ -z "${TEMPLATE_DIR:-}" ]]; then TEMPLATE_DIR="archive/alpha/version/3.alpha/version/3.0.0-alpha.1"; fi
+            TEMPLATE="${TEMPLATE_DIR#archive/}"
+          elif [[ "$TRACK" == "beta" ]]; then
+            [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] || { echo "Beta version must be full SemVer, e.g. 3.0.0-beta.1" >&2; exit 1; }
+            MAJOR="${VERSION%%.*}"
+            FAMILY="$MAJOR.beta"
+            TARGET="beta/version/$FAMILY/version/$VERSION"
+            FAMILY_DIR="archive/beta/version/$FAMILY/version"
             if [[ -d "$FAMILY_DIR" ]]; then
               TEMPLATE_DIR="$(find "$FAMILY_DIR" -mindepth 1 -maxdepth 1 -type d ! -path "*/$VERSION" | sort -V | tail -n 1 || true)"
             fi
