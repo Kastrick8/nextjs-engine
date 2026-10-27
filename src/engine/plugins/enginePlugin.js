@@ -8,6 +8,9 @@ const withEngineDebug = require("./engineDebugPlugin");
 const withEngineSEO = require("./engineSEOPlugin");
 const withEngineShader = require("./engineShaderPlugin");
 const withEngineNENC = require("./nencPlugin");
+const { runGen3MigrationDiagnostics } = require("./gen3MigrationDiagnostics");
+const { prepareEngineErrorHandling } = require("./engineErrorHandling");
+const { installEngineUncaughtExceptionMonitor } = require("../errors/engineErrorReporter");
 const {
 	clearPluginArtifactCache,
 	inspectPluginArtifactCache,
@@ -100,11 +103,25 @@ function withGeneration3APIConfig(nextConfig = {}, apiOptions = {}) {
 }
 
 
+function isDevelopmentProcess() {
+	return process.env.NEXT_PHASE === "phase-development-server"
+		|| (process.env.NODE_ENV === "development" && process.env.NEXT_PHASE !== "phase-production-build")
+		|| process.argv.slice(2).some((arg) => arg === "dev");
+}
+
 function withEngine(nextConfig = {}, pluginOptions = {}) {
+	installEngineUncaughtExceptionMonitor();
+	prepareEngineErrorHandling({ rootDir: process.cwd(), development: isDevelopmentProcess() });
 	installDevelopmentOutputBridge();
+	const apiOptions = pluginOptions.api || pluginOptions;
+	if (isDevelopmentProcess()) {
+		runGen3MigrationDiagnostics({
+			rootDir: process.cwd(),
+			reportEngineApiMigration: !(typeof apiOptions.outputFile === "string" && apiOptions.outputFile.trim()),
+		});
+	}
 	const cacheConfig = withEngineTurbopackCache(nextConfig);
 	const imageConfig = withEngineImageConfig(cacheConfig);
-	const apiOptions = pluginOptions.api || pluginOptions;
 	const shaderOptions = pluginOptions.shader || pluginOptions;
 	const apiConfig = withGeneration3APIConfig(imageConfig, apiOptions);
 	const nencConfig = pluginOptions.nenc ? withEngineNENC(apiConfig, pluginOptions.nenc) : apiConfig;
@@ -131,4 +148,5 @@ module.exports.withEngineImageConfig = withEngineImageConfig;
 module.exports.withEngineTurbopackCache = withEngineTurbopackCache;
 module.exports.withEngineBuildAdapter = withEngineBuildAdapter;
 module.exports.clearPluginArtifactCache = clearPluginArtifactCache;
+module.exports.prepareEngineErrorHandling = prepareEngineErrorHandling;
 module.exports.inspectPluginArtifactCache = inspectPluginArtifactCache;
