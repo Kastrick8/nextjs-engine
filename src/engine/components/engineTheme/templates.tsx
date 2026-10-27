@@ -564,7 +564,8 @@ export function renderEngineThemeTemplate(
 			? getScopedEngineThemeContribution<EngineThemeTemplateAdapter>(context.registry, "template-adapter", definition.adapterId)
 			: templateAdapters.get(definition.adapterId);
 		if (!adapter) return undefined;
-		const { registry: _registry, ...adapterContext } = templateContext;
+		const adapterContext: EngineThemeTemplateContext = { ...templateContext };
+		delete adapterContext.registry;
 		themed = createElement(adapter, adapterContext);
 	} else {
 		if (!compiled.node) return undefined;

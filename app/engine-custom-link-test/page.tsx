@@ -1,5 +1,3 @@
-"use client";
-
 import type { CSSProperties, ReactNode } from "react";
 import { createComponent, createEngineComponentRegistry, createPage, createTheme } from "../../src/engine";
 import { EngineLink } from "../../src/engine/components/EngineLink";
