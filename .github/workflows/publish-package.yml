@@ -765,6 +765,106 @@ jobs:
           npm install --ignore-scripts --no-package-lock --no-audit --no-fund
           npm run type-check
           npm run pack:check
+      - name: Publish Alpha/Beta snapshot as a GitHub Release (never to npm)
+        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        id: github-prerelease
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        env:
+          VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
+          TAG_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/ne-release"
+          mkdir -p "$OUT"
+
+          npm pack --ignore-scripts --pack-destination "$OUT" --json > "$OUT/pack.json"
+          PACKED="$(node - "$OUT/pack.json" <<'NODE'
+          const fs = require("node:fs");
+          const result = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          if (!Array.isArray(result) || !result[0] || typeof result[0].filename !== "string") {
+            throw new Error("npm pack did not produce a package filename.");
+          }
+          process.stdout.write(result[0].filename);
+          NODE
+          )"
+          TARBALL="$OUT/nextjs-engine-$VERSION.tgz"
+          mv "$OUT/$PACKED" "$TARBALL"
+          SHA256="$(sha256sum "$TARBALL" | cut -d' ' -f1)"
+          [[ "$SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "Invalid SHA-256 digest." >&2; exit 1; }
+
+          node - "$VERSION" "$TRACK" "$TAG_NAME" "$SHA256" "$TARBALL" "$PWD/UPSTREAM.md" "$OUT/ne-release.json" <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const [version, track, tag, sha256, tarball, provenancePath, outputPath] = process.argv.slice(2);
+          const provenance = fs.readFileSync(provenancePath, "utf8");
+          const sourceBranch = provenance.match(/^- Source branch:\s*([A-Za-z0-9._/-]+)\s*$/m)?.[1];
+          const sourceCommit = provenance.match(/^- Requested and resolved source commit:\s*([0-9a-f]{40})\s*$/m)?.[1];
+          if (!sourceBranch || !sourceCommit) throw new Error("Snapshot provenance is missing its source branch or full commit SHA.");
+          if (!["alpha", "beta"].includes(track)) throw new Error("Only Alpha/Beta artifacts belong in GitHub Releases.");
+          if (track === "alpha" && !/-alpha\.\d+$/.test(version)) throw new Error("Invalid Alpha version: " + version);
+          if (track === "beta" && !/-beta\.\d+$/.test(version)) throw new Error("Invalid Beta version: " + version);
+          const manifest = {
+            schemaVersion: 1,
+            packageName: "@kastrick/nextjs-engine",
+            version,
+            track,
+            tag,
+            sourceBranch,
+            sourceCommit,
+            sha256,
+            assetName: path.basename(tarball),
+            floating: false,
+            summary: "Validated " + track + " release pinned to " + sourceBranch + "@" + sourceCommit + ".",
+          };
+          fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2) + "\n");
+          NODE
+
+          TRACK_UPPER="$(printf '%s' "$TRACK" | tr '[:lower:]' '[:upper:]')"
+          NOTES="$OUT/release-notes.md"
+          {
+            echo "## Nextjs Engine $VERSION"
+            echo
+            echo "- Channel: **$TRACK_UPPER**"
+            echo "- Artifact SHA-256: \`$SHA256\`"
+            echo
+            echo "<!-- NE-CHANNEL-MANIFEST-START -->"
+            cat "$OUT/ne-release.json"
+            echo "<!-- NE-CHANNEL-MANIFEST-END -->"
+          } > "$NOTES"
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            EXISTING="$OUT/existing"
+            mkdir -p "$EXISTING"
+            gh release download "$TAG_NAME" --pattern ne-release.json --dir "$EXISTING" || {
+              echo "Release tag $TAG_NAME exists without a channel manifest; refusing to mutate it." >&2
+              exit 1
+            }
+            node - "$EXISTING/ne-release.json" "$OUT/ne-release.json" <<'NODE'
+          const fs = require("node:fs");
+          const [existingPath, candidatePath] = process.argv.slice(2);
+          const existing = JSON.parse(fs.readFileSync(existingPath, "utf8"));
+          const candidate = JSON.parse(fs.readFileSync(candidatePath, "utf8"));
+          for (const key of ["packageName", "version", "track", "tag", "sourceCommit", "sha256", "assetName"]) {
+            if (existing[key] !== candidate[key]) {
+              throw new Error("GitHub release " + candidate.tag + " is immutable; existing " + key + " differs. Publish a new prerelease version.");
+            }
+          }
+          NODE
+            if ! gh release view "$TAG_NAME" --json assets --jq '.assets[].name' | grep -Fxq "nextjs-engine-$VERSION.tgz"; then
+              echo "GitHub release manifest exists but the package tarball asset is missing." >&2
+              exit 1
+            fi
+            echo "This Alpha/Beta GitHub Release already contains the same pinned artifact; leaving it unchanged."
+          else
+            gh release create "$TAG_NAME" "$TARBALL" "$OUT/ne-release.json" \
+              --title "Nextjs Engine $VERSION ($TRACK_UPPER)" \
+              --notes-file "$NOTES" \
+              --prerelease
+          fi
+
       - name: Skip an already-published immutable npm version
         id: registry-version
         env:
