@@ -408,7 +408,7 @@ jobs:
             echo "- New npm publication required: $SHOULD_PUBLISH"
           } >> "$GITHUB_STEP_SUMMARY"
 
-publish-archived-snapshot:
+  publish-archived-snapshot:
     if: github.event_name == 'workflow_dispatch' && inputs.release_mode == 'archive'
     runs-on: ubuntu-latest
     timeout-minutes: 45
