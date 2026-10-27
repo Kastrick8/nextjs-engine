@@ -13,6 +13,21 @@ const {
 	ETR_FORMAT,
 } = require("../src/engine/compiler/EngineThemeCompiler");
 const pluginCompilerLink = require("../src/engine/plugins/gen3ThemeCompiler");
+
+function assertCodedThemeFailure(operation, code, messagePattern) {
+	let caught;
+	assert.throws(operation, (error) => {
+		caught = error;
+		assert.equal(error.code, code, "theme diagnostics use a stable Error Book code");
+		assert.equal(typeof error.reason, "string");
+		assert.equal(typeof error.action, "string");
+		assert.ok(error.reason.length > 0 && error.action.length > 0);
+		if (messagePattern) assert.match(error.message, messagePattern);
+		return true;
+	});
+	return caught;
+}
+
 assert.equal(pluginCompilerLink.compileEngineThemeArtifacts, compileEngineThemeArtifacts, "the Next.js plugin forwards to the dedicated EngineTheme compiler");
 
 async function testPublicThemeApi() {
@@ -775,8 +790,8 @@ async function testPublicThemeApi() {
 					schemaVersion: 2,
 				}), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/schema version is not supported/,
-			"unsupported theme-schema versions are rejected before registration",
+			(error) => error.code === "NETH8001" && /schema version is not supported/.test(error.message),
+			"unsupported theme-schema versions are rejected before registration with an Error Book code",
 		);
 		const loadedRemote = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", remoteOptions);
 		assert.equal(loadedRemote.scope, "remote");
@@ -827,23 +842,35 @@ async function testPublicThemeApi() {
 		assert.equal(resolvedRemotePage.root.props.codeBackground, "#121212", "loaded remote subthemes resolve");
 		await assert.rejects(
 			loadRemoteEngineTheme("https://attacker.example.com/theme.etr", remoteOptions),
-			/not in allowedOrigins/,
+			(error) => error.code === "NESEC2001" && /not in allowedOrigins/.test(error.message),
 		);
 		assert.equal(remoteFetchCalls, 1, "disallowed origins are rejected before fetch");
+
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.com/not-json.etr", {
+				...remoteOptions,
+				expectedId: "remote-not-json",
+				fetchImpl: async () => new Response("<html>not a theme</html>", {
+					status: 200, headers: { "content-type": "text/html" },
+				}),
+			}),
+			(error) => error.code === "NETH8001" && /HTML, not a \.etr JSON artifact/.test(error.message),
+			"remote HTML responses use the stable resource/format code",
+		);
 
 		await assert.rejects(
 			loadRemoteEngineTheme("https://127.0.0.1/private.etr", {
 				...remoteOptions,
 				allowedOrigins: ["https://127.0.0.1"],
 			}),
-			/local\/private hosts are not permitted/,
+			(error) => error.code === "NESEC2001" && Boolean(error.reason && error.action) && /local\/private hosts are not permitted/.test(error.message),
 		);
 		await assert.rejects(
 			loadRemoteEngineTheme("https://localhost/private.etr", {
 				...remoteOptions,
 				allowedOrigins: ["https://localhost"],
 			}),
-			/local\/private hosts are not permitted/,
+			(error) => error.code === "NESEC2001" && Boolean(error.reason && error.action) && /local\/private hosts are not permitted/.test(error.message),
 		);
 
 		const nonRemoteScopeContent = { ...remoteContent, id: "remote-invalid-scope", scope: "global" };
@@ -875,14 +902,14 @@ async function testPublicThemeApi() {
 		};
 		await assert.rejects(
 			loadRemoteEngineTheme("https://themes.example.com/corrupt.etr", corruptRemoteOptions),
-			/SHA-256 verification failed/,
+			(error) => error.code === "NETH8001" && /SHA-256 verification failed/.test(error.message),
 		);
 		await assert.rejects(
 			loadRemoteEngineTheme("https://themes.example.com/wrong-version.etr", {
 				...remoteOptions,
 				expectedNextjsVersion: "16.4.3",
 			}),
-			/version mismatch/,
+			(error) => error.code === "NETH8001" && /version mismatch/.test(error.message),
 		);
 		const unsafeCssContent = { ...remoteContent, id: "remote-unsafe-css", vars: { "--remote-value": "red; background:url(https://evil.invalid/x)" } };
 		await assert.rejects(
@@ -890,7 +917,7 @@ async function testPublicThemeApi() {
 				...remoteOptions, expectedId: "remote-unsafe-css",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-css", unsafeCssContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/unsafe CSS\/network primitive|unsafe CSS value/,
+			(error) => error.code === "NESEC4001" && Boolean(error.reason && error.action) && /unsafe CSS\/network primitive|unsafe CSS value/.test(error.message),
 		);
 		const escapedUnsafeCssContent = { ...remoteContent, id: "remote-escaped-unsafe-css", vars: { "--remote-value": "\\75 rl(https://evil.invalid/x)" } };
     await assert.rejects(
@@ -906,7 +933,7 @@ async function testPublicThemeApi() {
 				...remoteOptions, expectedId: "remote-unsafe-font",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-font", unsafeFontContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/font stylesheet origin must be HTTPS and included in allowedOrigins/,
+			(error) => error.code === "NESEC2001" && /font stylesheet origin must be HTTPS and included in allowedOrigins/.test(error.message),
 		);
 		const unsafeNestedStyleContent = {
 			...remoteContent,
@@ -921,7 +948,7 @@ async function testPublicThemeApi() {
 					status: 200, headers: { "content-type": "application/json" },
 				}),
 			}),
-			/unsafe CSS\/network primitive/,
+			(error) => error.code === "NESEC4001" && Boolean(error.reason && error.action) && /unsafe CSS\/network primitive/.test(error.message),
 		);
 		const commentObfuscatedCssContent = {
             ...remoteContent,
@@ -941,7 +968,7 @@ async function testPublicThemeApi() {
 				...remoteOptions, expectedId: "remote-unsafe-css-text",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-css-text", unsafeGlobalStylesContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/globalStyles are disabled/,
+			(error) => error.code === "NESEC4001" && Boolean(error.reason && error.action) && /globalStyles are disabled/.test(error.message),
 		);
 
 		assert.ok(getRemoteEngineThemeCacheSize() >= 1);
@@ -1142,8 +1169,11 @@ async function testPublicThemeApi() {
 				production: true,
 				failurePolicy: "error",
 				fetchImpl: async () => { throw new Error("fixture provider unavailable"); },
-			}), /Strict failure policy rejected theme 'strict-font'/,
-			"strict mode fails the build when no valid cached local font output exists");
+			}), (error) => error.code === "NETH8002"
+				&& typeof error.reason === "string" && typeof error.action === "string"
+				&& error.cause instanceof Error
+				&& /Strict failure policy rejected theme 'strict-font'/.test(error.message),
+			"strict mode fails with an Error Book code and preserves the provider cause when no valid cache exists");
 			assert.ok(!fs.existsSync(path.join(fontRoot, "public", "nextjs-engine", "fonts", "strict-font.css")),
 				"strict mode does not create a browser-import fallback stylesheet");
 
@@ -1260,6 +1290,11 @@ async function run() {
 			source(path.join(root, "app", "other.tsx"),
 				'import { createTheme } from "nextjs-engine"; createTheme({ id: "dark-fantasy", scope: "remote", markdown: { theme: "conflict" } });'),
 		], options), /Duplicate theme group ID/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			changed,
+			source(path.join(root, "app", "other-coded.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "dark-fantasy", scope: "remote", markdown: { theme: "different" } });'),
+		], options), "NETH2001", /Duplicate theme group ID/);
 		assert.equal(fs.readFileSync(artifactPath, "utf8"), previousGoodOutput,
 			"invalid duplicate IDs fail before existing artifacts are changed");
 
@@ -1267,11 +1302,38 @@ async function run() {
 			source(path.join(root, "app", "dynamic.tsx"),
 				'import { createTheme } from "nextjs-engine"; const makeTheme = () => ({ id: "dynamic" }); createTheme(makeTheme());'),
 		], options), /function calls are not allowed/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "dynamic-coded.tsx"),
+				'import { createTheme } from "nextjs-engine"; const makeTheme = () => ({ id: "dynamic-coded" }); createTheme(makeTheme());'),
+		], options), "NETH1001", /function calls are not allowed/);
 
 		assert.throws(() => compileEngineThemeArtifacts(root, [
 			source(path.join(root, "app", "bad-id.tsx"),
 				'import { createTheme } from "nextjs-engine"; createTheme({ id: "../outside", scope: "global" });'),
 		], options), /theme id must be one plain group segment/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "bad-id-coded.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "../outside-coded", scope: "global" });'),
+		], options), "NETH1002", /theme id must be one plain group segment/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "bad-value.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "bad-value", tokens: { accent: undefined } });'),
+		], options), "NETH2002", /undefined is not a JSON theme value/);
+
+
+		const longValue = "x".repeat(80);
+		const themeLeafProperties = Array.from({ length: 5 }, (_, index) =>
+			JSON.stringify("long-property-name-" + String(index).padStart(2, "0") + "k".repeat(108)) + ": " + JSON.stringify(longValue)).join(", ");
+		const themeEntries = Array.from({ length: 420 }, () => "{ " + themeLeafProperties + " }").join(", ");
+		let nestedEntries = "entries";
+		for (let depth = 0; depth < 28; depth += 1) nestedEntries = "{ nested" + depth + ": " + nestedEntries + " }";
+		const oversizedTheme = source(path.join(root, "app", "oversized.tsx"), [
+			'import { createTheme } from "nextjs-engine";',
+			"const entries = [" + themeEntries + "];",
+			"createTheme({ id: \"oversized-output\", payload: " + nestedEntries + " });",
+		].join("\n"));
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [oversizedTheme], options),
+			"NETH3001", /Compiled \.etr artifact exceeds the 512 KiB output limit/);
 
 		const protectedPath = path.join(root, ".nextjs-engine", "gen3", "theme", "user-owned.etr");
 		fs.writeFileSync(protectedPath, JSON.stringify({ hello: "user file" }));
