@@ -29,6 +29,14 @@ on:
         type: choice
         options: [stable, alpha, beta]
   push:
+    branches:
+      - main-3
+    paths:
+      - "src/engine/**"
+      - "engine/**"
+      - "docs/**"
+      - "README.md"
+      - "DOCUMENT.md"
     tags:
       - "package.[0-9]*"
       - "package-alpha.[0-9]*"
@@ -44,7 +52,7 @@ concurrency:
 
 jobs:
   release-from-source:
-    if: github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source'
+    if: (github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source') || (github.event_name == 'push' && github.ref == 'refs/heads/main-3')
     runs-on: ubuntu-latest
     environment: npm-publish
     timeout-minutes: 45
@@ -60,7 +68,7 @@ jobs:
       - name: Checkout exact pinned source commit
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_commit }}
+          ref: ${{ inputs.source_commit || github.sha }}
           path: source
           fetch-depth: 0
           persist-credentials: false
@@ -77,14 +85,88 @@ jobs:
       - name: Install npm CLI with OIDC support
         run: npm install --global npm@^11.21.0
 
+      - name: Resolve release settings
+        id: release-meta
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ steps.release-meta.outputs.version }}
+          INPUT_TRACK: ${{ steps.release-meta.outputs.track }}
+          INPUT_SOURCE_BRANCH: ${{ steps.release-meta.outputs.source_branch }}
+          INPUT_SOURCE_COMMIT: ${{ steps.release-meta.outputs.source_commit }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            SOURCE_BRANCH="main-3"
+            SOURCE_COMMIT="$PUSH_SHA"
+            TRACK="alpha"
+
+            # Read public version metadata; no npm write token is needed for npm view.
+            npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"
+            VERSION="$(node - "$PUSH_SHA" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const [sourceSha, versionsPath] = process.argv.slice(2);
+          const alphaRoot = path.join("archive", "alpha", "version", "3.alpha", "version");
+          let highest = 0;
+
+          if (fs.existsSync(alphaRoot)) {
+            for (const entry of fs.readdirSync(alphaRoot, { withFileTypes: true })) {
+              if (!entry.isDirectory()) continue;
+              const dir = path.join(alphaRoot, entry.name);
+              const manifestPath = path.join(dir, "package.json");
+              const provenancePath = path.join(dir, "UPSTREAM.md");
+              if (!fs.existsSync(manifestPath)) continue;
+              const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+              const match = String(manifest.version || "").match(/^3\.0\.0-alpha\.(\d+)$/);
+              if (manifest.name === "@kastrick/nextjs-engine" && match) {
+                highest = Math.max(highest, Number(match[1]));
+                if (fs.existsSync(provenancePath)) {
+                  const provenance = fs.readFileSync(provenancePath, "utf8");
+                  if (provenance.includes("- Requested and resolved source commit: " + sourceSha)) {
+                    console.log(manifest.version);
+                    process.exit(0);
+                  }
+                }
+              }
+            }
+          }
+
+          const registryVersions = JSON.parse(fs.readFileSync(versionsPath, "utf8"));
+          const published = Array.isArray(registryVersions) ? registryVersions : [registryVersions];
+          for (const value of published) {
+            const match = String(value || "").match(/^3\.0\.0-alpha\.(\d+)$/);
+            if (match) highest = Math.max(highest, Number(match[1]));
+          }
+
+          console.log("3.0.0-alpha." + (highest + 1));
+          NODE
+            )"
+          else
+            SOURCE_BRANCH="$INPUT_SOURCE_BRANCH"
+            SOURCE_COMMIT="$INPUT_SOURCE_COMMIT"
+            VERSION="$INPUT_VERSION"
+            TRACK="$INPUT_TRACK"
+          fi
+
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "source_commit must be a lowercase 40-character SHA." >&2; exit 1; }
+          [[ -n "$VERSION" && -n "$TRACK" && -n "$SOURCE_BRANCH" ]] || { echo "Release version, track, and source branch are required." >&2; exit 1; }
+
+          echo "source_branch=$SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "track=$TRACK" >> "$GITHUB_OUTPUT"
+          echo "Release selected: $VERSION ($TRACK) from $SOURCE_BRANCH@$SOURCE_COMMIT"
+
       - name: Validate source pin and prepare immutable snapshot
         id: prepare
         shell: bash
         env:
-          SOURCE_BRANCH: ${{ inputs.source_branch }}
-          SOURCE_COMMIT: ${{ inputs.source_commit }}
-          VERSION: ${{ inputs.version }}
-          TRACK: ${{ inputs.track }}
+          SOURCE_BRANCH: ${{ steps.release-meta.outputs.source_branch }}
+          SOURCE_COMMIT: ${{ steps.release-meta.outputs.source_commit }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
         run: |
           set -euo pipefail
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "source_commit must be a lowercase 40-character SHA." >&2; exit 1; }
@@ -236,7 +318,7 @@ jobs:
         working-directory: archive
         env:
           TARGET: ${{ steps.prepare.outputs.target }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
           PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
         shell: bash
         run: |
@@ -253,8 +335,8 @@ jobs:
         id: create-tag
         working-directory: archive
         env:
-          VERSION: ${{ inputs.version }}
-          TRACK: ${{ inputs.track }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
           PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
         shell: bash
@@ -311,8 +393,8 @@ jobs:
         id: dist-tag
         working-directory: archive
         env:
-          VERSION: ${{ inputs.version }}
-          TRACK: ${{ inputs.track }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
         shell: bash
         run: |
           set -euo pipefail
@@ -357,7 +439,7 @@ jobs:
       - name: Skip an already-published immutable npm version
         id: registry-version
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -378,7 +460,7 @@ jobs:
       - name: Apply npm dist-tags
         working-directory: archive
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
           VERSION_TAG: ${{ steps.dist-tag.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
         shell: bash
@@ -393,8 +475,8 @@ jobs:
       - name: Release summary
         if: always()
         env:
-          VERSION: ${{ inputs.version }}
-          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          SOURCE_BRANCH: ${{ steps.release-meta.outputs.source_branch }}
           SOURCE_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
           DIST_TAG: ${{ steps.dist-tag.outputs.value }}
@@ -643,7 +725,7 @@ jobs:
 
 
   publish-tagged-snapshot:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/package')
     runs-on: ubuntu-latest
     environment: npm-publish
     timeout-minutes: 45
