@@ -166,7 +166,7 @@ function listChannels(catalog, state) {
 
 async function loadExactStableVersion(rootDir, version) {
 	if (!parseVersion(version) || parseVersion(version).prerelease !== null) return null;
-	const url = "https://registry.npmjs.org/" + encodeURIComponent(PACKAGE_NAME).replace("%40", "@") + "/" + encodeURIComponent(version);
+	const url = "https://registry.npmjs.org/@kastrick%2fnextjs-engine/" + encodeURIComponent(version);
 	const response = await fetch(url, {
 		headers: { Accept: "application/json", "User-Agent": "nextjs-engine-ne-cli" },
 		signal: AbortSignal.timeout(12000),
