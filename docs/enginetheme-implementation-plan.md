@@ -433,7 +433,7 @@ Do not require users to fork or edit Engine's built-in `EngineLink` just to crea
 ### Registry and framework boundaries
 
 - Custom React/Next.js implementations are trusted local code and must be imported/registered through a documented project-local entry point. Remote `.etr` files can name an already registered adapter ID; they cannot provide JSX, imports, JavaScript, or a module URL to execute.
-- Review whether registrations should be explicit per-app/per-renderer registry instances rather than global mutation. Server rendering must not allow one request or tenant's registration/theme to leak into another.
+- [x, partial] Explicit per-app/per-renderer registries are available for component registrations and custom slot/theme metadata. A scoped registry can be passed through schema resolution and server-first rendering without altering the global compatibility registry. The global theme-group registry still needs an explicit ownership model for full tenant isolation.
 - Preserve lazy-loading for optional/heavy components. A custom component should not force every route to eagerly import all registered components.
 - Keep schema registration compatible with Gen 3's server-first rendering. Make client-only requirements explicit; do not silently force an entire page onto the legacy client renderer because a component uses one event handler.
 - Keep browser behavior generic across Chromium, Firefox, and WebKit, and provide graceful fallback when optional capabilities are unavailable.
@@ -452,7 +452,7 @@ The implemented EngineTheme Data-API already provides typed `join:left`, `join:r
 ### Suggested implementation order and acceptance criteria
 
 1. [x] Finalize the typed, discriminated `createComponent()` contract while preserving schema-composition calls; smoke coverage exercises both the custom props/slots contract and direct registry protection.
-2. [x, partial] Implement the advanced local-component factory and safe registration. Per-app/request registry isolation is still outstanding.
+2. [x, partial] Implement the advanced local-component factory and safe registration. `createEngineComponentRegistry()` now provides isolated custom registrations and slot/theme metadata; `createPage({ registry })` and `createComponent({ registry })` pass that scope through EngineTheme resolution and server-first rendering. The legacy global `registerComponent()` path remains for compatibility. Scoped registries currently require Gen 3 server-first rendering, and global theme-group registration remains a separate scope boundary.
 3. [x] Add qualified theme IDs and variant resolution for registered custom nodes through the shared theme resolver, with a bounded style allowlist and local-style precedence.
 4. [x, partial] Added `app/engine-custom-link-test/page.tsx` and `tests/browser/engine-custom-link.spec.ts` for a registered custom link with base/variant styles, named slots, internal navigation, external `target="_blank"` rel protections, and fail-closed handling of JavaScript and backslash protocol-relative URLs. Current-head Chromium/Firefox/WebKit execution is not yet verified, so final browser accessibility/security acceptance remains open.
 5. Connect the declarative Data-API contract only for explicitly supported events and slots.

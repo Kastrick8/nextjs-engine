@@ -71,6 +71,7 @@ Every feature in this repository is governed by four non-negotiable pillars:
 	- `EngineOverlay`: `src/engine/core/engineoverlay/EngineOverlayRuntime.ts` & `src/engine/components/EngineOverlay/` (`EngineDialog.tsx`, `EngineDrawer.tsx`, `EnginePopover.tsx`, `OverlayParts.tsx`, `OverlayShared.tsx`).
 	- `EngineMarkdown`: `src/engine/core/markdownParser.ts`, `src/engine/components/EngineMarkdown.tsx`, `EngineMarkdownRenderer.tsx`, `EngineUrlIcon.tsx`, `app/%5Fstatic/emd/favicon/route.ts`.
 	- `EngineTheme`: `src/engine/components/engineTheme/` (`createTheme.ts`, `resolveTheme.ts`, `remoteTheme.ts`, `tokens.ts`, `templates.tsx`, `dataApi.ts`, `fontUrls.ts`, `highlighting.ts`, `shikiProvider.ts`).
+	- Custom component registration: `createEngineComponentRegistry()` provides per-app/per-renderer component and slot metadata isolation; the process-global `registerComponent()` remains the compatibility path, while global theme-group ownership remains outstanding.
 	- `EngineSEO`: `src/engine/core/engineseo/` (`EngineSEO.ts`, `EngineSEOImage.tsx`, `EngineSEOJsonLd.tsx`, `EngineSEOProviderSitemap.ts`, `EngineSEOTypes.ts`).
 	- `EngineDebug`: `src/engine/debug/` (`EngineDebugPage.tsx`, `EngineDebugIsolation.tsx`, `EngineDebugDiagnostics.ts`, `EngineDebugCodeActions.ts`, `EngineDebugFixEditor.tsx`, `EngineDebugInlineCallout.ts`, `EngineDebugRuntimeMonitor.tsx`, `EngineInspectors.ts`, `EngineDebugDynamicRoutePicker.tsx`).
 

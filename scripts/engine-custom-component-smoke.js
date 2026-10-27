@@ -34,7 +34,7 @@ try {
 	const {
 		createTrustedEngineComponent,
 	} = require(path.resolve(__dirname, "../src/engine/core/EngineCustomComponent.tsx"));
-	const { getComponent, registerComponent, unregisterComponent } = require(path.resolve(__dirname, "../src/engine/core/registry.ts"));
+	const { createEngineComponentRegistry, getComponent, registerComponent, unregisterComponent } = require(path.resolve(__dirname, "../src/engine/core/registry.ts"));
 
 	const customLinkImplementation = (props) => React.createElement("a", {
 		href: props.href,
@@ -111,6 +111,49 @@ try {
 			},
 		},
 	});
+	const registryA = createEngineComponentRegistry();
+	const registryB = createEngineComponentRegistry();
+	const scopedLinkA = createTrustedEngineComponent({
+		mode: "custom",
+		id: "scoped-smoke-link",
+		theme: "custom-link-theme.link",
+		component: customLinkImplementation,
+		props: { href: { type: "string", required: true } },
+		slots: ["children", "leading"],
+	});
+	const scopedLinkB = createTrustedEngineComponent({
+		mode: "custom",
+		id: "scoped-smoke-link",
+		theme: "custom-link-theme.link",
+		component: customLinkImplementation,
+		props: { href: { type: "string", required: true } },
+		slots: ["children"],
+	});
+	registryA.registerComponent("scoped-smoke-link", scopedLinkA);
+	registryB.registerComponent("scoped-smoke-link", scopedLinkB);
+	assert.notEqual(registryA.getComponent("scoped-smoke-link"), registryB.getComponent("scoped-smoke-link"),
+		"two app registries own independent component implementations under the same node type");
+	assert.equal(getComponent("scoped-smoke-link"), undefined,
+		"scoped registrations never mutate the process-global compatibility registry");
+	assert.equal(registryA.getComponentThemeSlots("scoped-smoke-link").includes("leading"), true);
+	assert.equal(registryB.getComponentThemeSlots("scoped-smoke-link").includes("leading"), false,
+		"slot metadata is isolated with each registry's component");
+	const scopedThemeSchema = {
+		theme: customTheme,
+		root: { type: "scoped-smoke-link", theme: "custom-link-theme.link.quiet", props: { href: "/guide" } },
+	};
+	const resolvedWithRegistryA = resolveEngineThemeSchema(scopedThemeSchema, registryA);
+	assert.equal(resolvedWithRegistryA.root.props.engineThemeStyles.leading.marginRight, "0.5rem",
+		"scoped component metadata participates in shared EngineTheme resolution");
+	assert.throws(() => resolveEngineThemeSchema(scopedThemeSchema, registryB),
+		/unsupported style slot 'leading'/,
+		"slot contracts cannot leak from one registry to another");
+	assert.throws(() => registryA.registerComponent("box", scopedLinkA), /Cannot replace built-in Engine component type/);
+	registryA.unregisterComponent("scoped-smoke-link");
+	assert.equal(registryA.getComponent("scoped-smoke-link"), undefined);
+	assert.equal(registryB.getComponent("scoped-smoke-link"), scopedLinkB,
+		"unregistering from one registry does not affect the other");
+
 	const themedCustomSchema = resolveEngineThemeSchema({
 		theme: customTheme,
 		root: {

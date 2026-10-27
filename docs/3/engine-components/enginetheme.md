@@ -112,6 +112,12 @@ The limit is three subtheme segments after the component segment. Variants inher
 
 Local themes can be supplied directly as a theme object. Global themes are registered in-process and can be referenced by ID. Missing global groups or variants produce an error. A remote ID resolves only after loadRemoteEngineTheme() explicitly loads and verifies its .etr artifact; render and module initialization never perform network requests.
 
+## Application-scoped component registries
+
+The backwards-compatible `registerComponent()` function still writes to the process-global registry. For multi-app applications, isolated tests, or applications that need different trusted components under the same schema-node ID, create a registry with `createEngineComponentRegistry()` and pass it to `createPage({ registry })` or `createComponent({ registry })`. Each registry shares the built-in component definitions but owns its custom registrations and slot/theme namespace metadata independently. Scoped registration never mutates the process-global compatibility registry.
+
+Scoped registries use the Generation 3 server-first renderer. Supplying one while configuring the legacy renderer (for example, `compiler.serverFirst: false` or named render-time handlers) fails explicitly rather than silently changing render modes. In server-first rendering, registered trusted components resolve from the supplied registry; the default global registration path retains its existing client-island behavior. Theme groups registered globally remain a separate trust/scope boundary, so use local theme definitions for tenant-specific appearance.
+
 ## Registered custom component theme bindings
 
 Generation 3 also supports theme styling for trusted, locally authored schema-node components. Define the implementation with `createComponent({ mode: "custom", ... })`, declare its prop and named-slot contract, register it under an application-owned node type, and bind that node to a component namespace such as `site.link.quiet`.
