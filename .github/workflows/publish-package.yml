@@ -467,6 +467,36 @@ jobs:
             echo "Snapshot is missing a required package entry file." >&2; exit 1;
           }
 
+          # Stable archive snapshots are derived from named historical release tags.
+          # Verify the recorded source tag and commit instead of trusting the folder name.
+          if [[ "$TRACK" == "stable" ]]; then
+            git fetch --force --tags origin
+            SOURCE_INFO="$(node - "$DIR/UPSTREAM.md" <<'NODE'
+          const fs = require("node:fs");
+          const text = fs.readFileSync(process.argv[2], "utf8");
+          const tag = text.match(/^- Source tag:\s*\x60?([^\x60\r\n]+)\x60?\s*$/m)?.[1];
+          const sha = text.match(/^- Resolved source commit:\s*\x60?([0-9a-f]{40})\x60?\s*$/m)?.[1];
+          if (!tag || !sha) throw new Error("Stable snapshot must record its original source tag and full commit SHA.");
+          console.log(tag);
+          console.log(sha);
+          NODE
+            )"
+            SOURCE_TAG="$(printf '%s\n' "$SOURCE_INFO" | sed -n '1p')"
+            SOURCE_SHA="$(printf '%s\n' "$SOURCE_INFO" | sed -n '2p')"
+            [[ "$SOURCE_TAG" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "Invalid source tag in UPSTREAM.md." >&2; exit 1; }
+            [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid source SHA in UPSTREAM.md." >&2; exit 1; }
+            TAG_SHA="$(git rev-parse -q --verify "refs/tags/$SOURCE_TAG^{commit}")" || {
+              echo "Original source tag $SOURCE_TAG is missing from this repository." >&2; exit 1;
+            }
+            [[ "$TAG_SHA" == "$SOURCE_SHA" ]] || {
+              echo "Source provenance mismatch: $SOURCE_TAG resolves to $TAG_SHA, but UPSTREAM.md records $SOURCE_SHA." >&2
+              exit 1
+            }
+            echo "source_tag=$SOURCE_TAG" >> "$GITHUB_OUTPUT"
+            echo "source_commit=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+            echo "Verified original source tag $SOURCE_TAG at $SOURCE_SHA."
+          fi
+
           node - "$DIR" "$VERSION" "$TRACK" "$VERSION_TAG" <<'NODE' >> "$GITHUB_OUTPUT"
           const fs = require("node:fs");
           const path = require("node:path");
