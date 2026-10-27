@@ -364,7 +364,7 @@ async function main() {
 		"createEndpoint([",
 		"  { 123 }",
 		"])",
-	].join("\\n");
+	].join("\n");
 	let malformedRouteError;
 	try {
 		compileAPIStaticSource(malformedRouteSource, "malformed-route", "data/endpoint/malformed-route.route");
