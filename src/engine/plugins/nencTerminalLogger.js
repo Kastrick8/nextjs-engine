@@ -4,6 +4,7 @@ const STATE_KEY = Symbol.for("nextjs-engine.nenc-terminal-logger-state");
 const BRIDGE_KEY = Symbol.for("nextjs-engine.next-output-bridge-state");
 const STATUS_REFRESH_MS = 350;
 const ERROR_BOOK_NENC_URL = "https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/nenc#nenc4000";
+const PROJECT_URL = "https://kastrick.vercel.app/project/nextjs-engine";
 
 function getState() {
 	if (!globalThis[STATE_KEY]) {
@@ -62,7 +63,8 @@ function formatDoneLine(message) {
 
 function formatFailedLine(message) {
 	return "[NENC] FAILED [NENC4000] " + cleanMessage(message)
-		+ "\n  Help: " + ERROR_BOOK_NENC_URL;
+		+ "\n  Help: " + ERROR_BOOK_NENC_URL
+		+ "\n  Project: " + PROJECT_URL;
 }
 
 function supportsPinnedStatus(stream = process.stdout) {

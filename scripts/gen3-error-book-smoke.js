@@ -52,7 +52,8 @@ assert.ok(rendered.includes("Kastrick · Website")); assert.doesNotMatch(rendere
 assert.equal(reporter.resolveEngineErrorHelpUrl("CUSTOM-APP-CODE"), catalog.publicBaseUrl);
 const failure = logger.formatFailedLine("compile failed");
 assert.match(failure, /\[NENC\] FAILED \[NENC4000\]/);
-assert.ok(failure.includes(catalog.publicBaseUrl + "/nenc#nenc4000")); assert.match(failure, /\n  Help:/);
+assert.ok(failure.includes(catalog.publicBaseUrl + "/nenc#nenc4000"));
+assert.ok(failure.includes("https://kastrick.vercel.app/project/nextjs-engine"), "NENC failures link to the project website"); assert.match(failure, /\n  Help:/);
 const book = source("docs/3/error-codes/README.md");
 assert.ok(book.includes("catalog.json") && book.includes("Emitted") && book.includes("Assigned") && book.includes("Reserved"));
 assert.ok(source("docs/3/index.md").includes("./error-codes/README.md"));

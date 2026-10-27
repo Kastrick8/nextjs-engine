@@ -43,8 +43,8 @@ try {
 	const globalSource = fs.readFileSync(path.join(root, "app", "global-error.tsx"), "utf8");
 	const instrumentation = fs.readFileSync(path.join(root, "instrumentation.ts"), "utf8");
 	assert.ok(errorSource.startsWith(GENERATED_MARKER));
-	assert.match(errorSource, /NE-ROUTE-001/);
-	assert.match(globalSource, /NE-GLOBAL-001/);
+	assert.match(errorSource, /NECORE4001/);
+	assert.match(globalSource, /NECORE4002/);
 	assert.match(globalSource, /<html lang="en">/);
 	assert.match(instrumentation, /onRequestError/);
 	assert.match(instrumentation, /installEngineUncaughtExceptionMonitor/);
