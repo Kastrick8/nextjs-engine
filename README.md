@@ -23,25 +23,45 @@ Historical release tags have some stale/mismatched source `package.json.version`
 
 ## Release
 
-The published package name is `@kastrick/nextjs-engine`. After a reviewed snapshot is committed to `package/main`, create a full-version Git tag on that archive commit, such as `v2.6.3` or `v3.0.0-alpha.2`. `publish-package.yml` validates the tag's ancestry and the exact snapshot before publishing it.
+The published package is `@kastrick/nextjs-engine`. The normal release path is **Actions → Publish versioned package** on the default branch (`main-3). Choose `main-2` or `main-3`, paste the exact full 40-character source commit SHA, set the full SemVer, and choose the matching track.
+
+The workflow verifies the pinned commit is reachable from the selected development branch, copies the engine into a new immutable snapshot, normalizes the manifest to `@kastrick/nextjs-engine`, runs type-check and `npm pack --dry-run`, commits the snapshot to `package/main`, creates the `v<version>` Git tag, and publishes from the same run. You do **not** need to create or push Git tags by hand. Ordinary development commits do not publish automatically.
 
 - The newest stable snapshot publishes under npm dist-tag `latest`; install it with `npm install @kastrick/nextjs-engine`.
-- Older stable snapshots receive version-specific `release-<version>` dist-tags so historical tag runs cannot race to replace `latest`.
+- Older stable snapshots receive version-specific `release-<version>` dist-tags so historical releases cannot replace `latest`.
 - The newest alpha snapshot publishes under npm dist-tag `alpha`; install it with `npm install @kastrick/nextjs-engine@alpha`.
 
-### First publication
+### First publication on npm
 
-If `@kastrick/nextjs-engine` does not exist on npm yet, publish the current highest stable snapshot once from an npm-authenticated terminal:
+npm does not provide a separate “reserve package name” button for this case: the scope package is registered by its first successful publish. Check whether the name already exists:
 
 ```powershell
-cd version/2.6/version/2.6.2
+npm view @kastrick/nextjs-engine name
+```
+
+If that returns `@kastrick/nextjs-engine`, the name is already registered. If it returns a not-found error, publish the archived `2.6.2` snapshot once using your npm account that has publish access in the `kastrick` organization:
+
+```powershell
+git fetch origin package/main
+git worktree add ..\nextjs-engine-package origin/package/main
+Set-Location ..\nextjs-engine-package\version\2.6\version\2.6.2
 npm login
 npm publish --access public
 ```
 
-Do this only if `npm view @kastrick/nextjs-engine@2.6.2 version` confirms that version is not already published. Then add the GitHub Actions Trusted Publisher in the package's npm Settings. Use owner `Kate-alt-69`, repository `nextjs-engine`, workflow filename `publish-package.yml`, and leave Environment blank. Enable direct `npm publish` for that publisher. See `AGENT.md`.
+Only do that first publication if `@kastrick/nextjs-engine@2.6.2` is not already published. A package version cannot be overwritten.
 
-After that setup, push release tags with normal Git credentials so GitHub receives the tag-push event and runs the publisher.
+### Connect npm to GitHub Actions
+
+After the package exists, open [the package settings](https://www.npmjs.com/package/@kastrick/nextjs-engine/settings) and add a GitHub Actions Trusted Publisher:
+
+- Owner: `Kate-alt-69`
+- Repository: `nextjs-engine`
+- Workflow filename: `publish-package.yml` (filename only)
+- Environment: blank
+- Allowed action: direct `npm publish`
+
+The workflow uses OIDC with Node 24 and npm CLI 11.5.1+, so no long-lived npm write token belongs in GitHub Secrets. npm requires a new trusted-publisher setup to complete its first successful publish within two days, so configure it when the first automated release is ready and run that release promptly. See `AGENT.md`.
 
 ## Legacy branch cleanup
 
