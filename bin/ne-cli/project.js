@@ -272,7 +272,9 @@ async function installRelease(root, release, requestedChannel) {
 		let installTarget = release.installSpec;
 		if (release.source === "github") {
 			artifact = await downloadVerifiedArtifact(root, release);
-			installTarget = release.artifactUrl;
+			// Install the exact local bytes that passed SHA-256 validation. Do not
+			// ask the package manager to download the URL a second time.
+			installTarget = artifact.file;
 		}
 		await installWithManager(root, installTarget);
 		const installed = verifyInstalledVersion(root, release, artifact);
