@@ -253,6 +253,7 @@ function resolveRelease(catalog, options) {
 }
 
 function channelLabel(release) {
+	if (release.floating) return "ALPHA / LATEST COMMIT";
 	if (release.track === "alpha") return "ALPHA";
 	if (release.track === "beta") return "LATEST GREEN / BETA";
 	return "STABLE";
