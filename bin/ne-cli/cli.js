@@ -215,7 +215,7 @@ async function commandUpdate(root, options) {
 	const catalog = await loadChannelCatalog(root, { force: Boolean(options.force || options.check) });
 	if (options.json) {
 		process.stdout.write(JSON.stringify({ cached: catalog.cached, releases: catalog.releases }, null, 2) + "\n");
-		if (options.check) return;
+		if (options.check || (!options.channel && !options.version)) return;
 	}
 	if (!options.channel && !options.version) {
 		process.stdout.write(listChannels(catalog, state) + "\n");
