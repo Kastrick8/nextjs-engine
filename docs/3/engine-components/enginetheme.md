@@ -122,7 +122,9 @@ Scoped registries use the Generation 3 server-first renderer. Supplying one whil
 
 The optional `registry` argument on `registerEngineThemeDataHandler()`, `unregisterEngineThemeDataHandler()`, and `listEngineThemeDataHandlers()` isolates trusted handler IDs per application. Declarative template rendering uses that same scope through its internal `registry` context; a scoped dispatch never falls back to the process-global handler map.
 
-Template adapters follow the same rule: pass `registry` as the third argument to `registerEngineThemeTemplateAdapter()`, and use the registry-aware unregister/list functions. Markdown's server-first renderer threads this scope into info blocks, code blocks, table headers and table cells. The internal registry is removed before a trusted adapter is rendered, so it is not exposed as adapter props or serialized into the client tree. Calls without a registry retain the process-global compatibility behavior.
+Template adapters follow the same rule: pass `registry` as the third argument to `registerEngineThemeTemplateAdapter()`, and use the registry-aware unregister/list functions. Markdown's server-first renderer threads this scope into info blocks, code blocks, table headers and table cells. The internal registry is removed before a trusted adapter is rendered, so it is not exposed as adapter props or serialized into the client tree.
+
+Optional highlighter providers can also be registered with `registerEngineHighlighterProvider(provider, registry)`. Provider listing, language/theme discovery, and `highlightEngineCode(..., { registry })` then use only that app registry plus the built-in `engine-lite` provider. A scoped lookup never borrows a same-ID global provider or provider from another application. Two apps can use the same provider ID with different initialized Shiki/TextMate instances without sharing registration state. Calls without a registry retain the process-global compatibility behavior.
 
 ## Registered custom component theme bindings
 

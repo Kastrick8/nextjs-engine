@@ -217,6 +217,54 @@ async function testPublicThemeApi() {
 		]);
 		assert.equal(unregisterEngineHighlighterProvider("smoke-provider"), true);
 
+		const highlighterRegistryA = createEngineComponentRegistry();
+		const highlighterRegistryB = createEngineComponentRegistry();
+		const highlighterRegistryEmpty = createEngineComponentRegistry();
+		const scopedHighlighterGlobal = {
+			id: "scope-shared-highlighter",
+			name: "Global Highlighter",
+			languages: ["typescript"],
+			themes: [{ id: "global-theme", name: "Global Theme" }],
+			highlight: (code) => [{ kind: "plain", text: code }],
+		};
+		const scopedHighlighterA = {
+			id: "scope-shared-highlighter",
+			name: "Tenant A Highlighter",
+			languages: ["typescript"],
+			themes: [{ id: "tenant-a-theme", name: "Tenant A Theme" }],
+			highlight: (code) => [{ kind: "keyword", text: code }],
+		};
+		const scopedHighlighterB = {
+			id: "scope-shared-highlighter",
+			name: "Tenant B Highlighter",
+			languages: ["typescript"],
+			themes: [{ id: "tenant-b-theme", name: "Tenant B Theme" }],
+			highlight: (code) => [{ kind: "string", text: code }],
+		};
+		registerEngineHighlighterProvider(scopedHighlighterGlobal);
+		registerEngineHighlighterProvider(scopedHighlighterA, highlighterRegistryA);
+		registerEngineHighlighterProvider(scopedHighlighterB, highlighterRegistryB);
+		assert.equal(listEngineHighlighterProviders(highlighterRegistryA).find((entry) => entry.id === "scope-shared-highlighter").name, "Tenant A Highlighter");
+		assert.equal(listEngineHighlighterProviders(highlighterRegistryB).find((entry) => entry.id === "scope-shared-highlighter").name, "Tenant B Highlighter");
+		assert.equal(listEngineHighlighterProviders(highlighterRegistryEmpty).some((entry) => entry.id === "scope-shared-highlighter"), false,
+			"a registry enumerates only its own highlighters plus built-in Engine Lite");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter" })[0].kind, "plain");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryA })[0].kind, "keyword");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryB })[0].kind, "string");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryEmpty }), null,
+			"a scoped provider lookup never falls back to a process-global provider");
+		assert.ok(listEngineHighlighterThemes("scope-shared-highlighter", highlighterRegistryA).some((theme) => theme.id === "tenant-a-theme"));
+		assert.equal(listEngineHighlighterThemes("scope-shared-highlighter", highlighterRegistryA).some((theme) => theme.id === "global-theme"), false);
+		assert.ok(listEngineHighlighterLanguages("scope-shared-highlighter", highlighterRegistryB).includes("typescript"));
+		assert.equal(unregisterEngineHighlighterProvider("scope-shared-highlighter", highlighterRegistryA), true);
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryA }), null);
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryB })[0].kind, "string",
+			"unregistering one scoped provider leaves another provider with the same ID intact");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter" })[0].kind, "plain",
+			"scoped unregister leaves the process-global provider untouched");
+		assert.equal(unregisterEngineHighlighterProvider("scope-shared-highlighter", highlighterRegistryB), true);
+		assert.equal(unregisterEngineHighlighterProvider("scope-shared-highlighter"), true);
+
 		const shikiProvider = createShikiEngineHighlighterProvider({
 			getLoadedLanguages: () => ["typescript"],
 			getLoadedThemes: () => ["github-dark", "github-light"],
