@@ -20,9 +20,15 @@ on:
         required: false
         type: string
       version:
-        description: "Full package SemVer, e.g. 2.6.3 or 3.0.0-alpha.2"
-        required: true
+        description: "Source mode reads this from the pinned source package.json; archive mode requires this value"
+        required: false
         type: string
+      snapshot_action:
+        description: "Source mode only: create a snapshot or refresh an existing unpublished alpha snapshot"
+        required: true
+        type: choice
+        options: [create, refresh]
+        default: create
       track:
         description: "Stable releases auto-run on main-2; alpha/beta releases are manual"
         required: true
@@ -201,88 +207,56 @@ jobs:
           INPUT_TRACK: ${{ inputs.track }}
           INPUT_SOURCE_BRANCH: ${{ inputs.source_branch }}
           INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          INPUT_SNAPSHOT_ACTION: ${{ inputs.snapshot_action }}
           EVENT_BRANCH: ${{ github.event.workflow_run.head_branch }}
           EVENT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
+          SNAPSHOT_ACTION="$INPUT_SNAPSHOT_ACTION"
+          if [[ -z "$SNAPSHOT_ACTION" ]]; then SNAPSHOT_ACTION="create"; fi
           if [[ "$EVENT_NAME" == "workflow_run" ]]; then
             SOURCE_BRANCH="$EVENT_BRANCH"
             SOURCE_COMMIT="$EVENT_SHA"
-            if [[ "$SOURCE_BRANCH" != "main-2" ]]; then
-              echo "Automatic npm publishing is restricted to stable releases from main-2; prereleases must use workflow_dispatch." >&2
-              exit 1
-            fi
             TRACK="stable"
-
-            # Registry versions are read-only metadata; publishing itself uses npm OIDC.
-            npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"
-            VERSION="$(node - "$SOURCE_BRANCH" "$SOURCE_COMMIT" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
-          const fs = require("node:fs");
-          const path = require("node:path");
-          const [branch, sourceSha, versionsPath] = process.argv.slice(2);
-          if (branch !== "main-2") {
-            throw new Error("Only main-2 stable releases may be created automatically.");
-          }
-          const archiveRoot = path.join("archive", "version");
-          const isValid = (version) => /^2\.\d+\.\d+$/.test(version || "");
-          const collected = new Set();
-          let matchingSnapshot = null;
-
-          function walk(dir) {
-            if (!fs.existsSync(dir)) return;
-            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-              const full = path.join(dir, entry.name);
-              if (entry.isDirectory()) {
-                walk(full);
-                continue;
-              }
-              if (entry.name !== "package.json") continue;
-              let manifest;
-              try { manifest = JSON.parse(fs.readFileSync(full, "utf8")); }
-              catch { continue; }
-              const version = String(manifest.version || "");
-              if (manifest.name !== "@kastrick/nextjs-engine" || !isValid(version)) continue;
-              collected.add(version);
-              const provenancePath = path.join(path.dirname(full), "UPSTREAM.md");
-              if (fs.existsSync(provenancePath)) {
-                const provenance = fs.readFileSync(provenancePath, "utf8");
-                if (provenance.includes("- Requested and resolved source commit: " + sourceSha)) {
-                  matchingSnapshot = version;
-                }
-              }
-            }
-          }
-
-          walk(archiveRoot);
-          const rawVersions = JSON.parse(fs.readFileSync(versionsPath, "utf8"));
-          const registryVersions = Array.isArray(rawVersions) ? rawVersions : [rawVersions];
-          for (const value of registryVersions) {
-            const version = String(value || "");
-            if (isValid(version)) collected.add(version);
-          }
-
-          if (matchingSnapshot) {
-            console.log(matchingSnapshot);
-            process.exit(0);
-          }
-
-          const sorted = [...collected].sort((a, b) => {
-            const A = a.split(".").map(Number), B = b.split(".").map(Number);
-            for (let i = 0; i < 3; i++) if (A[i] !== B[i]) return A[i] - B[i];
-            return 0;
-          });
-          if (!sorted.length) throw new Error("No archived/published Generation 2 stable version was found.");
-          const [major, minor, patch] = sorted.at(-1).split(".").map(Number);
-          console.log([major, minor, patch + 1].join("."));
-          NODE
-            )"
+            SNAPSHOT_ACTION="create"
           else
             SOURCE_BRANCH="$INPUT_SOURCE_BRANCH"
             SOURCE_COMMIT="$INPUT_SOURCE_COMMIT"
-            VERSION="$INPUT_VERSION"
             TRACK="$INPUT_TRACK"
           fi
 
+          # Source-mode releases always take their version from the exact checked-out commit.
+          VERSION="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("source/package.json","utf8")); if(typeof p.version!=="string"||!p.version) process.exit(1); process.stdout.write(p.version)')"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$INPUT_VERSION" && "$INPUT_VERSION" != "$VERSION" ]]; then
+            echo "The requested version $INPUT_VERSION does not match source/package.json ($VERSION). Update the source manifest or leave the optional version field empty." >&2
+            exit 1
+          fi
+
+          case "$TRACK" in
+            stable)
+              [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Stable source package.json must contain a stable SemVer version, got: $VERSION" >&2; exit 1; }
+              ;;
+            alpha)
+              [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]] || { echo "Alpha source package.json must contain a version like 3.0.0-alpha.1, got: $VERSION" >&2; exit 1; }
+              ;;
+            beta)
+              [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] || { echo "Beta source package.json must contain a version like 3.0.0-beta.1, got: $VERSION" >&2; exit 1; }
+              ;;
+            *)
+              echo "track must be stable, alpha, or beta." >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ "$SNAPSHOT_ACTION" == "refresh" ]]; then
+            [[ "$EVENT_NAME" == "workflow_dispatch" && "$TRACK" == "alpha" ]] || {
+              echo "Refresh mode is restricted to manual alpha releases." >&2
+              exit 1
+            }
+          elif [[ "$SNAPSHOT_ACTION" != "create" ]]; then
+            echo "snapshot_action must be create or refresh." >&2
+            exit 1
+          fi
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "source_commit must be a lowercase 40-character SHA." >&2; exit 1; }
           [[ -n "$VERSION" && -n "$TRACK" && -n "$SOURCE_BRANCH" ]] || { echo "Release version, track, and source branch are required." >&2; exit 1; }
 
@@ -290,7 +264,8 @@ jobs:
           echo "source_commit=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "track=$TRACK" >> "$GITHUB_OUTPUT"
-          echo "Release selected: $VERSION ($TRACK) from $SOURCE_BRANCH@$SOURCE_COMMIT"
+          echo "snapshot_action=$SNAPSHOT_ACTION" >> "$GITHUB_OUTPUT"
+          echo "Release selected: $VERSION ($TRACK, snapshot action: $SNAPSHOT_ACTION) from $SOURCE_BRANCH@$SOURCE_COMMIT"
 
       - name: Validate source pin and prepare immutable snapshot
         id: prepare
@@ -300,6 +275,7 @@ jobs:
           SOURCE_COMMIT: ${{ steps.release-meta.outputs.source_commit }}
           VERSION: ${{ steps.release-meta.outputs.version }}
           TRACK: ${{ steps.release-meta.outputs.track }}
+          SNAPSHOT_ACTION: ${{ steps.release-meta.outputs.snapshot_action }}
         run: |
           set -euo pipefail
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "source_commit must be a lowercase 40-character SHA." >&2; exit 1; }
