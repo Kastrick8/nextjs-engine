@@ -24,7 +24,7 @@ on:
         required: true
         type: string
       track:
-        description: "Stable or alpha release"
+        description: "Stable releases auto-run on main-2; alpha/beta releases are manual"
         required: true
         type: choice
         options: [stable, alpha, beta]
