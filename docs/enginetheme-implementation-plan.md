@@ -324,7 +324,7 @@ The current API already exports `createComponent()`, `registerComponent()`, `unr
 
 - `createComponent(options)` preserves `PageSchema`/direct-schema composition and adds a discriminated `mode: "custom"` overload for trusted local React implementations. The custom adapter validates a bounded props/slot contract and carries a stable registry ID.
 - `registerComponent(type, component)` puts a trusted React component into the runtime schema-node registry. Schema nodes can then refer to that registered node type.
-- EngineTheme supports reusable groups, `components` namespaces, named variants/qualified IDs, local/global/explicitly preloaded remote scopes, Markdown and overlay resolution, deterministic `.etr` artifacts, and validated visual styles for registered custom schema-node components. Remaining work includes app/request-scoped registry ownership, broader custom-link behavior/accessibility tests, Data-API extensions and final server-first/browser validation.
+- EngineTheme supports reusable groups, `components` namespaces, named variants/qualified IDs, local/global/explicitly preloaded remote scopes, Markdown and overlay resolution, deterministic `.etr` artifacts, and validated visual styles for registered custom schema-node components. The explicit EngineComponentRegistry now scopes components, theme groups, Data-API handlers and template adapters; current-head server-first/Markdown SSR, cross-request and browser verification remains open.
 - The registry is currently a module-level mutable map. That is simple, but custom registrations need clear ownership and isolation rules for multi-app builds, tests, server rendering, and development hot reload.
 
 These facts mean the pieces are adjacent, but a stable custom-component contract and a request-safe, general EngineTheme-to-custom-component binding path still need to be designed. The existing Markdown resolver and EngineTheme Data-API contracts should remain compatible.
@@ -346,7 +346,7 @@ The goal is one public authoring path with basic and advanced modes—not a seco
 
 ### Illustrative API shape
 
-The following example illustrates the implemented advanced custom-component and theme-binding contract. Request-scoped registry ownership and the remaining acceptance criteria later in this section are still open.
+The following example illustrates the implemented advanced custom-component and theme-binding contract. Component/theme/handler/adapter scope is explicit through EngineComponentRegistry; request-lifecycle ownership and the remaining final acceptance criteria later in this section are still open.
 
 ~~~tsx
 import {

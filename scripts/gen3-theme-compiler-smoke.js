@@ -63,6 +63,8 @@ async function testPublicThemeApi() {
 			unregisterEngineThemeDataHandler,
 		} = require(path.resolve(__dirname, "../src/engine/components/engineTheme/dataApi.ts"));
 		const React = require("react");
+		const ReactDOMServer = require("react-dom/server");
+		const { EngineMarkdownRenderer } = require(path.resolve(__dirname, "../src/engine/components/EngineMarkdownRenderer.tsx"));
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
 		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/components/engineTheme/fontUrls.ts"));
 		const { flattenEngineThemeTokens, normalizeEngineThemeVariables } = require(path.resolve(__dirname, "../src/engine/components/engineTheme/tokens.ts"));
@@ -395,6 +397,22 @@ async function testPublicThemeApi() {
 			"the internal registry object is never passed to trusted adapter props");
 		assert.equal(scopedTemplateB.type, scopedAdapterB);
 		assert.equal(scopedTemplateB.props.label, "Tenant B");
+		const markdownWithScopedAdapterA = ReactDOMServer.renderToStaticMarkup(React.createElement(EngineMarkdownRenderer, {
+			content: "~~~typescript\nconst scoped = true;\n~~~",
+			registry: templateRegistryA,
+			themeTemplates: { codeBlock: { adapterId: "scoped.shared-adapter" } },
+		}));
+		const markdownWithScopedAdapterB = ReactDOMServer.renderToStaticMarkup(React.createElement(EngineMarkdownRenderer, {
+			content: "~~~typescript\nconst scoped = true;\n~~~",
+			registry: templateRegistryB,
+			themeTemplates: { codeBlock: { adapterId: "scoped.shared-adapter" } },
+		}));
+		assert.match(markdownWithScopedAdapterA, /data-owner="tenant-a"/,
+			"server-rendered Markdown passes its application registry to the code-block template");
+		assert.match(markdownWithScopedAdapterB, /data-owner="tenant-b"/,
+			"two Markdown renders with the same adapter ID use independent trusted implementations");
+		assert.doesNotMatch(markdownWithScopedAdapterA, /data-owner="global"/);
+		assert.doesNotMatch(markdownWithScopedAdapterB, /data-owner="global"/);
 		assert.equal(renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, { label: "Global" }).type, globalScopedAdapter,
 			"the no-registry compatibility API retains its process-global adapter");
 		assert.equal(unregisterEngineThemeTemplateAdapter("scoped.shared-adapter", templateRegistryA), true);
