@@ -47,13 +47,20 @@ Every archived snapshot is published as `@kastrick/nextjs-engine`. New imports m
 
 ## Publishing
 
-The `publish-package.yml` workflow accepts tags such as `v2.6.3` and `v3.0.0-alpha.2`. It verifies the tag is in `package/main` history, resolves exactly one snapshot directory, matches the tag and package manifest version, validates type-check/packed contents, then publishes that directory.
+The normal publisher is the workflow `publish-package.yml`, available from the default branch `main-3` under Actions. Its manual release form requires:
 
-- The highest stable version present in the archive uses npm dist-tag `latest`; older stable versions use `release-<version>` to avoid clobbering `latest` during parallel historical seeding.
+- A source branch: `main-2` or `main-3`.
+- The exact full 40-character commit SHA to package.
+- Full SemVer and the matching stable/alpha track.
+
+It checks the source commit is reachable from the selected branch, refuses to overwrite a snapshot with unknown or different provenance, copies the pinned engine into the versioned archive, runs type-check and `npm pack --dry-run`, commits to `package/main`, creates the annotated `v<version>` tag, and publishes in the same workflow run. The action also has a tag-push fallback, but the normal workflow does not require a manually pushed tag. A tag pushed using the workflow's `GITHUB_TOKEN` does not trigger a second workflow run; publication is deliberately done in the original run.
+
+- The highest stable version present in the archive uses npm dist-tag `latest`; older stable versions use `release-<version>`.
 - The highest alpha version present in the archive uses npm dist-tag `alpha`; older alpha snapshots use `release-<version>`.
-- Before the first release, check whether `@kastrick/nextjs-engine` already exists. If not, publish the highest stable snapshot (`version/2.6/version/2.6.2`) once from an authenticated npm CLI using `npm publish --access public`. Then configure the package's npm Trusted Publisher for owner `Kate-alt-69`, repository `nextjs-engine`, workflow filename `publish-package.yml`, and no environment. Allow direct `npm publish`.
-- The publisher checks for an already-published immutable version and skips it rather than attempting an impossible overwrite. This permits the initial manually published version to be tagged later without making its tag-run fail.
-- Prefer npm Trusted Publishing using GitHub Actions OIDC; do not put npm write tokens in this repository. Configure the npm trusted publisher for owner `Kate-alt-69`, repo `nextjs-engine`, workflow filename `publish-package.yml`, and leave environment empty unless the workflow later adopts a GitHub deployment environment. Trusted publishing requires a GitHub-hosted runner, `id-token: write`, Node.js 22.14+ and npm 11.5.1+.
+- The workflow skips an immutable npm version if it is already published.
+- npm does not offer a separate reservation-only step for a new scoped package: publish the initial `2.6.2` snapshot once from `version/2.6/version/2.6.2` if `@kastrick/nextjs-engine` does not exist. Then configure Trusted Publishing with owner `Kate-alt-69`, repository `nextjs-engine`, workflow filename `publish-package.yml`, blank environment, and direct `npm publish` enabled.
+- npm requires the newly configured Trusted Publisher to succeed at least once within two days, so add it when the first automated release is ready and run that release promptly.
+- Prefer npm Trusted Publishing using GitHub Actions OIDC; never store long-lived npm write tokens in this repository. The workflow uses a GitHub-hosted runner, `id-token: write`, Node.js 24 and npm CLI 11.5.1+.
 
 ## Branch safety
 
