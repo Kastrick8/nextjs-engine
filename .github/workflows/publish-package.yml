@@ -3,14 +3,21 @@ name: Publish versioned package
 on:
   workflow_dispatch:
     inputs:
-      source_branch:
-        description: "Development branch containing the pinned source commit"
+      release_mode:
+        description: "Publish an existing archived snapshot, or create a snapshot from a pinned source commit"
         required: true
         type: choice
+        options: [source, archive]
+        default: source
+      source_branch:
+        description: "Development branch containing the pinned source commit (source mode only)"
+        required: false
+        type: choice
         options: [main-2, main-3]
+        default: main-3
       source_commit:
-        description: "Exact 40-character commit SHA to package, not a moving branch name"
-        required: true
+        description: "Exact 40-character commit SHA to package, not a moving branch name (source mode only)"
+        required: false
         type: string
       version:
         description: "Full package SemVer, e.g. 2.6.3 or 3.0.0-alpha.2"
@@ -37,7 +44,7 @@ concurrency:
 
 jobs:
   release-from-source:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -400,6 +407,204 @@ jobs:
             echo "- npm dist-tag: $DIST_TAG"
             echo "- New npm publication required: $SHOULD_PUBLISH"
           } >> "$GITHUB_STEP_SUMMARY"
+
+publish-archived-snapshot:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_mode == 'archive'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout package archive
+        uses: actions/checkout@v6
+        with:
+          ref: package/main
+          fetch-depth: 0
+
+      - name: Set up Node.js for npm Trusted Publishing
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Install npm CLI with OIDC support
+        run: npm install --global npm@^11.21.0
+
+      - name: Resolve and validate the existing snapshot
+        id: snapshot
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
+        run: |
+          set -euo pipefail
+          if [[ "$TRACK" == "stable" ]]; then
+            [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || { echo "Stable versions must look like 2.6.2." >&2; exit 1; }
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            SNAPSHOT="$VERSION"
+            if [[ "$PATCH" == "0" ]]; then SNAPSHOT="$MAJOR.$MINOR"; fi
+            DIR="version/$MAJOR.$MINOR/version/$SNAPSHOT"
+            VERSION_TAG="package.$VERSION"
+          elif [[ "$TRACK" == "alpha" ]]; then
+            [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-alpha\.([0-9]+)$ ]] || { echo "Alpha versions must look like 3.0.0-alpha.1." >&2; exit 1; }
+            MAJOR="${BASH_REMATCH[1]}"
+            DIR="alpha/version/$MAJOR.alpha/version/$VERSION"
+            VERSION_TAG="package-alpha.$VERSION"
+          elif [[ "$TRACK" == "beta" ]]; then
+            [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-beta\.([0-9]+)$ ]] || { echo "Beta versions must look like 3.0.0-beta.1." >&2; exit 1; }
+            MAJOR="${BASH_REMATCH[1]}"
+            DIR="beta/version/$MAJOR.beta/version/$VERSION"
+            VERSION_TAG="package-beta.$VERSION"
+          else
+            echo "track must be stable, alpha, or beta." >&2
+            exit 1
+          fi
+
+          test -f "$DIR/package.json" || { echo "Snapshot not found: $DIR/package.json" >&2; exit 1; }
+          test -f "$DIR/UPSTREAM.md" || { echo "Snapshot provenance file is missing: $DIR/UPSTREAM.md" >&2; exit 1; }
+          test -f "$DIR/index.ts" && test -f "$DIR/tsconfig.json" && test -f "$DIR/engine/index.ts" || {
+            echo "Snapshot is missing a required package entry file." >&2; exit 1;
+          }
+
+          node - "$DIR" "$VERSION" "$TRACK" "$VERSION_TAG" <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const [dir, version, track, versionTag] = process.argv.slice(2);
+          const manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+          if (manifest.name !== "@kastrick/nextjs-engine" || manifest.version !== version) {
+            throw new Error("Archive manifest mismatch: " + manifest.name + "@" + manifest.version);
+          }
+          if (manifest.private === true) throw new Error("Archived package is marked private.");
+          for (const file of ["index.ts", "tsconfig.json", "UPSTREAM.md", "engine/index.ts"]) {
+            if (!fs.existsSync(path.join(dir, file))) throw new Error("Missing required file: " + file);
+          }
+          console.log("directory=" + dir);
+          console.log("version=" + version);
+          console.log("track=" + track);
+          console.log("version_tag=" + versionTag);
+          NODE
+
+      - name: Type-check and inspect packed contents
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+          npm run type-check
+          npm run pack:check
+
+      - name: Determine whether this release should advance a channel tag
+        id: channel
+        shell: bash
+        env:
+          VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
+        run: |
+          set -euo pipefail
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
+          node - "$VERSION" "$TRACK" "$RUNNER_TEMP/npm-dist-tags.json" <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require("node:fs");
+          const [candidate, track, tagsPath] = process.argv.slice(2);
+          const tags = JSON.parse(fs.readFileSync(tagsPath, "utf8"));
+
+          function parse(v) {
+            const m = String(v || "").match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/);
+            if (!m) return null;
+            return {
+              core: m.slice(1, 4).map(Number),
+              pre: m[4] ? m[4].split(".") : null
+            };
+          }
+          function compare(aText, bText) {
+            const a = parse(aText), b = parse(bText);
+            if (!a) return -1;
+            if (!b) return 1;
+            for (let i = 0; i < 3; i++) {
+              if (a.core[i] !== b.core[i]) return a.core[i] > b.core[i] ? 1 : -1;
+            }
+            if (a.pre === null && b.pre === null) return 0;
+            if (a.pre === null) return 1;
+            if (b.pre === null) return -1;
+            const n = Math.max(a.pre.length, b.pre.length);
+            for (let i = 0; i < n; i++) {
+              if (i >= a.pre.length) return -1;
+              if (i >= b.pre.length) return 1;
+              if (a.pre[i] === b.pre[i]) continue;
+              const an = /^\d+$/.test(a.pre[i]), bn = /^\d+$/.test(b.pre[i]);
+              if (an && bn) return Number(a.pre[i]) > Number(b.pre[i]) ? 1 : -1;
+              if (an !== bn) return an ? -1 : 1;
+              return a.pre[i] > b.pre[i] ? 1 : -1;
+            }
+            return 0;
+          }
+
+          let channel = "";
+          if (track === "stable") {
+            if (compare(candidate, tags.latest) > 0) channel = "latest";
+          } else if (track === "alpha" || track === "beta") {
+            if (compare(candidate, tags[track]) > 0) channel = track;
+          } else {
+            throw new Error("Unsupported track: " + track);
+          }
+          console.log("channel_tag=" + channel);
+          NODE
+
+      - name: Skip an already-published immutable npm version
+        id: registry-version
+        env:
+          VERSION: ${{ steps.snapshot.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view "@kastrick/nextjs-engine@$VERSION" version >/dev/null 2>&1; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "@kastrick/nextjs-engine@$VERSION already exists; preserving the immutable version."
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish the archived snapshot to npm
+        if: steps.registry-version.outputs.should_publish == 'true'
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        env:
+          VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
+        run: npm publish --access public --tag "$VERSION_TAG"
+
+      - name: Apply npm dist-tags
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        env:
+          VERSION: ${{ steps.snapshot.outputs.version }}
+          VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
+          CHANNEL_TAG: ${{ steps.channel.outputs.channel_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE="@kastrick/nextjs-engine@$VERSION"
+          npm dist-tag add "$PACKAGE" "$VERSION_TAG"
+          if [[ -n "$CHANNEL_TAG" ]]; then
+            npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
+          fi
+
+      - name: Release summary
+        if: always()
+        env:
+          VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
+          DIRECTORY: ${{ steps.snapshot.outputs.directory }}
+          VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
+          CHANNEL_TAG: ${{ steps.channel.outputs.channel_tag }}
+          SHOULD_PUBLISH: ${{ steps.registry-version.outputs.should_publish }}
+        run: |
+          {
+            echo "## @kastrick/nextjs-engine archived release"
+            echo "- Version: $VERSION"
+            echo "- Track: $TRACK"
+            echo "- Archive snapshot: $DIRECTORY"
+            echo "- npm version dist-tag: $VERSION_TAG"
+            echo "- Channel alias advanced: ${CHANNEL_TAG:-none}"
+            echo "- New npm publication required: $SHOULD_PUBLISH"
+          } >> "$GITHUB_STEP_SUMMARY"
+
 
   publish-tagged-snapshot:
     if: github.event_name == 'push'
