@@ -74,6 +74,7 @@ const ERROR_BOOK_PAGE_BY_CODE = Object.freeze({
   "NEAPI2001": "api",
   "NEAPI2002": "api",
   "NEAPI4001": "api",
+  "NEAPI8001": "api",
   "NESCHED1001": "scheduler",
   "NESCHED1002": "scheduler",
   "NESCHED2001": "scheduler",

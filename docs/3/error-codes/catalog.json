@@ -411,14 +411,14 @@
     },
     {
       "code": "NEAPI1001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "API declaration malformed",
       "doc": "api.md#neapi1001"
     },
     {
       "code": "NEAPI1002",
-      "status": "assigned",
-      "title": "API method/path invalid",
+      "status": "emitted",
+      "title": "APIStatic route ID invalid",
       "doc": "api.md#neapi1002"
     },
     {
@@ -429,15 +429,21 @@
     },
     {
       "code": "NEAPI2002",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Request input failed validation",
       "doc": "api.md#neapi2002"
     },
     {
       "code": "NEAPI4001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "API handler execution failed",
       "doc": "api.md#neapi4001"
+    },
+    {
+      "code": "NEAPI8001",
+      "status": "emitted",
+      "title": "APIStatic TypeScript compiler unavailable",
+      "doc": "api.md#neapi8001"
     },
     {
       "code": "NESCHED1001",

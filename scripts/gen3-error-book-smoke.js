@@ -54,6 +54,8 @@ const integrationSource = source("src/engine/plugins/engineErrorHandling.js");
 const loggerSource = source("src/engine/plugins/nencTerminalLogger.js");
 const remoteThemeSource = source("src/engine/component/engineTheme/remoteTheme.ts");
 const fontCompilerSource = source("src/engine/compiler/font/3/compiler.ts");
+const apiStaticCompilerSource = source("src/engine/plugins/apiStaticCompiler.js");
+const apiStaticRuntimeSource = source("src/engine/core/APIStatic.ts");
 const errorFrom = (operation) => {
   try { operation(); } catch (error) { return error; }
   assert.fail("Expected operation to throw.");
@@ -167,6 +169,11 @@ const emittedChecks = {
   NETH3001: source("src/engine/compiler/theme/3/compiler.ts").includes('createThemeCompilerError("NETH3001"'),
   NETH8001: remoteThemeSource.includes('createRemoteThemeError("NETH8001"'),
   NETH8002: fontCompilerSource.includes('wrapped.code = "NETH8002"'),
+  NEAPI1001: apiStaticCompilerSource.includes("NEAPI1001") && apiStaticCompilerSource.includes("formatAPIStaticCompilerError"),
+  NEAPI1002: apiStaticCompilerSource.includes("NEAPI1002") && apiStaticCompilerSource.includes("formatAPIStaticCompilerError"),
+  NEAPI2002: apiStaticRuntimeSource.includes('readonly code = "NEAPI2002"'),
+  NEAPI4001: apiStaticRuntimeSource.includes('readonly code = "NEAPI4001"'),
+  NEAPI8001: apiStaticCompilerSource.includes("NEAPI8001"),
   NESEC2001: remoteThemeSource.includes('createRemoteThemeError("NESEC2001"'),
   NESEC4001: remoteThemeSource.includes('createRemoteThemeError("NESEC4001"'),
   NESEC8001: remoteThemeSource.includes('createRemoteThemeError("NESEC8001"'),
