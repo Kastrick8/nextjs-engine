@@ -28,31 +28,140 @@ on:
         required: true
         type: choice
         options: [stable, alpha, beta]
+  workflow_run:
+    workflows:
+      - "Engine runtime CI"
+    types: [completed]
+    branches: [main-2, main-3]
   push:
-    branches:
-      - main-3
-    paths:
-      - "src/engine/**"
-      - "engine/**"
-      - "docs/**"
-      - "README.md"
-      - "DOCUMENT.md"
     tags:
       - "package.[0-9]*"
       - "package-alpha.[0-9]*"
       - "package-beta.[0-9]*"
 
 permissions:
+  actions: read
   contents: write
   id-token: write
 
 concurrency:
-  group: npm-release-${{ inputs.version || github.ref_name }}
+  group: npm-release-${{ inputs.version || github.event.workflow_run.head_branch || inputs.source_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  gate-auto-release:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && contains(fromJSON('["main-2","main-3"]'), github.event.workflow_run.head_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+    steps:
+      - name: Checkout the exact CI-tested source commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check package changes and wait for browser CI
+        id: gate
+        shell: bash
+        env:
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Only publish commits that can change the package snapshot.
+          if git -C source rev-parse "$SOURCE_SHA^1" >/dev/null 2>&1; then
+            git -C source diff --name-only "$SOURCE_SHA^1" "$SOURCE_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          else
+            git -C source ls-tree -r --name-only "$SOURCE_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          fi
+
+          node - "$RUNNER_TEMP/changed-files.txt" <<'NODE'
+          const fs = require("node:fs");
+          const files = fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/).filter(Boolean);
+          const isPackageFile = (file) =>
+            /^(src\/engine\/|engine\/|docs\/)/.test(file) ||
+            file === "README.md" || file === "DOCUMENT.md";
+          const relevant = files.filter(isPackageFile);
+          if (!relevant.length) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "publish=false\n");
+            console.log("No distributable engine or documentation files changed; skipping npm release.");
+            process.exit(0);
+          }
+          console.log("Package-relevant changes:");
+          for (const file of relevant) console.log(" - " + file);
+          NODE
+
+          if grep -Fqx 'publish=false' "$GITHUB_OUTPUT"; then exit 0; fi
+
+          if [[ "$SOURCE_BRANCH" == "main-2" ]]; then
+            BROWSER_WORKFLOW="Engine browser compatibility"
+          elif [[ "$SOURCE_BRANCH" == "main-3" ]]; then
+            BROWSER_WORKFLOW="Engine cross-browser compatibility"
+          else
+            echo "Unsupported auto-release branch: $SOURCE_BRANCH" >&2
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Waiting for '$BROWSER_WORKFLOW' to pass for $SOURCE_BRANCH@$SOURCE_SHA."
+          for attempt in $(seq 1 60); do
+            curl --fail --silent --show-error \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100" \
+              > "$RUNNER_TEMP/actions-runs.json"
+
+            RESULT="$(node - "$SOURCE_BRANCH" "$SOURCE_SHA" "$BROWSER_WORKFLOW" "$RUNNER_TEMP/actions-runs.json" <<'NODE'
+          const fs = require("node:fs");
+          const [branch, sha, workflow, file] = process.argv.slice(2);
+          const payload = JSON.parse(fs.readFileSync(file, "utf8"));
+          const matches = (payload.workflow_runs || [])
+            .filter((run) => run.name === workflow && run.head_branch === branch && run.head_sha === sha && run.event === "push")
+            .sort((a, b) => Date.parse(b.run_started_at || b.created_at || 0) - Date.parse(a.run_started_at || a.created_at || 0));
+          if (!matches.length || matches[0].status !== "completed") {
+            console.log("pending");
+          } else if (matches[0].conclusion === "success") {
+            console.log("success");
+          } else {
+            console.log("failure:" + String(matches[0].conclusion || "unknown"));
+          }
+          NODE
+            )"
+
+            case "$RESULT" in
+              success)
+                echo "publish=true" >> "$GITHUB_OUTPUT"
+                echo "Core Engine runtime CI and browser compatibility CI passed; eligible for npm release."
+                exit 0
+                ;;
+              failure:*)
+                echo "publish=false" >> "$GITHUB_OUTPUT"
+                echo "::warning::Browser compatibility did not pass ($RESULT); npm release skipped."
+                exit 0
+                ;;
+              pending)
+                echo "Browser compatibility is queued or running (attempt $attempt/60)."
+                sleep 20
+                ;;
+            esac
+          done
+
+          echo "publish=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Browser compatibility did not finish within 20 minutes; npm release skipped."
+
   release-from-source:
-    if: (github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source') || (github.event_name == 'push' && github.ref == 'refs/heads/main-3')
+    needs: gate-auto-release
+    if: always() && ((github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source') || (github.event_name == 'workflow_run' && needs.gate-auto-release.outputs.publish == 'true'))
     runs-on: ubuntu-latest
     environment: npm-publish
     timeout-minutes: 45
@@ -68,7 +177,7 @@ jobs:
       - name: Checkout exact pinned source commit
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_commit || github.sha }}
+          ref: ${{ inputs.source_commit || github.event.workflow_run.head_sha }}
           path: source
           fetch-depth: 0
           persist-credentials: false
@@ -90,57 +199,95 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          INPUT_VERSION: ${{ steps.release-meta.outputs.version }}
-          INPUT_TRACK: ${{ steps.release-meta.outputs.track }}
-          INPUT_SOURCE_BRANCH: ${{ steps.release-meta.outputs.source_branch }}
-          INPUT_SOURCE_COMMIT: ${{ steps.release-meta.outputs.source_commit }}
-          PUSH_SHA: ${{ github.sha }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_TRACK: ${{ inputs.track }}
+          INPUT_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          EVENT_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          EVENT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            SOURCE_BRANCH="main-3"
-            SOURCE_COMMIT="$PUSH_SHA"
-            TRACK="alpha"
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            SOURCE_BRANCH="$EVENT_BRANCH"
+            SOURCE_COMMIT="$EVENT_SHA"
+            if [[ "$SOURCE_BRANCH" == "main-2" ]]; then
+              TRACK="stable"
+            elif [[ "$SOURCE_BRANCH" == "main-3" ]]; then
+              TRACK="alpha"
+            else
+              echo "Unsupported automatic release branch: $SOURCE_BRANCH" >&2
+              exit 1
+            fi
 
-            # Read public version metadata; no npm write token is needed for npm view.
+            # Registry versions are read-only metadata; publishing itself uses npm OIDC.
             npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"
-            VERSION="$(node - "$PUSH_SHA" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
+            VERSION="$(node - "$SOURCE_BRANCH" "$SOURCE_COMMIT" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
           const fs = require("node:fs");
           const path = require("node:path");
-          const [sourceSha, versionsPath] = process.argv.slice(2);
-          const alphaRoot = path.join("archive", "alpha", "version", "3.alpha", "version");
-          let highest = 0;
+          const [branch, sourceSha, versionsPath] = process.argv.slice(2);
+          const stable = branch === "main-2";
+          const archiveRoot = stable ? path.join("archive", "version") : path.join("archive", "alpha");
+          const isValid = (version) => stable
+            ? /^2\.\d+\.\d+$/.test(version || "")
+            : /^3\.0\.0-alpha\.\d+$/.test(version || "");
+          const collected = new Set();
+          let matchingSnapshot = null;
 
-          if (fs.existsSync(alphaRoot)) {
-            for (const entry of fs.readdirSync(alphaRoot, { withFileTypes: true })) {
-              if (!entry.isDirectory()) continue;
-              const dir = path.join(alphaRoot, entry.name);
-              const manifestPath = path.join(dir, "package.json");
-              const provenancePath = path.join(dir, "UPSTREAM.md");
-              if (!fs.existsSync(manifestPath)) continue;
-              const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-              const match = String(manifest.version || "").match(/^3\.0\.0-alpha\.(\d+)$/);
-              if (manifest.name === "@kastrick/nextjs-engine" && match) {
-                highest = Math.max(highest, Number(match[1]));
-                if (fs.existsSync(provenancePath)) {
-                  const provenance = fs.readFileSync(provenancePath, "utf8");
-                  if (provenance.includes("- Requested and resolved source commit: " + sourceSha)) {
-                    console.log(manifest.version);
-                    process.exit(0);
-                  }
+          function walk(dir) {
+            if (!fs.existsSync(dir)) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) {
+                walk(full);
+                continue;
+              }
+              if (entry.name !== "package.json") continue;
+              let manifest;
+              try { manifest = JSON.parse(fs.readFileSync(full, "utf8")); }
+              catch { continue; }
+              const version = String(manifest.version || "");
+              if (manifest.name !== "@kastrick/nextjs-engine" || !isValid(version)) continue;
+              collected.add(version);
+              const provenancePath = path.join(path.dirname(full), "UPSTREAM.md");
+              if (fs.existsSync(provenancePath)) {
+                const provenance = fs.readFileSync(provenancePath, "utf8");
+                if (provenance.includes("- Requested and resolved source commit: " + sourceSha)) {
+                  matchingSnapshot = version;
                 }
               }
             }
           }
 
-          const registryVersions = JSON.parse(fs.readFileSync(versionsPath, "utf8"));
-          const published = Array.isArray(registryVersions) ? registryVersions : [registryVersions];
-          for (const value of published) {
-            const match = String(value || "").match(/^3\.0\.0-alpha\.(\d+)$/);
-            if (match) highest = Math.max(highest, Number(match[1]));
+          walk(archiveRoot);
+          const rawVersions = JSON.parse(fs.readFileSync(versionsPath, "utf8"));
+          const registryVersions = Array.isArray(rawVersions) ? rawVersions : [rawVersions];
+          for (const value of registryVersions) {
+            const version = String(value || "");
+            if (isValid(version)) collected.add(version);
           }
 
-          console.log("3.0.0-alpha." + (highest + 1));
+          if (matchingSnapshot) {
+            console.log(matchingSnapshot);
+            process.exit(0);
+          }
+
+          if (stable) {
+            const sorted = [...collected].sort((a, b) => {
+              const A = a.split(".").map(Number), B = b.split(".").map(Number);
+              for (let i = 0; i < 3; i++) if (A[i] !== B[i]) return A[i] - B[i];
+              return 0;
+            });
+            if (!sorted.length) throw new Error("No archived/published Generation 2 stable version was found.");
+            const [major, minor, patch] = sorted.at(-1).split(".").map(Number);
+            console.log([major, minor, patch + 1].join("."));
+          } else {
+            let highest = 0;
+            for (const version of collected) {
+              const match = version.match(/^3\.0\.0-alpha\.(\d+)$/);
+              if (match) highest = Math.max(highest, Number(match[1]));
+            }
+            console.log("3.0.0-alpha." + (highest + 1));
+          }
           NODE
             )"
           else
@@ -521,8 +668,8 @@ jobs:
         id: snapshot
         shell: bash
         env:
-          VERSION: ${{ inputs.version }}
-          TRACK: ${{ inputs.track }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
         run: |
           set -euo pipefail
           if [[ "$TRACK" == "stable" ]]; then
