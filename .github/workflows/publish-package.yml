@@ -512,6 +512,7 @@ jobs:
           TRACK: ${{ steps.release-meta.outputs.track }}
           PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
+          REFRESHED: ${{ steps.prepare.outputs.refreshed }}
         shell: bash
         run: |
           set -euo pipefail
@@ -523,20 +524,26 @@ jobs:
           esac
           git fetch --tags origin
           if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
-            git cat-file -e "$TAG:$TARGET/package.json"
-            git show "$TAG:$TARGET/package.json" > "$RUNNER_TEMP/tag-package.json"
-            git show "$TAG:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
-            node - "$RUNNER_TEMP/tag-package.json" "$VERSION" <<'NODE'
+            if [[ "$REFRESHED" == "true" ]]; then
+              # The unpublished snapshot was deliberately refreshed after the registry check.
+              git tag -f -a "$TAG" -m "@kastrick/nextjs-engine $VERSION refreshed from $PINNED_SHA"
+              git push --force origin "refs/tags/$TAG"
+            else
+              git cat-file -e "$TAG:$TARGET/package.json"
+              git show "$TAG:$TARGET/package.json" > "$RUNNER_TEMP/tag-package.json"
+              git show "$TAG:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
+              node - "$RUNNER_TEMP/tag-package.json" "$VERSION" <<'NODE'
           const fs=require("node:fs");
           const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           if(p.name!=="@kastrick/nextjs-engine"||p.version!==process.argv[3]) throw new Error("Existing tag points to a different package version.");
           NODE
-            grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/tag-upstream.md" || {
-              echo "Tag $TAG exists but does not match source pin $PINNED_SHA." >&2; exit 1;
-            }
-            git merge-base --is-ancestor "$TAG^{commit}" refs/remotes/origin/package/main || {
-              echo "Tag $TAG exists but is not reachable from package/main." >&2; exit 1;
-            }
+              grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/tag-upstream.md" || {
+                echo "Tag $TAG exists but does not match source pin $PINNED_SHA." >&2; exit 1;
+              }
+              git merge-base --is-ancestor "$TAG^{commit}" refs/remotes/origin/package/main || {
+                echo "Tag $TAG exists but is not reachable from package/main." >&2; exit 1;
+              }
+            fi
           else
             git tag -a "$TAG" -m "@kastrick/nextjs-engine $VERSION from $PINNED_SHA"
             git push origin "refs/tags/$TAG"
@@ -694,10 +701,11 @@ jobs:
         id: snapshot
         shell: bash
         env:
-          VERSION: ${{ steps.release-meta.outputs.version }}
-          TRACK: ${{ steps.release-meta.outputs.track }}
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
         run: |
           set -euo pipefail
+          [[ -n "$VERSION" ]] || { echo "Archive mode requires an explicit version; source mode reads version from package.json." >&2; exit 1; }
           if [[ "$TRACK" == "stable" ]]; then
             [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || { echo "Stable versions must look like 2.6.2." >&2; exit 1; }
             MAJOR="${BASH_REMATCH[1]}"
