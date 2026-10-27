@@ -10,6 +10,7 @@ This is the curated starting point for the current Gen 3 implementation. Canonic
 | Need | Guide |
 |---|---|
 | Get started with the current API | [Developer reference](./readme.md) |
+| Migrate from Gen 2.6 / understand dev diagnostics | [Migration from Gen 2.x](./migration-from-2x.md) |
 | Use styling props | [Styling — simple](./styling.md) |
 | Understand style compilation and collection | [Styling — detailed](./styling-detailed.md) |
 | Understand compiler/runtime internals, artifact caching, build budgets, and security checks | [Compiler deep dive](./compiler-deep-dive.md) |
@@ -22,6 +23,8 @@ This is the curated starting point for the current Gen 3 implementation. Canonic
 |---|---|
 | Compiler, server rendering, work classes, scheduler, EngineModel, and EngineViewport | [Compiler, rendering, and runtime](./compiler-rendering-runtime.md) |
 | NENC, EngineCookies, device proof, sessions, permissions, and private backends | [Networking, credentials, and command security](./networking-credentials-security.md) |
+| Global error reporting, terminal diagnostics, and Next.js error fallbacks | [Global error handling](./global-error-handling.md) |
+| Stable subsystem error codes, causes and repair guidance | [Generation 3 Error Code Book](./error-codes/README.md) |
 | Used-feature manifests, browser fallbacks, EngineDebug, build budgets, and hardening | [Compatibility, EngineDebug, and hardening](./compatibility-debugging-hardening.md) |
 | EngineDebug route isolation and preview behavior | [EngineDebug isolation](../gen3/engine-debug-isolation.md) |
 | Server-first/client-render parity and shared style behavior | [Server-first parity](../gen3/server-first-parity.md) |

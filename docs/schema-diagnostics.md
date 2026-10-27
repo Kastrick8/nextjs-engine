@@ -71,6 +71,26 @@ Current codes:
 | `W007` | warn | Duplicate `SchemaNode.name` makes a MobilePatcher selector ambiguous |
 | `W008` | warn | EngineScroll point metadata exists without a non-empty `point` name |
 
+The existing `E###`/`W###` values remain in `AnalyzerResult.diagnostics` for
+compatibility. The formatted output also prints a stable Error Book code, a
+recommended action, and a public help URL.
+
+| Analyzer code | Error Book code | Help page |
+| --- | --- | --- |
+| `E001` | `NECMP1001` | [Unknown node type](./3/error-codes/components.md#necmp1001) |
+| `E002` | `NECMP1002` | [Required prop missing](./3/error-codes/components.md#necmp1002) |
+| `E003` | `NECMP2001` | [Duplicate navigation identity](./3/error-codes/components.md#necmp2001) |
+| `E004` | `NECMP2002` | [Shared/circular node object](./3/error-codes/components.md#necmp2002) |
+| `E005` | `NECMP1005` | [Missing page root](./3/error-codes/components.md#necmp1005) |
+| `E006` | `NECMP1004` | [Malformed schema node](./3/error-codes/components.md#necmp1004) |
+| `W001` | `NEIMG1002` | [Missing image alt](./3/error-codes/images.md#neimg1002) |
+| `W002` / `W003` | `NECMP1006` | [Accessibility hints](./3/error-codes/components.md#necmp1006) |
+| `W004` / `W005` | `NECMP1008` | [Tree complexity](./3/error-codes/components.md#necmp1008) |
+| `W006` | `NECMP1007` | [Unsupported child nodes](./3/error-codes/components.md#necmp1007) |
+| `W007` | `NECMP2003` | [Duplicate component names](./3/error-codes/components.md#necmp2003) |
+| `W008` | `NESCHED1002` | [Orphaned EngineScroll point metadata](./3/error-codes/scheduler.md#nesched1002) |
+
+
 ### Malformed runtime data
 
 The public TypeScript types prevent most malformed schema values at authoring
