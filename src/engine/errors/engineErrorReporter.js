@@ -266,7 +266,7 @@ function createEngineErrorReport(error, context = {}) {
 	const codeCandidate = cleanText(context.code || attachedCode || "NECORE4000", 40);
 	const code = /^[A-Za-z0-9_-]+$/.test(codeCandidate) ? codeCandidate : "NECORE4000";
 	const source = cleanText(context.source || "application", 100);
-	const messageWithoutCode = normalized.message.replace(/^\\[[A-Z]+\\d{4}\\]\\s*/, "");
+	const messageWithoutCode = normalized.message.replace(/^\[[A-Z]+\d{4}\]\s*/, "");
 	const message = normalized.name && normalized.name !== "Error"
 		? cleanText(normalized.name + ": " + messageWithoutCode, MAX_MESSAGE_LENGTH)
 		: messageWithoutCode;

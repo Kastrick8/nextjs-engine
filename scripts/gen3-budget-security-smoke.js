@@ -48,7 +48,7 @@ try {
 	try { assertEngineBuildBudgets(report); } catch (error) { budgetError = error; }
 	assert.ok(budgetError, "over-budget report should throw");
 	assert.equal(budgetError.code, "NEBLD3002");
-	assert.match(budgetError.message, /route-js 140000\\/120000 bytes/);
+	assert.match(budgetError.message, /route-js 140000\/120000 bytes/);
 	assert.ok(budgetError.action && budgetError.reason);
 
 	const insecureSchema = {

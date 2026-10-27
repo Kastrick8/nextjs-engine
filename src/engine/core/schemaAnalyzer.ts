@@ -85,7 +85,7 @@ const ERROR_BOOK_DIAGNOSTICS: Record<string, { code: string; page: string; actio
 	E004: { code: "NECMP2002", page: "components", action: "Create distinct schema-node objects and remove ancestor cycles." },
 	E005: { code: "NECMP1005", page: "components", action: "Provide the PageSchema root node before compilation." },
 	E006: { code: "NECMP1004", page: "components", action: "Replace the malformed value with a plain node whose type is a non-empty string." },
-	W001: { code: "NEIMG1002", page: "images", action: "Add descriptive alt text or alt=\\\"\\\" for a purely decorative image." },
+	W001: { code: "NEIMG1002", page: "images", action: "Set a meaningful alt or an empty string when decorative." },
 	W002: { code: "NECMP1006", page: "components", action: "Add accessible label/content or non-empty children." },
 	W003: { code: "NECMP1006", page: "components", action: "Add an id/point and matching label association." },
 	W004: { code: "NECMP1008", page: "components", action: "Consider pagination/virtualization for large direct-child collections." },

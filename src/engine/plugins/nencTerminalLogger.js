@@ -6,7 +6,6 @@ const PROJECT_URL = "https://kastrick.vercel.app/project/nextjs-engine";
 const STATE_KEY = Symbol.for("nextjs-engine.nenc-terminal-logger-state");
 const BRIDGE_KEY = Symbol.for("nextjs-engine.next-output-bridge-state");
 const STATUS_REFRESH_MS = 350;
-const ERROR_BOOK_NENC_URL = "https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/nenc#nenc4000";
 const PROJECT_URL = "https://kastrick.vercel.app/project/nextjs-engine";
 
 function getState() {
@@ -66,17 +65,16 @@ function formatDoneLine(message) {
 
 function formatFailedLine(message) {
 	const cleaned = cleanMessage(message);
-	const match = cleaned.match(/\\b([A-Z]+\\d{4})\\b/);
+	const match = cleaned.match(/([A-Z]+\d{4})/);
 	const candidateUrl = match ? resolveEngineErrorHelpUrl(match[1]) : ERROR_BOOK_URL;
 	const code = match && candidateUrl !== ERROR_BOOK_URL ? match[1] : "NENC4000";
 	const body = match && cleaned.startsWith("[" + match[1] + "]")
 		? cleaned.slice(match[0].length + 2).trim()
 		: cleaned;
 	return "[NENC] FAILED [" + code + "] " + body
-		+ "\\n  Help: " + resolveEngineErrorHelpUrl(code)
-		+ "\\n  Project: " + PROJECT_URL;
+		+ "\n  Help: " + resolveEngineErrorHelpUrl(code)
+		+ "\n  Project: " + PROJECT_URL;
 }
-
 function supportsPinnedStatus(stream = process.stdout) {
 	return Boolean(stream && stream.isTTY
 		&& process.env.CI !== "true"
