@@ -231,18 +231,58 @@ async function downloadVerifiedArtifact(root, release) {
 		signal: AbortSignal.timeout(30000),
 	});
 	if (!response.ok) throw new Error("GitHub artifact download returned HTTP " + response.status + ".");
+	const maxBytes = 100 * 1024 * 1024;
 	const declaredSize = Number(response.headers.get("content-length") || 0);
-	if (declaredSize > 100 * 1024 * 1024) throw new Error("Refusing to download an NE package larger than 100 MiB.");
-	const bytes = Buffer.from(await response.arrayBuffer());
-	if (bytes.length > 100 * 1024 * 1024) throw new Error("Refusing to cache an NE package larger than 100 MiB.");
-	const digest = crypto.createHash("sha256").update(bytes).digest("hex");
-	if (digest !== release.sha256) throw new Error("SHA-256 mismatch for " + release.version + ". No project files were changed.");
-	if (bytes.length < 2 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) throw new Error("The channel artifact is not a gzip package archive.");
+	if (declaredSize > maxBytes) throw new Error("Refusing to download an NE package larger than 100 MiB.");
+	if (!response.body) throw new Error("GitHub artifact response did not include a body.");
+
 	const directory = path.join(root, ".nextjs-engine", "cache", "ne-downloads");
 	fs.mkdirSync(directory, { recursive: true });
 	const file = path.join(directory, "nextjs-engine-" + release.version + "-" + release.sha256.slice(0, 12) + ".tgz");
-	fs.writeFileSync(file, bytes);
-	return { file, sha512: crypto.createHash("sha512").update(bytes).digest("base64") };
+	const temporary = file + ".tmp-" + crypto.randomBytes(6).toString("hex");
+	const sha256 = crypto.createHash("sha256");
+	const sha512 = crypto.createHash("sha512");
+	let totalBytes = 0;
+	let header = Buffer.alloc(0);
+	const { Transform } = require("node:stream");
+	const { pipeline } = require("node:stream/promises");
+
+	try {
+		const boundedHash = new Transform({
+			transform(chunk, encoding, callback) {
+				const bytes = Buffer.from(chunk);
+				totalBytes += bytes.length;
+				if (totalBytes > maxBytes) {
+					callback(new Error("Refusing to cache an NE package larger than 100 MiB."));
+					return;
+				}
+				if (header.length < 2) {
+					const needed = 2 - header.length;
+					header = Buffer.concat([header, bytes.subarray(0, needed)]);
+				}
+				sha256.update(bytes);
+				sha512.update(bytes);
+				callback(null, bytes);
+			},
+		});
+		await pipeline(response.body, boundedHash, fs.createWriteStream(temporary, { flags: "wx" }));
+		if (header.length < 2 || header[0] !== 0x1f || header[1] !== 0x8b) {
+			throw new Error("The channel artifact is not a gzip package archive.");
+		}
+		const digest = sha256.digest("hex");
+		if (digest !== release.sha256) {
+			throw new Error("SHA-256 mismatch for " + release.version + ". No project files were changed.");
+		}
+		const integrity = sha512.digest("base64");
+		// The final filename includes the expected SHA-256 prefix. Replace an old
+		// copy only after the new file has streamed and passed its digest check.
+		fs.rmSync(file, { force: true });
+		fs.renameSync(temporary, file);
+		return { file, sha512: integrity };
+	} catch (error) {
+		fs.rmSync(temporary, { force: true });
+		throw error;
+	}
 }
 
 function verifyInstalledVersion(root, release, artifact) {
