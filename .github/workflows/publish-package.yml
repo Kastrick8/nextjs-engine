@@ -336,14 +336,48 @@ jobs:
 
           [[ -f "$TEMPLATE_DIR/package.json" && -f "$TEMPLATE_DIR/tsconfig.json" ]] || { echo "Manifest template missing at $TEMPLATE_DIR." >&2; exit 1; }
           REUSE_EXISTING=false
+          REFRESHED=false
+          TEMPLATE_PROVENANCE="$TEMPLATE_DIR"
           if [[ -e "archive/$TARGET" ]]; then
-            [[ -f "archive/$TARGET/UPSTREAM.md" ]] || { echo "Snapshot exists without provenance; refusing to overwrite." >&2; exit 1; }
-            grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "archive/$TARGET/UPSTREAM.md" || {
-              echo "Snapshot already exists with different or unknown provenance; refusing to overwrite." >&2
-              exit 1
-            }
-            REUSE_EXISTING=true
-          else
+            if [[ "$SNAPSHOT_ACTION" == "refresh" ]]; then
+              [[ "$TRACK" == "alpha" ]] || { echo "Only alpha snapshots can be refreshed." >&2; exit 1; }
+              [[ -f "archive/$TARGET/package.json" && -f "archive/$TARGET/UPSTREAM.md" ]] || {
+                echo "Refresh requires an existing snapshot with package.json and UPSTREAM.md." >&2
+                exit 1
+              }
+
+              # Fail closed if npm metadata cannot be checked. A published version is immutable.
+              npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"
+              node - "$VERSION" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
+          const fs = require("node:fs");
+          const [version, versionsPath] = process.argv.slice(2);
+          const raw = JSON.parse(fs.readFileSync(versionsPath, "utf8"));
+          const versions = Array.isArray(raw) ? raw : [raw];
+          if (versions.map(String).includes(version)) {
+            throw new Error("@kastrick/nextjs-engine@" + version + " is already published to npm and cannot be replaced. Bump source/package.json before publishing new code.");
+          }
+          NODE
+
+              mkdir -p "$RUNNER_TEMP/package-template"
+              cp -a "$TEMPLATE_DIR/." "$RUNNER_TEMP/package-template/"
+              TEMPLATE_DIR="$RUNNER_TEMP/package-template"
+              rm -rf "archive/$TARGET"
+              REFRESHED=true
+              echo "Refreshing unpublished alpha snapshot $VERSION from source commit $PINNED_SHA."
+            else
+              [[ -f "archive/$TARGET/UPSTREAM.md" ]] || { echo "Snapshot exists without provenance; refusing to overwrite." >&2; exit 1; }
+              grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "archive/$TARGET/UPSTREAM.md" || {
+                echo "Snapshot already exists with different or unknown provenance; use snapshot_action=refresh only if the npm version has not been published." >&2
+                exit 1
+              }
+              REUSE_EXISTING=true
+            fi
+          elif [[ "$SNAPSHOT_ACTION" == "refresh" ]]; then
+            echo "No existing snapshot exists at archive/$TARGET; use snapshot_action=create instead." >&2
+            exit 1
+          fi
+
+          if [[ "$REUSE_EXISTING" != "true" ]]; then
             if [[ -d source/src/engine ]]; then ENGINE_DIR="source/src/engine"
             elif [[ -d source/engine ]]; then ENGINE_DIR="source/engine"
             else echo "Pinned source has neither src/engine/ nor engine/; refusing to guess." >&2; exit 1
@@ -366,10 +400,10 @@ jobs:
             fi
             cp -a "$ENGINE_DIR/." "$DEST/engine/"
             printf '%s\n' 'export * from "./engine";' > "$DEST/index.ts"
-            export TARGET VERSION TRACK PINNED_SHA SOURCE_BRANCH ENGINE_DIR TEMPLATE_DIR
+            export TARGET VERSION TRACK PINNED_SHA SOURCE_BRANCH ENGINE_DIR TEMPLATE_DIR TEMPLATE_PROVENANCE
             node --input-type=module <<'NODE'
           import fs from "node:fs";
-          const {TARGET,VERSION,TRACK,PINNED_SHA,SOURCE_BRANCH,ENGINE_DIR,TEMPLATE_DIR}=process.env;
+          const {TARGET,VERSION,TRACK,PINNED_SHA,SOURCE_BRANCH,ENGINE_DIR,TEMPLATE_DIR,TEMPLATE_PROVENANCE}=process.env;
           const root="archive/"+TARGET;
           const manifest=JSON.parse(fs.readFileSync(root+"/package.json","utf8"));
           manifest.name="@kastrick/nextjs-engine";
@@ -391,7 +425,7 @@ jobs:
             "- Source branch: "+SOURCE_BRANCH,
             "- Requested and resolved source commit: "+PINNED_SHA,
             "- Engine source path: "+ENGINE_DIR,
-            "- Manifest/docs template: "+TEMPLATE_DIR,
+            "- Manifest/docs template: "+(TEMPLATE_PROVENANCE||TEMPLATE_DIR),
             "",
             "The engine source was copied from the exact pinned commit above. The manifest name and version were normalized for the Kastrick npm package. Missing optional export targets were removed. This is an immutable source snapshot, not a live link.",
             ""
@@ -413,6 +447,7 @@ jobs:
           echo "target=$TARGET" >> "$GITHUB_OUTPUT"
           echo "pinned_sha=$PINNED_SHA" >> "$GITHUB_OUTPUT"
           echo "reuse_existing=$REUSE_EXISTING" >> "$GITHUB_OUTPUT"
+          echo "refreshed=$REFRESHED" >> "$GITHUB_OUTPUT"
 
       - name: Type-check and inspect packed contents
         working-directory: archive/${{ steps.prepare.outputs.target }}
