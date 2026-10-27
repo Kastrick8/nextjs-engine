@@ -20,10 +20,27 @@ export type {
 	EngineCustomThemeStyles,
 } from "./core/EngineCustomComponent";
 
+export {
+	ERROR_BOOK_URL,
+	createEngineErrorReport,
+	formatEngineErrorReport,
+	reportEngineError,
+	resolveEngineErrorHelpUrl,
+	installEngineUncaughtExceptionMonitor,
+} from "./errors/engineErrorReporter";
+export type {
+	EngineErrorContext,
+	EngineErrorFormatOptions,
+	EngineErrorReport,
+	EngineErrorSeverity,
+	EngineErrorSource,
+} from "./errors/engineErrorReporter";
+
 // Generation 3 compiler/runtime foundation. Server-only request helpers remain
 // in `nextjs-engine/server`; this barrel only exposes browser/server-safe APIs.
 export {
 	ENGINE_DEFAULT_FALLBACK_POLICIES,
+	EngineBuildBudgetError,
 	assertEngineBuildBudgets,
 	assertEngineSecurityDiagnostics,
 	compilePage,
