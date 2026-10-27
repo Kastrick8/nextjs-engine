@@ -1,0 +1,96 @@
+name: Seed package Git tags
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main-3]
+    paths:
+      - ".github/workflows/seed-package-tags.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: seed-package-git-tags
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout package archive
+        uses: actions/checkout@v6
+        with:
+          ref: package/main
+          path: archive
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Create missing immutable version tags and refresh package.latest
+        working-directory: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin refs/heads/package/main:refs/remotes/origin/package/main
+          git checkout --detach refs/remotes/origin/package/main
+          git fetch --tags origin
+          ARCHIVE_SHA="$(git rev-parse HEAD)"
+          node --input-type=module <<'NODE' > "$RUNNER_TEMP/package-tags.tsv"
+          import fs from "node:fs";
+          import path from "node:path";
+          const entries=[];
+          function walk(dir){
+            if(!fs.existsSync(dir)) return;
+            for(const e of fs.readdirSync(dir,{withFileTypes:true})){
+              const full=path.join(dir,e.name);
+              if(e.isDirectory()) walk(full);
+              else if(e.name==="package.json"){
+                const p=JSON.parse(fs.readFileSync(full,"utf8"));
+                if(p.name!=="@kastrick/nextjs-engine") continue;
+                const v=p.version||"";
+                let track="";
+                if(/^\d+\.\d+\.\d+$/.test(v)) track="stable";
+                else if(/^\d+\.\d+\.\d+-alpha\.\d+$/.test(v)) track="alpha";
+                else if(/^\d+\.\d+\.\d+-beta\.\d+$/.test(v)) track="beta";
+                if(track) entries.push({track,version:v,path:full.replaceAll("\\","/")});
+              }
+            }
+          }
+          walk("version"); walk("alpha"); walk("beta");
+          if(!entries.some(x=>x.track==="stable")) throw new Error("No stable snapshots found in package/main.");
+          entries.sort((a,b)=>a.path.localeCompare(b.path));
+          for(const x of entries) console.log([x.track,x.version,x.path].join("\t"));
+          NODE
+
+          while IFS=$'\t' read -r TRACK VERSION PACKAGE_JSON; do
+            case "$TRACK" in
+              stable) TAG="package.$VERSION" ;;
+              alpha) TAG="package-alpha.$VERSION" ;;
+              beta) TAG="package-beta.$VERSION" ;;
+              *) echo "Unsupported track $TRACK" >&2; exit 1 ;;
+            esac
+            if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
+              echo "Keeping existing version tag $TAG"
+            else
+              git tag -a "$TAG" "$ARCHIVE_SHA" -m "@kastrick/nextjs-engine $VERSION ($TRACK archive snapshot)"
+              git push origin "refs/tags/$TAG"
+              echo "Created $TAG -> $ARCHIVE_SHA"
+            fi
+          done < "$RUNNER_TEMP/package-tags.tsv"
+
+          LATEST_STABLE="$(awk -F '\t' '$1 == "stable" {print $2}' "$RUNNER_TEMP/package-tags.tsv" | sort -V | tail -n 1)"
+          [[ -n "$LATEST_STABLE" ]] || { echo "Could not resolve latest stable version." >&2; exit 1; }
+          LATEST_TAG="package.$LATEST_STABLE"
+          git rev-parse -q --verify "refs/tags/$LATEST_TAG^{commit}" >/dev/null || {
+            echo "Missing latest stable version tag $LATEST_TAG." >&2; exit 1;
+          }
+          git tag -f -a package.latest -m "Latest stable @kastrick/nextjs-engine is $LATEST_STABLE" "$LATEST_TAG^{commit}"
+          git push --force origin refs/tags/package.latest
+          echo "package.latest -> $LATEST_TAG ($LATEST_STABLE)"
+          {
+            echo "## Package Git tags seeded"
+            echo "- Archive commit: $ARCHIVE_SHA"
+            echo "- Latest stable Git pointer: package.latest -> $LATEST_TAG"
+            echo "- Registry publication: not performed"
+          } >> "$GITHUB_STEP_SUMMARY"
