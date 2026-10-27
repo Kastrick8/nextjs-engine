@@ -23,23 +23,36 @@ Historical release tags have some stale/mismatched source `package.json.version`
 
 ## Release
 
-The published package is `@kastrick/nextjs-engine`. The normal release path is **Actions → Publish versioned package** on the default branch (`main-3). Choose `main-2` or `main-3`, paste the exact full 40-character source commit SHA, set the full SemVer, and choose the matching track.
+The published package is `@kastrick/nextjs-engine`. Start from **Actions → Publish versioned package** on the default branch (`main-3`). Choose `main-2` or `main-3`, paste the exact full 40-character commit SHA, provide the full SemVer, and select the corresponding track. GitHub Actions copies the pinned source into `package/main`, validates it, creates the correctly named version tag, moves `package.latest` when appropriate, and handles npm publication/dist-tags in that same run.
 
-The workflow verifies the pinned commit is reachable from the selected development branch, copies the engine into a new immutable snapshot, normalizes the manifest to `@kastrick/nextjs-engine`, runs type-check and `npm pack --dry-run`, commits the snapshot to `package/main`, creates the `v<version>` Git tag, and publishes from the same run. You do **not** need to create or push Git tags by hand. Ordinary development commits do not publish automatically.
+### Git tag names
 
-- The newest stable snapshot publishes under npm dist-tag `latest`; install it with `npm install @kastrick/nextjs-engine`.
-- Older stable snapshots receive version-specific `release-<version>` dist-tags so historical releases cannot replace `latest`.
-- The newest alpha snapshot publishes under npm dist-tag `alpha`; install it with `npm install @kastrick/nextjs-engine@alpha`.
+- Latest stable pointer: `package.latest` (moves to the commit for the newest stable version).
+- Stable releases: `package.X.Y.Z`, e.g. `package.2.6.2` or `package.10.52.2`.
+- Alpha releases: `package-alpha.X.Y.Z-alpha.N`, e.g. `package-alpha.3.0.0-alpha.1`.
+- Beta releases: `package-beta.X.Y.Z-beta.N`, e.g. `package-beta.10.52.2-beta.1`.
+
+The `package.latest` name is a Git tag pointer. npm itself has a separate special dist-tag called `latest`; **that** is what makes an unpinned install select the newest stable package.
+
+### npm dist-tags and install commands
+
+- `latest` points to the newest stable version, so `npm install @kastrick/nextjs-engine` installs stable by default.
+- Every stable version gets `package.X.Y.Z`, e.g. `npm install @kastrick/nextjs-engine@package.2.6.2`.
+- Every alpha version gets `package-alpha.X.Y.Z-alpha.N`, e.g. `npm install @kastrick/nextjs-engine@package-alpha.3.0.0-alpha.1`.
+- Every beta version gets `package-beta.X.Y.Z-beta.N`, e.g. `npm install @kastrick/nextjs-engine@package-beta.10.52.2-beta.1`.
+- The newest alpha and beta in each stream also receive moving npm aliases `alpha` and `beta`.
+
+The `Seed package Git tags` workflow backfills version tags for the existing archive and initializes `package.latest`. It never publishes to npm. Ordinary development commits are not automatically published.
 
 ### First publication on npm
 
-npm does not provide a separate “reserve package name” button for this case: the scope package is registered by its first successful publish. Check whether the name already exists:
+npm does not offer a separate reservation-only button: the scope package is registered by its first successful publish. Check whether it already exists:
 
 ```powershell
 npm view @kastrick/nextjs-engine name
 ```
 
-If that returns `@kastrick/nextjs-engine`, the name is already registered. If it returns a not-found error, publish the archived `2.6.2` snapshot once using your npm account that has publish access in the `kastrick` organization:
+If the name is not found, and `@kastrick/nextjs-engine@2.6.2` has not already been published, publish the existing stable snapshot once from an npm account allowed to publish under the `kastrick` organization:
 
 ```powershell
 git fetch origin package/main
@@ -49,7 +62,7 @@ npm login
 npm publish --access public
 ```
 
-Only do that first publication if `@kastrick/nextjs-engine@2.6.2` is not already published. A package version cannot be overwritten.
+A published version is immutable; never retry the first publish if that version already exists.
 
 ### Connect npm to GitHub Actions
 
@@ -59,9 +72,9 @@ After the package exists, open [the package settings](https://www.npmjs.com/pack
 - Repository: `nextjs-engine`
 - Workflow filename: `publish-package.yml` (filename only)
 - Environment: blank
-- Allowed action: direct `npm publish`
+- Allowed actions: direct `npm publish` **and** `npm dist-tag`
 
-The workflow uses OIDC with Node 24 and npm CLI 11.5.1+, so no long-lived npm write token belongs in GitHub Secrets. npm requires a new trusted-publisher setup to complete its first successful publish within two days, so configure it when the first automated release is ready and run that release promptly. See `AGENT.md`.
+Trusted Publisher dist-tag permission is separate from publish permission. The workflow uses OIDC, Node 24 and npm CLI 11.21.0+, so no long-lived npm write token belongs in repository secrets. npm requires a new Trusted Publisher to complete its first successful operation within two days, so configure it when you're ready to run the initial automated release.
 
 ## Legacy branch cleanup
 
