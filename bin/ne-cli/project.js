@@ -221,8 +221,7 @@ async function installWithManager(root, target) {
 }
 
 function readInstalledPackage(root) {
-	return readJson(path.join(root, "node_modules", " @kastrick", "nextjs-engine", "package.json").replace("node_modules" + path.sep + " @kastrick", path.join("node_modules", "@kastrick")), null)
-		|| readJson(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"), null);
+	return readJson(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"), null);
 }
 
 async function downloadVerifiedArtifact(root, release) {
@@ -256,7 +255,7 @@ function verifyInstalledVersion(root, release, artifact) {
 		if (fs.existsSync(lockPath)) {
 			const lock = readJson(lockPath, {});
 			const entry = lock.packages && lock.packages["node_modules/" + PACKAGE_NAME];
-			if (entry && entry.integrity && entry.integrity !== "sha512-" + artifact.sha512) {
+			if (entry && entry.integrity && !entry.integrity.split(/\s+/).includes("sha512-" + artifact.sha512)) {
 				throw new Error("The lockfile integrity did not match the checksum-verified artifact.");
 			}
 		}
