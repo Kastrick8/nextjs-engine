@@ -377,10 +377,10 @@ async function main() {
 	assert.equal(malformedRouteError.line, 2, "parser diagnostics identify the source line");
 	assert.ok(Number.isInteger(malformedRouteError.column) && malformedRouteError.column > 1);
 	assert.ok(malformedRouteError.reason && malformedRouteError.action);
-	assert.match(malformedRouteError.message, /data\\/endpoint\\/malformed-route\\.route:2:/);
+	assert.ok(malformedRouteError.message.includes("data/endpoint/malformed-route.route:2:"), "diagnostic includes exact source location");
 	assert.match(malformedRouteError.message, /Fix:/);
-	assert.match(malformedRouteError.message, /Help: https:\\/\\/kastrick\\.vercel\\.app\\/project\\/nextjs-engine\\/doc\\/error-codes\\/api#neapi1001/);
-	assert.match(malformedRouteError.message, /\\^/);
+	assert.ok(malformedRouteError.message.includes("Help: https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/api#neapi1001"), "diagnostic includes Error Book help URL");
+	assert.ok(malformedRouteError.message.includes("^"), "diagnostic includes a source caret");
 
 	let invalidRouteError;
 	try {
