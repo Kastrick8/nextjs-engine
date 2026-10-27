@@ -83,7 +83,7 @@ jobs:
             echo "Pinned commit is not reachable from $SOURCE_BRANCH." >&2
             exit 1
           }
-          git -C archive fetch --no-tags origin package/main
+          git -C archive fetch --no-tags origin refs/heads/package/main:refs/remotes/origin/package/main
           git -C archive switch --force-create package/main origin/package/main
 
           if [[ "$TRACK" == "alpha" ]]; then
