@@ -157,7 +157,7 @@ const emittedChecks = {
   NESCHED1002: schemaOutput.includes("NESCHED1002"),
   NEBLD2001: invalidLimit.code === "NEBLD2001",
   NEBLD2002: invalidMeasurement.code === "NEBLD2002",
-  NEBLD3002: exceededBudget.code === "NEBLD3002",,
+  NEBLD3002: exceededBudget.code === "NEBLD3002",
   NETH1001: neth1001.code === "NETH1001",
   NETH1002: neth1002.code === "NETH1002",
   NETH2001: neth2001.code === "NETH2001",

@@ -997,17 +997,17 @@ async function run() {
 		], options), "NETH2002", /undefined is not a JSON theme value/);
 
 
-		const longValue = "x".repeat(24);
-		const themeLeafProperties = Array.from({ length: 8 }, (_, index) =>
-			JSON.stringify("long-property-name-" + String(index).padStart(2, "0")) + ": " + JSON.stringify(longValue)).join(", ");
-		const themeEntries = Array.from({ length: 1080 }, () => "{ " + themeLeafProperties + " }").join(", ");
+		const longValue = "x".repeat(80);
+		const themeLeafProperties = Array.from({ length: 5 }, (_, index) =>
+			JSON.stringify("long-property-name-" + String(index).padStart(2, "0") + "k".repeat(108)) + ": " + JSON.stringify(longValue)).join(", ");
+		const themeEntries = Array.from({ length: 420 }, () => "{ " + themeLeafProperties + " }").join(", ");
 		let nestedEntries = "entries";
 		for (let depth = 0; depth < 28; depth += 1) nestedEntries = "{ nested" + depth + ": " + nestedEntries + " }";
 		const oversizedTheme = source(path.join(root, "app", "oversized.tsx"), [
 			'import { createTheme } from "nextjs-engine";',
 			"const entries = [" + themeEntries + "];",
 			"createTheme({ id: \"oversized-output\", payload: " + nestedEntries + " });",
-		].join("\\n"));
+		].join("\n"));
 		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [oversizedTheme], options),
 			"NETH3001", /Compiled \\.etr artifact is too large/);
 

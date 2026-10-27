@@ -381,7 +381,7 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 					const innerCode = error && typeof error.code === "string" && THEME_ERROR_GUIDANCE[error.code]
 						? error.code : "NETH1001";
 					const detail = String(error && error.message ? error.message : error)
-						.replace(/^\\[NETH\\d{4}\\]\\s*/, "");
+						.replace(/^\[NETH\d{4}\]\s*/, "");
 					throw createThemeCompilerError(
 						innerCode,
 						"[EngineTheme] " + fileName + ":" + line + ": " + detail,
@@ -415,8 +415,8 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 		const digest = sha256(canonicalJson(payload));
 		const artifact = { ...payload, sha256: digest };
 		const content = JSON.stringify(sortJson(artifact), null, 2) + "\n";
-		if (content.length > MAX_THEME_LENGTH * 2) {
-			throw createThemeCompilerError("NETH3001", "[EngineTheme] Compiled .etr artifact is too large for group " + item.theme.id + ".");
+		if (content.length > MAX_THEME_LENGTH) {
+			throw createThemeCompilerError("NETH3001", "[EngineTheme] Compiled .etr artifact exceeds the 512 KiB output limit for group " + item.theme.id + ".");
 		}
 		artifacts.push({
 			id: item.theme.id,
