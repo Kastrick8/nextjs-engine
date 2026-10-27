@@ -476,25 +476,15 @@ Before any agent or contributor marks a task complete, the corresponding verific
 | **Subsystem Touched** | **Required Verification Commands** | 
 | --- | --- |
 | **Gen 3 Compiler & Artifact Graph** | `node scripts/gen3-build-compiler-smoke.js && node scripts/gen3-compiler-runtime-smoke.js && node scripts/gen3-adaptive-runtime-smoke.js` | 
-| --- | --- |
 | **Server-First Parity & Tree Shaking** | `node scripts/gen3-server-first-parity-smoke.js && node scripts/gen3-tree-shaking-smoke.js` | 
-| --- | --- |
 | **Style, Theme & Font Compilers** | `node scripts/style-compiler-smoke.js && node scripts/primitive-style-precedence-smoke.js && node scripts/gen3-theme-compiler-smoke.js && node scripts/gen3-font-provider-live-smoke.js` | 
-| --- | --- |
 | **NENC Commands, Wire & Security** | `node scripts/gen3-nenc-plugin-smoke.js && node scripts/gen3-nenc-dispatcher-smoke.js && node scripts/gen3-nenc-command-security-smoke.js && node scripts/gen3-nenc-session-auth-smoke.js && node scripts/gen3-nenc-wire-smoke.js && node scripts/gen3-nenc-backend-proving-smoke.js` | 
-| --- | --- |
 | **APIStatic & Cookie Vault** | `node scripts/api-static-smoke.js && node scripts/api-static-artifact-smoke.js && node scripts/gen3-api-config-path-smoke.js && node scripts/gen3-enginecookie-vault-smoke.js` | 
-| --- | --- |
 | **EngineScroll & Mobile Stability** | `node scripts/engine-scroll-smoke.js && node scripts/engine-scroll-262-smoke.js && node scripts/engine-scroll-progress-smoke.js && node scripts/engine-mobile-scroll-smoke.js` | 
-| --- | --- |
 | **EngineCanvas, Shader & Transitions** | `node scripts/engine-canvas-262-smoke.js && node scripts/engine-shader-smoke.js && node scripts/engine-shader-runtime-smoke.js && node scripts/engine-transitions-smoke.js && node scripts/engine-view-transition-coordinator-smoke.js` | 
-| --- | --- |
 | **EngineDebug & Production Isolation** | `node scripts/gen3-engine-debug-smoke.js && node scripts/gen3-engine-debug-diagnostics-smoke.js && node scripts/gen3-debug-inspectors-smoke.js && node scripts/gen3-engine-debug-production-smoke.js` | 
-| --- | --- |
 | **EngineSEO & Markdown GFM** | `node scripts/gen3-engine-seo-smoke.js && node scripts/gen3-engine-seo-provider-sitemap-smoke.js && node scripts/engine-markdown-gfm-smoke.js` | 
-| --- | --- |
 | **Full Production Proof & Browser E2E** | `node scripts/gen3-production-proof.js && npx playwright test` | 
-| --- | --- |
 
 ## 7. Next.js Engine CLI (`ne`), Channel Manager & Interactive Terminal UI Subsystem
 
@@ -513,9 +503,7 @@ Before any agent or contributor marks a task complete, the corresponding verific
 | **Release Track** | **Source Branch** | **Archive Path (package/main)** | **Key Capabilities Introduced** | 
 | --- | --- | --- | --- |
 | **Gen 2 — `2.7.0`** | `main-2` | `version/2.7/version/2.7` | `ne` CLI binary, Play Store Channel Updater, API compatibility scanner (`ne check`), cross-platform `ne clean`, and backported Gen 3 fixes. | 
-| --- | --- | --- | --- |
 | **Gen 3 — `3.0.0-alpha.2`** | `main-3` | `alpha/version/3.alpha/version/3.0.0-alpha.2` | Native `ne` control plane, GitHub-hosted dynamic Alpha/Latest-Green channel updates, and full Error Code Book diagnostics. | 
-| --- | --- | --- | --- |
 
 #### Universal Experimental Notice Banner
 
@@ -585,15 +573,10 @@ Rather than creating a separate top-level dotfile or exposing a redundant `ne co
 | **Action** | **Classic Scheme (Default)** | **Gamer Scheme** | **Hybrid Scheme** | 
 | --- | --- | --- | --- |
 | **Move Up / Down** | `↑` / `↓` | `W` / `S` | `W` / `S` or `↑` / `↓` | 
-| --- | --- | --- | --- |
 | **Move Left / Right** | `←` / `→` | `A` / `D` | `A` / `D` or `←` / `→` | 
-| --- | --- | --- | --- |
 | **Open / Interact** | `Enter` | `E` | `Enter` or `E` | 
-| --- | --- | --- | --- |
 | **Select / Toggle** | `Space` | `Space` | `Space` | 
-| --- | --- | --- | --- |
 | **Back / Exit** | `Esc` / `Backspace` | `Q` / `Esc` | `Esc`, `Backspace`, or `Q` | 
-| --- | --- | --- | --- |
 
 #### Screen 1: Main TUI Dashboard (`ne`)
 
@@ -681,24 +664,15 @@ Selecting a release opens its full detail card with changelog highlights, peer c
 | **Command** | **Behavior** | 
 | --- | --- |
 | `ne` | Launches the interactive TUI Dashboard. | 
-| --- | --- |
 | `ne dev` | Starts the Next.js Engine development compiler, NENC watcher, and `next dev`. | 
-| --- | --- |
 | `ne build` | Runs `prepare:production`, `ne check`, and compiles the production Next.js build. | 
-| --- | --- |
 | `ne start` | Starts the compiled production server (`next start`). | 
-| --- | --- |
 | `ne check` | Runs Error Code Book diagnostics, deprecation scans, `tsc --noEmit`, and preview compilation. | 
-| --- | --- |
 | `ne clean` | Safely cleans configured Next.js output, `dist`, TypeScript build metadata, and temporary channel downloads on Windows, macOS, and Linux. Preserves channel rollback backups. | 
-| --- | --- |
 | `ne updater` | Opens the interactive Play Store-style release catalog directly. | 
 | `ne update` | Runs the command-line updater; lists channels or installs via `--version=<ver>` / `--channel=<stable|latest-green|alpha>`. | 
-| --- | --- | --- | --- |
 | `ne rollback` | Reverts `@kastrick/nextjs-engine` to the `previous` snapshot recorded in `.nextjs-engine/config/ne.config.json`. | 
-| --- | --- |
 | `ne help` | Renders the CLI command reference (also accepts `-h`, `-help`, `--help`). | 
-| --- | --- |
 
 #### Sequential Command Chaining (`--and` / `-and`) & Bounded Terminal Windows (`--and-terminal` / `-and-terminal`)
 
