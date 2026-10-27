@@ -88,6 +88,8 @@ function validateReleaseManifest(manifest, release) {
 	if (!/^[0-9a-f]{64}$/.test(manifest.sha256 || "")) return null;
 	if (typeof manifest.assetName !== "string" || !/^nextjs-engine-.+\.tgz$/.test(manifest.assetName)) return null;
 	if (manifest.tag !== release.tag_name) return null;
+	if (manifest.floating !== undefined && typeof manifest.floating !== "boolean") return null;
+	if (manifest.floating === true && (manifest.track !== "alpha" || release.tag_name !== "channel-alpha-latest")) return null;
 
 	const asset = Array.isArray(release.assets)
 		? release.assets.find((item) => item.name === manifest.assetName && item.state === "uploaded" && item.size > 0)
@@ -98,6 +100,7 @@ function validateReleaseManifest(manifest, release) {
 		version: manifest.version,
 		track: manifest.track,
 		channel: manifest.track,
+		floating: manifest.floating === true,
 		source: "github",
 		sourceLabel: "GitHub Release",
 		sourceBranch: manifest.sourceBranch || "unknown",
@@ -136,9 +139,10 @@ function stableFromRegistry(metadata) {
 function normaliseCatalog(cache, stable, github) {
 	const byVersion = new Map();
 	for (const release of [...(github || []), ...(stable ? [stable] : [])]) {
-		const existing = byVersion.get(release.version);
+		const key = release.floating ? "floating:" + release.track : release.version;
+		const existing = byVersion.get(key);
 		if (!existing || (release.source === "github" && existing.source !== "github")) {
-			byVersion.set(release.version, release);
+			byVersion.set(key, release);
 		}
 	}
 	const releases = Array.from(byVersion.values()).sort((a, b) => {
@@ -228,13 +232,15 @@ function resolveRelease(catalog, options) {
 	const requestedChannel = options && options.channel;
 
 	if (requestedVersion) {
-		return items.find((item) => item.version === requestedVersion) || null;
+		return items.find((item) => item.version === requestedVersion && !item.floating) || null;
 	}
 	if (requestedChannel === "stable") {
 		return items.filter((item) => item.track === "stable").sort((a, b) => compareVersions(b.version, a.version))[0] || null;
 	}
 	if (requestedChannel === "alpha") {
-		return items.filter((item) => item.track === "alpha").sort((a, b) => compareVersions(b.version, a.version))[0] || null;
+		return items.find((item) => item.track === "alpha" && item.floating)
+			|| items.filter((item) => item.track === "alpha").sort((a, b) => compareVersions(b.version, a.version))[0]
+			|| null;
 	}
 	if (requestedChannel === "beta") {
 		return items.filter((item) => item.track === "beta").sort((a, b) => compareVersions(b.version, a.version))[0] || null;
