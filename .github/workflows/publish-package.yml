@@ -620,10 +620,15 @@ jobs:
         id: registry-version
         env:
           VERSION: ${{ steps.release-meta.outputs.version }}
+          REFRESHED: ${{ steps.prepare.outputs.refreshed }}
         shell: bash
         run: |
           set -euo pipefail
           if npm view "@kastrick/nextjs-engine@$VERSION" version >/dev/null 2>&1; then
+            if [[ "$REFRESHED" == "true" ]]; then
+              echo "::error::Version $VERSION appeared on npm after the refresh preflight. The workflow will not alter dist-tags or attempt a replacement publish."
+              exit 1
+            fi
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             echo "@kastrick/nextjs-engine@$VERSION already exists; preserving the immutable version."
           else
