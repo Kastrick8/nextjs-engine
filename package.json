@@ -3,7 +3,7 @@
   "version": "3.0.0-alpha.1",
   "private": false,
   "scripts": {
-    "build": "npm run prepare:production && npm run type-check && next build",
+    "build": "node ./bin/ne.js build",
     "prepare:production": "node scripts/gen3-prepare-production.js",
     "dev": "next dev",
     "start": "next start",
@@ -14,7 +14,9 @@
     "test:theme:live-fonts": "node scripts/gen3-font-provider-live-smoke.js",
     "test:migration": "node scripts/gen3-migration-diagnostics-smoke.js",
     "test:error-handling": "node scripts/gen3-global-error-handling-smoke.js",
-    "test:error-book": "node scripts/gen3-error-book-smoke.js"
+    "test:error-book": "node scripts/gen3-error-book-smoke.js",
+    "ne": "node ./bin/ne.js",
+    "test:cli": "node scripts/gen3-ne-cli-smoke.js"
   },
   "dependencies": {
     "next": "^16.3.3",
@@ -33,5 +35,8 @@
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.185.0",
     "typescript": "^5.3.0"
+  },
+  "bin": {
+    "ne": "./bin/ne.js"
   }
 }

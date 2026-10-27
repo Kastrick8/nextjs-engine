@@ -110,6 +110,9 @@ jobs:
           node scripts/gen3-debug-inspectors-smoke.js
           node scripts/gen3-incremental-hmr-smoke.js
           node scripts/gen3-budget-security-smoke.js
+      - name: Test Generation 3 NE CLI and Channel Manager
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: npm run test:cli
       - name: Test Generation 3 migration diagnostics
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: npm run test:migration

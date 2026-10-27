@@ -20,8 +20,8 @@ on:
         required: false
         type: string
       version:
-        description: "Full package SemVer, e.g. 2.6.3 or 3.0.0-alpha.2"
-        required: true
+        description: "Source mode reads the version from the pinned package.json; archive mode requires this value"
+        required: false
         type: string
       track:
         description: "Stable or alpha release"
@@ -83,10 +83,15 @@ jobs:
         env:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_COMMIT: ${{ inputs.source_commit }}
-          VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
           TRACK: ${{ inputs.track }}
         run: |
           set -euo pipefail
+          VERSION="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("source/package.json","utf8")); if(typeof p.version!=="string"||!p.version) process.exit(1); process.stdout.write(p.version)')"
+          if [[ -n "$INPUT_VERSION" && "$INPUT_VERSION" != "$VERSION" ]]; then
+            echo "Requested version $INPUT_VERSION does not match the pinned source package.json version $VERSION." >&2
+            exit 1
+          fi
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "source_commit must be a lowercase 40-character SHA." >&2; exit 1; }
           PINNED_SHA="$(git -C source rev-parse HEAD)"
           [[ "$PINNED_SHA" == "$SOURCE_COMMIT" ]] || { echo "Checked-out commit does not match requested pin." >&2; exit 1; }
@@ -158,7 +163,14 @@ jobs:
             else echo "Pinned source has neither src/engine/ nor engine/; refusing to guess." >&2; exit 1
             fi
             DEST="archive/$TARGET"
+            if [[ "$TRACK" == "alpha" || "$VERSION" =~ ^2\.7\.[0-9]+$ ]]; then
+              test -f "source/bin/ne.js" || { echo "This release requires the NE CLI, but source/bin/ne.js is missing." >&2; exit 1; }
+            fi
             mkdir -p "$DEST/engine"
+            if [[ -d source/bin ]]; then
+              mkdir -p "$DEST/bin"
+              cp -a source/bin/. "$DEST/bin/"
+            fi
             cp "$TEMPLATE_DIR/package.json" "$DEST/package.json"
             cp "$TEMPLATE_DIR/tsconfig.json" "$DEST/tsconfig.json"
             for file in README.md DOCUMENT.md; do
@@ -185,6 +197,10 @@ jobs:
           manifest.version=VERSION;
           manifest.private=false;
           manifest.files=(manifest.files||[]).filter(p=>fs.existsSync(root+"/"+p));
+          if(fs.existsSync(root+"/bin/ne.js")){
+            manifest.bin={...(manifest.bin||{}),ne:"./bin/ne.js"};
+            if(!manifest.files.includes("bin")) manifest.files.push("bin");
+          }
           for(const [name,value] of Object.entries(manifest.exports||{})){
             if(name===".") continue;
             const targets=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
@@ -221,6 +237,7 @@ jobs:
           NODE
           echo "target=$TARGET" >> "$GITHUB_OUTPUT"
           echo "pinned_sha=$PINNED_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "reuse_existing=$REUSE_EXISTING" >> "$GITHUB_OUTPUT"
 
       - name: Type-check and inspect packed contents
@@ -236,7 +253,7 @@ jobs:
         working-directory: archive
         env:
           TARGET: ${{ steps.prepare.outputs.target }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.prepare.outputs.version }}
           PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
         shell: bash
         run: |
@@ -253,7 +270,7 @@ jobs:
         id: create-tag
         working-directory: archive
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.prepare.outputs.version }}
           TRACK: ${{ inputs.track }}
           PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
@@ -311,7 +328,7 @@ jobs:
         id: dist-tag
         working-directory: archive
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.prepare.outputs.version }}
           TRACK: ${{ inputs.track }}
         shell: bash
         run: |
@@ -357,7 +374,7 @@ jobs:
       - name: Skip an already-published immutable npm version
         id: registry-version
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.prepare.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -378,7 +395,7 @@ jobs:
       - name: Apply npm dist-tags
         working-directory: archive
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.prepare.outputs.version }}
           VERSION_TAG: ${{ steps.dist-tag.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
         shell: bash
@@ -393,7 +410,7 @@ jobs:
       - name: Release summary
         if: always()
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.prepare.outputs.version }}
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
@@ -694,6 +711,9 @@ jobs:
             echo "Unsupported release tag: $TAG_NAME" >&2; exit 1
           fi
           test -f "$DIR/package.json" && test -f "$DIR/index.ts" && test -d "$DIR/engine"
+          if [[ "$TRACK" == "alpha" || "$TRACK" == "beta" || "$VERSION" =~ ^2\.7\.[0-9]+$ ]]; then
+            test -f "$DIR/bin/ne.js" || { echo "Release requires the ne CLI, but $DIR/bin/ne.js is missing." >&2; exit 1; }
+          fi
           export DIR VERSION TRACK
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
@@ -733,6 +753,7 @@ jobs:
           const versionTag=TRACK==="stable"?"package."+VERSION:TRACK==="alpha"?"package-alpha."+VERSION:"package-beta."+VERSION;
           const channelTag=newest===VERSION?(TRACK==="stable"?"latest":TRACK):"";
           console.log("version="+VERSION);
+          console.log("track="+TRACK);
           console.log("directory="+DIR);
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
@@ -744,7 +765,108 @@ jobs:
           npm install --ignore-scripts --no-package-lock --no-audit --no-fund
           npm run type-check
           npm run pack:check
+      - name: Publish Alpha/Beta snapshot as a GitHub Release (never to npm)
+        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        id: github-prerelease
+        working-directory: ${{ steps.snapshot.outputs.directory }}
+        env:
+          VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
+          TAG_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/ne-release"
+          mkdir -p "$OUT"
+
+          npm pack --ignore-scripts --pack-destination "$OUT" --json > "$OUT/pack.json"
+          PACKED="$(node - "$OUT/pack.json" <<'NODE'
+          const fs = require("node:fs");
+          const result = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          if (!Array.isArray(result) || !result[0] || typeof result[0].filename !== "string") {
+            throw new Error("npm pack did not produce a package filename.");
+          }
+          process.stdout.write(result[0].filename);
+          NODE
+          )"
+          TARBALL="$OUT/nextjs-engine-$VERSION.tgz"
+          mv "$OUT/$PACKED" "$TARBALL"
+          SHA256="$(sha256sum "$TARBALL" | cut -d' ' -f1)"
+          [[ "$SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "Invalid SHA-256 digest." >&2; exit 1; }
+
+          node - "$VERSION" "$TRACK" "$TAG_NAME" "$SHA256" "$TARBALL" "$PWD/UPSTREAM.md" "$OUT/ne-release.json" <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const [version, track, tag, sha256, tarball, provenancePath, outputPath] = process.argv.slice(2);
+          const provenance = fs.readFileSync(provenancePath, "utf8");
+          const sourceBranch = provenance.match(/^- Source branch:\s*([A-Za-z0-9._/-]+)\s*$/m)?.[1];
+          const sourceCommit = provenance.match(/^- Requested and resolved source commit:\s*([0-9a-f]{40})\s*$/m)?.[1];
+          if (!sourceBranch || !sourceCommit) throw new Error("Snapshot provenance is missing its source branch or full commit SHA.");
+          if (!["alpha", "beta"].includes(track)) throw new Error("Only Alpha/Beta artifacts belong in GitHub Releases.");
+          if (track === "alpha" && !/-alpha\.\d+$/.test(version)) throw new Error("Invalid Alpha version: " + version);
+          if (track === "beta" && !/-beta\.\d+$/.test(version)) throw new Error("Invalid Beta version: " + version);
+          const manifest = {
+            schemaVersion: 1,
+            packageName: "@kastrick/nextjs-engine",
+            version,
+            track,
+            tag,
+            sourceBranch,
+            sourceCommit,
+            sha256,
+            assetName: path.basename(tarball),
+            floating: false,
+            summary: "Validated " + track + " release pinned to " + sourceBranch + "@" + sourceCommit + ".",
+          };
+          fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2) + "\n");
+          NODE
+
+          TRACK_UPPER="$(printf '%s' "$TRACK" | tr '[:lower:]' '[:upper:]')"
+          NOTES="$OUT/release-notes.md"
+          {
+            echo "## Nextjs Engine $VERSION"
+            echo
+            echo "- Channel: **$TRACK_UPPER**"
+            echo "- Artifact SHA-256: \`$SHA256\`"
+            echo
+            echo "<!-- NE-CHANNEL-MANIFEST-START -->"
+            cat "$OUT/ne-release.json"
+            echo "<!-- NE-CHANNEL-MANIFEST-END -->"
+          } > "$NOTES"
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            EXISTING="$OUT/existing"
+            mkdir -p "$EXISTING"
+            gh release download "$TAG_NAME" --pattern ne-release.json --dir "$EXISTING" || {
+              echo "Release tag $TAG_NAME exists without a channel manifest; refusing to mutate it." >&2
+              exit 1
+            }
+            node - "$EXISTING/ne-release.json" "$OUT/ne-release.json" <<'NODE'
+          const fs = require("node:fs");
+          const [existingPath, candidatePath] = process.argv.slice(2);
+          const existing = JSON.parse(fs.readFileSync(existingPath, "utf8"));
+          const candidate = JSON.parse(fs.readFileSync(candidatePath, "utf8"));
+          for (const key of ["packageName", "version", "track", "tag", "sourceCommit", "sha256", "assetName"]) {
+            if (existing[key] !== candidate[key]) {
+              throw new Error("GitHub release " + candidate.tag + " is immutable; existing " + key + " differs. Publish a new prerelease version.");
+            }
+          }
+          NODE
+            if ! gh release view "$TAG_NAME" --json assets --jq '.assets[].name' | grep -Fxq "nextjs-engine-$VERSION.tgz"; then
+              echo "GitHub release manifest exists but the package tarball asset is missing." >&2
+              exit 1
+            fi
+            echo "This Alpha/Beta GitHub Release already contains the same pinned artifact; leaving it unchanged."
+          else
+            gh release create "$TAG_NAME" "$TARBALL" "$OUT/ne-release.json" \
+              --title "Nextjs Engine $VERSION ($TRACK_UPPER)" \
+              --notes-file "$NOTES" \
+              --prerelease
+          fi
+
       - name: Skip an already-published immutable npm version
+        if: steps.snapshot.outputs.track == 'stable'
         id: registry-version
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
@@ -758,12 +880,13 @@ jobs:
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Publish the selected snapshot
-        if: steps.registry-version.outputs.should_publish == 'true'
+        if: steps.snapshot.outputs.track == 'stable' && steps.registry-version.outputs.should_publish == 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           DIST_TAG: ${{ steps.snapshot.outputs.version_tag }}
         run: npm publish --access public --tag "$DIST_TAG"
       - name: Apply npm dist-tags
+        if: steps.snapshot.outputs.track == 'stable'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
