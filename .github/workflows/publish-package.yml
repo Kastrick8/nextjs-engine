@@ -157,12 +157,12 @@ jobs:
                   exit 0
                 fi
                 if node - "$SOURCE_VERSION" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
-                const fs = require("node:fs");
-                const [version, file] = process.argv.slice(2);
-                const raw = JSON.parse(fs.readFileSync(file, "utf8"));
-                const versions = Array.isArray(raw) ? raw : [raw];
-                process.exit(versions.map(String).includes(version) ? 0 : 1);
-                NODE
+          const fs = require("node:fs");
+          const [version, file] = process.argv.slice(2);
+          const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+          const versions = Array.isArray(raw) ? raw : [raw];
+          process.exit(versions.map(String).includes(version) ? 0 : 1);
+          NODE
                 then
                   echo "publish=false" >> "$GITHUB_OUTPUT"
                   echo "::notice::@kastrick/nextjs-engine@$SOURCE_VERSION already exists on npm; bump main-2 package.json before the next stable publication."
