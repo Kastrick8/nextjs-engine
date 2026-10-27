@@ -10,6 +10,8 @@ import type {
 	EngineThemeTemplatePlacement,
 } from "../../schema/types";
 import { dispatchEngineThemeDataEvent } from "./dataApi";
+import type { EngineComponentRegistry } from "../../core/registry";
+import { getScopedEngineThemeContribution, listScopedEngineThemeContributions, registerScopedEngineThemeContribution, unregisterScopedEngineThemeContribution } from "./themeRegistry";
 
 export interface EngineThemeTemplateContext {
 	themeId?: string;
@@ -24,6 +26,8 @@ export interface EngineThemeTemplateContext {
 	tone?: string;
 	title?: string;
 	dataApiContext?: Pick<EngineThemeDataEventContext, "existing" | "incoming" | "metadata">;
+	/** Internal app scope; removed before invoking trusted template adapters. */
+	registry?: EngineComponentRegistry;
 	[key: string]: unknown;
 	slots?: Readonly<Record<string, ReactNode>>;
 }
@@ -160,9 +164,8 @@ function compileTemplate(definition: EngineThemeTemplateDefinition): CompiledTem
 		if (!TEMPLATE_ADAPTER_ID.test(definition.adapterId) || RESERVED_IDS.has(definition.adapterId)) {
 			return { error: "Template adapter ID is invalid." };
 		}
-		if (!templateAdapters.has(definition.adapterId)) {
-			return { error: "Template adapter '" + definition.adapterId + "' is not registered locally." };
-		}
+		// Adapter availability is resolved at render time, per registry. A cached
+		// compiled definition must not capture another application’s adapter map.
 		return {};
 	}
 	if (!definition.schema) return { error: "Template needs a schema or a local adapter ID." };
@@ -314,22 +317,26 @@ function renderCompiledNode(
  * Register a trusted local React component adapter. Remote theme data can only
  * reference its ID; the component code must already exist in the consumer app.
  */
-export function registerEngineThemeTemplateAdapter(id: string, adapter: EngineThemeTemplateAdapter): void {
+export function registerEngineThemeTemplateAdapter(id: string, adapter: EngineThemeTemplateAdapter, registry?: EngineComponentRegistry): void {
 	if (typeof id !== "string" || !TEMPLATE_ADAPTER_ID.test(id) || RESERVED_IDS.has(id)) {
 		throw new TypeError("EngineTheme template adapter ID is invalid.");
 	}
 	if (typeof adapter !== "function") throw new TypeError("EngineTheme template adapter must be a local React component.");
+	if (registry) {
+		registerScopedEngineThemeContribution(registry, "template-adapter", id, adapter);
+		return;
+	}
 	const existing = templateAdapters.get(id);
 	if (existing && existing !== adapter) throw new Error("EngineTheme template adapter '" + id + "' is already registered.");
 	templateAdapters.set(id, adapter);
 }
 
-export function unregisterEngineThemeTemplateAdapter(id: string): boolean {
-	return templateAdapters.delete(id);
+export function unregisterEngineThemeTemplateAdapter(id: string, registry?: EngineComponentRegistry): boolean {
+	return registry ? unregisterScopedEngineThemeContribution(registry, "template-adapter", id) : templateAdapters.delete(id);
 }
 
-export function listEngineThemeTemplateAdapters(): string[] {
-	return [...templateAdapters.keys()].sort();
+export function listEngineThemeTemplateAdapters(registry?: EngineComponentRegistry): string[] {
+	return registry ? listScopedEngineThemeContributions(registry, "template-adapter") : [...templateAdapters.keys()].sort();
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -534,7 +541,7 @@ export function renderEngineThemeTemplate(
 			...(incoming !== undefined ? { incoming } : {}),
 			...(Object.keys(metadata).length ? { metadata } : {}),
 		};
-		const dispatched = dispatchEngineThemeDataEvent(eventType, binding.handlerId, eventContext);
+		const dispatched = dispatchEngineThemeDataEvent(eventType, binding.handlerId, eventContext, context.registry);
 		if (isPlainRecord(dispatched) && isTemplateMerge(dispatched.operation) && Object.prototype.hasOwnProperty.call(dispatched, "value")) {
 			merge = dispatched.operation;
 			slots.dataResult = safeDataResultNode(dispatched.value);
@@ -553,9 +560,12 @@ export function renderEngineThemeTemplate(
 	const templateContext = { ...context, slots };
 	let themed: ReactNode;
 	if (typeof definition.adapterId === "string") {
-		const adapter = templateAdapters.get(definition.adapterId);
+		const adapter = context.registry
+			? getScopedEngineThemeContribution<EngineThemeTemplateAdapter>(context.registry, "template-adapter", definition.adapterId)
+			: templateAdapters.get(definition.adapterId);
 		if (!adapter) return undefined;
-		themed = createElement(adapter, templateContext);
+		const { registry: _registry, ...adapterContext } = templateContext;
+		themed = createElement(adapter, adapterContext);
 	} else {
 		if (!compiled.node) return undefined;
 		themed = renderCompiledNode(compiled.node, templateContext, 0, "theme-template");
