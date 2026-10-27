@@ -7,10 +7,10 @@
 
 | Code | Diagnostic | Status |
 |---|---|---|
-| [NESEO1001](#neseo1001) | SEO schema invalid | Assigned |
-| [NESEO2001](#neseo2001) | Canonical URL invalid | Assigned |
-| [NESEO3001](#neseo3001) | JSON-LD serialization failed | Assigned |
-| [NESEO4001](#neseo4001) | Sitemap route discovery failed | Assigned |
+| [NESEO1001](#neseo1001) | SEO schema invalid | Emitted |
+| [NESEO2001](#neseo2001) | Canonical URL invalid | Emitted |
+| [NESEO3001](#neseo3001) | JSON-LD serialization failed | Emitted |
+| [NESEO4001](#neseo4001) | Sitemap route discovery failed | Emitted |
 
 ## Details
 
@@ -18,19 +18,19 @@
 
 **SEO schema invalid**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-An SEO builder could not normalize metadata/structured data.
+The EngineSEO schema could not be serialized to the JSON-safe form required by generated metadata and sitemap files.
 
 **Why it happens**
 
-Field may have unsupported type or conflicting declaration.
+The schema may contain circular references, functions, symbols, unsupported values, or an undefined top-level value.
 
 **Recommended action**
 
-Use the reported field and versioned EngineSEO reference.
+Use plain JSON-compatible data with finite numbers; remove circular references, functions and symbols. Do not place environment secrets in public SEO metadata.
 
 **Help URL**
 
@@ -42,19 +42,19 @@ Use the reported field and versioned EngineSEO reference.
 
 **Canonical URL invalid**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-Canonical is not an acceptable absolute HTTP(S) URL.
+The canonical value is malformed or resolves to a protocol other than HTTP or HTTPS.
 
 **Why it happens**
 
-Relative path, malformed origin or untrusted request host may be used.
+A malformed URL/base origin or a javascript:, data:, mailto: or other unsupported scheme may be present.
 
 **Recommended action**
 
-Use a trusted public origin and handle query/hash deliberately.
+Use a valid HTTP(S) site URL and an HTTP(S) canonical target. Relative page paths are accepted when a valid site URL can resolve them.
 
 **Help URL**
 
@@ -66,19 +66,19 @@ Use a trusted public origin and handle query/hash deliberately.
 
 **JSON-LD serialization failed**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-Structured data could not be safely serialized.
+JSON-LD could not be serialized to a JSON string.
 
 **Why it happens**
 
-Object may contain cycles, unsupported values or non-finite numbers.
+A cycle, BigInt or unsupported value may make JSON.stringify throw; a value that does not produce a string is rejected explicitly.
 
 **Recommended action**
 
-Use JSON-compatible values and safe serializer; don't concatenate raw JSON-LD into script markup.
+Use JSON-compatible structured-data values and keep the serializer's escaping of <, > and & enabled. Do not hand-concatenate untrusted JSON-LD into a script element.
 
 **Help URL**
 
@@ -90,19 +90,19 @@ Use JSON-compatible values and safe serializer; don't concatenate raw JSON-LD in
 
 **Sitemap route discovery failed**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-EngineSEO could not produce the expected public route set.
+EngineSEO threw while scanning App Router or Pages Router directories for sitemap routes.
 
 **Why it happens**
 
-Selected route roots may be unreadable/unsupported.
+The route directory may be unreadable, or filesystem access failed while traversing the application tree.
 
 **Recommended action**
 
-Inspect discovery output; omit unknown dates instead of inventing timestamps.
+Inspect the route-directory path and original cause. Check filesystem permissions and retry after fixing the underlying read error; do not invent replacement routes or timestamps.
 
 **Help URL**
 

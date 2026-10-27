@@ -100,6 +100,43 @@ async function run() {
 	assert.deepEqual(jsonLd.map((entry) => entry["@type"]), ["WebSite", "WebPage"]);
 	assert.doesNotMatch(serializeEngineSEOJsonLd([{ "@type": "WebPage", name: "</script><script>alert(1)</script>" }]), /<script>/);
 
+	const cyclicJsonLd = { "@type": "WebPage", name: "cyclic" };
+	cyclicJsonLd.self = cyclicJsonLd;
+	let jsonLdDiagnostic;
+	try {
+		serializeEngineSEOJsonLd([cyclicJsonLd]);
+	} catch (error) {
+		jsonLdDiagnostic = error;
+	}
+	assert.equal(jsonLdDiagnostic?.code, "NESEO3001");
+	assert.ok(jsonLdDiagnostic.reason && jsonLdDiagnostic.action);
+	assert.ok(jsonLdDiagnostic.cause instanceof Error);
+
+	let canonicalDiagnostic;
+	try {
+		compileEngineSEOMetadata({
+			site: { name: "Kastrick", url: "https://kastrick.example" },
+			page: { canonical: "javascript:alert(1)" },
+		});
+	} catch (error) {
+		canonicalDiagnostic = error;
+	}
+	assert.equal(canonicalDiagnostic?.code, "NESEO2001");
+	assert.ok(canonicalDiagnostic.reason && canonicalDiagnostic.action);
+
+	const cyclicSEO = { site: { name: "Kastrick", url: "https://kastrick.example" }, sitemap: { routes: "auto" } };
+	cyclicSEO.circular = cyclicSEO;
+	let schemaDiagnostic;
+	try {
+		prepareEngineSEORoutes({ rootDir: root, schema: cyclicSEO });
+	} catch (error) {
+		schemaDiagnostic = error;
+	}
+	assert.equal(schemaDiagnostic?.code, "NESEO1001");
+	assert.ok(schemaDiagnostic.reason && schemaDiagnostic.action);
+	assert.ok(schemaDiagnostic.cause instanceof Error);
+
+
 	const builder = createEngineSEO(schema);
 	builder.set.title("Setter title").set.description("Setter description").set.preview.customImage("/setter.png");
 	const builderMetadata = await builder.generateMetadata({}, Promise.resolve({}));
@@ -188,6 +225,33 @@ async function run() {
 	assert.equal(capture.publicUrl, "/seo/engine-seo.png");
 	assert.ok(calls.some(([name]) => name === "screenshot"));
 	assert.equal(calls.at(-1)[0], "close");
+
+
+	const originalReaddirSync = fs.readdirSync;
+	let injectedRouteReadFailure = false;
+	fs.readdirSync = function engineSEOSmokeReaddir(directory, ...args) {
+		if (!injectedRouteReadFailure && path.resolve(String(directory)) === path.join(root, "app")) {
+			injectedRouteReadFailure = true;
+			throw new Error("injected route directory read failure");
+		}
+		return originalReaddirSync.call(fs, directory, ...args);
+	};
+	let discoveryDiagnostic;
+	try {
+		prepareEngineSEORoutes({
+			rootDir: root,
+			modulePath: path.resolve(__dirname, "../src/engine/core/engineseo/index.ts"),
+			schema: { site: { name: "Kastrick", url: "https://kastrick.example" }, sitemap: { routes: "auto" } },
+		});
+	} catch (error) {
+		discoveryDiagnostic = error;
+	} finally {
+		fs.readdirSync = originalReaddirSync;
+	}
+	assert.equal(injectedRouteReadFailure, true, "fixture interrupts the actual route-tree scan");
+	assert.equal(discoveryDiagnostic?.code, "NESEO4001");
+	assert.ok(discoveryDiagnostic.reason && discoveryDiagnostic.action);
+	assert.ok(discoveryDiagnostic.cause instanceof Error);
 
 	console.log("Generation 3 EngineSEO schema and route smoke: ok");
 }

@@ -56,6 +56,10 @@ const remoteThemeSource = source("src/engine/component/engineTheme/remoteTheme.t
 const fontCompilerSource = source("src/engine/compiler/font/3/compiler.ts");
 const apiStaticCompilerSource = source("src/engine/plugins/apiStaticCompiler.js");
 const apiStaticRuntimeSource = source("src/engine/core/APIStatic.ts");
+const seoCoreSource = source("src/engine/core/engineseo/EngineSEO.ts");
+const seoJsonLdSource = source("src/engine/core/engineseo/EngineSEOJsonLd.tsx");
+const seoPluginSource = source("src/engine/plugins/engineSEOPlugin.js");
+const seoDiagnosticsSource = source("src/engine/core/engineseo/EngineSEODiagnostics.ts");
 const errorFrom = (operation) => {
   try { operation(); } catch (error) { return error; }
   assert.fail("Expected operation to throw.");
@@ -174,6 +178,10 @@ const emittedChecks = {
   NEAPI2002: apiStaticRuntimeSource.includes('readonly code = "NEAPI2002"'),
   NEAPI4001: apiStaticRuntimeSource.includes('readonly code = "NEAPI4001"'),
   NEAPI8001: apiStaticCompilerSource.includes("NEAPI8001"),
+  NESEO1001: seoPluginSource.includes('createEngineSEOPluginDiagnosticError("NESEO1001"') && seoDiagnosticsSource.includes('"NESEO1001"'),
+  NESEO2001: seoCoreSource.includes('createEngineSEODiagnosticError("NESEO2001"'),
+  NESEO3001: seoJsonLdSource.includes('createEngineSEODiagnosticError("NESEO3001"'),
+  NESEO4001: seoPluginSource.includes('createEngineSEOPluginDiagnosticError("NESEO4001"') && seoDiagnosticsSource.includes('"NESEO4001"'),
   NESEC2001: remoteThemeSource.includes('createRemoteThemeError("NESEC2001"'),
   NESEC4001: remoteThemeSource.includes('createRemoteThemeError("NESEC4001"'),
   NESEC8001: remoteThemeSource.includes('createRemoteThemeError("NESEC8001"'),

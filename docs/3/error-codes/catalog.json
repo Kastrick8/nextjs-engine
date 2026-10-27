@@ -513,25 +513,25 @@
     },
     {
       "code": "NESEO1001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "SEO schema invalid",
       "doc": "seo.md#neseo1001"
     },
     {
       "code": "NESEO2001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Canonical URL invalid",
       "doc": "seo.md#neseo2001"
     },
     {
       "code": "NESEO3001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "JSON-LD serialization failed",
       "doc": "seo.md#neseo3001"
     },
     {
       "code": "NESEO4001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Sitemap route discovery failed",
       "doc": "seo.md#neseo4001"
     },

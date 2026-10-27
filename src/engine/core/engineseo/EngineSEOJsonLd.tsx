@@ -1,6 +1,7 @@
 import React from "react";
 import { compileEngineSEOJsonLd } from "./EngineSEO";
 import type { EngineSEOJsonLdNode, EngineSEOSchema } from "./EngineSEOTypes";
+import { createEngineSEODiagnosticError } from "./EngineSEODiagnostics";
 
 export function serializeEngineSEOJsonLd(data: EngineSEOJsonLdNode[]): string {
 	const value = data.length === 1
@@ -9,7 +10,16 @@ export function serializeEngineSEOJsonLd(data: EngineSEOJsonLdNode[]): string {
 			"@context": "https://schema.org",
 			"@graph": data.map(({ "@context": _context, ...node }) => node),
 		};
-	return JSON.stringify(value)
+	let encoded: string | undefined;
+	try {
+		encoded = JSON.stringify(value);
+	} catch (cause) {
+		throw createEngineSEODiagnosticError("NESEO3001", "JSON-LD value is not serializable as JSON.", cause);
+	}
+	if (typeof encoded !== "string") {
+		throw createEngineSEODiagnosticError("NESEO3001", "JSON-LD serialization did not produce a JSON string.");
+	}
+	return encoded
 		.replace(/</g, "\\u003c")
 		.replace(/>/g, "\\u003e")
 		.replace(/&/g, "\\u0026");
