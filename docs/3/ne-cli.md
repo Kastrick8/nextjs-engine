@@ -38,6 +38,14 @@ After the package's bin entry has shipped:
 
 The channel feed is fetched from the npm registry and the public GitHub Releases API. A small cache is stored at **.nextjs-engine/cache/ne-channels-cache.json**; an offline cache is used only for a bounded period.
 
+### Rolling Latest Alpha
+
+The `ne-alpha-channel.yml` workflow reacts to a successful `Engine runtime CI` push on `main-3`, then waits for `Engine cross-browser compatibility` to pass for the exact same commit. It skips pull-request runs, skips failed/timeout browser checks, and skips an older completion when `main-3` has advanced. It does not gate on Vercel or unrelated external status rollups.
+
+On a passing current `main-3` head, the workflow packages that exact commit and updates the GitHub prerelease tagged `channel-alpha-latest`. Its manifest has `floating: true` and an artifact name that includes the source-commit prefix. The release tag and manifest move; each commit-specific tarball URL remains available so the lockfile can pin the artifact actually installed. The workflow does **not** publish the rolling Alpha to npm.
+
+`ne update --channel alpha` selects `channel-alpha-latest` before the newest named Alpha release. `ne update --version 3.0.0-alpha.2` deliberately selects a named, non-floating artifact rather than the moving channel, when that named release exists. Latest Green remains the highest available Stable/Beta version and never includes Alpha.
+
 ### GitHub release asset contract
 
 Alpha/Beta GitHub prereleases attach a tarball named like **nextjs-engine-3.0.0-alpha.2.tgz** and a **ne-release.json** asset. The GitHub release notes embed the same JSON between the following markers:
