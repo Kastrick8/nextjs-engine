@@ -35,8 +35,11 @@ function warnOnce(rootDirectory, code, message, enabled) {
 	const key = path.resolve(rootDirectory) + "|" + code + "|" + message;
 	if (state.reported.has(key)) return;
 	state.reported.add(key);
-	console.warn("[nextjs-engine][errors][" + code + "] WARNING " + message
-		+ "\n  See docs/3/global-error-handling.md for the safe integration path.");
+	const normalizedCode = String(code || "NECFG2001").toUpperCase();
+	const helpUrl = "https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/config#" + normalizedCode.toLowerCase();
+	console.warn("[nextjs-engine][errors][" + normalizedCode + "] WARNING " + message
+		+ "\n  Help: " + helpUrl
+		+ "\n  Project: https://kastrick.vercel.app/project/nextjs-engine");
 }
 
 function writeGeneratedFile(rootDirectory, filename, contents, options = {}) {
@@ -48,7 +51,7 @@ function writeGeneratedFile(rootDirectory, filename, contents, options = {}) {
 	}
 	if (existing !== null && !existing.startsWith(GENERATED_MARKER)) {
 		const relative = path.relative(rootDirectory, filename).split(path.sep).join("/");
-		warnOnce(rootDirectory, options.warningCode || "WNE001",
+		warnOnce(rootDirectory, options.warningCode || "NECFG2001",
 			"Preserving user-owned " + relative + "; the Engine will not overwrite custom error handling. Integrate reportEngineError() manually if you want its structured diagnostics.",
 			options.development);
 		return { path: relative, status: "preserved" };
@@ -62,7 +65,7 @@ function writeGeneratedFile(rootDirectory, filename, contents, options = {}) {
 		};
 	} catch (error) {
 		const relative = path.relative(rootDirectory, filename).split(path.sep).join("/");
-		warnOnce(rootDirectory, "WNE002",
+		warnOnce(rootDirectory, "NECFG5001",
 			"Could not generate " + relative + ": " + (error && error.message ? error.message : String(error)),
 			true);
 		return { path: relative, status: "failed" };
@@ -84,7 +87,7 @@ function errorRouteSource(importPath) {
 		"export default function EngineRouteError({ error, reset }: EngineRouteErrorProps) {",
 		"\tuseEffect(() => {",
 		"\t\treportEngineError(error, {",
-		'\t\t\tcode: "NE-ROUTE-001",',
+		'\t\t\tcode: "NECORE4001",',
 		'\t\t\tsource: "next-route-error",',
 		"\t\t\troute: window.location.pathname,",
 		"\t\t\tdigest: error.digest,",
@@ -120,7 +123,7 @@ function globalErrorRouteSource(importPath) {
 		"export default function EngineGlobalError({ error, unstable_retry }: EngineGlobalErrorProps) {",
 		"\tuseEffect(() => {",
 		"\t\treportEngineError(error, {",
-		'\t\t\tcode: "NE-GLOBAL-001",',
+		'\t\t\tcode: "NECORE4002",',
 		'\t\t\tsource: "next-global-error",',
 		"\t\t\troute: window.location.pathname,",
 		"\t\t\tdigest: error.digest,",
@@ -160,7 +163,7 @@ function instrumentationSource(importPath) {
 		"\tconst diagnosticError = error instanceof Error ? error : new Error(String(error));",
 		'\tconst digest = typeof errorValue?.digest === "string" ? errorValue.digest : undefined;',
 		"\treportEngineError(diagnosticError, {",
-		'\t\tcode: "NE-REQUEST-001",',
+		'\t\tcode: "NECORE4003",',
 		'\t\tsource: "next-request",',
 		"\t\troute: context && context.routePath,",
 		"\t\trequestPath: request && request.path,",
@@ -194,8 +197,8 @@ function prepareEngineErrorHandling(options = {}) {
 	if (appDir) {
 		const routeImport = reporterSpecifier(rootDirectory, appDir);
 		const routeFiles = [
-			{ name: "error.tsx", contents: errorRouteSource(routeImport), warningCode: "WNE003" },
-			{ name: "global-error.tsx", contents: globalErrorRouteSource(routeImport), warningCode: "WNE004" },
+			{ name: "error.tsx", contents: errorRouteSource(routeImport), warningCode: "NECFG2001" },
+			{ name: "global-error.tsx", contents: globalErrorRouteSource(routeImport), warningCode: "NECFG2002" },
 		];
 		for (const route of routeFiles) {
 			const result = writeGeneratedFile(rootDirectory, path.join(appDir, route.name), route.contents, {
@@ -225,7 +228,7 @@ function prepareEngineErrorHandling(options = {}) {
 		rootDirectory,
 		instrumentationFile,
 		instrumentationSource(instrumentationImport),
-		{ development, warningCode: "WNE005" },
+		{ development, warningCode: "NECFG2003" },
 	);
 	if (instrumentationResult.status === "preserved") preserved.push(instrumentationResult.path);
 	else if (instrumentationResult.status === "generated" || instrumentationResult.status === "unchanged") generated.push(instrumentationResult.path);

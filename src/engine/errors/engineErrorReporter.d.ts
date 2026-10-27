@@ -25,6 +25,8 @@ export interface EngineErrorContext {
 	digest?: string;
 	detail?: string;
 	componentStack?: string;
+	reason?: string;
+	action?: string;
 	includeStack?: boolean;
 }
 
@@ -35,6 +37,8 @@ export interface EngineErrorReport {
 	code: string;
 	source: EngineErrorSource;
 	message: string;
+	reason?: string;
+	action?: string;
 	location?: string;
 	route?: string;
 	requestPath?: string;
@@ -44,7 +48,11 @@ export interface EngineErrorReport {
 }
 
 export declare function createEngineErrorReport(error: unknown, context?: EngineErrorContext): EngineErrorReport;
-export declare function formatEngineErrorReport(report: EngineErrorReport): string;
+export interface EngineErrorFormatOptions { color?: boolean; }
+
+export declare const ERROR_BOOK_URL: string;
+export declare function resolveEngineErrorHelpUrl(code: string): string;
+export declare function formatEngineErrorReport(report: EngineErrorReport, options?: EngineErrorFormatOptions): string;
 
 /** Report a structured error to the console and dispatch the browser-only engine:error event. */
 export declare function reportEngineError(error: unknown, context?: EngineErrorContext): EngineErrorReport;

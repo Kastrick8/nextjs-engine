@@ -95,6 +95,8 @@ assert.match(formatted, /Route: \/guide/, "route query strings are not printed")
 assert.match(formatted, /Request: GET \/guide/, "request query strings are not printed");
 assert.match(formatted, /Caused by: TypeError: Underlying lookup failed/, "nested error causes are shown");
 assert.ok(formatted.includes("https://kastrick.vercel.app/project/nextjs-engine"), "terminal diagnostics include the Kastrick website project link");
+assert.ok(formatted.includes("Error Book · NE-TEST-01"), "formatted report names the Error Book");
+assert.ok(formatted.includes("https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes"), "custom codes fall back to the book index");
 assert.doesNotMatch(formatted, /secret-token|very-secret|private-route-token|private-query-token|private-api-key/, "token-like values are redacted");
 assert.doesNotMatch(formatted, /\u001b\[/, "plain-text mode emits no ANSI escapes");
 const colored = formatEngineErrorReport(report, { color: true });
@@ -110,6 +112,7 @@ try {
 }
 assert.match(consoleMessages.join("\n"), /NE-TEST-02/, "reportEngineError writes structured terminal output");
 assert.ok(consoleMessages.join("\n").includes("https://kastrick.vercel.app/project/nextjs-engine"), "runtime logging includes the Kastrick website project link");
+assert.ok(consoleMessages.join("\n").includes("Help:"), "runtime logging includes an Error Book help URL");
 
 const monitorCount = process.listenerCount("uncaughtExceptionMonitor");
 const stopMonitor = installEngineUncaughtExceptionMonitor();

@@ -15,10 +15,12 @@ export {
 	createEngineErrorReport,
 	formatEngineErrorReport,
 	reportEngineError,
+	resolveEngineErrorHelpUrl,
 	installEngineUncaughtExceptionMonitor,
 } from "./errors/engineErrorReporter";
 export type {
 	EngineErrorContext,
+	EngineErrorFormatOptions,
 	EngineErrorReport,
 	EngineErrorSeverity,
 	EngineErrorSource,

@@ -3,6 +3,7 @@
 const STATE_KEY = Symbol.for("nextjs-engine.nenc-terminal-logger-state");
 const BRIDGE_KEY = Symbol.for("nextjs-engine.next-output-bridge-state");
 const STATUS_REFRESH_MS = 350;
+const ERROR_BOOK_NENC_URL = "https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/nenc#nenc4000";
 
 function getState() {
 	if (!globalThis[STATE_KEY]) {
@@ -60,7 +61,8 @@ function formatDoneLine(message) {
 }
 
 function formatFailedLine(message) {
-	return "[NENC] FAILED " + cleanMessage(message);
+	return "[NENC] FAILED [NENC4000] " + cleanMessage(message)
+		+ "\n  Help: " + ERROR_BOOK_NENC_URL;
 }
 
 function supportsPinnedStatus(stream = process.stdout) {
@@ -256,7 +258,7 @@ function writeLine(line) {
 	const state = getState();
 	try {
 		state.internalWrite = true;
-		process.stdout.write(cleanMessage(line) + "\n");
+		process.stdout.write(String(line ?? "").split(/\r?\n/).map(cleanMessage).join("\n") + "\n");
 	} catch {
 		// Logging must never break a compiler or an asset request.
 	} finally {

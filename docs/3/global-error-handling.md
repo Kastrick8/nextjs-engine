@@ -6,7 +6,7 @@
 
 During Next.js configuration, the Engine creates default `error.tsx`, `global-error.tsx`, and `instrumentation.ts` entry points when the corresponding files are absent. Every generated file starts with an ownership marker; the plugin updates its own generated files but never overwrites a user-owned file.
 
-`instrumentation.ts` uses Next.js `onRequestError` to report server-side route/render/action errors and `register()` installs a Node `uncaughtExceptionMonitor`. That monitor prints a structured summary before Node's default fatal-error handler runs. It deliberately does not install an `uncaughtException` handler, suppress the crash, or change Node's normal exit behavior.
+`instrumentation.ts` uses Next.js `onRequestError` to report server-side route/render/action errors and `register()` installs a Node `uncaughtExceptionMonitor`. Generated boundaries and the request hook use stable `NECORE` codes from the [Generation 3 Error Code Book](./error-codes/README.md). That monitor prints a structured summary before Node's default fatal-error handler runs. It deliberately does not install an `uncaughtException` handler, suppress the crash, or change Node's normal exit behavior.
 
 ## Terminal and VS Code diagnostics
 
@@ -19,13 +19,14 @@ Secrets are filtered from messages, stack text, URL query values, and error caus
 Example (colors omitted here):
 
 ~~~text
-[nextjs-engine][ERROR NE-REQUEST-001] TypeError: Cannot read properties of undefined
+[nextjs-engine][ERROR NECORE4003] TypeError: Cannot read properties of undefined
   Source: next-request
   Where: app/guide/page.tsx:42:17
          Open the file at this line/column in your editor (Ctrl+Click in supported terminals).
   Route: /guide
   Request: GET /guide
   Caused by: TypeError: ...
+  Help: Error Book · NECORE4003 — https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/core#necore4003
   Project: Kastrick · Website — https://kastrick.vercel.app/project/nextjs-engine
 ~~~
 
@@ -60,6 +61,6 @@ If a project already owns `app/error.tsx`, `app/global-error.tsx`, or `instrumen
 
 Next.js route/global error boundaries cover render failures in their boundary scope; `onRequestError` covers server request errors. The Node monitor observes uncaught fatal exceptions without swallowing them. Expected errors, event-handler failures, errors in detached asynchronous work, and errors from a custom boundary itself still need appropriate `try/catch`, an error boundary, or an explicit call to `reportEngineError()`.
 
-Run `npm run test:error-handling` for the focused smoke test. The regular Generation 3 CI job also type-checks and builds the Next.js integration app.
+Run `npm run test:error-handling` and `npm run test:error-book` for the focused reporter and Error Book tests. The regular Generation 3 CI job also type-checks and builds the Next.js integration app.
 
-See [Generation 3 documentation](./index.md), [migration from Gen 2](./migration-from-2x.md), and the [Kastrick Nextjs Engine project page](https://kastrick.vercel.app/project/nextjs-engine).
+See the [Generation 3 Error Code Book](./error-codes/README.md), [Generation 3 documentation](./index.md), [migration from Gen 2](./migration-from-2x.md), and the [Kastrick Nextjs Engine project page](https://kastrick.vercel.app/project/nextjs-engine).

@@ -153,6 +153,9 @@ jobs:
       - name: Test Generation 3 global error reporting
         if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
         run: npm run test:error-handling
+      - name: Test Generation 3 Error Code Book
+        if: github.ref_name == 'main-3' || github.base_ref == 'main-3'
+        run: npm run test:error-book
 
       # This pre-existing EngineDebug diagnostics smoke currently fails on main-3;
       # keep it last so it does not hide the independent build/type-check results.
