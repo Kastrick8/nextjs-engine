@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const PACKAGE_NAME = "@kastrick/nextjs-engine";
 const GITHUB_RELEASES_URL = "https://api.github.com/repos/Kate-alt-69/nextjs-engine/releases?per_page=100";
+const GITHUB_LATEST_ALPHA_URL = "https://api.github.com/repos/Kate-alt-69/nextjs-engine/releases/tags/channel-alpha-latest";
 const NPM_LATEST_URL = "https://registry.npmjs.org/@kastrick%2fnextjs-engine/latest";
 const CACHE_RELATIVE_PATH = path.join(".nextjs-engine", "cache", "ne-channels-cache.json");
 const CACHE_TTL_MS = 2 * 60 * 1000;
@@ -192,9 +193,11 @@ async function loadChannelCatalog(rootDir, options) {
 	let github = [];
 	let stableSucceeded = false;
 	let githubSucceeded = false;
+	let rollingAlphaSucceeded = false;
 	const results = await Promise.allSettled([
 		fetchJson(NPM_LATEST_URL, "npm Registry"),
 		fetchJson(GITHUB_RELEASES_URL, "GitHub Releases"),
+		fetchJson(GITHUB_LATEST_ALPHA_URL, "GitHub latest Alpha release"),
 	]);
 
 	if (results[0].status === "fulfilled") {
@@ -207,14 +210,24 @@ async function loadChannelCatalog(rootDir, options) {
 			.map((release) => validateReleaseManifest(parseManifestFromBody(release.body), release))
 			.filter(Boolean);
 	}
+	if (results[2].status === "fulfilled") {
+		const rolling = validateReleaseManifest(parseManifestFromBody(results[2].value.body), results[2].value);
+		if (rolling && rolling.floating) {
+			rollingAlphaSucceeded = true;
+			github.push(rolling);
+		}
+	}
 
 	if (!stableSucceeded && cached) {
 		stable = cached.releases.find((release) => release.track === "stable") || null;
 	}
 	if (!githubSucceeded && cached) {
-		github = cached.releases.filter((release) => release.source === "github");
+		github = cached.releases.filter((release) => release.source === "github" && !release.floating);
 	}
-	if (!stableSucceeded && !githubSucceeded) {
+	if (!rollingAlphaSucceeded && cached) {
+		github.push(...cached.releases.filter((release) => release.source === "github" && release.floating));
+	}
+	if (!stableSucceeded && !githubSucceeded && !rollingAlphaSucceeded) {
 		if (cached && Date.now() - cached.cachedAt <= CACHE_MAX_AGE_MS) {
 			return { releases: cached.releases, cached: true, fetchedAt: cached.cachedAt };
 		}
@@ -262,6 +275,7 @@ function channelLabel(release) {
 module.exports = {
 	PACKAGE_NAME,
 	GITHUB_RELEASES_URL,
+	GITHUB_LATEST_ALPHA_URL,
 	NPM_LATEST_URL,
 	parseVersion,
 	compareVersions,
