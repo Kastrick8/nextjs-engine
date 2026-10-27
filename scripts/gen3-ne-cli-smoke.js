@@ -87,7 +87,7 @@ async function main() {
 	assert.equal(channels.resolveRelease(fixtureCatalog, { channel: "alpha" }).floating, true);
 	assert.equal(channels.resolveRelease(fixtureCatalog, { channel: "latest-green" }).version, "3.0.0-beta.1");
 	assert.equal(channels.resolveRelease(fixtureCatalog, { version: "3.0.0-alpha.1" }).track, "alpha");
-	assert.equal(channels.resolveRelease(fixtureCatalog, { version: "3.0.0-alpha.2" }).floating, undefined);
+	assert.equal(channels.resolveRelease(fixtureCatalog, { version: "3.0.0-alpha.2" }), null);
 	assert.match(channels.channelLabel(fixtureCatalog.releases[2]), /LATEST COMMIT/);
 
 	const args = cli.parseArgs([
