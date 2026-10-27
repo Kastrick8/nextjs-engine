@@ -1080,11 +1080,12 @@ async function run() {
 			'import { createTheme } from "nextjs-engine";',
 			'const markdown = { prettyPlease: { mode: "auto" }, table: { header: { placement: "left" } } };',
 			'export const theme = createTheme({ id: "dark-fantasy", scope: "remote", name: "Dark Fantasy", markdown });',
+			'export const scopedTheme = createTheme({ id: "scoped-global", scope: "global", components: { link: { defaults: { color: "#123456" } } } }, { registry: themeRegistry });',
 			"",
 		].join("\n"));
 		const options = { nextjsVersion: "16.4.2", engineVersion: "3.0.0-alpha.1" };
 		const first = compileEngineThemeArtifacts(root, [input], options);
-		assert.equal(first.createdCount, 1);
+		assert.equal(first.createdCount, 2, "NENC extracts both definitions even when createTheme receives runtime registry options");
 		assert.equal(first.updatedCount, 0);
 		assert.equal(first.unchangedCount, 0);
 		assert.equal(first.artifacts[0].id, "dark-fantasy");
@@ -1103,11 +1104,17 @@ async function run() {
 		assert.equal(artifact.content.scope, "remote");
 		assert.deepEqual(artifact.content.markdown.table.header, { placement: "left" });
 		verifyDigest(artifact);
+		const scopedArtifact = readArtifact(path.join(root, ".nextjs-engine", "gen3", "theme", "scoped-global.etr"));
+		assert.equal(scopedArtifact.content.id, "scoped-global");
+		assert.equal(scopedArtifact.content.scope, "global");
+		assert.equal(Object.prototype.hasOwnProperty.call(scopedArtifact.content, "registry"), false,
+			"runtime registry options are never serialized into .etr artifacts");
+		verifyDigest(scopedArtifact);
 
 		const warm = compileEngineThemeArtifacts(root, [input], options);
 		assert.equal(warm.createdCount, 0);
 		assert.equal(warm.updatedCount, 0);
-		assert.equal(warm.unchangedCount, 1, "identical artifacts are recognized without rewriting the output");
+		assert.equal(warm.unchangedCount, 2, "both identical artifacts are recognized without rewriting the output");
 		assert.equal(fs.readFileSync(artifactPath, "utf8"), artifactText);
 
 		const changed = source(themeSource, [

@@ -176,7 +176,7 @@ export { validateSchema, validatePageSchema } from "./core/validateSchema";
 export type { ValidationError, ValidationResult } from "./core/validateSchema";
 
 export { createTheme, parseEngineThemeId } from "./components/engineTheme/createTheme";
-export type { ParsedEngineThemeId } from "./components/engineTheme/createTheme";
+export type { ParsedEngineThemeId, CreateEngineThemeOptions } from "./components/engineTheme/createTheme";
 
 export {
 	registerEngineHighlighterProvider,

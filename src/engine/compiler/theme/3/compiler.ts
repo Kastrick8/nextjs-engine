@@ -331,8 +331,23 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 
 		function visit(node) {
 			if (ts.isCallExpression(node) && names.has(callIdentifier(node.expression))) {
-				if (node.arguments.length !== 1) {
-					throw new Error("[EngineTheme] " + fileName + ": createTheme() needs exactly one static object argument.");
+				if (node.arguments.length < 1 || node.arguments.length > 2) {
+					throw new Error("[EngineTheme] " + fileName + ": createTheme() expects a static theme object and optional { registry } runtime options.");
+				}
+				if (node.arguments.length === 2) {
+					const optionsNode = unwrap(node.arguments[1]);
+					if (!ts.isObjectLiteralExpression(optionsNode)) {
+						throw new Error("[EngineTheme] " + fileName + ": createTheme() runtime options must be an object literal containing only registry.");
+					}
+					let hasRegistry = false;
+					for (const property of optionsNode.properties) {
+						const key = propertyName(property);
+						if (key !== "registry" || hasRegistry
+							|| (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property))) {
+							throw new Error("[EngineTheme] " + fileName + ": createTheme() runtime options only support a single registry property.");
+						}
+						hasRegistry = true;
+					}
 				}
 				const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 				let theme;
