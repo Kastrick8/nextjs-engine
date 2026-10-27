@@ -26,7 +26,7 @@ jobs:
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
           import path from "node:path";
-          const roots=["version","alpha"];
+          const roots=["version","alpha","beta"];
           const packages=[];
           function walk(dir){
             if(!fs.existsSync(dir)) return;
@@ -68,10 +68,10 @@ jobs:
           if(p.name!=="@kastrick/nextjs-engine") throw new Error("Unexpected package name: "+p.name);
           if(!p.version) throw new Error("Missing full package version");
           if(!fs.existsSync("index.ts")||!fs.existsSync("engine/index.ts")) throw new Error("Snapshot entrypoint missing");
-          const version=p.version.match(/^(\d+)\.(\d+)\.(\d+)(-alpha\.\d+)?$/);
+          const version=p.version.match(/^(\d+)\.(\d+)\.(\d+)(-(alpha|beta)\.\d+)?$/);
           if(!version) throw new Error("Manifest version is not full SemVer: "+p.version);
           const expectedDir=version[4]?p.version:(Number(version[3])===0?`${version[1]}.${version[2]}`:p.version);
-          const expectedFamily=version[4]?`${version[1]}.alpha`:`${version[1]}.${version[2]}`;
+          const expectedFamily=version[4]?`${version[1]}.${version[5]}`:`${version[1]}.${version[2]}`;
           const actualDir=path.basename(process.cwd());
           const actualFamily=path.basename(path.dirname(path.dirname(process.cwd())));
           if(actualDir!==expectedDir) throw new Error(`Snapshot folder ${actualDir} does not match expected ${expectedDir} for ${p.version}`);
