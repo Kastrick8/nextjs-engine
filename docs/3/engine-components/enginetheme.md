@@ -118,6 +118,12 @@ The backwards-compatible `registerComponent()` and default `createTheme({ scope:
 
 Scoped registries use the Generation 3 server-first renderer. Supplying one while configuring the legacy renderer (for example, `compiler.serverFirst: false` or named render-time handlers) fails explicitly rather than silently changing render modes. In server-first rendering, registered trusted components resolve from the supplied registry; the default global registration path retains its existing client-island behavior. Theme groups registered globally remain a separate trust/scope boundary, so use local theme definitions for tenant-specific appearance.
 
+## Scoped Data-API handlers and template adapters
+
+The optional `registry` argument on `registerEngineThemeDataHandler()`, `unregisterEngineThemeDataHandler()`, and `listEngineThemeDataHandlers()` isolates trusted handler IDs per application. Declarative template rendering uses that same scope through its internal `registry` context; a scoped dispatch never falls back to the process-global handler map.
+
+Template adapters follow the same rule: pass `registry` as the third argument to `registerEngineThemeTemplateAdapter()`, and use the registry-aware unregister/list functions. Markdown's server-first renderer threads this scope into info blocks, code blocks, table headers and table cells. The internal registry is removed before a trusted adapter is rendered, so it is not exposed as adapter props or serialized into the client tree. Calls without a registry retain the process-global compatibility behavior.
+
 ## Registered custom component theme bindings
 
 Generation 3 also supports theme styling for trusted, locally authored schema-node components. Define the implementation with `createComponent({ mode: "custom", ... })`, declare its prop and named-slot contract, register it under an application-owned node type, and bind that node to a component namespace such as `site.link.quiet`.

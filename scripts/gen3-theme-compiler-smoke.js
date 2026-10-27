@@ -289,6 +289,34 @@ async function testPublicThemeApi() {
 		}), /must be JSON data/);
 		assert.equal(unregisterEngineThemeDataHandler("smoke-theme.table-join"), true);
 
+		const dataRegistryA = createEngineComponentRegistry();
+		const dataRegistryB = createEngineComponentRegistry();
+		const scopedDataHandlerA = (event) => ({ operation: "replace", value: "tenant-a:" + (event.context.incoming?.label ?? "none") });
+		const scopedDataHandlerB = (event) => ({ operation: "replace", value: "tenant-b:" + (event.context.incoming?.label ?? "none") });
+		registerEngineThemeDataHandler("scoped.shared-handler", scopedDataHandlerA, dataRegistryA);
+		registerEngineThemeDataHandler("scoped.shared-handler", scopedDataHandlerB, dataRegistryB);
+		const scopedDataContext = {
+			themeId: "scope-smoke-theme.markdown",
+			componentId: "markdown",
+			slotId: "table.header",
+			incoming: { label: "Sort" },
+		};
+		assert.deepEqual(listEngineThemeDataHandlers(dataRegistryA), ["scoped.shared-handler"]);
+		assert.deepEqual(listEngineThemeDataHandlers(dataRegistryB), ["scoped.shared-handler"]);
+		assert.deepEqual(dispatchEngineThemeDataEvent("join:left", "scoped.shared-handler", scopedDataContext, dataRegistryA),
+			{ operation: "replace", value: "tenant-a:Sort" });
+		assert.deepEqual(dispatchEngineThemeDataEvent("join:left", "scoped.shared-handler", scopedDataContext, dataRegistryB),
+			{ operation: "replace", value: "tenant-b:Sort" },
+			"the same handler ID resolves to each application's own trusted implementation");
+		assert.throws(() => dispatchEngineThemeDataEvent("join:left", "smoke-theme.table-join", scopedDataContext, dataRegistryA),
+			/not registered in the supplied EngineComponentRegistry/,
+			"a scoped dispatch must not fall back to a process-global handler");
+		assert.equal(unregisterEngineThemeDataHandler("scoped.shared-handler", dataRegistryA), true);
+		assert.deepEqual(dispatchEngineThemeDataEvent("join:left", "scoped.shared-handler", scopedDataContext, dataRegistryB),
+			{ operation: "replace", value: "tenant-b:Sort" },
+			"unregistering a handler in one registry leaves the other registry intact");
+
+
 		const schemaTemplate = {
 			schema: {
 				type: "stack",
@@ -339,6 +367,34 @@ async function testPublicThemeApi() {
 		const adapterElement = renderEngineThemeTemplate({ adapterId: "smoke.markdown.header" }, { label: "custom" });
 		assert.equal(adapterElement.type, localAdapter, "only the explicitly registered local adapter is returned");
 		assert.equal(unregisterEngineThemeTemplateAdapter("smoke.markdown.header"), true);
+
+		const templateRegistryA = createEngineComponentRegistry();
+		const templateRegistryB = createEngineComponentRegistry();
+		const scopedAdapterA = (props) => React.createElement("aside", { "data-owner": "tenant-a" }, props.label);
+		const scopedAdapterB = (props) => React.createElement("aside", { "data-owner": "tenant-b" }, props.label);
+		registerEngineThemeTemplateAdapter("scoped.shared-adapter", scopedAdapterA, templateRegistryA);
+		registerEngineThemeTemplateAdapter("scoped.shared-adapter", scopedAdapterB, templateRegistryB);
+		assert.deepEqual(listEngineThemeTemplateAdapters(templateRegistryA), ["scoped.shared-adapter"]);
+		assert.deepEqual(listEngineThemeTemplateAdapters(templateRegistryB), ["scoped.shared-adapter"]);
+		const scopedTemplateA = renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, {
+			label: "Tenant A", registry: templateRegistryA,
+		});
+		const scopedTemplateB = renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, {
+			label: "Tenant B", registry: templateRegistryB,
+		});
+		assert.equal(scopedTemplateA.type, scopedAdapterA);
+		assert.equal(scopedTemplateA.props.label, "Tenant A");
+		assert.equal(scopedTemplateA.props.registry, undefined,
+			"the internal registry object is never passed to trusted adapter props");
+		assert.equal(scopedTemplateB.type, scopedAdapterB);
+		assert.equal(scopedTemplateB.props.label, "Tenant B");
+		assert.equal(renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, { label: "Global" }), undefined,
+			"scoped-only adapters do not leak into the process-global template adapter map");
+		assert.equal(unregisterEngineThemeTemplateAdapter("scoped.shared-adapter", templateRegistryA), true);
+		assert.equal(renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, { registry: templateRegistryA }), undefined);
+		assert.equal(renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, { registry: templateRegistryB }).type, scopedAdapterB,
+			"removing one scoped adapter leaves the other registry intact");
+
 
 		registerEngineThemeDataHandler("smoke.template.composition", (event) => ({
 			operation: "append",
