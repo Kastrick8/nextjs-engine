@@ -1024,7 +1024,7 @@ async function run() {
 			"createTheme({ id: \"oversized-output\", payload: " + nestedEntries + " });",
 		].join("\n"));
 		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [oversizedTheme], options),
-			"NETH3001", /Compiled \\.etr artifact exceeds the 512 KiB output limit/);
+			"NETH3001", /Compiled \.etr artifact exceeds the 512 KiB output limit/);
 
 		const protectedPath = path.join(root, ".nextjs-engine", "gen3", "theme", "user-owned.etr");
 		fs.writeFileSync(protectedPath, JSON.stringify({ hello: "user file" }));
