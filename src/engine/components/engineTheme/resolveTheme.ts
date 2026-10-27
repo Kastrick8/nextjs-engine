@@ -390,6 +390,7 @@ function resolveNodeOverlayTheme(
 	node: SchemaNode,
 	namespace: "dialog" | "drawer" | "popover",
 	context: EngineThemeResolutionContext,
+	registry?: EngineComponentRegistry,
 ): EngineOverlayResolvedTheme | undefined {
 	const explicitId = node.theme;
 	let sharedSelection = context.selectedComponents.overlay
@@ -421,7 +422,7 @@ function resolveNodeOverlayTheme(
 		}
 		let selected: Record<string, unknown> | undefined;
 		if (context.globallyRegistered) {
-			selected = resolveRegisteredEngineTheme(explicitId).components[parsed.componentId];
+			selected = resolveRegisteredEngineTheme(explicitId, registry).components[parsed.componentId];
 		} else {
 			selected = resolveLocalVariant(context.components[parsed.componentId], parsed.subthemes, explicitId);
 		}
@@ -586,7 +587,7 @@ function resolveCustomComponentThemeNode(
 			throw new Error("Schema node theme '" + selectedId + "' must use the same EngineTheme group '" + context.groupId + "' as its PageSchema.");
 		}
 		if (context.globallyRegistered) {
-			selection = resolveRegisteredEngineTheme(selectedId).components[parsed.componentId!];
+			selection = resolveRegisteredEngineTheme(selectedId, registry).components[parsed.componentId!];
 		} else {
 			selection = resolveLocalVariant(context.components[parsed.componentId!], parsed.subthemes, selectedId);
 		}
@@ -639,7 +640,7 @@ function applyResolvedThemeToNode(
 
 	const namespace = OVERLAY_NODE_NAMESPACES[result.type];
 	if (namespace) {
-		const overlayTheme = resolveNodeOverlayTheme(result, namespace, context);
+		const overlayTheme = resolveNodeOverlayTheme(result, namespace, context, registry);
 		const originalProps = result.props ?? {};
 		const hasInjectedTheme = Object.prototype.hasOwnProperty.call(originalProps, "engineOverlayTheme");
 		if (overlayTheme !== undefined || result.theme !== undefined || hasInjectedTheme) {
@@ -695,7 +696,7 @@ export function resolveEngineThemeSchema(schema: PageSchema, registry?: EngineCo
 		if (!parsedThemeId) throw new TypeError("EngineTheme reference requires a valid ID.");
 		if (themeRecord.sourceUrl || themeRecord.scope === "remote") {
 			try {
-				resolveRegisteredEngineTheme(parsedThemeId.groupId);
+				resolveRegisteredEngineTheme(parsedThemeId.groupId, registry);
 			} catch {
 				throw new Error(
 					"Remote EngineTheme references are resolved only after an explicit loadRemoteEngineTheme() call "
@@ -703,7 +704,7 @@ export function resolveEngineThemeSchema(schema: PageSchema, registry?: EngineCo
 				);
 			}
 		}
-		const baseResolved = resolveRegisteredEngineTheme(parsedThemeId.groupId);
+		const baseResolved = resolveRegisteredEngineTheme(parsedThemeId.groupId, registry);
 		resolvedCssTheme = {
 			...baseResolved.group,
 			...(isThemeRecord(themeRecord.vars) ? { vars: { ...(baseResolved.group.vars ?? {}), ...(themeRecord.vars as Record<string, string>) } } : {}),
@@ -713,7 +714,7 @@ export function resolveEngineThemeSchema(schema: PageSchema, registry?: EngineCo
 		components = baseResolved.components;
 		globallyRegistered = true;
 		if (parsedThemeId.componentId) {
-			const selected = resolveRegisteredEngineTheme(theme.id!);
+			const selected = resolveRegisteredEngineTheme(theme.id!, registry);
 			selectedComponents = selected.components;
 		}
 	}

@@ -1,3 +1,5 @@
+import { getScopedEngineThemeGroup, registerScopedEngineThemeGroup, unregisterScopedRemoteEngineThemeGroup } from "./themeRegistry";
+import type { EngineComponentRegistry } from "../../core/registry";
 import type {
   EngineThemeDefinition,
   EngineThemeJsonObject,
@@ -84,14 +86,13 @@ export function getEngineThemeComponentDefinitions(theme: EngineTheme): Record<s
  * Resolve an ID-only PageSchema reference against globally registered theme
  * groups. This is deliberately synchronous and performs no network access.
  */
-export function resolveRegisteredEngineTheme(id: string): ResolvedEngineThemeGroup {
+export function resolveRegisteredEngineTheme(id: string, registry?: EngineComponentRegistry): ResolvedEngineThemeGroup {
   const parsed = parseEngineThemeId(id);
-  const registered = globalThemes.get(parsed.groupId);
+  const registered = registry ? getScopedEngineThemeGroup(registry, parsed.groupId) : globalThemes.get(parsed.groupId);
   if (!registered) {
-    throw new Error(
-      "EngineTheme group '" + parsed.groupId + "' is not globally registered. "
-      + "Import its createTheme() definition before creating the page. Remote URL resolution is handled separately.",
-    );
+    throw new Error(registry
+      ? "EngineTheme group '" + parsed.groupId + "' is not registered in the supplied EngineComponentRegistry. Register it in that scope before creating the page."
+      : "EngineTheme group '" + parsed.groupId + "' is not globally registered. Import its createTheme() definition before creating the page. Remote URL resolution is handled separately.");
   }
   const group = registered.definition;
   if (group.scope !== "global" && !(group.scope === "remote" && registered.allowRemote === true)) {
@@ -238,8 +239,14 @@ function freezeDeep<T>(value: T): T {
  * only: it never fetches URLs, downloads assets, publishes the theme, or
  * evaluates code. NENC extracts statically resolvable calls into .etr files.
  */
+export interface CreateEngineThemeOptions {
+  /** Runtime registration scope; this is not part of serialized .etr theme data. */
+  registry?: EngineComponentRegistry;
+}
+
 export function createTheme<T extends EngineThemeDefinition>(
   definition: T,
+  options: CreateEngineThemeOptions = {},
 ): Readonly<T & { scope: EngineThemeScope }> {
   if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
     throw new TypeError("createTheme() expects a plain theme definition object.");
@@ -284,6 +291,10 @@ export function createTheme<T extends EngineThemeDefinition>(
 
   if (scope === "global") {
     const canonical = canonicalThemeJson(frozen);
+    if (options.registry) {
+      registerScopedEngineThemeGroup(options.registry, frozen as Readonly<EngineThemeDefinition>, canonical, "global");
+      return frozen;
+    }
     const existing = globalThemes.get(frozen.id);
     if (existing && existing.canonical !== canonical) {
       throw new Error("EngineTheme group ID '" + frozen.id + "' is already registered with a different definition.");
@@ -308,12 +319,17 @@ export function createTheme<T extends EngineThemeDefinition>(
  */
 export function registerLoadedRemoteEngineTheme(
   definition: EngineThemeDefinition,
+  registry?: EngineComponentRegistry,
 ): Readonly<EngineThemeDefinition & { scope: EngineThemeScope }> {
   const loaded = createTheme(definition);
   if (loaded.scope !== "remote") {
     throw new TypeError("A remotely loaded EngineTheme artifact must declare scope remote.");
   }
   const canonical = canonicalThemeJson(loaded);
+  if (registry) {
+    registerScopedEngineThemeGroup(registry, loaded as Readonly<EngineThemeDefinition>, canonical, "remote");
+    return loaded;
+  }
   const existing = globalThemes.get(loaded.id);
   if (existing && existing.allowRemote !== true) {
     throw new Error("Remote EngineTheme ID '" + loaded.id + "' conflicts with an already registered local/global theme.");
@@ -329,9 +345,10 @@ export function registerLoadedRemoteEngineTheme(
 }
 
 /** Remove a verified remote group from the in-process registry. */
-export function unregisterLoadedRemoteEngineTheme(id: string): boolean {
+export function unregisterLoadedRemoteEngineTheme(id: string, registry?: EngineComponentRegistry): boolean {
   const parsed = parseEngineThemeId(id);
   if (parsed.componentId !== undefined || parsed.subthemes.length > 0) return false;
+  if (registry) return unregisterScopedRemoteEngineThemeGroup(registry, parsed.groupId);
   const existing = globalThemes.get(parsed.groupId);
   if (!existing || existing.allowRemote !== true) return false;
   return globalThemes.delete(parsed.groupId);
