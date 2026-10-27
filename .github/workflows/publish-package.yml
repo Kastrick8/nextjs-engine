@@ -83,7 +83,7 @@ jobs:
         env:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_COMMIT: ${{ inputs.source_commit }}
-          INPUT_VERSION: ${{ steps.prepare.outputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
           TRACK: ${{ inputs.track }}
         run: |
           set -euo pipefail
@@ -711,6 +711,9 @@ jobs:
             echo "Unsupported release tag: $TAG_NAME" >&2; exit 1
           fi
           test -f "$DIR/package.json" && test -f "$DIR/index.ts" && test -d "$DIR/engine"
+          if [[ "$TRACK" == "alpha" || "$TRACK" == "beta" || "$VERSION" =~ ^2\.7\.[0-9]+$ ]]; then
+            test -f "$DIR/bin/ne.js" || { echo "Release requires the ne CLI, but $DIR/bin/ne.js is missing." >&2; exit 1; }
+          fi
           export DIR VERSION TRACK
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
@@ -750,6 +753,7 @@ jobs:
           const versionTag=TRACK==="stable"?"package."+VERSION:TRACK==="alpha"?"package-alpha."+VERSION:"package-beta."+VERSION;
           const channelTag=newest===VERSION?(TRACK==="stable"?"latest":TRACK):"";
           console.log("version="+VERSION);
+          console.log("track="+TRACK);
           console.log("directory="+DIR);
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
