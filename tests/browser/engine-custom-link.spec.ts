@@ -35,5 +35,5 @@ test("custom internal link stays keyboard accessible and activates safely", asyn
 	await internal.focus();
 	await expect(internal).toBeFocused();
 	await page.keyboard.press("Enter");
-	await expect(page).toHaveURL(/\\/engine-compat-test(?:\\/)?$/);
+	await expect(page).toHaveURL(new RegExp("/engine-compat-test/?$"));
 });
