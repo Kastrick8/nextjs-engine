@@ -161,7 +161,7 @@ jobs:
 
   release-from-source:
     needs: gate-auto-release
-    if: always() && ((github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source') || (github.event_name == 'workflow_run' && needs.gate-auto-release.outputs.publish == 'true'))
+    if: ${{ !cancelled() && ((github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source') || (github.event_name == 'workflow_run' && needs.gate-auto-release.outputs.publish == 'true')) }}
     runs-on: ubuntu-latest
     environment: npm-publish
     timeout-minutes: 45
