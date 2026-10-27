@@ -16,6 +16,7 @@ import React, {
 import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MarkdownProps } from "../schema/types";
+import type { EngineComponentRegistry } from "../core/registry";
 import { getEngineHighlighterColor, getEngineHighlighterPalette, highlightEngineCode, normalizeEngineThemeColor } from "../component/engineTheme/highlighting";
 import { renderEngineThemeTemplate } from "../component/engineTheme/templates";
 import { EngineUrlIcon } from "./EngineUrlIcon";
@@ -79,6 +80,7 @@ interface MarkdownRenderConfig {
 	ansiBackground: string;
 	showUrlIcon: boolean;
 	urlIconSize: NonNullable<MarkdownProps["emd_url-icon-size"]>;
+	registry?: EngineComponentRegistry;
 }
 
 const DEFAULT_HEADING_SIZES: Record<string, string> = {
@@ -289,6 +291,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 				};
 				const themed = renderEngineThemeTemplate(config.themeTemplates?.infoBlock, {
 					themeId: config.themeId,
+					registry: config.registry,
 					componentId: "markdown",
 					block: "infoBlock",
 					dataApiContext: { existing: { title: title ?? "", tone }, incoming: { text: textFromReactNode(body).slice(0, 256) } },
@@ -474,6 +477,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 			);
 			return renderEngineThemeTemplate(config.themeTemplates?.codeBlock, {
 				themeId: config.themeId,
+					registry: config.registry,
 				componentId: "markdown",
 				block: "codeBlock",
 				dataApiContext: { existing: { language: language ?? "text" } },
@@ -514,6 +518,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		th: ({ node: _node, children, style, align, ...props }) => {
 			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableHeader, {
 				themeId: config.themeId,
+					registry: config.registry,
 				componentId: "markdown",
 				block: "tableHeader",
 				dataApiContext: { existing: { text: textFromReactNode(children).slice(0, 256) }, metadata: { alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : "start") } },
@@ -532,6 +537,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 		td: ({ node: _node, children, style, align, ...props }) => {
 			const themed = renderEngineThemeTemplate(config.themeTemplates?.tableCell, {
 				themeId: config.themeId,
+					registry: config.registry,
 				componentId: "markdown",
 				block: "tableCell",
 				dataApiContext: { existing: { text: textFromReactNode(children).slice(0, 256) }, metadata: { alignment: typeof style?.textAlign === "string" ? style.textAlign : (typeof align === "string" ? align : "start") } },
@@ -579,6 +585,8 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 }
 
 export interface EngineMarkdownRendererProps extends MarkdownProps {
+	/** Internal server-render scope for trusted EngineTheme handlers and adapters. */
+	registry?: EngineComponentRegistry;
 	/** Styles already resolved by the server compiler or legacy client resolver. */
 	articleStyle?: CSSProperties;
 	/** Classes already resolved by the server compiler or legacy client resolver. */
@@ -626,12 +634,14 @@ export function EngineMarkdownRenderer({
 	articleStyle,
 	articleClassName,
 	articleId,
+	registry,
 }: EngineMarkdownRendererProps) {
 	const normalizedContent = normalizeEngineMarkdownSource(content);
 	const paletteBackground = normalizeEngineThemeColor(prettyPlease?.palette?.background);
 	const codeBackground = codeBackgroundProp ?? paletteBackground ?? "#0b1020";
 	const renderConfig: MarkdownRenderConfig = {
 		themeId: engineThemeId,
+		registry,
 		textColor,
 		headingColor,
 		linkColor,

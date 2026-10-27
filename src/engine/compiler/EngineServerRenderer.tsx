@@ -908,6 +908,7 @@ function renderServerNode(
 					key={compiled.id}
 					{...(props as MarkdownProps)}
 					content={typeof props.content === "string" ? props.content : ""}
+					registry={registry}
 					articleStyle={style}
 					articleClassName={className}
 					articleId={id}
