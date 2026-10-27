@@ -338,7 +338,7 @@ function sanitizeRemoteThemeContent(
 	return safe as EngineThemeDefinition;
 }
 
-async function parseAndRegisterArtifact(
+async function parseRemoteThemeArtifact(
 	text: string,
 	url: URL,
 	options: LoadRemoteEngineThemeOptions,
@@ -369,6 +369,9 @@ async function parseAndRegisterArtifact(
 		throw new Error("Remote .etr SHA-256 verification failed.");
 	}
 	const safeContent = sanitizeRemoteThemeContent(artifact.content, url, options);
+	if (safeContent.scope !== "remote") {
+		throw new TypeError("A remote .etr artifact must declare scope remote.");
+	}
 	const registered = createTheme(safeContent);
 	return registered as Readonly<EngineThemeDefinition & { scope: "remote" }>;
 }
@@ -430,7 +433,7 @@ export async function loadRemoteEngineTheme(
 				if (finalUrl.origin !== url.origin) throw new Error("Remote .etr response origin changed during retrieval.");
 			}
 			const text = await readBoundedResponse(response, maxBytes);
-			const theme = await parseAndRegisterArtifact(text, url, options);
+			const theme = await parseRemoteThemeArtifact(text, url, options);
 			if (ttlMs > 0) {
 				cache.set(key, { theme, expiresAt: Date.now() + ttlMs });
 				while (cache.size > MAX_CACHE_ENTRIES) {

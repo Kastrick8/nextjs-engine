@@ -321,10 +321,10 @@ export function registerLoadedRemoteEngineTheme(
   definition: EngineThemeDefinition,
   registry?: EngineComponentRegistry,
 ): Readonly<EngineThemeDefinition & { scope: EngineThemeScope }> {
-  const loaded = createTheme(definition);
-  if (loaded.scope !== "remote") {
+  if (!definition || definition.scope !== "remote") {
     throw new TypeError("A remotely loaded EngineTheme artifact must declare scope remote.");
   }
+  const loaded = createTheme(definition);
   const canonical = canonicalThemeJson(loaded);
   if (registry) {
     registerScopedEngineThemeGroup(registry, loaded as Readonly<EngineThemeDefinition>, canonical, "remote");
