@@ -6,7 +6,6 @@ const PROJECT_URL = "https://kastrick.vercel.app/project/nextjs-engine";
 const STATE_KEY = Symbol.for("nextjs-engine.nenc-terminal-logger-state");
 const BRIDGE_KEY = Symbol.for("nextjs-engine.next-output-bridge-state");
 const STATUS_REFRESH_MS = 350;
-const PROJECT_URL = "https://kastrick.vercel.app/project/nextjs-engine";
 
 function getState() {
 	if (!globalThis[STATE_KEY]) {
