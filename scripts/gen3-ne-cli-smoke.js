@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -136,6 +137,37 @@ async function main() {
 		await project.runClean(temp, false);
 		assert.equal(fs.existsSync(path.join(temp, "dist")), false);
 		assert.equal(fs.existsSync(path.join(temp, ".nextjs-engine", "cache", "ne-backups", "keep.txt")), true);
+
+		const previousFetch = global.fetch;
+		try {
+			const bytes = Buffer.from([0x1f, 0x8b, 0x08, 0x00]);
+			const release = {
+				version: "3.0.0-alpha.2",
+				artifactUrl: "https://example.invalid/ne-test.tgz",
+				sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+			};
+			global.fetch = async () => new Response(bytes, { status: 200 });
+			const downloaded = await project.downloadVerifiedArtifact(temp, release);
+			assert.deepEqual(fs.readFileSync(downloaded.file), bytes);
+			assert.equal(downloaded.sha512, crypto.createHash("sha512").update(bytes).digest("base64"));
+
+			global.fetch = async () => new Response(bytes, {
+				status: 200,
+				headers: { "content-length": String(100 * 1024 * 1024 + 1) },
+			});
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, { ...release, sha256: "a".repeat(64) }),
+				/larger than 100 MiB/
+			);
+
+			global.fetch = async () => new Response(bytes, { status: 200 });
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, { ...release, sha256: "a".repeat(64) }),
+				/SHA-256 mismatch/
+			);
+		} finally {
+			global.fetch = previousFetch;
+		}
 	} finally {
 		fs.rmSync(temp, { recursive: true, force: true });
 	}
