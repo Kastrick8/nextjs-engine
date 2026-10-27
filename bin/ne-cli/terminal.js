@@ -149,8 +149,9 @@ function runTui(options) {
 	const settings = options || {};
 	const catalog = settings.catalog || { releases: [], cached: false };
 	const context = settings.context || {};
-	let screen = settings.initialScreen || "dashboard";
-	let priorScreen = screen === "dashboard" ? null : "dashboard";
+	const initialScreen = settings.initialScreen || "dashboard";
+	let screen = settings.showWarning ? "warning" : initialScreen;
+	let priorScreen = initialScreen === "dashboard" ? null : "dashboard";
 	let selected = 0;
 	let selectedRelease = null;
 	let inputBuffer = "";
@@ -178,7 +179,8 @@ function runTui(options) {
 
 		function draw() {
 			let content;
-			if (screen === "dashboard") content = renderDashboard(selected, context);
+			if (screen === "warning") content = frame("EXPERIMENTAL NOTICE", ["NE is experimental and may change or be removed in a future release.", "Review the selected channel before applying updates.", "", "Press any key to continue. Press Ctrl+C to quit."]);
+			else if (screen === "dashboard") content = renderDashboard(selected, context);
 			else if (screen === "releases") content = renderReleaseList(selected, catalog, context);
 			else content = renderReleaseDetails(selectedRelease, context);
 			process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + content + "\n");
@@ -198,6 +200,11 @@ function runTui(options) {
 		}
 
 		function move(delta) {
+			if (screen === "warning") {
+				screen = initialScreen;
+				draw();
+				return;
+			}
 			if (screen === "dashboard") {
 				const row = selected % 4;
 				const column = Math.floor(selected / 4);
@@ -216,6 +223,11 @@ function runTui(options) {
 
 		async function activate() {
 			if (busy) return;
+			if (screen === "warning") {
+				screen = initialScreen;
+				draw();
+				return;
+			}
 			if (screen === "dashboard") {
 				chooseMenu();
 				return;
@@ -294,6 +306,7 @@ function runTui(options) {
 				const key = inputBuffer[0];
 				inputBuffer = inputBuffer.slice(1);
 				if (key === "\x03") { finish({ action: "quit" }); return; }
+				if (screen === "warning") { screen = initialScreen; draw(); continue; }
 				if (key === "\x1b" || key === "q" || key === "Q" || key === "x" || key === "X") { back(); continue; }
 				if (key === "w" || key === "W") { move("up"); continue; }
 				if (key === "s" || key === "S") { move("down"); continue; }
