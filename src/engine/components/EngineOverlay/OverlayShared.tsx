@@ -174,9 +174,10 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 		previousFocus.current = ownerDocument.activeElement instanceof HTMLElement
 			? ownerDocument.activeElement
 			: null;
+		const current = currentOptions.current;
 		const unregister = registerOverlay(options.overlayId, ownerDocument, {
 			root: current.modal ? (panel.parentElement ?? panel) : panel,
-			modal: options.modal,
+			modal: current.modal,
 		});
 		const frame = requestAnimationFrame(() => {
 			const current = currentOptions.current;

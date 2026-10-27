@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import type { EngineStyleObject } from "../../src/engine/schema/types";
 import { createComponent, createEngineComponentRegistry, createPage, createTheme } from "../../src/engine";
 import { EngineLink } from "../../src/engine/components/EngineLink";
 import type { EngineCustomThemeStyles } from "../../src/engine/core/EngineCustomComponent";
@@ -8,7 +9,7 @@ interface ThemeLinkProps {
 	target?: "_self" | "_blank";
 	children?: ReactNode;
 	leading?: ReactNode;
-	style?: CSSProperties;
+	style?: EngineStyleObject;
 	className?: string;
 	engineThemeStyles?: EngineCustomThemeStyles;
 	"data-testid"?: string;
