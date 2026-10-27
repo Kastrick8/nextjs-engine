@@ -12,6 +12,7 @@ export type {
 } from "./createPage";
 
 export {
+	ERROR_BOOK_URL,
 	createEngineErrorReport,
 	formatEngineErrorReport,
 	reportEngineError,

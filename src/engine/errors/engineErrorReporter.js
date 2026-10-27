@@ -181,7 +181,7 @@ function hyperlink(label, url) {
 
 function resolveEngineErrorHelpUrl(code) {
 	const normalized = cleanText(code || "NECORE4000", 40).toUpperCase();
-	if (!/^[A-Z]+\\d{4}$/.test(normalized)) return ERROR_BOOK_URL;
+	if (!/^[A-Z]+\d{4}$/.test(normalized)) return ERROR_BOOK_URL;
 	const page = ERROR_BOOK_PAGE_BY_CODE[normalized];
 	return page ? ERROR_BOOK_URL + "/" + page + "#" + normalized.toLowerCase() : ERROR_BOOK_URL;
 }

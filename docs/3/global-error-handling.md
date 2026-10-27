@@ -12,7 +12,7 @@ During Next.js configuration, the Engine creates default `error.tsx`, `global-er
 
 Terminal output is separate from the EngineDebug UI. In a color-capable interactive terminal, the reporter colors the severity/code, message, metadata labels, and cause chain with ANSI styles. It respects `NO_COLOR`, `NODE_DISABLE_COLORS`, `FORCE_COLOR`, and dumb-terminal settings, so CI logs and redirected output remain plain text unless color is explicitly forced.
 
-Reports use a stable code, source, message, route/request context, and a source location when the stack provides one. Source locations use `path/to/file.tsx:line:column`, which VS Code-compatible terminals can open with Ctrl+Click. Nested `Error.cause` chains are printed as `Caused by` lines. The final Project line links to the Kastrick repository and includes its full URL for terminals that auto-link web addresses.
+Reports use a stable code, source, message, route/request context, and a source location when the stack provides one. Source locations use `path/to/file.tsx:line:column`, which VS Code-compatible terminals can open with Ctrl+Click. Nested `Error.cause` chains are printed as `Caused by` lines. The final Project line links to the Kastrick website project page and prints its full URL for terminals that auto-link web addresses.
 
 Secrets are filtered from messages, stack text, URL query values, and error causes. Request headers and cookies are not logged.
 
