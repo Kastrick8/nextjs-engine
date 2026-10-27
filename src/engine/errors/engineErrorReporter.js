@@ -307,7 +307,7 @@ function formatEngineErrorReport(report, options = {}) {
 	const useColor = typeof options.color === "boolean" ? options.color : colorsEnabled();
 	const severity = String(report.severity || "error").toUpperCase();
 	const severityColor = severity === "WARNING" ? "yellow" : "red";
-	const prefix = "[nextjs-engine][" + severity + " " + cleanText(report.code || "NE0001", 40) + "]";
+	const prefix = "[nextjs-engine][" + severity + " " + cleanText(report.code || "NECORE4000", 40) + "]";
 	const lines = [
 		paint(prefix, severityColor, useColor) + " " + paint(cleanText(report.message || "An unknown error occurred.", MAX_MESSAGE_LENGTH), "bold", useColor),
 	];

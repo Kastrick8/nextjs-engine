@@ -45,6 +45,7 @@ assert.ok(catalog.entries.some((entry) => entry.status === "assigned"));
 assert.ok(catalog.entries.some((entry) => entry.status === "reserved"));
 const report = reporter.createEngineErrorReport(new Error("sample"), { code: "NECORE4001", source: "next-route-error", route: "/example?token=private", includeStack: false });
 assert.ok(report.reason && report.action);
+assert.equal(reporter.createEngineErrorReport(new Error("default-code")).code, "NECORE4000");
 const rendered = reporter.formatEngineErrorReport(report, { color: false });
 assert.match(rendered, /NECORE4001/); assert.match(rendered, /Reason:/); assert.match(rendered, /Action:/);
 assert.ok(rendered.includes(catalog.publicBaseUrl + "/core#necore4001"));
