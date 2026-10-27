@@ -11,6 +11,19 @@ const {
 	getRouteHash,
 } = require("../src/engine/plugins/apiStaticCompiler");
 
+const ts = require("typescript");
+const previousTsLoader = require.extensions[".ts"];
+require.extensions[".ts"] = (module, filename) => {
+	const input = fs.readFileSync(filename, "utf8");
+	const output = ts.transpileModule(input, {
+		compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+		fileName: filename,
+	}).outputText;
+	module._compile(output, filename);
+};
+const { APIStatic } = require("../src/engine/core/APIStatic.ts");
+
+
 const source = `
 const TAX_RATE = 0.18
 
@@ -347,6 +360,80 @@ async function main() {
 		),
 		/Duplicate input schema field: value/,
 	);
+	const malformedRouteSource = [
+		"createEndpoint([",
+		"  { 123 }",
+		"])",
+	].join("\\n");
+	let malformedRouteError;
+	try {
+		compileAPIStaticSource(malformedRouteSource, "malformed-route", "data/endpoint/malformed-route.route");
+	} catch (reason) {
+		malformedRouteError = reason;
+	}
+	assert.ok(malformedRouteError, "malformed .route syntax throws a diagnostic");
+	assert.equal(malformedRouteError.code, "NEAPI1001");
+	assert.equal(malformedRouteError.fileName, "data/endpoint/malformed-route.route");
+	assert.equal(malformedRouteError.line, 2, "parser diagnostics identify the source line");
+	assert.ok(Number.isInteger(malformedRouteError.column) && malformedRouteError.column > 1);
+	assert.ok(malformedRouteError.reason && malformedRouteError.action);
+	assert.match(malformedRouteError.message, /data\\/endpoint\\/malformed-route\\.route:2:/);
+	assert.match(malformedRouteError.message, /Fix:/);
+	assert.match(malformedRouteError.message, /Help: https:\\/\\/kastrick\\.vercel\\.app\\/project\\/nextjs-engine\\/doc\\/error-codes\\/api#neapi1001/);
+	assert.match(malformedRouteError.message, /\\^/);
+
+	let invalidRouteError;
+	try {
+		compileAPIStaticSource('createEndpoint([{ name: "ok" run.input(1) }])', "../outside", "data/endpoint/outside.route");
+	} catch (reason) {
+		invalidRouteError = reason;
+	}
+	assert.ok(invalidRouteError);
+	assert.equal(invalidRouteError.code, "NEAPI1002");
+	assert.ok(invalidRouteError.action && invalidRouteError.reason);
+	assert.match(invalidRouteError.message, /NEAPI1002/);
+
+	const previousRegistry = globalThis.__NEXTJS_ENGINE_API_STATIC__;
+	const diagnosticRegistry = new Map();
+	globalThis.__NEXTJS_ENGINE_API_STATIC__ = diagnosticRegistry;
+	try {
+		diagnosticRegistry.set("diagnostic-validation", {
+			route: "diagnostic-validation",
+			hash: getRouteHash("diagnostic-validation"),
+			operations: [{
+				name: "lookup",
+				source: "input",
+				schema: { requiredName: "string" },
+				run: async (context) => context.input,
+			}],
+		});
+		diagnosticRegistry.set("diagnostic-handler", {
+			route: "diagnostic-handler",
+			hash: getRouteHash("diagnostic-handler"),
+			operations: [{
+				name: "load",
+				source: "input",
+				run: async () => { throw new Error("fixture provider failure"); },
+			}],
+		});
+		const diagnosticRuntime = new APIStatic({ cacheBust: false });
+		const validationResponse = await diagnosticRuntime.resolveRequest("diagnostic-validation", { input: {} });
+		assert.equal(validationResponse.status, 400);
+		const validationBody = await validationResponse.json();
+		assert.equal(validationBody.code, "NEAPI2002");
+		assert.match(validationBody.error, /Missing required input: requiredName/);
+
+		const handlerResponse = await diagnosticRuntime.resolveRequest("diagnostic-handler");
+		assert.equal(handlerResponse.status, 500);
+		const handlerBody = await handlerResponse.json();
+		assert.equal(handlerBody.code, "NEAPI4001", "unexpected handler failures include their stable code");
+	} finally {
+		if (previousRegistry === undefined) delete globalThis.__NEXTJS_ENGINE_API_STATIC__;
+		else globalThis.__NEXTJS_ENGINE_API_STATIC__ = previousRegistry;
+		if (previousTsLoader) require.extensions[".ts"] = previousTsLoader;
+		else delete require.extensions[".ts"];
+	}
+
 
 	const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "engine-api-static-"));
 	const endpointDirectory = path.join(temporaryRoot, "data", "endpoint", "nested");

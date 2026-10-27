@@ -87,10 +87,31 @@ interface APIStaticGlobal extends Record<string, unknown> {
 
 class APIStaticValidationError extends Error {
 	status = 400;
+	readonly code = "NEAPI2002";
+	readonly reason = "The request input does not satisfy the endpoint's declared schema.";
+	readonly action = "Check the field named in the validation message and match its declared string, number, boolean, object, or array type. Do not log raw request values while debugging validation failures.";
 
 	constructor(message: string) {
-		super(message);
+		super("[NEAPI2002] " + message);
 		this.name = "APIStaticValidationError";
+	}
+}
+
+class APIStaticExecutionError extends Error {
+	readonly code = "NEAPI4001";
+	readonly reason = "An APIStatic operation threw an unexpected runtime exception.";
+	readonly action = "Inspect the named route/operation and original cause. Use the generated error(status, message, details) helper for intentional HTTP failures; do not expose internal provider details in production responses.";
+	readonly route: string;
+	readonly operation: string;
+	readonly cause: unknown;
+
+	constructor(route: string, operation: string, cause: unknown) {
+		const causeMessage = cause instanceof Error ? cause.message : String(cause);
+		super("[NEAPI4001] APIStatic operation '" + operation + "' on route '" + route + "' failed: " + causeMessage);
+		this.name = "APIStaticExecutionError";
+		this.route = route;
+		this.operation = operation;
+		this.cause = cause;
 	}
 }
 
@@ -312,6 +333,7 @@ function errorResponse(reason: unknown): Response {
 	const candidate = reason as APIStaticErrorDescriptor;
 	const isStaticError = candidate?.__engine_api_static_error__ === true;
 	const isValidationError = reason instanceof APIStaticValidationError;
+	const isExecutionError = reason instanceof APIStaticExecutionError;
 	const status = isStaticError
 		? normalizeErrorStatus(candidate.status)
 		: isValidationError
@@ -321,6 +343,7 @@ function errorResponse(reason: unknown): Response {
 		? reason instanceof Error ? reason.message : "APIStatic operation failed."
 		: "APIStatic operation failed.";
 	const payload: Record<string, unknown> = { error: message };
+	if (isValidationError || isExecutionError) payload.code = reason.code;
 	if (isStaticError && candidate.details !== undefined) payload.details = candidate.details;
 
 	let body: string;
@@ -475,7 +498,13 @@ export class APIStatic {
 			input: normalizedInput,
 			proxy: this.proxyHandler,
 		};
-		return operation.run(context);
+		try {
+			return await operation.run(context);
+		} catch (reason) {
+			const candidate = reason as APIStaticErrorDescriptor;
+			if (reason instanceof APIStaticValidationError || candidate?.__engine_api_static_error__ === true) throw reason;
+			throw new APIStaticExecutionError(module.route, operation.name, reason);
+		}
 	}
 
 	async resolve(route: string, input?: unknown): Promise<Response>;
