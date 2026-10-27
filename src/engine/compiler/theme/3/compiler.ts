@@ -17,6 +17,44 @@ const ID_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const RESERVED_IDS = new Set(["__proto__", "prototype", "constructor"]);
 const DANGEROUS_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 
+const THEME_ERROR_GUIDANCE = Object.freeze({
+	NETH1001: {
+		reason: "The theme definition or expression cannot be normalized into static JSON-safe theme data.",
+		action: "Use one static createTheme({ ... }) object argument. Move runtime-only calculations outside the serializable theme definition.",
+	},
+	NETH1002: {
+		reason: "Theme identity or scope does not satisfy the Generation 3 contract.",
+		action: "Use a single safe group ID segment containing letters, numbers, underscores or hyphens, and choose local, global or remote scope.",
+	},
+	NETH2001: {
+		reason: "Different definitions use the same theme group ID in a single compilation.",
+		action: "Use unique IDs, or make same-ID definitions exactly equivalent. Check both source files named in the diagnostic.",
+	},
+	NETH2002: {
+		reason: "Theme data contains an unsupported value or exceeds a safety bound.",
+		action: "Use bounded JSON data with finite numbers, plain objects and arrays. Remove undefined values, cycles and reserved prototype keys; reduce excessive depth/size.",
+	},
+	NETH3001: {
+		reason: "The serialized .etr artifact exceeds the compiler's output-size ceiling.",
+		action: "Reduce repeated theme data or split large theme groups into smaller, independently useful artifacts.",
+	},
+});
+
+function createThemeCompilerError(code, message) {
+	const guidance = THEME_ERROR_GUIDANCE[code] || THEME_ERROR_GUIDANCE.NETH1001;
+	const error = new Error("[" + code + "] " + message);
+	error.name = "EngineThemeCompileError";
+	error.code = code;
+	error.reason = guidance.reason;
+	error.action = guidance.action;
+	return error;
+}
+
+function codedThemeValueError(message) {
+	return createThemeCompilerError("NETH2002", message);
+}
+
+
 function isWithin(root, target) {
 	const relative = path.relative(root, target);
 	return relative === "" || (relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative));
@@ -53,15 +91,15 @@ function collectVariables(sourceFile) {
 
 function staticJsonValue(expression, variables, seen, state, depth) {
 	const node = unwrap(expression);
-	if (!node) throw new Error("missing expression");
+	if (!node) throw createThemeCompilerError("NETH1001", "missing expression");
 	state.nodes += 1;
-	if (state.nodes > MAX_THEME_NODES) throw new Error("theme exceeds the maximum value count");
-	if (depth > MAX_THEME_DEPTH) throw new Error("theme exceeds the maximum nesting depth");
+	if (state.nodes > MAX_THEME_NODES) throw codedThemeValueError("theme exceeds the maximum value count");
+	if (depth > MAX_THEME_DEPTH) throw codedThemeValueError("theme exceeds the maximum nesting depth");
 
 	if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
 	if (ts.isNumericLiteral(node)) {
 		const value = Number(node.text);
-		if (!Number.isFinite(value)) throw new Error("non-finite numbers are not valid JSON theme values");
+		if (!Number.isFinite(value)) throw codedThemeValueError("non-finite numbers are not valid JSON theme values");
 		return value;
 	}
 	if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
@@ -72,11 +110,11 @@ function staticJsonValue(expression, variables, seen, state, depth) {
 
 	if (ts.isIdentifier(node)) {
 		if (node.text === "undefined" || node.text === "NaN" || node.text === "Infinity") {
-			throw new Error(node.text + " is not a JSON theme value");
+			throw codedThemeValueError(node.text + " is not a JSON theme value");
 		}
-		if (seen.has(node.text)) throw new Error("cyclic identifier reference " + node.text);
+		if (seen.has(node.text)) throw codedThemeValueError("cyclic identifier reference " + node.text);
 		const initializer = variables.get(node.text);
-		if (!initializer) throw new Error("identifier " + node.text + " is not a local static value");
+		if (!initializer) throw createThemeCompilerError("NETH1001", "identifier " + node.text + " is not a local static value");
 		const nextSeen = new Set(seen);
 		nextSeen.add(node.text);
 		return staticJsonValue(initializer, variables, nextSeen, state, depth + 1);
@@ -85,7 +123,7 @@ function staticJsonValue(expression, variables, seen, state, depth) {
 	if (ts.isArrayLiteralExpression(node)) {
 		const output = [];
 		for (const element of node.elements) {
-			if (ts.isSpreadElement(element)) throw new Error("array spreads are not statically supported in .etr themes");
+			if (ts.isSpreadElement(element)) throw createThemeCompilerError("NETH1001", "array spreads are not statically supported in .etr themes");
 			output.push(staticJsonValue(element, variables, seen, state, depth + 1));
 		}
 		return output;
@@ -94,17 +132,17 @@ function staticJsonValue(expression, variables, seen, state, depth) {
 	if (ts.isObjectLiteralExpression(node)) {
 		const output = Object.create(null);
 		for (const property of node.properties) {
-			if (ts.isSpreadAssignment(property)) throw new Error("object spreads are not statically supported in .etr themes");
+			if (ts.isSpreadAssignment(property)) throw createThemeCompilerError("NETH1001", "object spreads are not statically supported in .etr themes");
 			if (ts.isMethodDeclaration(property) || ts.isGetAccessorDeclaration(property) || ts.isSetAccessorDeclaration(property)) {
-				throw new Error("functions and accessors are not allowed in serializable .etr theme content");
+				throw createThemeCompilerError("NETH1001", "functions and accessors are not allowed in serializable .etr theme content");
 			}
 			const key = propertyName(property);
-			if (key === undefined) throw new Error("computed property names are not statically supported in .etr themes");
-			if (DANGEROUS_KEYS.has(key)) throw new Error("reserved object key " + key + " is not allowed in themes");
+			if (key === undefined) throw createThemeCompilerError("NETH1001", "computed property names are not statically supported in .etr themes");
+			if (DANGEROUS_KEYS.has(key)) throw codedThemeValueError("reserved object key " + key + " is not allowed in themes");
 			let valueExpression;
 			if (ts.isPropertyAssignment(property)) valueExpression = property.initializer;
 			else if (ts.isShorthandPropertyAssignment(property)) valueExpression = property.name;
-			else throw new Error("unsupported property form for " + key);
+			else throw createThemeCompilerError("NETH1001", "unsupported property form for " + key);
 			output[key] = staticJsonValue(valueExpression, variables, seen, state, depth + 1);
 		}
 		return output;
@@ -119,9 +157,9 @@ function staticJsonValue(expression, variables, seen, state, depth) {
 			&& node.arguments.length === 1) {
 			return staticJsonValue(node.arguments[0], variables, seen, state, depth + 1);
 		}
-		throw new Error("function calls are not allowed in static .etr theme content");
+		throw createThemeCompilerError("NETH1001", "function calls are not allowed in static .etr theme content");
 	}
-	throw new Error("unsupported dynamic theme expression: " + (ts.SyntaxKind[node.kind] || "unknown"));
+	throw createThemeCompilerError("NETH1001", "unsupported dynamic theme expression: " + (ts.SyntaxKind[node.kind] || "unknown"));
 }
 
 function themeCreatorNames(sourceFile) {
@@ -147,49 +185,49 @@ function callIdentifier(node) {
 }
 
 function validateTheme(theme) {
-	if (!theme || typeof theme !== "object" || Array.isArray(theme)) throw new Error("createTheme() must receive an object literal");
+	if (!theme || typeof theme !== "object" || Array.isArray(theme)) throw createThemeCompilerError("NETH1001", "createTheme() must receive an object literal");
 	if (typeof theme.id !== "string" || !ID_SEGMENT.test(theme.id) || RESERVED_IDS.has(theme.id)) {
-		throw new Error("theme id must be one plain group segment without dots, slashes, or whitespace");
+		throw createThemeCompilerError("NETH1002", "theme id must be one plain group segment without dots, slashes, or whitespace");
 	}
 	if (theme.scope === undefined) theme.scope = "local";
 	if (theme.scope !== "local" && theme.scope !== "global" && theme.scope !== "remote") {
-		throw new Error("theme scope must be local, global, or remote");
+		throw createThemeCompilerError("NETH1002", "theme scope must be local, global, or remote");
 	}
 
 	let nodes = 0;
 	const active = new Set();
 	function walk(value, pathName, depth) {
 		nodes += 1;
-		if (nodes > MAX_THEME_NODES) throw new Error("theme exceeds the maximum value count");
-		if (depth > MAX_THEME_DEPTH) throw new Error("theme exceeds the maximum nesting depth");
+		if (nodes > MAX_THEME_NODES) throw codedThemeValueError("theme exceeds the maximum value count");
+		if (depth > MAX_THEME_DEPTH) throw codedThemeValueError("theme exceeds the maximum nesting depth");
 		if (value === null || typeof value === "string" || typeof value === "boolean") return;
 		if (typeof value === "number") {
-			if (!Number.isFinite(value)) throw new Error("non-finite number at " + pathName);
+			if (!Number.isFinite(value)) throw codedThemeValueError("non-finite number at " + pathName);
 			return;
 		}
-		if (typeof value !== "object") throw new Error("theme must contain JSON data only; invalid value at " + pathName);
-		if (active.has(value)) throw new Error("cyclic reference at " + pathName);
+		if (typeof value !== "object") throw codedThemeValueError("theme must contain JSON data only; invalid value at " + pathName);
+		if (active.has(value)) throw codedThemeValueError("cyclic reference at " + pathName);
 		if (Array.isArray(value)) {
 			active.add(value);
 			for (let index = 0; index < value.length; index += 1) {
-				if (!(index in value)) throw new Error("array hole at " + pathName);
+				if (!(index in value)) throw codedThemeValueError("array hole at " + pathName);
 				walk(value[index], pathName + "[" + index + "]", depth + 1);
 			}
 			active.delete(value);
 			return;
 		}
 		const prototype = Object.getPrototypeOf(value);
-		if (prototype !== Object.prototype && prototype !== null) throw new Error("non-plain object at " + pathName);
+		if (prototype !== Object.prototype && prototype !== null) throw codedThemeValueError("non-plain object at " + pathName);
 		active.add(value);
 		for (const key of Object.keys(value)) {
-			if (DANGEROUS_KEYS.has(key)) throw new Error("reserved key at " + pathName + "." + key);
+			if (DANGEROUS_KEYS.has(key)) throw codedThemeValueError("reserved key at " + pathName + "." + key);
 			walk(value[key], pathName + "." + key, depth + 1);
 		}
 		active.delete(value);
 	}
 	walk(theme, "theme", 0);
 	const serialized = JSON.stringify(theme);
-	if (serialized.length > MAX_THEME_LENGTH) throw new Error("theme exceeds the " + MAX_THEME_LENGTH + "-character limit");
+	if (serialized.length > MAX_THEME_LENGTH) throw codedThemeValueError("theme exceeds the " + MAX_THEME_LENGTH + "-character limit");
 	return theme;
 }
 
@@ -332,7 +370,7 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 		function visit(node) {
 			if (ts.isCallExpression(node) && names.has(callIdentifier(node.expression))) {
 				if (node.arguments.length < 1 || node.arguments.length > 2) {
-					throw new Error("[EngineTheme] " + fileName + ": createTheme() expects a static theme object and optional { registry } runtime options.");
+					throw createThemeCompilerError("NETH1001", "[EngineTheme] " + fileName + ": createTheme() expects a static theme object and optional { registry } runtime options.");
 				}
 				if (node.arguments.length === 2) {
 					const optionsNode = unwrap(node.arguments[1]);
@@ -355,13 +393,19 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 					theme = staticJsonValue(node.arguments[0], variables, new Set(), { nodes: 0 }, 0);
 					theme = validateTheme(theme);
 				} catch (error) {
-					throw new Error("[EngineTheme] " + fileName + ":" + line + ": "
-						+ (error instanceof Error ? error.message : String(error)));
+					const innerCode = error && typeof error.code === "string" && THEME_ERROR_GUIDANCE[error.code]
+						? error.code : "NETH1001";
+					const detail = String(error && error.message ? error.message : error)
+						.replace(/^\[NETH\d{4}\]\s*/, "");
+					throw createThemeCompilerError(
+						innerCode,
+						"[EngineTheme] " + fileName + ":" + line + ": " + detail,
+					);
 				}
 				const serializedDefinition = canonicalJson(theme);
 				const previous = themesById.get(theme.id);
 				if (previous && previous.serialized !== serializedDefinition) {
-					throw new Error("[EngineTheme] Duplicate theme group ID " + theme.id + " in "
+					throw createThemeCompilerError("NETH2001", "[EngineTheme] Duplicate theme group ID " + theme.id + " in "
 						+ previous.fileName + " and " + fileName + ".");
 				}
 				if (!previous) themesById.set(theme.id, { theme, serialized: serializedDefinition, fileName });
@@ -386,8 +430,8 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 		const digest = sha256(canonicalJson(payload));
 		const artifact = { ...payload, sha256: digest };
 		const content = JSON.stringify(sortJson(artifact), null, 2) + "\n";
-		if (content.length > MAX_THEME_LENGTH * 2) {
-			throw new Error("[EngineTheme] Compiled .etr artifact is too large for group " + item.theme.id + ".");
+		if (content.length > MAX_THEME_LENGTH) {
+			throw createThemeCompilerError("NETH3001", "[EngineTheme] Compiled .etr artifact exceeds the 512 KiB output limit for group " + item.theme.id + ".");
 		}
 		artifacts.push({
 			id: item.theme.id,
