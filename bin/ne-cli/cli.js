@@ -93,10 +93,14 @@ function parseArgs(argv) {
 	return { positional, options };
 }
 
-function experimentalWarning() {
-	if (!process.stdout.isTTY || process.env.CI === "true" || process.env.NE_NO_WARN === "1") return;
+function shouldShowExperimentalWarning() {
+	if (!process.stdout.isTTY || process.env.CI === "true" || process.env.NE_NO_WARN === "1") return false;
 	const args = process.argv.slice(2);
-	if (args.includes("-q") || args.includes("--quiet")) return;
+	return !args.includes("-q") && !args.includes("--quiet");
+}
+
+function experimentalWarning() {
+	if (!shouldShowExperimentalWarning()) return;
 	const ascii = process.env.NE_ASCII === "1" || process.env.TERM === "dumb";
 	const top = ascii ? "+--------------------------------------------------------------------------+" : "  ╭──────────────────────────────────────────────────────────────────────────╮";
 	const bottom = ascii ? "+--------------------------------------------------------------------------+" : "  ╰──────────────────────────────────────────────────────────────────────────╯";
@@ -237,7 +241,7 @@ async function commandUpdate(root, options) {
 	await installRelease(root, release, options.channel || release.track);
 }
 
-async function commandUpdater(root) {
+async function commandUpdater(root, showWarning) {
 	const catalog = await loadChannelCatalog(root);
 	const state = loadState(root);
 	if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -247,6 +251,7 @@ async function commandUpdater(root) {
 	}
 	const result = await runTui({
 		initialScreen: "releases",
+		showWarning: Boolean(showWarning),
 		catalog,
 		context: {
 			projectName: projectName(root),
@@ -262,23 +267,29 @@ async function commandUpdater(root) {
 }
 
 function readInstalledVersion(root) {
+	const installedPath = path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json");
+	try {
+		const installed = JSON.parse(require("node:fs").readFileSync(installedPath, "utf8"));
+		if (installed.name === PACKAGE_NAME) return installed.version || "unknown";
+	} catch {}
 	const pkg = require("node:fs").existsSync(path.join(root, "package.json"))
 		? require("node:fs").readFileSync(path.join(root, "package.json"), "utf8")
 		: "{}";
 	try {
 		const parsed = JSON.parse(pkg);
-		return parsed.version || "unknown";
+		return parsed.name === "nextjs-engine" ? (parsed.version || "unknown") : "not installed";
 	} catch {
 		return "unknown";
 	}
 }
 
-async function runDashboard(root) {
+async function runDashboard(root, showWarning) {
 	const state = loadState(root);
 	let catalog = { releases: [], cached: true };
 	try { catalog = await loadChannelCatalog(root); } catch {}
 	const result = await runTui({
 		initialScreen: "dashboard",
+		showWarning: Boolean(showWarning),
 		catalog,
 		context: {
 			projectName: projectName(root),
@@ -299,7 +310,7 @@ async function runDashboardAction(root, action) {
 	if (action === "clean") return runClean(root, false);
 	if (action === "rollback") return rollback(root);
 	if (action === "help") return process.stdout.write(getHelp());
-	if (action === "updater") return commandUpdater(root);
+	if (action === "updater") return commandUpdater(root, false);
 	if (action === "quit") return;
 	throw new Error("Unknown dashboard action: " + action);
 }
@@ -343,17 +354,17 @@ async function runChainedCommands(root, options) {
 	}
 }
 
-async function executeCommand(root, command, subArgs, options) {
+async function executeCommand(root, command, subArgs, options, showWarning) {
 	if (!command) {
 		if (!process.stdin.isTTY || !process.stdout.isTTY) {
 			process.stdout.write(getHelp());
 			return;
 		}
-		const result = await runDashboard(root);
+		const result = await runDashboard(root, showWarning);
 		await runDashboardAction(root, result.action);
 		return;
 	}
-	if (command === "updater") return commandUpdater(root);
+	if (command === "updater") return commandUpdater(root, showWarning);
 	if (command === "update") return commandUpdate(root, options);
 	if (command === "dev") return runNext(root, ["dev", ...subArgs]);
 	if (command === "build") return runBuild(root);
@@ -372,9 +383,10 @@ async function main(argv) {
 		process.stdout.write(getHelp());
 		return;
 	}
-	if (command || (process.stdin.isTTY && process.stdout.isTTY)) experimentalWarning();
+	const usesTui = !command || command === "updater";
+	if (!usesTui) experimentalWarning();
 	const root = findProjectRoot(process.cwd());
-	await executeCommand(root, command, subArgs, args.options);
+	await executeCommand(root, command, subArgs, args.options, shouldShowExperimentalWarning());
 	await runChainedCommands(root, args.options);
 }
 
