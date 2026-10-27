@@ -57,6 +57,7 @@ const ERROR_BOOK_PAGE_BY_CODE = Object.freeze({
   "NETH2002": "theme",
   "NETH3001": "theme",
   "NETH8001": "theme",
+  "NETH8002": "theme",
   "NEMD1001": "markdown",
   "NEMD1002": "markdown",
   "NEMD2001": "markdown",
