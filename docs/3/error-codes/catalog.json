@@ -303,31 +303,31 @@
     },
     {
       "code": "NETH1001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Theme definition malformed",
       "doc": "theme.md#neth1001"
     },
     {
       "code": "NETH1002",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Theme ID/scope invalid",
       "doc": "theme.md#neth1002"
     },
     {
       "code": "NETH2001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Theme ID collides in scope",
       "doc": "theme.md#neth2001"
     },
     {
       "code": "NETH2002",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Theme token value invalid",
       "doc": "theme.md#neth2002"
     },
     {
       "code": "NETH3001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Theme artifact compilation failed",
       "doc": "theme.md#neth3001"
     },

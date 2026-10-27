@@ -7,11 +7,11 @@
 
 | Code | Diagnostic | Status |
 |---|---|---|
-| [NETH1001](#neth1001) | Theme definition malformed | Assigned |
-| [NETH1002](#neth1002) | Theme ID/scope invalid | Assigned |
-| [NETH2001](#neth2001) | Theme ID collides in scope | Assigned |
-| [NETH2002](#neth2002) | Theme token value invalid | Assigned |
-| [NETH3001](#neth3001) | Theme artifact compilation failed | Assigned |
+| [NETH1001](#neth1001) | Theme definition malformed | Emitted |
+| [NETH1002](#neth1002) | Theme ID/scope invalid | Emitted |
+| [NETH2001](#neth2001) | Theme ID collides in scope | Emitted |
+| [NETH2002](#neth2002) | Theme token value invalid | Emitted |
+| [NETH3001](#neth3001) | Theme artifact compilation failed | Emitted |
 | [NETH8001](#neth8001) | Remote theme could not be fetched/decoded | Assigned |
 
 ## Details
@@ -20,7 +20,7 @@
 
 **Theme definition malformed**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
@@ -44,7 +44,7 @@ Check the first field path against the Gen 3 EngineTheme guide; remote `.etr` mu
 
 **Theme ID/scope invalid**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
@@ -68,7 +68,7 @@ Use a stable ID and documented scope, not URL or object identity.
 
 **Theme ID collides in scope**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
@@ -92,7 +92,7 @@ Choose unique IDs or an explicit supported override.
 
 **Theme token value invalid**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
@@ -116,7 +116,7 @@ Use documented token forms and typed values; keep arbitrary markup out of tokens
 
 **Theme artifact compilation failed**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 

@@ -13,6 +13,21 @@ const {
 	ETR_FORMAT,
 } = require("../src/engine/compiler/EngineThemeCompiler");
 const pluginCompilerLink = require("../src/engine/plugins/gen3ThemeCompiler");
+
+function assertCodedThemeFailure(operation, code, messagePattern) {
+	let caught;
+	assert.throws(operation, (error) => {
+		caught = error;
+		assert.equal(error.code, code, "theme diagnostics use a stable Error Book code");
+		assert.equal(typeof error.reason, "string");
+		assert.equal(typeof error.action, "string");
+		assert.ok(error.reason.length > 0 && error.action.length > 0);
+		if (messagePattern) assert.match(error.message, messagePattern);
+		return true;
+	});
+	return caught;
+}
+
 assert.equal(pluginCompilerLink.compileEngineThemeArtifacts, compileEngineThemeArtifacts, "the Next.js plugin forwards to the dedicated EngineTheme compiler");
 
 async function testPublicThemeApi() {
@@ -951,6 +966,11 @@ async function run() {
 			source(path.join(root, "app", "other.tsx"),
 				'import { createTheme } from "nextjs-engine"; createTheme({ id: "dark-fantasy", scope: "remote", markdown: { theme: "conflict" } });'),
 		], options), /Duplicate theme group ID/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			changed,
+			source(path.join(root, "app", "other-coded.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "dark-fantasy", scope: "remote", markdown: { theme: "different" } });'),
+		], options), "NETH2001", /Duplicate theme group ID/);
 		assert.equal(fs.readFileSync(artifactPath, "utf8"), previousGoodOutput,
 			"invalid duplicate IDs fail before existing artifacts are changed");
 
@@ -958,11 +978,38 @@ async function run() {
 			source(path.join(root, "app", "dynamic.tsx"),
 				'import { createTheme } from "nextjs-engine"; const makeTheme = () => ({ id: "dynamic" }); createTheme(makeTheme());'),
 		], options), /function calls are not allowed/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "dynamic-coded.tsx"),
+				'import { createTheme } from "nextjs-engine"; const makeTheme = () => ({ id: "dynamic-coded" }); createTheme(makeTheme());'),
+		], options), "NETH1001", /function calls are not allowed/);
 
 		assert.throws(() => compileEngineThemeArtifacts(root, [
 			source(path.join(root, "app", "bad-id.tsx"),
 				'import { createTheme } from "nextjs-engine"; createTheme({ id: "../outside", scope: "global" });'),
 		], options), /theme id must be one plain group segment/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "bad-id-coded.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "../outside-coded", scope: "global" });'),
+		], options), "NETH1002", /theme id must be one plain group segment/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "bad-value.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "bad-value", tokens: { accent: undefined } });'),
+		], options), "NETH2002", /undefined is not a JSON theme value/);
+
+
+		const longValue = "x".repeat(24);
+		const themeLeafProperties = Array.from({ length: 8 }, (_, index) =>
+			JSON.stringify("long-property-name-" + String(index).padStart(2, "0")) + ": " + JSON.stringify(longValue)).join(", ");
+		const themeEntries = Array.from({ length: 1080 }, () => "{ " + themeLeafProperties + " }").join(", ");
+		let nestedEntries = "entries";
+		for (let depth = 0; depth < 28; depth += 1) nestedEntries = "{ nested" + depth + ": " + nestedEntries + " }";
+		const oversizedTheme = source(path.join(root, "app", "oversized.tsx"), [
+			'import { createTheme } from "nextjs-engine";',
+			"const entries = [" + themeEntries + "];",
+			"createTheme({ id: \"oversized-output\", payload: " + nestedEntries + " });",
+		].join("\\n"));
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [oversizedTheme], options),
+			"NETH3001", /Compiled \\.etr artifact is too large/);
 
 		const protectedPath = path.join(root, ".nextjs-engine", "gen3", "theme", "user-owned.etr");
 		fs.writeFileSync(protectedPath, JSON.stringify({ hello: "user file" }));
