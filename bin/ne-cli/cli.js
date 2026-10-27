@@ -372,7 +372,7 @@ async function main(argv) {
 		process.stdout.write(getHelp());
 		return;
 	}
-	if (command) experimentalWarning();
+	if (command || (process.stdin.isTTY && process.stdout.isTTY)) experimentalWarning();
 	const root = findProjectRoot(process.cwd());
 	await executeCommand(root, command, subArgs, args.options);
 	await runChainedCommands(root, args.options);
