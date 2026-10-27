@@ -598,14 +598,14 @@ async function testPublicThemeApi() {
 				...remoteOptions,
 				allowedOrigins: ["https://127.0.0.1"],
 			}),
-			/local\/private hosts are not permitted/,
+			(error) => error.code === "NESEC2001" && Boolean(error.reason && error.action) && /local\/private hosts are not permitted/.test(error.message),
 		);
 		await assert.rejects(
 			loadRemoteEngineTheme("https://localhost/private.etr", {
 				...remoteOptions,
 				allowedOrigins: ["https://localhost"],
 			}),
-			/local\/private hosts are not permitted/,
+			(error) => error.code === "NESEC2001" && Boolean(error.reason && error.action) && /local\/private hosts are not permitted/.test(error.message),
 		);
 
 		const corruptRemoteOptions = {
@@ -635,7 +635,7 @@ async function testPublicThemeApi() {
 				...remoteOptions, expectedId: "remote-unsafe-css",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-css", unsafeCssContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/unsafe CSS\/network primitive|unsafe CSS value/,
+			(error) => error.code === "NESEC4001" && Boolean(error.reason && error.action) && /unsafe CSS\/network primitive|unsafe CSS value/.test(error.message),
 		);
 		const unsafeFontContent = { ...remoteContent, id: "remote-unsafe-font", fonts: ["https://evil.invalid/fonts.css"] };
 		await assert.rejects(
@@ -658,7 +658,7 @@ async function testPublicThemeApi() {
 					status: 200, headers: { "content-type": "application/json" },
 				}),
 			}),
-			/unsafe CSS\/network primitive/,
+			(error) => error.code === "NESEC4001" && Boolean(error.reason && error.action) && /unsafe CSS\/network primitive/.test(error.message),
 		);
 		const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
 		await assert.rejects(
@@ -666,7 +666,7 @@ async function testPublicThemeApi() {
 				...remoteOptions, expectedId: "remote-unsafe-css-text",
 				fetchImpl: async () => new Response(remoteTextFor("remote-unsafe-css-text", unsafeGlobalStylesContent), { status: 200, headers: { "content-type": "application/json" } }),
 			}),
-			/globalStyles are disabled/,
+			(error) => error.code === "NESEC4001" && Boolean(error.reason && error.action) && /globalStyles are disabled/.test(error.message),
 		);
 
 		assert.ok(getRemoteEngineThemeCacheSize() >= 1);
