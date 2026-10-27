@@ -406,6 +406,21 @@ jobs:
             exit 1
           fi
 
+          # A missing archive must not be reconstructed from a version that already exists on npm.
+          # Refresh paths have already performed this check above, before deleting the old snapshot.
+          if [[ "$REUSE_EXISTING" != "true" && "$SNAPSHOT_ACTION" != "refresh" && ! -e "archive/$TARGET" ]]; then
+            npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"
+            node - "$VERSION" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
+          const fs = require("node:fs");
+          const [version, versionsPath] = process.argv.slice(2);
+          const raw = JSON.parse(fs.readFileSync(versionsPath, "utf8"));
+          const versions = Array.isArray(raw) ? raw : [raw];
+          if (versions.map(String).includes(version)) {
+            throw new Error("@kastrick/nextjs-engine@" + version + " is already published; refusing to create a different archive for the same version.");
+          }
+          NODE
+          fi
+
           if [[ "$REUSE_EXISTING" != "true" ]]; then
             if [[ -d source/src/engine ]]; then ENGINE_DIR="source/src/engine"
             elif [[ -d source/engine ]]; then ENGINE_DIR="source/engine"
