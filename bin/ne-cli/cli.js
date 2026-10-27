@@ -43,7 +43,19 @@ function parseArgs(argv) {
 			const equal = argument.indexOf("=");
 			const name = argument.slice(2, equal === -1 ? undefined : equal);
 			const value = equal === -1 ? undefined : argument.slice(equal + 1);
-			if (takesValue.has(name)) {
+			if (name === "and") {
+				const command = value !== undefined ? value : argv[index + 1];
+				if (!command || (value === undefined && command.startsWith("-"))) throw new Error("--and requires a command.");
+				if (value === undefined) index += 1;
+				(options.andCommands ||= []).push(command);
+			} else if (name === "and-terminal") {
+				const rawHeight = value !== undefined ? value : argv[index + 1];
+				if (!rawHeight || (value === undefined && rawHeight.startsWith("-"))) throw new Error("--and-terminal requires a height.");
+				if (value === undefined) index += 1;
+				const height = Number(rawHeight);
+				if (!Number.isInteger(height) || height < 1 || height > 100) throw new Error("and-terminal height must be an integer between 1 and 100.");
+				options.andTerminal = height;
+			} else if (takesValue.has(name)) {
 				if (value !== undefined) options[name] = value;
 				else if (argv[index + 1] && !argv[index + 1].startsWith("-")) options[name] = argv[++index];
 				else throw new Error("--" + name + " requires a value.");
@@ -292,6 +304,66 @@ async function runDashboardAction(root, action) {
 	throw new Error("Unknown dashboard action: " + action);
 }
 
+async function runChainedCommands(root, options) {
+	const commands = options.andCommands || [];
+	const height = options.andTerminal || 5;
+	for (let index = 0; index < commands.length; index += 1) {
+		const command = commands[index];
+		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + command + " [viewport: " + height + " rows]\n");
+		await new Promise((resolve, reject) => {
+			const isWindows = process.platform === "win32";
+			const executable = isWindows ? (process.env.ComSpec || "cmd.exe") : "/bin/sh";
+			const args = isWindows ? ["/d", "/s", "/c", command] : ["-lc", command];
+			const child = require("node:child_process").spawn(executable, args, {
+				cwd: root,
+				env: process.env,
+				windowsHide: true,
+				stdio: ["inherit", "pipe", "pipe"],
+			});
+			let output = "";
+			const limit = 2 * 1024 * 1024;
+			const capture = (kind) => (chunk) => {
+				if (output.length < limit) {
+					const text = chunk.toString("utf8");
+					output += kind === "stderr" ? "[stderr] " + text : text;
+					if (output.length > limit) output = output.slice(-limit);
+				}
+			};
+			child.stdout.on("data", capture("stdout"));
+			child.stderr.on("data", capture("stderr"));
+			child.once("error", reject);
+			child.once("close", (code, signal) => {
+				const lines = output.replace(/\r\n/g, "\n").split("\n");
+				const visible = lines.slice(-height);
+				for (const line of visible) process.stdout.write(line + "\n");
+				if (code !== 0) reject(new Error("Chained command failed: " + command + " (" + (signal || ("exit " + code)) + ")."));
+				else resolve();
+			});
+		});
+	}
+}
+
+async function executeCommand(root, command, subArgs, options) {
+	if (!command) {
+		if (!process.stdin.isTTY || !process.stdout.isTTY) {
+			process.stdout.write(getHelp());
+			return;
+		}
+		const result = await runDashboard(root);
+		await runDashboardAction(root, result.action);
+		return;
+	}
+	if (command === "updater") return commandUpdater(root);
+	if (command === "update") return commandUpdate(root, options);
+	if (command === "dev") return runNext(root, ["dev", ...subArgs]);
+	if (command === "build") return runBuild(root);
+	if (command === "start") return runNext(root, ["start", ...subArgs]);
+	if (command === "check") return runCheck(root);
+	if (command === "clean") return runClean(root, Boolean(options.dryRun));
+	if (command === "rollback") return rollback(root);
+	throw new Error("Unknown command: " + command + ". Run ne help for commands.");
+}
+
 async function main(argv) {
 	const args = parseArgs(argv || process.argv.slice(2));
 	const command = args.positional[0];
@@ -300,52 +372,10 @@ async function main(argv) {
 		process.stdout.write(getHelp());
 		return;
 	}
-	if (!command) {
-		if (!process.stdin.isTTY || !process.stdout.isTTY) {
-			process.stdout.write(getHelp());
-			return;
-		}
-		experimentalWarning();
-		const root = findProjectRoot(process.cwd());
-		const result = await runDashboard(root);
-		await runDashboardAction(root, result.action);
-		return;
-	}
-	experimentalWarning();
+	if (command) experimentalWarning();
 	const root = findProjectRoot(process.cwd());
-	if (command === "updater") {
-		await commandUpdater(root);
-		return;
-	}
-	if (command === "update") {
-		await commandUpdate(root, args.options);
-		return;
-	}
-	if (command === "dev") {
-		await runNext(root, ["dev", ...subArgs]);
-		return;
-	}
-	if (command === "build") {
-		await runBuild(root);
-		return;
-	}
-	if (command === "start") {
-		await runNext(root, ["start", ...subArgs]);
-		return;
-	}
-	if (command === "check") {
-		await runCheck(root);
-		return;
-	}
-	if (command === "clean") {
-		await runClean(root, Boolean(args.options.dryRun));
-		return;
-	}
-	if (command === "rollback") {
-		await rollback(root);
-		return;
-	}
-	throw new Error("Unknown command: " + command + ". Run ne help for commands.");
+	await executeCommand(root, command, subArgs, args.options);
+	await runChainedCommands(root, args.options);
 }
 
 module.exports = {
@@ -353,4 +383,5 @@ module.exports = {
 	getHelp,
 	listChannels,
 	main,
+	runChainedCommands,
 };
