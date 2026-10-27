@@ -375,16 +375,19 @@ function compileEngineThemeArtifacts(projectRoot, sourceFiles, options = {}) {
 				if (node.arguments.length === 2) {
 					const optionsNode = unwrap(node.arguments[1]);
 					if (!ts.isObjectLiteralExpression(optionsNode)) {
-						throw new Error("[EngineTheme] " + fileName + ": createTheme() runtime options must be an object literal containing only registry.");
+						throw createThemeCompilerError("NETH1001", "[EngineTheme] " + fileName + ": createTheme() runtime options must be an object literal containing only registry.");
 					}
 					let hasRegistry = false;
 					for (const property of optionsNode.properties) {
 						const key = propertyName(property);
 						if (key !== "registry" || hasRegistry
 							|| (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property))) {
-							throw new Error("[EngineTheme] " + fileName + ": createTheme() runtime options only support a single registry property.");
+							throw createThemeCompilerError("NETH1001", "[EngineTheme] " + fileName + ": createTheme() runtime options only support a single registry property.");
 						}
 						hasRegistry = true;
+					}
+					if (!hasRegistry) {
+						throw createThemeCompilerError("NETH1001", "[EngineTheme] " + fileName + ": createTheme() runtime options must include a registry property.");
 					}
 				}
 				const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;

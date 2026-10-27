@@ -456,7 +456,7 @@ The implemented EngineTheme Data-API already provides typed `join:left`, `join:r
 3. [x] Add qualified theme IDs and variant resolution for registered custom nodes through the shared theme resolver, with a bounded style allowlist and local-style precedence.
 4. [x, partial] Added `app/engine-custom-link-test/page.tsx` and `tests/browser/engine-custom-link.spec.ts` for a registered custom link with base/variant styles, named slots, internal navigation, external `target="_blank"` rel protections, and fail-closed handling of JavaScript and backslash protocol-relative URLs. Current-head Chromium/Firefox/WebKit execution is not yet verified, so final browser accessibility/security acceptance remains open.
 5. [x, partial] The declared `join:*` Data-API handler contract and trusted template adapters now accept an application-scoped registry. Server-first Markdown threads that scope to info/code/table templates; scoped lookups never fall back to global handlers/adapters and the internal registry is stripped before a trusted adapter receives props. The new isolation smoke cases still need to pass on the final CI head.
-6. Add server-first, browser-compatibility, cache invalidation, malformed theme, missing component, unknown theme, and cross-request isolation tests.
+6. [x, partial] Server-first, browser, remote-cache, malformed/missing/unknown theme and two-registry isolation regression cases are now present. Mark complete only after the final CI head passes type-check, build and Chromium/Firefox/WebKit checks.
 7. Update the simple and detailed documentation only after the API shape is stable and verified.
 
 Acceptance criteria:
@@ -471,15 +471,21 @@ Acceptance criteria:
 - Gen 3 server-first rendering and optional-component code splitting remain intact.
 - Type-check, targeted component/theme tests, build smoke tests, and Chromium/Firefox/WebKit regressions pass before this feature is marked complete.
 
-### Decisions still open
+### Decisions resolved and remaining
 
-- The exact `createComponent()` option discriminator and whether advanced custom definitions return a React component directly or a typed descriptor that is explicitly registered.
-- Whether custom definitions register immediately or return a descriptor that is explicitly registered.
-- Whether `createComponent()` accepts an optional theme reference for schema composition, and the exact placement of that option.
-- The final typed prop-schema format and how named slots/children serialize through `SchemaNode`.
-- Whether component registries are explicit objects passed through schema/render context or safely scoped registries created by a project bootstrap.
-- Exact custom-link props and whether theme IDs live in a reserved schema field or validated component props.
-- Any additional custom-component event list and how those events interact with the existing local-handler/slot contract.
+The main API shape is now established by the implementation and smoke coverage:
+
+- [x] Advanced custom components use the discriminated `createComponent({ mode: "custom", ... })` path. It returns a typed, trusted React wrapper and **does not register automatically**; registration is explicit through `registry.registerComponent(id, component)` or the backwards-compatible process-global `registerComponent(id, component)`.
+- [x] Existing `createComponent({ schema })` schema-composition calls remain the same public entry point.
+- [x] Custom theme binding uses the reserved `SchemaNode.theme` field; the custom-component `theme` option names only the base namespace, while node data selects variants.
+- [x] The custom prop-schema and named-slot contracts are represented by `EngineCustomPropSchema` and `slots`; unsupported props/unsafe values fail at the trusted wrapper boundary.
+- [x] Applications can explicitly create and pass an `EngineComponentRegistry` to scope components, global/verified-remote themes, Data-API handlers and template adapters. Calls without one retain process-global compatibility behavior.
+
+Still open:
+
+- Whether schema-composition calls need an additional convenience-level theme option beyond the theme already supported on `PageSchema`.
+- Whether EngineTheme should add custom-component activation/navigation events beyond the existing, narrow `join:*` Data-API contract. No new events are introduced by this work.
+- Final acceptance of server-first concurrency/isolation and cross-browser behavior depends on current-head smoke, type-check, build and Chromium/Firefox/WebKit runs passing.
 
 ## 15. EnginePlugin system (General API through `createComponent()`)
 

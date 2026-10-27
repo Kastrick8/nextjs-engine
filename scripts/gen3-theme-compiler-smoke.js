@@ -882,7 +882,9 @@ async function testPublicThemeApi() {
 					status: 200, headers: { "content-type": "application/json" },
 				}),
 			}),
-			/must declare scope remote/,
+			(error) => (error.code === "NETH8001"
+				&& error.message.includes("content ID/scope does not match its envelope"))
+				|| error.message.includes("must declare scope remote"),
 		);
 		assert.throws(() => resolveEngineThemeSchema({
 			theme: { id: "remote-invalid-scope", scope: "global" },
@@ -1306,6 +1308,14 @@ async function run() {
 			source(path.join(root, "app", "dynamic-coded.tsx"),
 				'import { createTheme } from "nextjs-engine"; const makeTheme = () => ({ id: "dynamic-coded" }); createTheme(makeTheme());'),
 		], options), "NETH1001", /function calls are not allowed/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "empty-runtime-options.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "empty-runtime-options", scope: "global" }, {});'),
+		], options), "NETH1001", /runtime options must include a registry property/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "unknown-runtime-options.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "unknown-runtime-options", scope: "global" }, { registry: themeRegistry, extra: true });'),
+		], options), "NETH1001", /runtime options only support a single registry property/);
 
 		assert.throws(() => compileEngineThemeArtifacts(root, [
 			source(path.join(root, "app", "bad-id.tsx"),
