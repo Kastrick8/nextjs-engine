@@ -867,8 +867,11 @@ async function testPublicThemeApi() {
 				production: true,
 				failurePolicy: "error",
 				fetchImpl: async () => { throw new Error("fixture provider unavailable"); },
-			}), /Strict failure policy rejected theme 'strict-font'/,
-			"strict mode fails the build when no valid cached local font output exists");
+			}), (error) => error.code === "NETH8002"
+				&& typeof error.reason === "string" && typeof error.action === "string"
+				&& error.cause instanceof Error
+				&& /Strict failure policy rejected theme 'strict-font'/.test(error.message),
+			"strict mode fails with an Error Book code and preserves the provider cause when no valid cache exists");
 			assert.ok(!fs.existsSync(path.join(fontRoot, "public", "nextjs-engine", "fonts", "strict-font.css")),
 				"strict mode does not create a browser-import fallback stylesheet");
 

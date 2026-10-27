@@ -22,6 +22,23 @@ const DEFAULT_FONT_ORIGINS = ["https://fonts.gstatic.com"];
 const SAFE_THEME_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const FONT_EXTENSIONS = new Set(["woff2", "woff", "ttf", "otf"]);
 
+const THEME_FONT_PROVIDER_GUIDANCE = Object.freeze({
+	reason: "A theme font stylesheet or font file could not be downloaded, validated, or emitted under the configured strict failure policy.",
+	action: "Check the provider HTTP status/content type, exact HTTPS origin allowlists, font URLs and cache/output permissions. Keep failurePolicy=\"fallback\" for optional fonts, or repair the provider before using strict mode.",
+});
+
+function createThemeFontProviderError(themeId, error) {
+	const detail = error instanceof Error ? error.message : String(error);
+	const wrapped = new Error("[NETH8002] [EngineTheme fonts] Strict failure policy rejected theme '" + themeId + "': " + detail);
+	wrapped.name = "EngineThemeFontProviderError";
+	wrapped.code = "NETH8002";
+	wrapped.reason = THEME_FONT_PROVIDER_GUIDANCE.reason;
+	wrapped.action = THEME_FONT_PROVIDER_GUIDANCE.action;
+	wrapped.cause = error;
+	return wrapped;
+}
+
+
 function sha256(buffer) {
 	return crypto.createHash("sha256").update(buffer).digest("hex");
 }
@@ -584,8 +601,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 			return staleEntry;
 		}
 		if (failurePolicy === "error") {
-			throw new Error("[EngineTheme fonts] Strict failure policy rejected theme '" + themeId + "': "
-				+ (error instanceof Error ? error.message : String(error)));
+			throw createThemeFontProviderError(themeId, error);
 		}
 		stats.fallbackThemes += 1;
 		const cssContent = await fallbackStylesheetCss(sourceUrls, cssOrigins, trustedBuiltInHosts, options.lookupImpl);

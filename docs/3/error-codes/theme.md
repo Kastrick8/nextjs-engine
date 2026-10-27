@@ -13,6 +13,7 @@
 | [NETH2002](#neth2002) | Theme token value invalid | Emitted |
 | [NETH3001](#neth3001) | Theme artifact compilation failed | Emitted |
 | [NETH8001](#neth8001) | Remote theme could not be fetched/decoded | Emitted |
+| [NETH8002](#neth8002) | Theme font provider failed | Emitted |
 
 ## Details
 
@@ -157,6 +158,30 @@ Check URL/status/content and preserve a known-good local fallback.
 **Help URL**
 
 `https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/theme#neth8001`
+
+### NETH8002
+
+**Theme font provider failed**
+
+**Status:** Emitted
+
+**What it means**
+
+A theme font stylesheet or font file could not be downloaded, validated, cached, or emitted while EngineTheme font compilation was running in strict failure mode.
+
+**Why it happens**
+
+The provider may return an error status or unexpected content type; a font URL may be outside the exact HTTPS allowlist; the request may time out or exceed size limits; or local cache/output state may be unreadable or conflicting.
+
+**Recommended action**
+
+Check the provider HTTP status/content type, exact HTTPS origins, font URLs, and cache/output permissions. Use the default `failurePolicy: "fallback"` for optional fonts; use strict mode when font delivery is required and the underlying provider problem has been corrected. The original failure is preserved as `cause`.
+
+**Help URL**
+
+`https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/theme#neth8002`
+
+---
 
 ---
 

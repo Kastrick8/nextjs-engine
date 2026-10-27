@@ -338,6 +338,12 @@
       "doc": "theme.md#neth8001"
     },
     {
+      "code": "NETH8002",
+      "status": "emitted",
+      "title": "Theme font provider failed",
+      "doc": "theme.md#neth8002"
+    },
+    {
       "code": "NEMD1001",
       "status": "assigned",
       "title": "Markdown input/options invalid",

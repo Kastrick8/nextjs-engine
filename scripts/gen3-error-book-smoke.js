@@ -53,6 +53,7 @@ const reporterSource = source("src/engine/errors/engineErrorReporter.js");
 const integrationSource = source("src/engine/plugins/engineErrorHandling.js");
 const loggerSource = source("src/engine/plugins/nencTerminalLogger.js");
 const remoteThemeSource = source("src/engine/component/engineTheme/remoteTheme.ts");
+const fontCompilerSource = source("src/engine/compiler/font/3/compiler.ts");
 const errorFrom = (operation) => {
   try { operation(); } catch (error) { return error; }
   assert.fail("Expected operation to throw.");
@@ -165,6 +166,7 @@ const emittedChecks = {
   NETH2002: neth2002.code === "NETH2002",
   NETH3001: source("src/engine/compiler/theme/3/compiler.ts").includes('createThemeCompilerError("NETH3001"'),
   NETH8001: remoteThemeSource.includes('createRemoteThemeError("NETH8001"'),
+  NETH8002: fontCompilerSource.includes('wrapped.code = "NETH8002"'),
   NESEC2001: remoteThemeSource.includes('createRemoteThemeError("NESEC2001"'),
   NESEC4001: remoteThemeSource.includes('createRemoteThemeError("NESEC4001"'),
   NESEC8001: remoteThemeSource.includes('createRemoteThemeError("NESEC8001"'),
