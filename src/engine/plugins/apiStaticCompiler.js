@@ -12,6 +12,130 @@ const RESERVED_MODULE_BINDINGS = new Set([
 	"__engineApiStaticGlobal",
 ]);
 const RESERVED_RUN_BINDINGS = new Set(["__context", "query", "body", "input", "proxy"]);
+const API_STATIC_ERROR_BOOK_BASE_URL = "https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes";
+const API_STATIC_ERROR_GUIDANCE = Object.freeze({
+	NEAPI1001: {
+		reason: "The APIStatic .route declaration could not be parsed or compiled into a deterministic browser endpoint.",
+		action: "Check the first reported .route source line, the createEndpoint([{ ... }]) shape, operation names, schema fields, and run.<source>(...) expression. Use only the supported static syntax.",
+	},
+	NEAPI1002: {
+		reason: "The APIStatic route identifier contains an empty, dot, traversal, or unsupported path segment.",
+		action: "Use a relative route ID with non-empty letters, numbers, dots, underscores or hyphens. Remove leading/trailing separators and all '.' or '..' segments.",
+	},
+	NEAPI8001: {
+		reason: "APIStatic could not load the TypeScript compiler required to transform .route source.",
+		action: "Install the package dependencies and ensure 'typescript' is resolvable from the project where the Next.js build runs.",
+	},
+});
+
+function apiStaticDiagnosticsUseColor() {
+	if (process.env.NO_COLOR !== undefined || process.env.NODE_DISABLE_COLORS === "1") return false;
+	if (process.env.FORCE_COLOR !== undefined) return process.env.FORCE_COLOR !== "0";
+	return Boolean(process.stderr && process.stderr.isTTY);
+}
+
+function apiStaticColor(text, colorCode) {
+	return apiStaticDiagnosticsUseColor() ? "\u001b[" + colorCode + "m" + text + "\u001b[0m" : text;
+}
+
+function inferAPIStaticSourcePosition(source, message) {
+	const near = String(message).match(/near:\s*([^\r\n]*)/);
+	if (near && near[1]) {
+		const found = source.indexOf(near[1]);
+		if (found >= 0) return found;
+	}
+	let match = String(message).match(/Expected ':' after (?:schema key )?([^.\r\n]+)\./);
+	if (match && match[1]) {
+		const key = match[1].trim().replace(/^["']|["']$/g, "");
+		const found = source.lastIndexOf(key);
+		if (found >= 0) return found + key.length;
+	}
+	match = String(message).match(/(?:Duplicate input schema field|Duplicate createEndpoint property|Unknown createEndpoint property):\s*([A-Za-z_$][\w$-]*)/);
+	if (match && match[1]) {
+		const found = source.lastIndexOf(match[1]);
+		if (found >= 0) return found;
+	}
+	match = String(message).match(/Unsupported run source:\s*([A-Za-z_$][\w$-]*)/);
+	if (match && match[1]) {
+		const found = source.lastIndexOf("run." + match[1]);
+		if (found >= 0) return found;
+	}
+	match = String(message).match(/Duplicate operation name:\s*([A-Za-z_$][\w$-]*)/);
+	if (match && match[1]) {
+		const found = source.lastIndexOf(match[1]);
+		if (found >= 0) return found;
+	}
+	if (/Missing top-level createEndpoint|Unterminated string literal|Unterminated block comment|Unterminated regular expression literal|needs an expression|needs at least one operation|needs name:|needs run\.query/.test(String(message))) {
+		return source.length;
+	}
+	if (/run\.<source> must use/.test(String(message))) {
+		const found = source.lastIndexOf("run.");
+		if (found >= 0) return found;
+	}
+	return undefined;
+}
+
+function formatAPIStaticCompilerError(reason, source, fileName) {
+	const original = reason instanceof Error ? reason : new Error(String(reason));
+	const originalMessage = String(original.message || "APIStatic compilation failed.");
+	let code = typeof original.code === "string" && Object.prototype.hasOwnProperty.call(API_STATIC_ERROR_GUIDANCE, original.code)
+		? original.code
+		: "NEAPI1001";
+	if (/\[APIStaticCompiler\]\s*(?:Route id cannot be empty|Invalid route segment:)/.test(originalMessage)) code = "NEAPI1002";
+	if (/TypeScript is required to compile \.route files/.test(originalMessage)) code = "NEAPI8001";
+	const guidance = API_STATIC_ERROR_GUIDANCE[code];
+	const cleanMessage = originalMessage
+		.replace(/^\[NEAPI\d{4}\]\s*/, "")
+		.replace(/^\[APIStaticCompiler\]\s*/, "");
+	let position = Number.isInteger(original.position) ? original.position : inferAPIStaticSourcePosition(source, cleanMessage);
+	const hasSourceLocation = Number.isInteger(position);
+	const lines = [
+		apiStaticColor("[" + code + "]", "31") + " " + apiStaticColor("APIStatic compiler", "1") + ": " + cleanMessage,
+		"  File: " + String(fileName || "<unknown .route>"),
+	];
+	let lineNumber;
+	let columnNumber;
+	let sourceLine;
+	if (hasSourceLocation) {
+		position = Math.max(0, Math.min(position, source.length));
+		const before = source.slice(0, position);
+		lineNumber = before.split(/\r\n|\r|\n/).length;
+		const previousLF = Math.max(before.lastIndexOf("\n"), before.lastIndexOf("\r"));
+		columnNumber = position - previousLF;
+		const lineStart = Math.max(source.lastIndexOf("\n", position - 1), source.lastIndexOf("\r", position - 1)) + 1;
+		let lineEnd = source.indexOf("\n", position);
+		if (lineEnd < 0) lineEnd = source.length;
+		if (lineEnd > lineStart && source[lineEnd - 1] === "\r") lineEnd -= 1;
+		sourceLine = source.slice(lineStart, lineEnd);
+		const expanded = sourceLine.replace(/\t/g, "    ");
+		const visualColumn = source.slice(lineStart, position).replace(/\t/g, "    ").length;
+		const maxWidth = 180;
+		const clipStart = Math.max(0, Math.min(Math.max(0, visualColumn - 80), Math.max(0, expanded.length - maxWidth)));
+		const excerpt = (clipStart > 0 ? "…" : "") + expanded.slice(clipStart, clipStart + maxWidth)
+			+ (clipStart + maxWidth < expanded.length ? "…" : "");
+		const caretColumn = visualColumn - clipStart + (clipStart > 0 ? 1 : 0);
+		lines[1] += ":" + lineNumber + ":" + columnNumber;
+		lines.push("  " + String(lineNumber).padStart(String(lineNumber).length, " ") + " | " + excerpt);
+		lines.push("  " + " ".repeat(String(lineNumber).length) + " | " + " ".repeat(Math.max(0, caretColumn)) + apiStaticColor("^", "31"));
+	}
+	lines.push("  " + apiStaticColor("Reason:", "36") + " " + guidance.reason);
+	lines.push("  " + apiStaticColor("Fix:", "32") + " " + guidance.action);
+	lines.push("  Help: " + API_STATIC_ERROR_BOOK_BASE_URL + "/api#" + code.toLowerCase());
+	const formatted = new Error(lines.join("\n"));
+	formatted.name = "APIStaticCompileError";
+	formatted.code = code;
+	formatted.reason = guidance.reason;
+	formatted.action = guidance.action;
+	formatted.fileName = String(fileName || "");
+	formatted.position = hasSourceLocation ? position : undefined;
+	formatted.line = lineNumber;
+	formatted.column = columnNumber;
+	formatted.sourceLine = sourceLine;
+	formatted.cause = original;
+	return formatted;
+}
+
+
 let cachedTypeScript = null;
 
 function getTypeScript() {
@@ -732,27 +856,31 @@ function transpileRoute(moduleSource, fileName) {
 	return result.outputText;
 }
 
-function compileAPIStaticSource(source, routeId, fileName = `${routeId}.route`) {
-	const normalizedRoute = normalizeRouteId(routeId);
-	const call = findCreateEndpoint(source);
-	const cursor = skipTrivia(source, call.open + 1, false);
-	if (source[cursor] !== "[") throw new Error("[APIStaticCompiler] createEndpoint must receive an array: createEndpoint([ ... ]).");
-	const arrayEnd = findMatching(source, cursor, "[", "]");
-	const afterArray = skipTrivia(source, arrayEnd + 1, false);
-	if (afterArray !== call.end - 1) throw new Error("[APIStaticCompiler] createEndpoint accepts exactly one array argument.");
-	const userCode = `${source.slice(0, call.start)}\n${source.slice(call.end)}`;
-	const functionNames = collectFunctionNames(userCode);
-	const operations = parseEndpointArray(source, cursor + 1, arrayEnd, functionNames);
-	const hash = getRouteHash(normalizedRoute);
-	const moduleSource = generateModuleSource(normalizedRoute, hash, source, operations);
-	return {
-		route: normalizedRoute,
-		hash,
-		operations: operations.map((operation) => operation.name),
-		code: transpileRoute(moduleSource, fileName),
-	};
+function compileAPIStaticSource(source, routeId, fileName) {
+	const resolvedFileName = fileName === undefined ? String(routeId) + ".route" : String(fileName);
+	try {
+		const normalizedRoute = normalizeRouteId(routeId);
+		const call = findCreateEndpoint(source);
+		const cursor = skipTrivia(source, call.open + 1, false);
+		if (source[cursor] !== "[") throw new Error("[APIStaticCompiler] createEndpoint must receive an array: createEndpoint([ ... ]).");
+		const arrayEnd = findMatching(source, cursor, "[", "]");
+		const afterArray = skipTrivia(source, arrayEnd + 1, false);
+		if (afterArray !== call.end - 1) throw new Error("[APIStaticCompiler] createEndpoint accepts exactly one array argument.");
+		const userCode = source.slice(0, call.start) + "\n" + source.slice(call.end);
+		const functionNames = collectFunctionNames(userCode);
+		const operations = parseEndpointArray(source, cursor + 1, arrayEnd, functionNames);
+		const hash = getRouteHash(normalizedRoute);
+		const moduleSource = generateModuleSource(normalizedRoute, hash, source, operations);
+		return {
+			route: normalizedRoute,
+			hash,
+			operations: operations.map((operation) => operation.name),
+			code: transpileRoute(moduleSource, resolvedFileName),
+		};
+	} catch (reason) {
+		throw formatAPIStaticCompilerError(reason, source, resolvedFileName);
+	}
 }
-
 function walkRouteFiles(directory) {
 	if (!fs.existsSync(directory)) return [];
 	const output = [];
