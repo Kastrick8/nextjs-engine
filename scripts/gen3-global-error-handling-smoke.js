@@ -75,7 +75,9 @@ try {
 }
 
 const report = createEngineErrorReport(
-	new Error("Request failed?token=secret-token Bearer very-secret"),
+	Object.assign(new Error("Request failed?token=secret-token Bearer very-secret"), {
+		cause: new TypeError("Underlying lookup failed because api_key=private-api-key"),
+	}),
 	{
 		code: "NE-TEST-01",
 		source: "smoke-test",
@@ -86,12 +88,17 @@ const report = createEngineErrorReport(
 		includeStack: true,
 	},
 );
-const formatted = formatEngineErrorReport(report);
+const formatted = formatEngineErrorReport(report, { color: false });
 assert.match(formatted, /\[nextjs-engine\]\[ERROR NE-TEST-01\]/);
 assert.match(formatted, /src\/app\/page\.tsx:14:2/, "file locations use VS Code-clickable path:line:column notation");
 assert.match(formatted, /Route: \/guide/, "route query strings are not printed");
 assert.match(formatted, /Request: GET \/guide/, "request query strings are not printed");
-assert.doesNotMatch(formatted, /secret-token|very-secret|private-route-token|private-query-token/, "token-like values are redacted");
+assert.match(formatted, /Caused by: TypeError: Underlying lookup failed/, "nested error causes are shown");
+assert.match(formatted, /https:\/\/github\.com\/Kate-alt-69\/kastrick/, "terminal diagnostics include the Kastrick project link");
+assert.doesNotMatch(formatted, /secret-token|very-secret|private-route-token|private-query-token|private-api-key/, "token-like values are redacted");
+assert.doesNotMatch(formatted, /\u001b\[/, "plain-text mode emits no ANSI escapes");
+const colored = formatEngineErrorReport(report, { color: true });
+assert.match(colored, /\u001b\[31m/, "color mode applies ANSI severity styling");
 
 const consoleMessages = [];
 const originalConsoleError = console.error;
@@ -102,6 +109,7 @@ try {
 	console.error = originalConsoleError;
 }
 assert.match(consoleMessages.join("\n"), /NE-TEST-02/, "reportEngineError writes structured terminal output");
+assert.match(consoleMessages.join("\n"), /https:\/\/github\.com\/Kate-alt-69\/kastrick/, "runtime logging includes the project link");
 
 const monitorCount = process.listenerCount("uncaughtExceptionMonitor");
 const stopMonitor = installEngineUncaughtExceptionMonitor();

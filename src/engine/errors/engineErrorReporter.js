@@ -3,6 +3,7 @@
 const PROCESS_MONITOR_KEY = Symbol.for("nextjs-engine.uncaught-exception-monitor");
 const MAX_MESSAGE_LENGTH = 1600;
 const MAX_DETAIL_LENGTH = 8000;
+const PROJECT_URL = "https://github.com/Kate-alt-69/kastrick";
 let reportSequence = 0;
 
 const SECRET_PATTERNS = [
@@ -10,6 +11,18 @@ const SECRET_PATTERNS = [
 	[/\b(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|secret)\s*[:=]\s*([^\s,;]+)/gi, "$1=[redacted]"],
 	[/\b(cookie|set-cookie)\s*:\s*[^\r\n]+/gi, "$1: [redacted]"],
 ];
+
+const ANSI = {
+	reset: "\u001b[0m",
+	bold: "\u001b[1m",
+	dim: "\u001b[2m",
+	red: "\u001b[31m",
+	yellow: "\u001b[33m",
+	green: "\u001b[32m",
+	cyan: "\u001b[36m",
+	blue: "\u001b[34m",
+	white: "\u001b[37m",
+};
 
 function isProduction() {
 	return typeof process !== "undefined" && process.env && process.env.NODE_ENV === "production";
@@ -19,9 +32,48 @@ function isBrowser() {
 	return typeof window !== "undefined" && typeof window.dispatchEvent === "function";
 }
 
+function isTerminal() {
+	return typeof process !== "undefined"
+		&& ((process.stdout && process.stdout.isTTY === true) || (process.stderr && process.stderr.isTTY === true));
+}
+
+function colorsEnabled() {
+	if (typeof process === "undefined" || !process.env) return false;
+	const env = process.env;
+	if (env.NODE_DISABLE_COLORS || (env.NO_COLOR !== undefined && env.NO_COLOR !== "")) return false;
+	if (env.FORCE_COLOR !== undefined) return env.FORCE_COLOR !== "0";
+	return isTerminal() && env.TERM !== "dumb";
+}
+
+function terminalHyperlinksEnabled() {
+	if (typeof process === "undefined" || !process.env) return false;
+	const env = process.env;
+	if (env.FORCE_HYPERLINK === "0") return false;
+	if (env.FORCE_HYPERLINK === "1") return true;
+	return isTerminal() && Boolean(
+		env.WT_SESSION
+		|| env.VTE_VERSION
+		|| /^(iTerm\.app|WezTerm|vscode|Hyper|Tabby|ghostty)$/i.test(env.TERM_PROGRAM || "")
+	);
+}
+
+function paint(value, color, enabled) {
+	const text = String(value);
+	if (!enabled || !ANSI[color]) return text;
+	return ANSI[color] + text + ANSI.reset;
+}
+
+function hyperlink(label, url) {
+	if (!terminalHyperlinksEnabled()) return label;
+	return "\u001b]8;;" + url + "\u001b\\"
+		+ label
+		+ "\u001b]8;;\u001b\\";
+}
+
 function cleanText(value, maxLength = MAX_DETAIL_LENGTH) {
 	let text = String(value == null ? "" : value)
 		.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+		.replace(/\u001b\]8;;.*?(?:\u0007|\u001b\\)/g, "")
 		.replace(/\0/g, "")
 		.trim();
 	for (const [pattern, replacement] of SECRET_PATTERNS) text = text.replace(pattern, replacement);
@@ -30,15 +82,25 @@ function cleanText(value, maxLength = MAX_DETAIL_LENGTH) {
 	return text;
 }
 
-function normalizeError(error) {
+function normalizeError(error, depth = 0, seen = new Set()) {
 	if (error && typeof error === "object") {
+		if (seen.has(error)) return { name: "Error", message: "[circular error cause]", stack: "", cause: undefined };
+		seen.add(error);
 		const value = error;
 		const name = typeof value.name === "string" && value.name.trim() ? value.name.trim() : "Error";
 		const message = typeof value.message === "string" ? value.message : String(error);
 		const stack = typeof value.stack === "string" ? value.stack : "";
-		return { name: cleanText(name, 120), message: cleanText(message, MAX_MESSAGE_LENGTH), stack: cleanText(stack, MAX_DETAIL_LENGTH) };
+		const cause = depth < 4 && value.cause != null
+			? normalizeError(value.cause, depth + 1, seen)
+			: undefined;
+		return {
+			name: cleanText(name, 120),
+			message: cleanText(message, MAX_MESSAGE_LENGTH),
+			stack: cleanText(stack, MAX_DETAIL_LENGTH),
+			cause,
+		};
 	}
-	return { name: "Error", message: cleanText(error, MAX_MESSAGE_LENGTH) || "An unknown error occurred.", stack: "" };
+	return { name: "Error", message: cleanText(error, MAX_MESSAGE_LENGTH) || "An unknown error occurred.", stack: "", cause: undefined };
 }
 
 function sourceLocationFromStack(stack) {
@@ -87,10 +149,17 @@ function createEngineErrorReport(error, context = {}) {
 	const details = [];
 	if (context.detail) details.push(cleanText(context.detail, 2000));
 	if (context.componentStack) details.push("Component stack:\n" + cleanText(context.componentStack, 3000));
+	let cause = normalized.cause;
+	let causeDepth = 0;
+	while (cause && causeDepth < 4) {
+		details.push("Caused by: " + (cause.name && cause.name !== "Error" ? cause.name + ": " : "") + cause.message);
+		cause = cause.cause;
+		causeDepth += 1;
+	}
 	const includeStack = context.includeStack === true || (context.includeStack !== false && !isProduction());
 	if (includeStack && normalized.stack) {
 		const stackLines = normalized.stack.split(/\r?\n/);
-		if (stackLines.length > 1) details.push(stackLines.slice(1).join("\n"));
+		if (stackLines.length > 1) details.push("Stack trace:\n" + stackLines.slice(1).join("\n"));
 	}
 	const requestPath = normalizeRoute(context.requestPath);
 	const method = typeof context.requestMethod === "string"
@@ -116,21 +185,34 @@ function createEngineErrorReport(error, context = {}) {
 	};
 }
 
-function formatEngineErrorReport(report) {
+function formatEngineErrorReport(report, options = {}) {
+	const useColor = typeof options.color === "boolean" ? options.color : colorsEnabled();
+	const severity = String(report.severity || "error").toUpperCase();
+	const severityColor = severity === "WARNING" ? "yellow" : "red";
+	const prefix = "[nextjs-engine][" + severity + " " + cleanText(report.code || "NE0001", 40) + "]";
 	const lines = [
-		"[nextjs-engine][" + String(report.severity || "error").toUpperCase() + " " + cleanText(report.code || "NE0001", 40) + "] "
-			+ cleanText(report.message || "An unknown error occurred.", MAX_MESSAGE_LENGTH),
+		paint(prefix, severityColor, useColor) + " " + paint(cleanText(report.message || "An unknown error occurred.", MAX_MESSAGE_LENGTH), "bold", useColor),
 	];
-	if (report.source) lines.push("  Source: " + cleanText(report.source, 100));
-	if (report.location) lines.push("  Location: " + cleanText(report.location, 500));
-	if (report.route) lines.push("  Route: " + cleanText(report.route, 800));
+
+	if (report.source) lines.push("  " + paint("Source:", "cyan", useColor) + " " + cleanText(report.source, 100));
+	if (report.location) {
+		lines.push("  " + paint("Where:", "cyan", useColor) + " " + paint(cleanText(report.location, 500), "blue", useColor));
+		lines.push("         " + paint("Open the file at this line/column in your editor (Ctrl+Click in supported terminals).", "dim", useColor));
+	}
+	if (report.route) lines.push("  " + paint("Route:", "cyan", useColor) + " " + cleanText(report.route, 800));
 	if (report.requestMethod || report.requestPath) {
-		lines.push("  Request: " + [report.requestMethod, report.requestPath].filter(Boolean).join(" "));
+		lines.push("  " + paint("Request:", "cyan", useColor) + " " + [report.requestMethod, report.requestPath].filter(Boolean).join(" "));
 	}
-	if (report.digest) lines.push("  Digest: " + cleanText(report.digest, 200));
+	if (report.digest) lines.push("  " + paint("Digest:", "cyan", useColor) + " " + cleanText(report.digest, 200));
 	if (report.detail) {
-		for (const line of cleanText(report.detail, MAX_DETAIL_LENGTH).split(/\r?\n/)) lines.push(line ? "  " + line : "");
+		for (const line of cleanText(report.detail, MAX_DETAIL_LENGTH).split(/\r?\n/)) {
+			if (/^\s*Stack trace:/.test(line)) lines.push("  " + paint(line, "dim", useColor));
+			else if (/^\s*Caused by:/.test(line)) lines.push("  " + paint(line, "yellow", useColor));
+			else lines.push(line ? "  " + line : "");
+		}
 	}
+	const projectLabel = hyperlink("Kastrick · GitHub", PROJECT_URL);
+	lines.push("  " + paint("Project:", "cyan", useColor) + " " + projectLabel + " — " + PROJECT_URL);
 	return lines.join("\n");
 }
 
