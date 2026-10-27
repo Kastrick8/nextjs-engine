@@ -423,7 +423,7 @@ function renderServerNode(
 		const fallback = compiled.children[0];
 		return (
 			<React.Fragment key={compiled.id}>
-				{fallback ? renderServerNode(fallback, collector, config, slots) : null}
+				{fallback ? renderServerNode(fallback, collector, config, slots, registry) : null}
 			</React.Fragment>
 		);
 	}
