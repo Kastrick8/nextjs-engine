@@ -96,7 +96,7 @@ jobs:
           const files = fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/).filter(Boolean);
           const isPackageFile = (file) =>
             /^(src\/engine\/|engine\/|docs\/)/.test(file) ||
-            file === "README.md" || file === "DOCUMENT.md";
+            file === "package.json" || file === "README.md" || file === "DOCUMENT.md";
           const relevant = files.filter(isPackageFile);
           if (!relevant.length) {
             fs.appendFileSync(process.env.GITHUB_OUTPUT, "publish=false\n");
@@ -144,8 +144,32 @@ jobs:
 
             case "$RESULT" in
               success)
+                # The source manifest is authoritative. Never mint a second tarball for a published version.
+                SOURCE_VERSION="$(node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync("source/package.json","utf8"));if(typeof p.version!=="string"||!p.version)process.exit(1);process.stdout.write(p.version)')"
+                if [[ ! "$SOURCE_VERSION" =~ ^2\.[0-9]+\.[0-9]+$ ]]; then
+                  echo "publish=false" >> "$GITHUB_OUTPUT"
+                  echo "::warning::main-2 package.json must contain a stable 2.x.y version; found '$SOURCE_VERSION'."
+                  exit 0
+                fi
+                if ! npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"; then
+                  echo "publish=false" >> "$GITHUB_OUTPUT"
+                  echo "::warning::Could not verify npm registry versions; failing closed and skipping release."
+                  exit 0
+                fi
+                if node - "$SOURCE_VERSION" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
+                const fs = require("node:fs");
+                const [version, file] = process.argv.slice(2);
+                const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+                const versions = Array.isArray(raw) ? raw : [raw];
+                process.exit(versions.map(String).includes(version) ? 0 : 1);
+                NODE
+                then
+                  echo "publish=false" >> "$GITHUB_OUTPUT"
+                  echo "::notice::@kastrick/nextjs-engine@$SOURCE_VERSION already exists on npm; bump main-2 package.json before the next stable publication."
+                  exit 0
+                fi
                 echo "publish=true" >> "$GITHUB_OUTPUT"
-                echo "Core Engine runtime CI and browser compatibility CI passed; eligible for npm release."
+                echo "Engine runtime CI and same-commit browser CI passed; package.json version $SOURCE_VERSION is not yet published."
                 exit 0
                 ;;
               failure:*)
