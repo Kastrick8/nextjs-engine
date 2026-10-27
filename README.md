@@ -60,9 +60,10 @@ git worktree add ..\nextjs-engine-package origin/package/main
 Set-Location ..\nextjs-engine-package\version\2.6\version\2.6.2
 npm login
 npm publish --access public
+npm dist-tag add @kastrick/nextjs-engine@2.6.2 package.2.6.2
 ```
 
-A published version is immutable; never retry the first publish if that version already exists.
+The first publish assigns npm's default `latest` tag to stable `2.6.2`; the final command adds its version-specific npm dist-tag. A published version is immutable; never retry the first publish if that version already exists.
 
 ### Connect npm to GitHub Actions
 
