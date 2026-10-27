@@ -763,6 +763,23 @@ async function testPublicThemeApi() {
 			/local\/private hosts are not permitted/,
 		);
 
+		const nonRemoteScopeContent = { ...remoteContent, id: "remote-invalid-scope", scope: "global" };
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.com/invalid-scope.etr", {
+				...remoteOptions,
+				expectedId: "remote-invalid-scope",
+				fetchImpl: async () => new Response(remoteTextFor("remote-invalid-scope", nonRemoteScopeContent), {
+					status: 200, headers: { "content-type": "application/json" },
+				}),
+			}),
+			/must declare scope remote/,
+		);
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: { id: "remote-invalid-scope", scope: "global" },
+			root: { type: "box" },
+		}), /not globally registered/,
+		"rejected remote artifacts must never populate the process-global theme map");
+
 		const corruptRemoteOptions = {
 			...remoteOptions,
 			expectedId: "remote-corrupt",

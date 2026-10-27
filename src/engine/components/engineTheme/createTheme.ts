@@ -28,6 +28,7 @@ export interface ResolvedEngineThemeGroup {
 }
 
 const globalThemes = new Map<string, RegisteredTheme>();
+const validatedThemeObjects = new WeakSet<object>();
 const NON_COMPONENT_KEYS = new Set([
   "id", "scope", "sourceUrl", "name", "metadata", "version",
   "vars", "fonts", "globalStyles", "tokens", "components",
@@ -288,6 +289,7 @@ export function createTheme<T extends EngineThemeDefinition>(
     clone.fonts = ["/nextjs-engine/fonts/" + clone.id + ".css"];
   }
   const frozen = freezeDeep(clone);
+  validatedThemeObjects.add(frozen as object);
 
   if (scope === "global") {
     const canonical = canonicalThemeJson(frozen);
@@ -324,7 +326,9 @@ export function registerLoadedRemoteEngineTheme(
   if (!definition || definition.scope !== "remote") {
     throw new TypeError("A remotely loaded EngineTheme artifact must declare scope remote.");
   }
-  const loaded = createTheme(definition);
+  const loaded = validatedThemeObjects.has(definition as object)
+    ? definition as Readonly<EngineThemeDefinition & { scope: EngineThemeScope }>
+    : createTheme(definition);
   const canonical = canonicalThemeJson(loaded);
   if (registry) {
     registerScopedEngineThemeGroup(registry, loaded as Readonly<EngineThemeDefinition>, canonical, "remote");
