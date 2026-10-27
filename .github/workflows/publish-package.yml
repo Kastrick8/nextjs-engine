@@ -71,6 +71,16 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
+      - name: Remove setup-node auth placeholder for npm OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          if [[ -f "$npmrc" ]]; then
+            sed -i '/_authToken/d' "$npmrc"
+          fi
+          printf 'registry=https://registry.npmjs.org/\\n' >> "$npmrc"
+
       - name: Install npm CLI with OIDC support
         run: npm install --global npm@^11.21.0
 
@@ -426,6 +436,16 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
+      - name: Remove setup-node auth placeholder for npm OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          if [[ -f "$npmrc" ]]; then
+            sed -i '/_authToken/d' "$npmrc"
+          fi
+          printf 'registry=https://registry.npmjs.org/\\n' >> "$npmrc"
+
       - name: Install npm CLI with OIDC support
         run: npm install --global npm@^11.21.0
 
@@ -652,6 +672,16 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
+
+      - name: Remove setup-node auth placeholder for npm OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          if [[ -f "$npmrc" ]]; then
+            sed -i '/_authToken/d' "$npmrc"
+          fi
+          printf 'registry=https://registry.npmjs.org/\\n' >> "$npmrc"
       - name: Install npm CLI with OIDC support
         run: npm install --global npm@^11.21.0
       - name: Verify tag and resolve selected snapshot
