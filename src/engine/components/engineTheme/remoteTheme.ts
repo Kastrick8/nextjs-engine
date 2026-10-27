@@ -1,6 +1,8 @@
 import { hasUnsafeEngineThemeCssNetworkPrimitive, isSafeEngineThemeCssValue } from "./cssSafety";
 import type { EngineThemeDefinition } from "../../schema/types";
+import type { EngineComponentRegistry } from "../../core/registry";
 import {
+	createTheme,
 	registerLoadedRemoteEngineTheme,
 	unregisterLoadedRemoteEngineTheme,
 } from "./createTheme";
@@ -37,6 +39,8 @@ export interface LoadRemoteEngineThemeOptions {
 	cacheTtlMs?: number;
 	/** Optional injectable fetcher for tests/controlled transports. */
 	fetchImpl?: typeof fetch;
+	/** Optional application scope for verified theme registration; prevents process-global theme leakage. */
+	registry?: EngineComponentRegistry;
 	/** Optional caller cancellation signal. */
 	signal?: AbortSignal;
 }
@@ -365,7 +369,7 @@ async function parseAndRegisterArtifact(
 		throw new Error("Remote .etr SHA-256 verification failed.");
 	}
 	const safeContent = sanitizeRemoteThemeContent(artifact.content, url, options);
-	const registered = registerLoadedRemoteEngineTheme(safeContent);
+	const registered = createTheme(safeContent);
 	return registered as Readonly<EngineThemeDefinition & { scope: "remote" }>;
 }
 
@@ -393,11 +397,14 @@ export async function loadRemoteEngineTheme(
 	if (existing && existing.expiresAt > Date.now()) {
 		cache.delete(key);
 		cache.set(key, existing);
-		return existing.theme;
+		return registerLoadedRemoteEngineTheme(existing.theme, options.registry) as Readonly<EngineThemeDefinition & { scope: "remote" }>;
 	}
 	if (existing) cache.delete(key);
 	const running = inFlight.get(key);
-	if (running) return running;
+	if (running) {
+		const loaded = await running;
+		return registerLoadedRemoteEngineTheme(loaded, options.registry) as Readonly<EngineThemeDefinition & { scope: "remote" }>;
+	}
 
 	const promise = (async () => {
 		const fetcher = options.fetchImpl ?? globalThis.fetch;
@@ -443,7 +450,8 @@ export async function loadRemoteEngineTheme(
 	})();
 	inFlight.set(key, promise);
 	try {
-		return await promise;
+		const loaded = await promise;
+		return registerLoadedRemoteEngineTheme(loaded, options.registry) as Readonly<EngineThemeDefinition & { scope: "remote" }>;
 	} finally {
 		inFlight.delete(key);
 	}
@@ -458,9 +466,9 @@ export function getRemoteEngineThemeCacheSize(): number {
 	return cache.size;
 }
 
-export function unregisterRemoteEngineTheme(id: string): boolean {
-	const removed = unregisterLoadedRemoteEngineTheme(id);
-	if (removed) {
+export function unregisterRemoteEngineTheme(id: string, registry?: EngineComponentRegistry): boolean {
+	const removed = unregisterLoadedRemoteEngineTheme(id, registry);
+	if (removed && !registry) {
 		for (const [key, entry] of cache) {
 			if (entry.theme.id === id) cache.delete(key);
 		}
