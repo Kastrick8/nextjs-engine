@@ -257,8 +257,8 @@ function runTui(options) {
 					activate();
 				}
 			} else if (screen === "releases") {
-				const index = mouse.y - 6;
-				if (index >= 0 && index < Math.min(24, catalog.releases.length)) {
+				const index = Math.floor((mouse.y - 6) / 2);
+				if (index >= 0 && index < Math.min(24, catalog.releases.length) && (mouse.y - 6) % 2 === 0) {
 					selected = index;
 					draw();
 					activate();
