@@ -3,7 +3,7 @@
 const PROCESS_MONITOR_KEY = Symbol.for("nextjs-engine.uncaught-exception-monitor");
 const MAX_MESSAGE_LENGTH = 1600;
 const MAX_DETAIL_LENGTH = 8000;
-const PROJECT_URL = "https://github.com/Kate-alt-69/kastrick";
+const PROJECT_URL = "https://kastrick.vercel.app/project/nextjs-engine";
 let reportSequence = 0;
 
 const SECRET_PATTERNS = [
@@ -211,7 +211,7 @@ function formatEngineErrorReport(report, options = {}) {
 			else lines.push(line ? "  " + line : "");
 		}
 	}
-	const projectLabel = hyperlink("Kastrick · GitHub", PROJECT_URL);
+	const projectLabel = hyperlink("Kastrick · Website", PROJECT_URL);
 	lines.push("  " + paint("Project:", "cyan", useColor) + " " + projectLabel + " — " + PROJECT_URL);
 	return lines.join("\n");
 }

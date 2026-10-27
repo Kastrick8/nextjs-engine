@@ -26,7 +26,7 @@ Example (colors omitted here):
   Route: /guide
   Request: GET /guide
   Caused by: TypeError: ...
-  Project: Kastrick · GitHub — https://github.com/Kate-alt-69/kastrick
+  Project: Kastrick · Website — https://kastrick.vercel.app/project/nextjs-engine
 ~~~
 
 Development route boundaries show the useful error message; production UI shows a digest/reference instead of a stack. Detailed server errors remain in server logs. `NEXTJS_ENGINE_ERROR_MONITOR=off` disables the supplemental Node fatal-error monitor.
@@ -62,4 +62,4 @@ Next.js route/global error boundaries cover render failures in their boundary sc
 
 Run `npm run test:error-handling` for the focused smoke test. The regular Generation 3 CI job also type-checks and builds the Next.js integration app.
 
-See [Generation 3 documentation](./index.md), [migration from Gen 2](./migration-from-2x.md), and the [Kastrick GitHub repository](https://github.com/Kate-alt-69/kastrick).
+See [Generation 3 documentation](./index.md), [migration from Gen 2](./migration-from-2x.md), and the [Kastrick Nextjs Engine project page](https://kastrick.vercel.app/project/nextjs-engine).

@@ -94,7 +94,7 @@ assert.match(formatted, /src\/app\/page\.tsx:14:2/, "file locations use VS Code-
 assert.match(formatted, /Route: \/guide/, "route query strings are not printed");
 assert.match(formatted, /Request: GET \/guide/, "request query strings are not printed");
 assert.match(formatted, /Caused by: TypeError: Underlying lookup failed/, "nested error causes are shown");
-assert.match(formatted, /https:\/\/github\.com\/Kate-alt-69\/kastrick/, "terminal diagnostics include the Kastrick project link");
+assert.ok(formatted.includes("https://kastrick.vercel.app/project/nextjs-engine"), "terminal diagnostics include the Kastrick website project link");
 assert.doesNotMatch(formatted, /secret-token|very-secret|private-route-token|private-query-token|private-api-key/, "token-like values are redacted");
 assert.doesNotMatch(formatted, /\u001b\[/, "plain-text mode emits no ANSI escapes");
 const colored = formatEngineErrorReport(report, { color: true });
@@ -109,7 +109,7 @@ try {
 	console.error = originalConsoleError;
 }
 assert.match(consoleMessages.join("\n"), /NE-TEST-02/, "reportEngineError writes structured terminal output");
-assert.match(consoleMessages.join("\n"), /https:\/\/github\.com\/Kate-alt-69\/kastrick/, "runtime logging includes the project link");
+assert.ok(consoleMessages.join("\n").includes("https://kastrick.vercel.app/project/nextjs-engine"), "runtime logging includes the Kastrick website project link");
 
 const monitorCount = process.listenerCount("uncaughtExceptionMonitor");
 const stopMonitor = installEngineUncaughtExceptionMonitor();
