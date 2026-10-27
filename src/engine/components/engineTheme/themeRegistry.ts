@@ -8,6 +8,7 @@ export interface ScopedEngineThemeGroup {
 }
 
 const stores = new WeakMap<EngineComponentRegistry, Map<string, ScopedEngineThemeGroup>>();
+const contributionStores = new WeakMap<EngineComponentRegistry, Map<string, Map<string, unknown>>>();
 
 function storeFor(registry: EngineComponentRegistry): Map<string, ScopedEngineThemeGroup> {
   let store = stores.get(registry);
@@ -64,4 +65,52 @@ export function unregisterScopedRemoteEngineThemeGroup(
   const existing = store?.get(id);
   if (!store || !existing || !existing.allowRemote) return false;
   return store.delete(id);
+}
+
+
+/** @internal Scope trusted Data-API handlers and template adapters by application. */
+export function registerScopedEngineThemeContribution<T>(
+  registry: EngineComponentRegistry,
+  kind: "data-api" | "template-adapter",
+  id: string,
+  value: T,
+): void {
+  let kinds = contributionStores.get(registry);
+  if (!kinds) {
+    kinds = new Map();
+    contributionStores.set(registry, kinds);
+  }
+  let entries = kinds.get(kind);
+  if (!entries) {
+    entries = new Map();
+    kinds.set(kind, entries);
+  }
+  const existing = entries.get(id);
+  if (existing !== undefined && existing !== value) {
+    throw new Error("EngineTheme " + kind + " '" + id + "' is already registered in this EngineComponentRegistry.");
+  }
+  entries.set(id, value);
+}
+
+export function getScopedEngineThemeContribution<T>(
+  registry: EngineComponentRegistry,
+  kind: "data-api" | "template-adapter",
+  id: string,
+): T | undefined {
+  return contributionStores.get(registry)?.get(kind)?.get(id) as T | undefined;
+}
+
+export function unregisterScopedEngineThemeContribution(
+  registry: EngineComponentRegistry,
+  kind: "data-api" | "template-adapter",
+  id: string,
+): boolean {
+  return contributionStores.get(registry)?.get(kind)?.delete(id) ?? false;
+}
+
+export function listScopedEngineThemeContributions(
+  registry: EngineComponentRegistry,
+  kind: "data-api" | "template-adapter",
+): string[] {
+  return [...(contributionStores.get(registry)?.get(kind)?.keys() ?? [])].sort();
 }
