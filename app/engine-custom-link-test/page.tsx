@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { createComponent, createPage, createTheme, registerComponent } from "../../src/engine";
+import { createComponent, createEngineComponentRegistry, createPage, createTheme } from "../../src/engine";
 import { EngineLink } from "../../src/engine/components/EngineLink";
 import type { EngineCustomThemeStyles } from "../../src/engine/core/EngineCustomComponent";
 
@@ -58,6 +58,8 @@ function ThemeLinkImplementation({
 	);
 }
 
+const registry = createEngineComponentRegistry();
+
 const linkTheme = createTheme({
 	id: "engine-custom-link-demo",
 	scope: "global",
@@ -76,7 +78,7 @@ const linkTheme = createTheme({
 			},
 		},
 	},
-});
+}, { registry });
 
 const ThemeLink = createComponent<ThemeLinkProps>({
 	mode: "custom",
@@ -90,7 +92,7 @@ const ThemeLink = createComponent<ThemeLinkProps>({
 	slots: ["children", "leading"],
 	strictProps: true,
 });
-registerComponent("engine-site-link", ThemeLink);
+registry.registerComponent("engine-site-link", ThemeLink);
 
 export default createPage({
 	schema: {
@@ -125,4 +127,5 @@ export default createPage({
 			],
 		},
 	},
+	registry,
 });
