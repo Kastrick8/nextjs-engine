@@ -389,6 +389,7 @@ function createMarkdownComponents(config: MarkdownRenderConfig): Components {
 						provider: config.prettyPlease?.provider,
 						theme: config.prettyPlease?.theme,
 						palette: languagePalette,
+						registry: config.registry,
 					});
 					if (tokens) {
 						renderedChildren = tokens.map((token, index) => (

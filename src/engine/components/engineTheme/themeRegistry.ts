@@ -71,7 +71,7 @@ export function unregisterScopedRemoteEngineThemeGroup(
 /** @internal Scope trusted Data-API handlers and template adapters by application. */
 export function registerScopedEngineThemeContribution<T>(
   registry: EngineComponentRegistry,
-  kind: "data-api" | "template-adapter",
+  kind: "data-api" | "template-adapter" | "highlighter",
   id: string,
   value: T,
 ): void {
@@ -94,7 +94,7 @@ export function registerScopedEngineThemeContribution<T>(
 
 export function getScopedEngineThemeContribution<T>(
   registry: EngineComponentRegistry,
-  kind: "data-api" | "template-adapter",
+  kind: "data-api" | "template-adapter" | "highlighter",
   id: string,
 ): T | undefined {
   return contributionStores.get(registry)?.get(kind)?.get(id) as T | undefined;
@@ -102,7 +102,7 @@ export function getScopedEngineThemeContribution<T>(
 
 export function unregisterScopedEngineThemeContribution(
   registry: EngineComponentRegistry,
-  kind: "data-api" | "template-adapter",
+  kind: "data-api" | "template-adapter" | "highlighter",
   id: string,
 ): boolean {
   return contributionStores.get(registry)?.get(kind)?.delete(id) ?? false;
@@ -110,7 +110,7 @@ export function unregisterScopedEngineThemeContribution(
 
 export function listScopedEngineThemeContributions(
   registry: EngineComponentRegistry,
-  kind: "data-api" | "template-adapter",
+  kind: "data-api" | "template-adapter" | "highlighter",
 ): string[] {
   return [...(contributionStores.get(registry)?.get(kind)?.keys() ?? [])].sort();
 }
