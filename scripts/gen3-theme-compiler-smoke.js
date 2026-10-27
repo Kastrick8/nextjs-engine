@@ -41,6 +41,7 @@ async function testPublicThemeApi() {
 		const resolverPath = path.resolve(__dirname, "../src/engine/components/engineTheme/resolveTheme.ts");
 		const { createTheme, parseEngineThemeId } = require(themePath);
 		const { resolveEngineThemeSchema } = require(resolverPath);
+		const { createEngineComponentRegistry } = require(path.resolve(__dirname, "../src/engine/core/registry.ts"));
 		const { compileEngineThemeFonts } = require(path.resolve(__dirname, "../src/engine/compiler/font/3/compiler.ts"));
 		const { loadRemoteEngineTheme, clearRemoteEngineThemeCache, getRemoteEngineThemeCacheSize, unregisterRemoteEngineTheme } = require(path.resolve(__dirname, "../src/engine/components/engineTheme/remoteTheme.ts"));
 		const {
@@ -709,6 +710,32 @@ async function testPublicThemeApi() {
 		const cacheHit = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", remoteOptions);
 		assert.equal(cacheHit, loadedRemote, "repeated loads reuse the in-process cache entry");
 		assert.equal(remoteFetchCalls, 1, "cache hits do not issue another request");
+		const scopedRemoteRegistryA = createEngineComponentRegistry();
+		const scopedRemoteRegistryB = createEngineComponentRegistry();
+		const scopedRemote = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", {
+			...remoteOptions,
+			registry: scopedRemoteRegistryA,
+		});
+		assert.equal(scopedRemote.id, "remote-smoke");
+		const remoteSchemaReference = {
+			theme: { id: "remote-smoke", scope: "remote" },
+			root: { type: "popover" },
+		};
+		assert.doesNotThrow(() => resolveEngineThemeSchema(remoteSchemaReference, scopedRemoteRegistryA),
+			"verified remote themes loaded from cache register into the requesting app scope");
+		assert.throws(() => resolveEngineThemeSchema(remoteSchemaReference, scopedRemoteRegistryB),
+			/Remote EngineTheme references are resolved only after an explicit loadRemoteEngineTheme/,
+			"a globally loaded remote theme does not leak into another scoped registry");
+		await loadRemoteEngineTheme("https://themes.example.com/dark.etr", {
+			...remoteOptions,
+			registry: scopedRemoteRegistryB,
+		});
+		assert.doesNotThrow(() => resolveEngineThemeSchema(remoteSchemaReference, scopedRemoteRegistryB),
+			"one verified transport-cache entry can be registered independently in multiple app scopes");
+		assert.equal(unregisterRemoteEngineTheme("remote-smoke", scopedRemoteRegistryA), true,
+			"remote theme unregister is scoped to the selected registry");
+		assert.doesNotThrow(() => resolveEngineThemeSchema(remoteSchemaReference, scopedRemoteRegistryB),
+			"unregistering a remote theme from one registry leaves another registry intact");
 		const resolvedRemotePage = resolveEngineThemeSchema({
 			theme: { id: "remote-smoke.markdown.dark", scope: "remote" },
 			root: { type: "markdown", props: { content: "remote" } },

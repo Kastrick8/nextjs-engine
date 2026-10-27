@@ -154,6 +154,25 @@ try {
 	assert.equal(registryB.getComponent("scoped-smoke-link"), scopedLinkB,
 		"unregistering from one registry does not affect the other");
 
+	const scopedGlobalTheme = createTheme({
+		id: "scoped-global-smoke",
+		scope: "global",
+		components: { link: { defaults: { color: "#345678" } } },
+	}, { registry: registryA });
+	assert.equal(scopedGlobalTheme.scope, "global");
+	const scopedGlobalRef = {
+		theme: { id: "scoped-global-smoke", scope: "global" },
+		root: { type: "box" },
+	};
+	assert.doesNotThrow(() => resolveEngineThemeSchema(scopedGlobalRef, registryA),
+		"global-scope theme groups can be registered and resolved inside one app registry");
+	assert.throws(() => resolveEngineThemeSchema(scopedGlobalRef, registryB),
+		/not registered in the supplied EngineComponentRegistry/,
+		"global theme groups registered in one app are not visible to another");
+	assert.throws(() => resolveEngineThemeSchema(scopedGlobalRef),
+		/not globally registered/,
+		"scoped theme groups do not mutate the process-global theme map");
+
 	const themedCustomSchema = resolveEngineThemeSchema({
 		theme: customTheme,
 		root: {
