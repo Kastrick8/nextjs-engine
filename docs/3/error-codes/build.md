@@ -9,9 +9,10 @@
 |---|---|---|
 | [NEBLD1001](#nebld1001) | Build source file could not be read | Assigned |
 | [NEBLD1002](#nebld1002) | Engine cache metadata is invalid | Assigned |
-| [NEBLD2001](#nebld2001) | Build budget configuration is invalid | Assigned |
+| [NEBLD2001](#nebld2001) | Build budget configuration is invalid | Emitted |
+| [NEBLD2002](#nebld2002) | Build measurement is missing or invalid | Emitted |
 | [NEBLD3001](#nebld3001) | Artifact graph is incomplete | Assigned |
-| [NEBLD3002](#nebld3002) | Bundle/runtime budget exceeded | Assigned |
+| [NEBLD3002](#nebld3002) | Bundle/runtime budget exceeded | Emitted |
 | [NEBLD5001](#nebld5001) | Next.js/Engine build integration failed | Assigned |
 | [NEBLD8001](#nebld8001) | Build artifact could not be written | Assigned |
 
@@ -69,7 +70,7 @@ Preserve cache metadata, invalidate only the affected Engine cache, then rebuild
 
 **Build budget configuration is invalid**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
@@ -117,11 +118,11 @@ Inspect the missing dependency and earlier route diagnostics; do not copy genera
 
 **Bundle/runtime budget exceeded**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-Output exceeded a configured size/count limit.
+At least one measured output metric exceeded a configured size/count limit.
 
 **Why it happens**
 
@@ -129,7 +130,7 @@ A new dependency, client island, duplicate runtime or asset increased shipped wo
 
 **Recommended action**
 
-Use attribution to find the largest contributor; optimize before raising the limit.
+Inspect actual/limit values and top attribution contributors. Reduce the largest contributor before raising the budget unless the increase is intentional.
 
 **Help URL**
 
@@ -182,6 +183,31 @@ Check target directory and disk space; don't remove `.next`/`dist` while a build
 **Help URL**
 
 `https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/build#nebld8001`
+
+---
+
+
+### NEBLD2002
+
+**Build measurement is missing or invalid**
+
+**Status:** Emitted
+
+**What it means**
+
+A configured budget requires a measurement, but the value is missing, non-finite or negative.
+
+**Why it happens**
+
+Budget comparison is not meaningful when a measured output is unavailable or is not a valid non-negative quantity.
+
+**Recommended action**
+
+Verify measurement collection completed and supplies a finite non-negative value for every configured metric.
+
+**Help URL**
+
+`https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/build#nebld2002`
 
 ---
 

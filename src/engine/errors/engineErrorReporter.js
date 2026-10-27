@@ -35,6 +35,7 @@ const ERROR_BOOK_PAGE_BY_CODE = Object.freeze({
   "NEBLD1001": "build",
   "NEBLD1002": "build",
   "NEBLD2001": "build",
+  "NEBLD2002": "build",
   "NEBLD3001": "build",
   "NEBLD3002": "build",
   "NEBLD5001": "build",
@@ -42,8 +43,14 @@ const ERROR_BOOK_PAGE_BY_CODE = Object.freeze({
   "NECMP1001": "components",
   "NECMP1002": "components",
   "NECMP1003": "components",
+  "NECMP1004": "components",
+  "NECMP1005": "components",
+  "NECMP1006": "components",
+  "NECMP1007": "components",
+  "NECMP1008": "components",
   "NECMP2001": "components",
   "NECMP2002": "components",
+  "NECMP2003": "components",
   "NETH1001": "theme",
   "NETH1002": "theme",
   "NETH2001": "theme",
@@ -67,6 +74,7 @@ const ERROR_BOOK_PAGE_BY_CODE = Object.freeze({
   "NEAPI2002": "api",
   "NEAPI4001": "api",
   "NESCHED1001": "scheduler",
+  "NESCHED1002": "scheduler",
   "NESCHED2001": "scheduler",
   "NESCHED4001": "scheduler",
   "NESCHED4002": "scheduler",
@@ -243,12 +251,25 @@ function normalizeRoute(value) {
 function createEngineErrorReport(error, context = {}) {
 	const normalized = normalizeError(error);
 	const severity = context.severity === "warning" ? "warning" : "error";
-	const codeCandidate = cleanText(context.code || "NECORE4000", 40);
+	let attachedCode;
+	let attachedReason;
+	let attachedAction;
+	if (error && typeof error === "object") {
+		try {
+			if (typeof error.code === "string") attachedCode = error.code;
+			if (typeof error.reason === "string") attachedReason = error.reason;
+			if (typeof error.action === "string") attachedAction = error.action;
+		} catch {
+			// Arbitrary thrown objects may have custom getters; reporting must not replace the original error.
+		}
+	}
+	const codeCandidate = cleanText(context.code || attachedCode || "NECORE4000", 40);
 	const code = /^[A-Za-z0-9_-]+$/.test(codeCandidate) ? codeCandidate : "NECORE4000";
 	const source = cleanText(context.source || "application", 100);
+	const messageWithoutCode = normalized.message.replace(/^\\[[A-Z]+\\d{4}\\]\\s*/, "");
 	const message = normalized.name && normalized.name !== "Error"
-		? cleanText(normalized.name + ": " + normalized.message, MAX_MESSAGE_LENGTH)
-		: normalized.message;
+		? cleanText(normalized.name + ": " + messageWithoutCode, MAX_MESSAGE_LENGTH)
+		: messageWithoutCode;
 
 	let location;
 	if (typeof context.location === "string" && context.location.trim()) {
@@ -292,8 +313,8 @@ function createEngineErrorReport(error, context = {}) {
 		code,
 		source,
 		message: message || "An unknown error occurred.",
-		reason: cleanText(context.reason || (ERROR_GUIDANCE[code] && ERROR_GUIDANCE[code].reason) || "", 1600) || undefined,
-		action: cleanText(context.action || (ERROR_GUIDANCE[code] && ERROR_GUIDANCE[code].action) || "", 1600) || undefined,
+		reason: cleanText(context.reason || attachedReason || (ERROR_GUIDANCE[code] && ERROR_GUIDANCE[code].reason) || "", 1600) || undefined,
+		action: cleanText(context.action || attachedAction || (ERROR_GUIDANCE[code] && ERROR_GUIDANCE[code].action) || "", 1600) || undefined,
 		location,
 		route: normalizeRoute(context.route),
 		requestPath,

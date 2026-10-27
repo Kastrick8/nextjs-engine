@@ -16,13 +16,13 @@
     "NECORE": "Structured reports, route/global boundaries, request instrumentation and Node fatal exceptions",
     "NENC": "Gen 3 source discovery, static analysis, compilation, client islands, artifacts and worker output",
     "NECFG": "Config parsing, generated error files, plugin lifecycle and file ownership",
-    "NEBLD": "Build integration, deterministic artifacts, cache validation, budgets and output writes",
-    "NECMP": "Schema validation, custom component registration, props and node identity",
+    "NEBLD": "Build integration, deterministic artifacts, cache validation, budgets, measurements and output writes",
+    "NECMP": "Schema validation, custom component registration, props, accessibility and node identity",
     "NETH": "Theme IDs/scopes, tokens, .etr artifacts, fonts and remote loading",
     "NEMD": "Markdown parsing, GFM, server rendering, highlighting and link decoration",
     "NEIMG": "Image source, sizing/optimization, fallback loading and remote host rules",
     "NEAPI": "Provider config, route declarations, request validation and handler execution",
-    "NESCHED": "Scheduling policies, target lifecycle, observers, callbacks and frame budgets",
+    "NESCHED": "Scheduling policies, target lifecycle, observers, callbacks, EngineScroll point metadata and frame budgets",
     "NEDEBUG": "Dev route discovery, preview navigation, source mapping and production isolation",
     "NESEO": "Metadata normalization, canonical URLs, JSON-LD and sitemaps",
     "NENET": "Command transport, session/CSRF checks, replay controls, backend requests and Web Crypto",
@@ -201,9 +201,15 @@
     },
     {
       "code": "NEBLD2001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Build budget configuration is invalid",
       "doc": "build.md#nebld2001"
+    },
+    {
+      "code": "NEBLD2002",
+      "status": "emitted",
+      "title": "Build measurement is missing or invalid",
+      "doc": "build.md#nebld2002"
     },
     {
       "code": "NEBLD3001",
@@ -213,7 +219,7 @@
     },
     {
       "code": "NEBLD3002",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Bundle/runtime budget exceeded",
       "doc": "build.md#nebld3002"
     },
@@ -231,13 +237,13 @@
     },
     {
       "code": "NECMP1001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Unknown component/schema node type",
       "doc": "components.md#necmp1001"
     },
     {
       "code": "NECMP1002",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Required component property missing",
       "doc": "components.md#necmp1002"
     },
@@ -248,16 +254,52 @@
       "doc": "components.md#necmp1003"
     },
     {
+      "code": "NECMP1004",
+      "status": "emitted",
+      "title": "Malformed schema node",
+      "doc": "components.md#necmp1004"
+    },
+    {
+      "code": "NECMP1005",
+      "status": "emitted",
+      "title": "Page schema is missing its root node",
+      "doc": "components.md#necmp1005"
+    },
+    {
+      "code": "NECMP1006",
+      "status": "emitted",
+      "title": "Accessibility label or association is missing",
+      "doc": "components.md#necmp1006"
+    },
+    {
+      "code": "NECMP1007",
+      "status": "emitted",
+      "title": "Component does not accept schema child nodes",
+      "doc": "components.md#necmp1007"
+    },
+    {
+      "code": "NECMP1008",
+      "status": "emitted",
+      "title": "Schema tree exceeds complexity guidance",
+      "doc": "components.md#necmp1008"
+    },
+    {
       "code": "NECMP2001",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Duplicate schema identity",
       "doc": "components.md#necmp2001"
     },
     {
       "code": "NECMP2002",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Circular schema reference",
       "doc": "components.md#necmp2002"
+    },
+    {
+      "code": "NECMP2003",
+      "status": "emitted",
+      "title": "Duplicate schema component name",
+      "doc": "components.md#necmp2003"
     },
     {
       "code": "NETH1001",
@@ -339,7 +381,7 @@
     },
     {
       "code": "NEIMG1002",
-      "status": "assigned",
+      "status": "emitted",
       "title": "Meaningful image has no alt text",
       "doc": "images.md#neimg1002"
     },
@@ -396,6 +438,12 @@
       "status": "assigned",
       "title": "Scheduling policy invalid",
       "doc": "scheduler.md#nesched1001"
+    },
+    {
+      "code": "NESCHED1002",
+      "status": "emitted",
+      "title": "EngineScroll point metadata has no target",
+      "doc": "scheduler.md#nesched1002"
     },
     {
       "code": "NESCHED2001",

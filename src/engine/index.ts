@@ -31,6 +31,7 @@ export type {
 // in `nextjs-engine/server`; this barrel only exposes browser/server-safe APIs.
 export {
 	ENGINE_DEFAULT_FALLBACK_POLICIES,
+	EngineBuildBudgetError,
 	assertEngineBuildBudgets,
 	assertEngineSecurityDiagnostics,
 	compilePage,

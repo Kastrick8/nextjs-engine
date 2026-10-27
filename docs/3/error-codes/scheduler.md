@@ -8,6 +8,7 @@
 | Code | Diagnostic | Status |
 |---|---|---|
 | [NESCHED1001](#nesched1001) | Scheduling policy invalid | Assigned |
+| [NESCHED1002](#nesched1002) | EngineScroll point metadata has no target | Emitted |
 | [NESCHED2001](#nesched2001) | Scheduled target unavailable | Assigned |
 | [NESCHED4001](#nesched4001) | Scheduled callback threw | Assigned |
 | [NESCHED4002](#nesched4002) | Browser observer unavailable | Assigned |
@@ -132,6 +133,31 @@ Inspect task owner/priority, reduce repeated work and defer noncritical tasks.
 **Help URL**
 
 `https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/scheduler#nesched5001`
+
+---
+
+
+### NESCHED1002
+
+**EngineScroll point metadata has no target**
+
+**Status:** Emitted
+
+**What it means**
+
+A node defines pointGroup, pointAlign or pointOffset without a non-empty point name.
+
+**Why it happens**
+
+These options modify a registered EngineScroll point; they do not create a point target on their own.
+
+**Recommended action**
+
+Add props.point or remove pointGroup/pointAlign/pointOffset. The schema path identifies the affected node.
+
+**Help URL**
+
+`https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes/scheduler#nesched1002`
 
 ---
 

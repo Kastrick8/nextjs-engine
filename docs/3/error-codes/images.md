@@ -8,7 +8,7 @@
 | Code | Diagnostic | Status |
 |---|---|---|
 | [NEIMG1001](#neimg1001) | Image source missing/invalid | Assigned |
-| [NEIMG1002](#neimg1002) | Meaningful image has no alt text | Assigned |
+| [NEIMG1002](#neimg1002) | Meaningful image has no alt text | Emitted |
 | [NEIMG2001](#neimg2001) | Remote image host not allowed | Assigned |
 | [NEIMG3001](#neimg3001) | Image sizing/optimization plan failed | Assigned |
 | [NEIMG4001](#neimg4001) | Image failed to load/decode | Assigned |
@@ -41,13 +41,13 @@ Use a documented path/absolute URL and validate dynamic input before render.
 
 ### NEIMG1002
 
-**Meaningful image has no alt text**
+**Image has no alt text**
 
-**Status:** Assigned
+**Status:** Emitted
 
 **What it means**
 
-A non-decorative image lacks alternative text.
+The schema analyzer found an image node with no alt prop; it cannot infer whether the image is decorative.
 
 **Why it happens**
 
@@ -55,7 +55,7 @@ Assistive technology cannot infer meaning from pixels.
 
 **Recommended action**
 
-Provide concise purpose text; empty alt is for decorative images only.
+Add descriptive alt text for meaningful imagery or alt="" for a purely decorative image.
 
 **Help URL**
 

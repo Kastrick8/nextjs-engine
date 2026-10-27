@@ -44,7 +44,12 @@ try {
 	assert.equal(report.results.length, 5);
 	assert.equal(report.failures[0].metric, "route-js");
 	assert.equal(report.failures[0].attribution[0].name, "EngineCanvas");
-	assert.throws(() => assertEngineBuildBudgets(report), /route-js 140000\/120000 bytes/);
+	let budgetError;
+	try { assertEngineBuildBudgets(report); } catch (error) { budgetError = error; }
+	assert.ok(budgetError, "over-budget report should throw");
+	assert.equal(budgetError.code, "NEBLD3002");
+	assert.match(budgetError.message, /route-js 140000\\/120000 bytes/);
+	assert.ok(budgetError.action && budgetError.reason);
 
 	const insecureSchema = {
 		meta: { title: "Unsafe" },
