@@ -16,7 +16,7 @@ on:
         options: [main-2, main-3]
         default: main-3
       source_commit:
-        description: "Exact 40-character commit SHA to package, not a moving branch name (source mode only)"
+        description: "Exact 40-character source commit SHA to pin (required for source mode); recorded in UPSTREAM.md"
         required: false
         type: string
       version:
@@ -28,11 +28,12 @@ on:
         required: true
         type: choice
         options: [stable, alpha, beta]
+  # Automatic npm publishing is stable-only. Generation 3 prereleases are dispatched manually.
   workflow_run:
     workflows:
       - "Engine runtime CI"
     types: [completed]
-    branches: [main-2, main-3]
+    branches: [main-2]
   push:
     tags:
       - "package.[0-9]*"
@@ -50,7 +51,7 @@ concurrency:
 
 jobs:
   gate-auto-release:
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && contains(fromJSON('["main-2","main-3"]'), github.event.workflow_run.head_branch)
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_branch == 'main-2'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -102,15 +103,12 @@ jobs:
 
           if grep -Fqx 'publish=false' "$GITHUB_OUTPUT"; then exit 0; fi
 
-          if [[ "$SOURCE_BRANCH" == "main-2" ]]; then
-            BROWSER_WORKFLOW="Engine browser compatibility"
-          elif [[ "$SOURCE_BRANCH" == "main-3" ]]; then
-            BROWSER_WORKFLOW="Engine cross-browser compatibility"
-          else
-            echo "Unsupported auto-release branch: $SOURCE_BRANCH" >&2
+          if [[ "$SOURCE_BRANCH" != "main-2" ]]; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Only main-2 stable releases are automatic; alpha releases must be dispatched manually."
             exit 0
           fi
+          BROWSER_WORKFLOW="Engine browser compatibility"
 
           echo "Waiting for '$BROWSER_WORKFLOW' to pass for $SOURCE_BRANCH@$SOURCE_SHA."
           for attempt in $(seq 1 60); do
@@ -210,14 +208,11 @@ jobs:
           if [[ "$EVENT_NAME" == "workflow_run" ]]; then
             SOURCE_BRANCH="$EVENT_BRANCH"
             SOURCE_COMMIT="$EVENT_SHA"
-            if [[ "$SOURCE_BRANCH" == "main-2" ]]; then
-              TRACK="stable"
-            elif [[ "$SOURCE_BRANCH" == "main-3" ]]; then
-              TRACK="alpha"
-            else
-              echo "Unsupported automatic release branch: $SOURCE_BRANCH" >&2
+            if [[ "$SOURCE_BRANCH" != "main-2" ]]; then
+              echo "Automatic npm publishing is restricted to stable releases from main-2; prereleases must use workflow_dispatch." >&2
               exit 1
             fi
+            TRACK="stable"
 
             # Registry versions are read-only metadata; publishing itself uses npm OIDC.
             npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"
@@ -225,11 +220,11 @@ jobs:
           const fs = require("node:fs");
           const path = require("node:path");
           const [branch, sourceSha, versionsPath] = process.argv.slice(2);
-          const stable = branch === "main-2";
-          const archiveRoot = stable ? path.join("archive", "version") : path.join("archive", "alpha");
-          const isValid = (version) => stable
-            ? /^2\.\d+\.\d+$/.test(version || "")
-            : /^3\.0\.0-alpha\.\d+$/.test(version || "");
+          if (branch !== "main-2") {
+            throw new Error("Only main-2 stable releases may be created automatically.");
+          }
+          const archiveRoot = path.join("archive", "version");
+          const isValid = (version) => /^2\.\d+\.\d+$/.test(version || "");
           const collected = new Set();
           let matchingSnapshot = null;
 
@@ -271,23 +266,14 @@ jobs:
             process.exit(0);
           }
 
-          if (stable) {
-            const sorted = [...collected].sort((a, b) => {
-              const A = a.split(".").map(Number), B = b.split(".").map(Number);
-              for (let i = 0; i < 3; i++) if (A[i] !== B[i]) return A[i] - B[i];
-              return 0;
-            });
-            if (!sorted.length) throw new Error("No archived/published Generation 2 stable version was found.");
-            const [major, minor, patch] = sorted.at(-1).split(".").map(Number);
-            console.log([major, minor, patch + 1].join("."));
-          } else {
-            let highest = 0;
-            for (const version of collected) {
-              const match = version.match(/^3\.0\.0-alpha\.(\d+)$/);
-              if (match) highest = Math.max(highest, Number(match[1]));
-            }
-            console.log("3.0.0-alpha." + (highest + 1));
-          }
+          const sorted = [...collected].sort((a, b) => {
+            const A = a.split(".").map(Number), B = b.split(".").map(Number);
+            for (let i = 0; i < 3; i++) if (A[i] !== B[i]) return A[i] - B[i];
+            return 0;
+          });
+          if (!sorted.length) throw new Error("No archived/published Generation 2 stable version was found.");
+          const [major, minor, patch] = sorted.at(-1).split(".").map(Number);
+          console.log([major, minor, patch + 1].join("."));
           NODE
             )"
           else
