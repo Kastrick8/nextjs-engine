@@ -47,20 +47,25 @@ Every archived snapshot is published as `@kastrick/nextjs-engine`. New imports m
 
 ## Publishing
 
-The normal publisher is the workflow `publish-package.yml`, available from the default branch `main-3` under Actions. Its manual release form requires:
+The normal release form is `Actions → Publish versioned package` on the default branch `main-3`. Inputs are a development branch (`main-2` or `main-3`), the exact full 40-character commit SHA, full SemVer, and a matching track (`stable`, `alpha`, or `beta`). The action verifies the pin is reachable from that branch; refuses to overwrite a snapshot whose provenance differs; copies the engine; type-checks and dry-runs the npm pack; commits the snapshot to `package/main`; creates the version Git tag; and publishes/manages dist-tags in the same run.
 
-- A source branch: `main-2` or `main-3`.
-- The exact full 40-character commit SHA to package.
-- Full SemVer and the matching stable/alpha track.
+Git tags:
+- `package.latest` is a movable Git tag pointer to the latest stable version tag.
+- Stable: `package.X.Y.Z`, e.g. `package.10.52.2`.
+- Alpha: `package-alpha.X.Y.Z-alpha.N`, e.g. `package-alpha.3.0.0-alpha.1`.
+- Beta: `package-beta.X.Y.Z-beta.N`, e.g. `package-beta.10.52.2-beta.1`.
 
-It checks the source commit is reachable from the selected branch, refuses to overwrite a snapshot with unknown or different provenance, copies the pinned engine into the versioned archive, runs type-check and `npm pack --dry-run`, commits to `package/main`, creates the annotated `v<version>` tag, and publishes in the same workflow run. The action also has a tag-push fallback, but the normal workflow does not require a manually pushed tag. A tag pushed using the workflow's `GITHUB_TOKEN` does not trigger a second workflow run; publication is deliberately done in the original run.
+npm dist-tags:
+- `latest` must point at the newest stable version. That registry tag controls the default `npm install @kastrick/nextjs-engine` behavior; `package.latest` is not an npm dist-tag.
+- Each stable version receives a `package.X.Y.Z` tag.
+- Each alpha version receives `package-alpha.X.Y.Z-alpha.N`; each beta version receives `package-beta.X.Y.Z-beta.N`.
+- The newest prerelease in each track additionally receives `alpha` or `beta`.
 
-- The highest stable version present in the archive uses npm dist-tag `latest`; older stable versions use `release-<version>`.
-- The highest alpha version present in the archive uses npm dist-tag `alpha`; older alpha snapshots use `release-<version>`.
-- The workflow skips an immutable npm version if it is already published.
-- npm does not offer a separate reservation-only step for a new scoped package: publish the initial `2.6.2` snapshot once from `version/2.6/version/2.6.2` if `@kastrick/nextjs-engine` does not exist. Then configure Trusted Publishing with owner `Kate-alt-69`, repository `nextjs-engine`, workflow filename `publish-package.yml`, blank environment, and direct `npm publish` enabled.
-- npm requires the newly configured Trusted Publisher to succeed at least once within two days, so add it when the first automated release is ready and run that release promptly.
-- Prefer npm Trusted Publishing using GitHub Actions OIDC; never store long-lived npm write tokens in this repository. The workflow uses a GitHub-hosted runner, `id-token: write`, Node.js 24 and npm CLI 11.5.1+.
+The `Seed package Git tags` workflow is idempotent, backfills version-specific Git tags for snapshots already in the archive, and sets `package.latest` to the current latest stable version tag. It does not publish anything to npm.
+
+Before the first release, check `npm view @kastrick/nextjs-engine name`. If the name is not registered and version `2.6.2` does not already exist, publish the `version/2.6/version/2.6.2` snapshot once from an npm-authenticated CLI with `npm publish --access public`. Then configure the package's Trusted Publisher with owner `Kate-alt-69`, repository `nextjs-engine`, workflow `publish-package.yml`, blank environment, and both **Allow npm publish** and **Allow npm dist-tag**. The workflow uses a GitHub-hosted runner, `id-token: write`, Node 24 and npm CLI 11.21.0+. npm requires a new Trusted Publisher to complete its first successful operation within two days, so add the configuration when ready to run the release.
+
+Do not store long-lived npm write tokens in the repository. The publisher skips already-published immutable versions and still applies the intended dist-tags when authorized.
 
 ## Branch safety
 
