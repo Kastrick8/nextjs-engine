@@ -269,6 +269,9 @@ jobs:
             grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/tag-upstream.md" || {
               echo "Tag $TAG exists but does not match source pin $PINNED_SHA." >&2; exit 1;
             }
+            git merge-base --is-ancestor "$TAG^{commit}" refs/remotes/origin/package/main || {
+              echo "Tag $TAG exists but is not reachable from package/main." >&2; exit 1;
+            }
           else
             git tag -a "$TAG" -m "@kastrick/nextjs-engine $VERSION from $PINNED_SHA"
             git push origin "refs/tags/$TAG"
@@ -360,7 +363,6 @@ jobs:
         working-directory: archive/${{ steps.prepare.outputs.target }}
         env:
           DIST_TAG: ${{ steps.dist-tag.outputs.value }}
-          CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
         run: npm publish --access public --tag "$DIST_TAG"
 
       - name: Apply npm dist-tags
@@ -386,6 +388,7 @@ jobs:
           SOURCE_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
           DIST_TAG: ${{ steps.dist-tag.outputs.value }}
+          CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
           SHOULD_PUBLISH: ${{ steps.registry-version.outputs.should_publish }}
         run: |
           {
