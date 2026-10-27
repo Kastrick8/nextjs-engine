@@ -960,7 +960,7 @@ async function testPublicThemeApi() {
                 ...remoteOptions, expectedId: "remote-comment-obfuscated-css",
                 fetchImpl: async () => new Response(remoteTextFor("remote-comment-obfuscated-css", commentObfuscatedCssContent), { status: 200, headers: { "content-type": "application/json" } }),
             }),
-            /unsafe CSS\\/network primitive|unsafe CSS value/,
+            (error) => error.message.includes("unsafe CSS/network primitive") || error.message.includes("unsafe CSS value"),
         );
         const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
 		await assert.rejects(
