@@ -392,7 +392,7 @@ jobs:
               TEMPLATE_DIR="$RUNNER_TEMP/package-template"
               rm -rf "archive/$TARGET"
               REFRESHED=true
-              echo "Refreshing unpublished alpha snapshot $VERSION from source commit $PINNED_SHA."
+              echo "Refreshing unpublished $TRACK snapshot $VERSION from source commit $PINNED_SHA."
             else
               [[ -f "archive/$TARGET/UPSTREAM.md" ]] || { echo "Snapshot exists without provenance; refusing to overwrite." >&2; exit 1; }
               grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "archive/$TARGET/UPSTREAM.md" || {
@@ -456,7 +456,7 @@ jobs:
             "- Engine source path: "+ENGINE_DIR,
             "- Manifest/docs template: "+(TEMPLATE_PROVENANCE||TEMPLATE_DIR),
             "",
-            "The engine source was copied from the exact pinned commit above. The manifest name and version were normalized for the Kastrick npm package. Missing optional export targets were removed. This is an immutable source snapshot, not a live link.",
+            "The engine source was copied from the exact pinned commit above. The source manifest supplied the version; the package name was normalized for the Kastrick npm package. Missing optional export targets were removed. Published npm versions are immutable; unpublished snapshots may be refreshed only through the guarded workflow path.",
             ""
           ].join("\n");
           fs.writeFileSync(root+"/UPSTREAM.md",provenance);
@@ -657,6 +657,8 @@ jobs:
         env:
           VERSION: ${{ steps.release-meta.outputs.version }}
           SOURCE_BRANCH: ${{ steps.release-meta.outputs.source_branch }}
+          SNAPSHOT_ACTION: ${{ steps.release-meta.outputs.snapshot_action }}
+          REFRESHED: ${{ steps.prepare.outputs.refreshed }}
           SOURCE_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
           DIST_TAG: ${{ steps.dist-tag.outputs.value }}
@@ -667,6 +669,9 @@ jobs:
             echo "## @kastrick/nextjs-engine release pin"
             echo "- Version: $VERSION"
             echo "- Source: $SOURCE_BRANCH@$SOURCE_SHA"
+            echo "- Version source: pinned commit package.json"
+            echo "- Snapshot action: $SNAPSHOT_ACTION"
+            echo "- Existing snapshot refreshed: $REFRESHED"
             echo "- Archive snapshot: $TARGET"
             echo "- Git tag: ${{ steps.create-tag.outputs.tag }}"
             echo "- npm dist-tag: $DIST_TAG"
