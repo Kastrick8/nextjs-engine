@@ -158,6 +158,7 @@ interface OverlayBehaviorOptions {
 	panelRef: React.RefObject<HTMLElement | null>;
 	triggerRef: React.RefObject<HTMLElement | null>;
 	baseZIndex?: number;
+	modal?: boolean;
 	layers?: Array<{ ref: React.RefObject<HTMLElement | null>; offset?: number }>;
 	close: () => void;
 	closeOnEscape: boolean;
@@ -210,6 +211,7 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 		}));
 		const unregister = registerOverlay(options.overlayId, doc, {
 			baseZIndex: options.baseZIndex,
+			modal: options.modal,
 			layers,
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
