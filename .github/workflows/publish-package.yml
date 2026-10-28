@@ -74,7 +74,9 @@ jobs:
           ref: main-3
           path: tooling
           fetch-depth: 1
-          sparse-checkout: scripts/gen3-assert-green-commit.js
+          sparse-checkout: |
+            scripts/gen3-assert-green-commit.js
+            .github/scripts/copy-content-includes.js
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -88,6 +90,9 @@ jobs:
 
 
       - name: Install npm CLI with OIDC support
+      - name: Test content.include helper
+        run: node tooling/.github/scripts/copy-content-includes.js --self-test
+
         run: npm install --global npm@^11.21.0
 
       - name: Validate source pin and prepare immutable snapshot
@@ -180,10 +185,6 @@ jobs:
               test -f "source/bin/ne.js" || { echo "This release requires the NE CLI, but source/bin/ne.js is missing." >&2; exit 1; }
             fi
             mkdir -p "$DEST/engine"
-            if [[ -d source/bin ]]; then
-              mkdir -p "$DEST/bin"
-              cp -a source/bin/. "$DEST/bin/"
-            fi
             cp "$TEMPLATE_DIR/package.json" "$DEST/package.json"
             cp "$TEMPLATE_DIR/tsconfig.json" "$DEST/tsconfig.json"
             for file in README.md DOCUMENT.md; do
@@ -200,6 +201,11 @@ jobs:
             fi
             cp -a "$ENGINE_DIR/." "$DEST/engine/"
             printf '%s\n' 'export * from "./engine";' > "$DEST/index.ts"
+            INCLUDED_CONTENT_PATHS="$(node tooling/.github/scripts/copy-content-includes.js source "$DEST" --legacy-bin)"
+            export CONTENT_INCLUDE_PATHS="$INCLUDED_CONTENT_PATHS"
+            if [[ "$TRACK" == "alpha" || "$TRACK" == "beta" || "$VERSION" =~ ^2\.7\.[0-9]+$ ]]; then
+              test -f "$DEST/bin/ne.js" || { echo "This release requires the NE CLI; add bin/ to source/content.include." >&2; exit 1; }
+            fi
             export TARGET VERSION TRACK PINNED_SHA SOURCE_BRANCH ENGINE_DIR TEMPLATE_DIR
             node --input-type=module <<'NODE'
           import fs from "node:fs";
@@ -209,12 +215,23 @@ jobs:
           manifest.name="@kastrick/nextjs-engine";
           manifest.version=VERSION;
           manifest.private=false;
-          manifest.files=(manifest.files||[]).filter(p=>fs.existsSync(root+"/"+p));
-          if(fs.existsSync(root+"/bin/ne.js")){
-            manifest.bin={...(manifest.bin||{}),ne:"./bin/ne.js"};
-            if(!manifest.files.includes("bin")) manifest.files.push("bin");
+          manifest.files=(manifest.files||[]).filter(p=>p!=="content.include"&&fs.existsSync(root+"/"+p));
+          const includedPaths=JSON.parse(process.env.CONTENT_INCLUDE_PATHS||"[]");
+          for(const included of includedPaths){
+            const top=included.split("/")[0];
+            if(top&&fs.existsSync(root+"/"+top)&&!manifest.files.includes(top)) manifest.files.push(top);
           }
-          for(const [name,value] of Object.entries(manifest.exports||{})){
+          const sourceManifest=JSON.parse(fs.readFileSync("source/package.json","utf8"));
+          const bins={};
+          for(const [name,target] of Object.entries(sourceManifest.bin||{})){
+            if(typeof target!=="string") continue;
+            const relative=target.replace(/^\.\//,"");
+            const included=includedPaths.some(p=>relative===p||relative.startsWith(p+"/"));
+            if(included&&fs.existsSync(root+"/"+relative)) bins[name]="./"+relative;
+          }
+          if(Object.keys(bins).length) manifest.bin=bins;
+          else delete manifest.bin;
+          if(fs.existsSync(root+"/content.include")) fs.rmSync(root+"/content.include",{force:true});
             if(name===".") continue;
             const targets=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
             if(targets.some(p=>!fs.existsSync(root+"/"+p.replace(/^\.\//,"")))) delete manifest.exports[name];
@@ -500,7 +517,9 @@ jobs:
           ref: main-3
           path: tooling
           fetch-depth: 1
-          sparse-checkout: scripts/gen3-assert-green-commit.js
+          sparse-checkout: |
+            scripts/gen3-assert-green-commit.js
+            .github/scripts/copy-content-includes.js
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -820,7 +839,9 @@ jobs:
           ref: main-3
           path: tooling
           fetch-depth: 1
-          sparse-checkout: scripts/gen3-assert-green-commit.js
+          sparse-checkout: |
+            scripts/gen3-assert-green-commit.js
+            .github/scripts/copy-content-includes.js
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Set up Node.js for npm Trusted Publishing and dist-tags
