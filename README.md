@@ -21,6 +21,10 @@ Use **Actions → Import package snapshot** from the repository's default branch
 
 Historical release tags have some stale/mismatched source `package.json.version` values. The archived manifest uses the full intended version and `UPSTREAM.md` records the source commit and any normalization.
 
+### Explicit extra files for new snapshots
+
+For a source commit that opts in, the root `content.include` file lists extra files or directories to copy into the versioned package snapshot. Use one repository-relative path per line (for example `bin/`); blank lines and lines beginning with `#` are ignored. Paths must exist in that exact source commit, cannot escape the repository root, and cannot replace package-generated files. The file itself is build-time metadata and is never published to npm. Existing snapshots are immutable and are not rewritten. Commits without `content.include` retain the legacy `bin/` inclusion behavior in workflows that previously copied it.
+
 ## Release
 
 The published package is `@kastrick/nextjs-engine`. Start from **Actions → Publish versioned package** on the default branch (`main-3`). Choose `main-2` or `main-3`, paste the exact full 40-character commit SHA, provide the full SemVer, and select the corresponding track. GitHub Actions copies the pinned source into `package/main`, validates it, creates the correctly named version tag, moves `package.latest` when appropriate, and handles npm publication/dist-tags in that same run.
