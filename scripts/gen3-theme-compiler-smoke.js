@@ -551,7 +551,7 @@ async function testPublicThemeApi() {
 		assert.equal(themedPopover.props.themeStyles.panel.backgroundColor, "#eff6ff", "popover namespaces target popover nodes");
 		assert.equal(themedPopover.props.themeStyles.panel.backgroundImage, undefined, "theme CSS URL values are rejected");
 		assert.equal(themedPopover.props.themeStyles.panel.background, undefined, "theme CSS image-set loaders are rejected");
-		assert.equal(themedPopover.props.themeStyles.content.background, undefined, "CSS-escaped URL loaders are rejected");
+		assert.equal(themedPopover.props.themeStyles.content?.background, undefined, "CSS-escaped URL loaders are rejected");
 		assert.equal(themedPopover.props.themeStyles.trigger.fontWeight, 600, "shared trigger slots reach popovers");
 
 		const selectedOverlayVariant = resolveEngineThemeSchema({
