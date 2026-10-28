@@ -114,7 +114,6 @@ export const EngineDialog = memo(function EngineDialog({
 					style={{
 						position: "fixed",
 						inset: 0,
-						zIndex,
 						display: "grid",
 						placeItems: "center",
 						padding: "1rem",
