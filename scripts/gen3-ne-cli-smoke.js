@@ -54,7 +54,7 @@ async function main() {
 		...manifest,
 		tag: "channel-alpha-latest",
 		floating: true,
-		assetName: "nextjs-engine-3.0.0-alpha.2-" + "a".repeat(8) + ".tgz",
+		assetName: "nextjs-engine-3.0.0-alpha.2-" + rollingManifest.sourceCommit + ".tgz",
 	};
 	const rollingAsset = {
 		...release,
