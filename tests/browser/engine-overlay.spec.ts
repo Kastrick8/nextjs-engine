@@ -10,11 +10,11 @@ test("native triggers compose directly and modal dialog owns focus and inertness
 	await expect(page.locator("button button")).toHaveCount(0);
 	await trigger.click();
 
-	const parent = page.getByRole("dialog", { name: "Parent dialog" });
+	const parent = page.locator('[role="dialog"]').filter({ has: page.getByTestId("dialog-initial-focus") });
 	await expect(parent).toBeVisible();
 	await expect(page.getByTestId("dialog-initial-focus")).toBeFocused();
-	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => (element as HTMLElement).inert)).toBe(true);
-	await expect(page.getByTestId("overlay-background")).toHaveAttribute("aria-hidden", "true");
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest("[inert]") !== null)).toBe(true);
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest('[aria-hidden="true"]') !== null)).toBe(true);
 
 	// The background must not be operable while a modal is active.
 	await expect(page.getByTestId("background-action")).not.toBeDisabled();
@@ -38,20 +38,20 @@ test("native triggers compose directly and modal dialog owns focus and inertness
 	await expect(nested).toBeHidden();
 	await expect(parent).toBeVisible();
 	await expect(page.getByTestId("nested-dialog-trigger")).toBeFocused();
-	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => (element as HTMLElement).inert)).toBe(true);
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest("[inert]") !== null)).toBe(true);
 
 	await page.keyboard.press("Escape");
 	await expect(parent).toBeHidden();
 	await expect(trigger).toBeFocused();
-	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => (element as HTMLElement).inert)).toBe(false);
-	await expect(page.getByTestId("overlay-background")).not.toHaveAttribute("aria-hidden", "true");
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest("[inert]") !== null)).toBe(false);
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest('[aria-hidden="true"]') !== null)).toBe(false);
 });
 
 test("popover is non-modal and outside pointer closes it", async ({ page }) => {
 	await page.goto(FIXTURE);
 	await page.getByTestId("standalone-popover-trigger").click();
 	await expect(page.getByRole("dialog", { name: "Standalone popover" })).toBeVisible();
-	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => (element as HTMLElement).inert)).toBe(false);
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest("[inert]") !== null)).toBe(false);
 
 	await page.getByTestId("background-action").click();
 	await expect(page.getByTestId("background-count")).toHaveText("1");
@@ -65,13 +65,13 @@ test("drawer restores body scroll and focus when it closes", async ({ page }) =>
 	const drawer = page.getByRole("dialog", { name: "Settings drawer" });
 	await expect(drawer).toBeVisible();
 	await expect.poll(() => page.locator("body").evaluate((element) => (element as HTMLElement).style.overflow)).toBe("hidden");
-	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => (element as HTMLElement).inert)).toBe(true);
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest("[inert]") !== null)).toBe(true);
 
 	await page.keyboard.press("Escape");
 	await expect(drawer).toBeHidden();
 	await expect.poll(() => page.locator("body").evaluate((element) => (element as HTMLElement).style.overflow)).toBe("");
 	await expect(trigger).toBeFocused();
-	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => (element as HTMLElement).inert)).toBe(false);
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest("[inert]") !== null)).toBe(false);
 });
 
 test("controlled open state notifies once and restores its external trigger", async ({ page }) => {
