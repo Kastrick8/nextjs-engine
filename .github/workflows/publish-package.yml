@@ -33,8 +33,11 @@ on:
       - "package.[0-9]*"
       - "package-alpha.[0-9]*"
       - "package-beta.[0-9]*"
+  repository_dispatch:
+    types: [package-snapshot-published]
 
 permissions:
+  actions: read
   contents: write
   id-token: write
 
@@ -63,6 +66,16 @@ jobs:
           ref: ${{ inputs.source_commit }}
           path: source
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout exact-commit CI gate
+        uses: actions/checkout@v6
+        with:
+          ref: main-3
+          path: tooling
+          fetch-depth: 1
+          sparse-checkout: scripts/gen3-assert-green-commit.js
+          sparse-checkout-cone-mode: false
           persist-credentials: false
 
       - name: Set up Node.js for npm Trusted Publishing
@@ -240,6 +253,17 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "reuse_existing=$REUSE_EXISTING" >> "$GITHUB_OUTPUT"
 
+      - name: Require green runtime and browser CI for prereleases
+        if: ${{ inputs.track == 'alpha' || inputs.track == 'beta' }}
+        working-directory: tooling
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          SOURCE_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/gen3-assert-green-commit.js
+
       - name: Type-check and inspect packed contents
         working-directory: archive/${{ steps.prepare.outputs.target }}
         run: |
@@ -323,6 +347,36 @@ jobs:
             fi
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch versioned prerelease GitHub Release builder
+        if: ${{ inputs.track == 'alpha' || inputs.track == 'beta' }}
+        env:
+          TAG_NAME: ${{ steps.create-tag.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PAYLOAD="$(node - "$TAG_NAME" <<'NODE'
+          const tagName = process.argv[2];
+          if (!/^package-(?:alpha|beta)\.\d+\.\d+\.\d+-(?:alpha|beta)\.\d+$/.test(tagName)) {
+            throw new Error("Refusing to dispatch an invalid prerelease tag: " + tagName);
+          }
+          process.stdout.write(JSON.stringify({
+            event_type: "package-snapshot-published",
+            client_payload: { tag_name: tagName }
+          }));
+          NODE
+          )"
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/dispatches" \
+            --data "$PAYLOAD"
+          echo "Dispatched GitHub prerelease builder for $TAG_NAME."
 
       - name: Select npm dist-tags
         id: dist-tag
@@ -440,6 +494,16 @@ jobs:
           ref: package/main
           fetch-depth: 0
 
+      - name: Checkout exact-commit CI gate
+        uses: actions/checkout@v6
+        with:
+          ref: main-3
+          path: tooling
+          fetch-depth: 1
+          sparse-checkout: scripts/gen3-assert-green-commit.js
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       - name: Set up Node.js for npm Trusted Publishing
         uses: actions/setup-node@v6
         with:
@@ -532,11 +596,30 @@ jobs:
           for (const file of ["index.ts", "tsconfig.json", "UPSTREAM.md", "engine/index.ts"]) {
             if (!fs.existsSync(path.join(dir, file))) throw new Error("Missing required file: " + file);
           }
+          const provenance = fs.readFileSync(path.join(dir, "UPSTREAM.md"), "utf8");
+          const sourceBranch = provenance.match(/^- Source branch:\s*\`?([A-Za-z0-9._/-]+)\`?\s*$/m)?.[1] || "";
+          const sourceCommit = provenance.match(/^- (?:Requested and resolved source commit|Resolved source commit):\s*\`?([0-9a-f]{40})\`?\s*$/m)?.[1] || "";
+          if (["alpha", "beta"].includes(track) && (!/^main-[23]$/.test(sourceBranch) || !/^[0-9a-f]{40}$/.test(sourceCommit))) {
+            throw new Error("Alpha/Beta snapshot provenance must include a supported source branch and full source commit SHA.");
+          }
           console.log("directory=" + dir);
           console.log("version=" + version);
           console.log("track=" + track);
           console.log("version_tag=" + versionTag);
+          console.log("source_branch=" + sourceBranch);
+          console.log("source_commit=" + sourceCommit);
           NODE
+
+      - name: Require green runtime and browser CI for prereleases
+        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        working-directory: tooling
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          SOURCE_BRANCH: ${{ steps.snapshot.outputs.source_branch }}
+          SOURCE_SHA: ${{ steps.snapshot.outputs.source_commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/gen3-assert-green-commit.js
 
       - name: Type-check and inspect packed contents
         working-directory: ${{ steps.snapshot.outputs.directory }}
@@ -638,6 +721,66 @@ jobs:
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
 
+      - name: Create or verify immutable prerelease tag
+        if: \${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        env:
+          TAG_NAME: \${{ steps.snapshot.outputs.version_tag }}
+          VERSION: \${{ steps.snapshot.outputs.version }}
+          DIRECTORY: \${{ steps.snapshot.outputs.directory }}
+          SOURCE_SHA: \${{ steps.snapshot.outputs.source_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          if git rev-parse -q --verify "refs/tags/$TAG_NAME^{commit}" >/dev/null; then
+            git cat-file -e "$TAG_NAME:$DIRECTORY/package.json"
+            git show "$TAG_NAME:$DIRECTORY/package.json" > "$RUNNER_TEMP/tag-package.json"
+            git show "$TAG_NAME:$DIRECTORY/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
+            node - "$RUNNER_TEMP/tag-package.json" "$VERSION" "$RUNNER_TEMP/tag-upstream.md" "$SOURCE_SHA" <<'NODE'
+          const fs = require("node:fs");
+          const [manifestPath, version, provenancePath, sourceSha] = process.argv.slice(2);
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+          const provenance = fs.readFileSync(provenancePath, "utf8");
+          const commit = provenance.match(/^- (?:Requested and resolved source commit|Resolved source commit):\s*\`?([0-9a-f]{40})\`?\s*$/m)?.[1];
+          if (manifest.name !== "@kastrick/nextjs-engine" || manifest.version !== version || commit !== sourceSha) {
+            throw new Error("Existing prerelease tag does not match the archive snapshot provenance.");
+          }
+          NODE
+          else
+            git tag -a "$TAG_NAME" -m "@kastrick/nextjs-engine $VERSION from $SOURCE_SHA" HEAD
+            git push origin "refs/tags/$TAG_NAME"
+          fi
+
+      - name: Dispatch archived prerelease GitHub Release builder
+        if: \${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        env:
+          TAG_NAME: \${{ steps.snapshot.outputs.version_tag }}
+          GH_TOKEN: \${{ github.token }}
+          GITHUB_API_URL: \${{ github.api_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PAYLOAD="$(node - "$TAG_NAME" <<'NODE'
+          const tagName = process.argv[2];
+          if (!/^package-(?:alpha|beta)\.\d+\.\d+\.\d+-(?:alpha|beta)\.\d+$/.test(tagName)) {
+            throw new Error("Refusing to dispatch an invalid prerelease tag: " + tagName);
+          }
+          process.stdout.write(JSON.stringify({
+            event_type: "package-snapshot-published",
+            client_payload: { tag_name: tagName }
+          }));
+          NODE
+          )"
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/dispatches" \
+            --data "$PAYLOAD"
+          echo "Dispatched GitHub prerelease builder for $TAG_NAME."
+
       - name: Release summary
         if: always()
         env:
@@ -660,16 +803,26 @@ jobs:
 
 
   publish-tagged-snapshot:
-    if: github.event_name == 'push'
+    if: ${{ github.event_name == 'push' || github.event_name == 'repository_dispatch' }}
     runs-on: ubuntu-latest
     environment: npm-publish
     timeout-minutes: 45
     steps:
-      - name: Checkout tagged archive commit
+      - name: Checkout package archive
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.ref }}
+          ref: package/main
           fetch-depth: 0
+
+      - name: Checkout exact-commit CI gate
+        uses: actions/checkout@v6
+        with:
+          ref: main-3
+          path: tooling
+          fetch-depth: 1
+          sparse-checkout: scripts/gen3-assert-green-commit.js
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - name: Set up Node.js for npm Trusted Publishing and dist-tags
         uses: actions/setup-node@v6
         with:
@@ -683,13 +836,22 @@ jobs:
       - name: Verify tag and resolve selected snapshot
         id: snapshot
         shell: bash
+        env:
+          DISPATCH_TAG: \${{ github.event.client_payload.tag_name || '' }}
         run: |
           set -euo pipefail
+          TAG_NAME="\${DISPATCH_TAG:-$GITHUB_REF_NAME}"
+          [[ "$TAG_NAME" =~ ^package(-alpha|-beta)?\.[A-Za-z0-9.-]+$ ]] || {
+            echo "Invalid package release tag: $TAG_NAME" >&2; exit 1;
+          }
+          git fetch --force --tags origin
           git fetch origin refs/heads/package/main:refs/remotes/origin/package/main
-          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/package/main || {
+          TAG_COMMIT="$(git rev-parse -q --verify "refs/tags/$TAG_NAME^{commit}")" || {
+            echo "Release tag is missing: $TAG_NAME" >&2; exit 1;
+          }
+          git merge-base --is-ancestor "$TAG_COMMIT" refs/remotes/origin/package/main || {
             echo "Tag is not part of package/main history." >&2; exit 1;
           }
-          TAG_NAME="$GITHUB_REF_NAME"
           if [[ "$TAG_NAME" =~ ^package-alpha\.([0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+)$ ]]; then
             VERSION="${BASH_REMATCH[1]}"
             TRACK="alpha"
@@ -722,6 +884,10 @@ jobs:
           const p=JSON.parse(fs.readFileSync(path.join(DIR,"package.json"),"utf8"));
           if(p.name!=="@kastrick/nextjs-engine"||p.version!==VERSION) throw new Error("Manifest mismatch: "+p.name+"@"+p.version);
           if(!fs.existsSync(path.join(DIR,"engine/index.ts"))) throw new Error("engine/index.ts is missing");
+          const provenance=fs.readFileSync(path.join(DIR,"UPSTREAM.md"),"utf8");
+          const sourceBranch=provenance.match(/^- Source branch:\s*\`?([A-Za-z0-9._/-]+)\`?\s*$/m)?.[1]||"";
+          const sourceCommit=provenance.match(/^- (?:Requested and resolved source commit|Resolved source commit):\s*\`?([0-9a-f]{40})\`?\s*$/m)?.[1]||"";
+          if(["alpha","beta"].includes(TRACK)&&(!/^main-[23]$/.test(sourceBranch)||!/^[0-9a-f]{40}$/.test(sourceCommit))) throw new Error("Prerelease provenance is missing a source branch/full commit.");
           const stable=[], alpha=[], beta=[];
           function walk(root){
             if(!fs.existsSync(root))return;
@@ -757,7 +923,21 @@ jobs:
           console.log("directory="+DIR);
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
+          console.log("source_branch="+sourceBranch);
+          console.log("source_commit="+sourceCommit);
           NODE
+
+      - name: Require green runtime and browser CI for prereleases
+        if: \${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        working-directory: tooling
+        env:
+          GITHUB_REPOSITORY: \${{ github.repository }}
+          GITHUB_API_URL: \${{ github.api_url }}
+          SOURCE_BRANCH: \${{ steps.snapshot.outputs.source_branch }}
+          SOURCE_SHA: \${{ steps.snapshot.outputs.source_commit }}
+          GH_TOKEN: \${{ github.token }}
+        run: node scripts/gen3-assert-green-commit.js
+
       - name: Validate and pack the selected snapshot
         working-directory: ${{ steps.snapshot.outputs.directory }}
         run: |
