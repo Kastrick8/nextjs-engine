@@ -35,6 +35,7 @@ interface ReducedMotionStore {
 	listeners: Set<() => void>;
 	subscribe: (listener: () => void) => () => void;
 	getSnapshot: () => boolean;
+	handleChange: () => void;
 }
 
 const reducedMotionStores = new WeakMap<Document, ReducedMotionStore>();
