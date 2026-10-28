@@ -225,7 +225,7 @@ function synchronizeModalInertness(state: OverlayDocumentState, ownerDocument: D
 	for (const protectedElement of protectedElements) {
 		let current: HTMLElement | null = protectedElement;
 		while (current?.parentElement) {
-			const parent = current.parentElement;
+			const parent: HTMLElement = current.parentElement;
 			for (const sibling of Array.from(parent.children)) {
 				if (sibling === current) continue;
 				const siblingElement = sibling as HTMLElement;
