@@ -137,7 +137,7 @@ function sanitizeOverlayThemeStyle(value: unknown): CSSProperties | undefined {
 			continue;
 		}
 		if (typeof raw !== "string" || raw.length > 512
-			|| /[\u0000-\u001f\u007f{};<>]/.test(raw)
+			|| /[\u0000-\u001f\u007f{};<>\\]/.test(raw)
 			|| UNSAFE_OVERLAY_STYLE_VALUE.test(raw)) continue;
 		// Avoid image loaders inside remote theme values. Gradients are the
 		// only image syntax accepted; colors and "none" remain valid.
