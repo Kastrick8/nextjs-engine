@@ -76,6 +76,15 @@ async function main() {
 		{ ...rollingManifest, track: "beta" },
 		rollingAsset
 	), null);
+	assert.equal(channels.validateReleaseManifest(
+		{ ...rollingManifest, floating: false },
+		rollingAsset
+	), null);
+	const mismatchedAssetName = "nextjs-engine-3.0.0-alpha.2-" + "b".repeat(40) + ".tgz";
+	assert.equal(channels.validateReleaseManifest(
+		{ ...rollingManifest, assetName: mismatchedAssetName },
+		{ ...rollingAsset, assets: [{ ...rollingAsset.assets[0], name: mismatchedAssetName }] }
+	), null);
 
 	const fixtureCatalog = {
 		releases: [
