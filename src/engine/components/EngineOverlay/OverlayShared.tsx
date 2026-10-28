@@ -225,7 +225,19 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 			unregister();
 			const current = currentOptions.current;
 			if (!current.restoreFocus) return;
-			const target = current.triggerRef.current ?? previousFocus.current;
+			const panel = current.panelRef.current;
+			const canRestoreTo = (candidate: HTMLElement | null | undefined) => Boolean(
+				candidate?.isConnected
+				&& !panel?.contains(candidate)
+				&& !candidate.closest("[hidden], [inert], [aria-hidden='true']"),
+			);
+			const trigger = current.triggerRef.current;
+			const previous = previousFocus.current;
+			const target = canRestoreTo(trigger)
+				? trigger
+				: canRestoreTo(previous)
+					? previous
+					: getFocusableElements(ownerDocument.body).find((element) => !panel?.contains(element));
 			if (target?.isConnected) target.focus({ preventScroll: true });
 		};
 	}, [options.modal, options.open, options.overlayId, options.present]);
