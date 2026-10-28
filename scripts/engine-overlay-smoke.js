@@ -3,6 +3,9 @@
 const assert = require("assert/strict");
 const fs = require("fs");
 const path = require("path");
+const Module = require("module");
+const React = require("react");
+const ReactDOMServer = require("react-dom/server");
 const ts = require("typescript");
 
 function transpile(sourcePath, destinationPath) {
@@ -13,6 +16,7 @@ function transpile(sourcePath, destinationPath) {
 		compilerOptions: {
 			target: ts.ScriptTarget.ES2020,
 			module: ts.ModuleKind.CommonJS,
+			jsx: ts.JsxEmit.ReactJSX,
 			esModuleInterop: true,
 		},
 	});
@@ -271,7 +275,76 @@ function main() {
 		assert.deepEqual(runtime.getFocusableElements(focusRoot), [focusableVisible],
 			"hidden/inert descendants, disabled controls and negative tab stops are excluded");
 
-		console.log("EngineOverlay runtime smoke tests passed");
+		// Render the real OverlayTrigger source and verify native interactive
+		// children are composed rather than nested. Mock only the provider hook.
+		const overlayPartsSource = path.join(
+			process.cwd(), "src", "engine", "components", "EngineOverlay", "OverlayParts.tsx",
+		);
+		const overlayPartsOutput = path.join(tempRoot, "OverlayParts.js");
+		transpile(overlayPartsSource, overlayPartsOutput);
+		const originalModuleLoad = Module._load;
+		let OverlayParts;
+		Module._load = function(request, parent, isMain) {
+			if (request === "../../providers/EngineProvider" && parent?.filename === overlayPartsOutput) {
+				return { useHandler: () => undefined };
+			}
+			return originalModuleLoad.call(this, request, parent, isMain);
+		};
+		try {
+			OverlayParts = require(overlayPartsOutput);
+		} finally {
+			Module._load = originalModuleLoad;
+		}
+		const triggerDefaults = {
+			label: "Open details",
+			expanded: false,
+			controls: "overlay-details",
+			hasPopup: "dialog",
+			onClick: () => undefined,
+			triggerRef: React.createRef(),
+		};
+		const renderTrigger = (props) => ReactDOMServer.renderToStaticMarkup(
+			React.createElement(OverlayParts.OverlayTrigger, { ...triggerDefaults, ...props }),
+		);
+		const nativeButtonMarkup = renderTrigger({
+			children: React.createElement("button", { className: "consumer-button", "data-owner": "app" }, "Open details"),
+		});
+		assert.equal((nativeButtonMarkup.match(/<button/g) ?? []).length, 1,
+			"a supplied native button is composed instead of nested");
+		assert.ok(nativeButtonMarkup.includes('data-owner="app"'), "native button attributes are preserved");
+		assert.ok(nativeButtonMarkup.includes('aria-expanded="false"'), "trigger state ARIA is composed onto the native button");
+
+		const nativeAnchorMarkup = renderTrigger({
+			children: React.createElement("a", { href: "#details", className: "consumer-link" }, "Open details"),
+		});
+		assert.equal((nativeAnchorMarkup.match(/<a\b/g) ?? []).length, 1,
+			"a supplied native anchor is composed directly");
+		assert.equal((nativeAnchorMarkup.match(/<button\b/g) ?? []).length, 0,
+			"a composed anchor is not wrapped by a button");
+		assert.ok(nativeAnchorMarkup.includes('href="#details"'), "native anchor navigation attributes are preserved");
+
+		const plainContentMarkup = renderTrigger({
+			children: React.createElement("span", null, "Open details"),
+		});
+		assert.equal((plainContentMarkup.match(/<button\b/g) ?? []).length, 1,
+			"non-interactive content retains the default button trigger");
+
+		const reportedErrors = [];
+		const originalConsoleError = console.error;
+		let unsupportedInputMarkup;
+		let unsupportedAsChildMarkup;
+		try {
+			console.error = (...args) => reportedErrors.push(args.join(" "));
+			unsupportedInputMarkup = renderTrigger({ children: React.createElement("input", { value: "bad", readOnly: true }) });
+			unsupportedAsChildMarkup = renderTrigger({ asChild: true, children: React.createElement("span", null, "not a native trigger") });
+		} finally {
+			console.error = originalConsoleError;
+		}
+		assert.equal(unsupportedInputMarkup, "", "unsupported interactive native children fail closed instead of nesting");
+		assert.equal(unsupportedAsChildMarkup, "", "explicit asChild rejects non-native elements rather than cloning arbitrary components");
+		assert.equal(reportedErrors.length, 2, "invalid trigger contracts emit development diagnostics");
+
+		console.log("EngineOverlay runtime and trigger smoke tests passed");
 	} finally {
 		fs.rmSync(tempRoot, { recursive: true, force: true });
 	}
