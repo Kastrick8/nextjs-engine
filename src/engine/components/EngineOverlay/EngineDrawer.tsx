@@ -61,8 +61,9 @@ export const EngineDrawer = memo(function EngineDrawer({
 			borderRadius: 0,
 			overflow: "auto",
 			padding: "1.25rem",
+			...(themeStyles?.panel ?? {}),
 		},
-		style: { ...(themeStyles?.panel ?? {}), ...(style ?? {}) },
+		style,
 		runtime: {
 			opacity: active ? 1 : 0.98,
 			transform: active ? "translate(0,0)" : hiddenTransform,
