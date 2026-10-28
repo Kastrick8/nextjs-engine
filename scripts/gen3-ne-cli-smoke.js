@@ -218,21 +218,27 @@ async function main() {
 				version: "1.0.0",
 				packageManager: "pnpm@10.0.0",
 				dependencies: { "@kastrick/nextjs-engine": fileSpec },
-			}, null, 2) + "\\n");
-			fs.writeFileSync(path.join(textRoot, "pnpm-lock.yaml"),
-				"lockfileVersion: '9.0'\\nimporters:\\n  .:\\n    dependencies:\\n      '@kastrick/nextjs-engine':\\n        specifier: " + fileSpec + "\\n        version: " + fileSpec + "\\npackages:\\n  '@kastrick/nextjs-engine@" + fileSpec + "':\\n    resolution: {tarball: " + fileSpec + ", integrity: sha512-" + artifact.sha512 + "}\\nsnapshots:\\n  '@kastrick/nextjs-engine@" + fileSpec + "': {}\\n");
-		project.normalizeArtifactDependency(textRoot, { version: "3.0.0-alpha.2", artifactUrl: remoteUrl }, artifact);
-		const normalizedPnpm = fs.readFileSync(path.join(textRoot, "pnpm-lock.yaml"), "utf8");
-		assert.match(normalizedPnpm, new RegExp(remoteUrl.replace(/[.*+?^\\x24{}()|[\\]\\\\]/g, "\\\\		global.fetch = async () => new Response(bytes, { status: 200 });
-			await assert.rejects(
-				() => project.downloadVerifiedArtifact(temp, { ...release, sha256: "a".repeat(64) }),
-				/SHA-256 mismatch/
-			);
-		} finally {
-			global.fetch = previousFetch;
-		}
-")));
-		assert.doesNotMatch(normalizedPnpm, /file:[^\\s]*nextjs-engine-3\\.0\\.0-alpha\\.2-/);
+			}, null, 2) + String.fromCharCode(10));
+			const pnpmLock = [
+				"lockfileVersion: '9.0'",
+				"importers:",
+				"  .:",
+				"    dependencies:",
+				"      '@kastrick/nextjs-engine':",
+				"        specifier: " + fileSpec,
+				"        version: " + fileSpec,
+				"packages:",
+				"  '@kastrick/nextjs-engine@" + fileSpec + "':",
+				"    resolution: {tarball: " + fileSpec + ", integrity: sha512-" + artifact.sha512 + "}",
+				"snapshots:",
+				"  '@kastrick/nextjs-engine@" + fileSpec + "': {}",
+			].join(String.fromCharCode(10)) + String.fromCharCode(10);
+			fs.writeFileSync(path.join(textRoot, "pnpm-lock.yaml"), pnpmLock);
+			project.normalizeArtifactDependency(textRoot, { version: "3.0.0-alpha.2", artifactUrl: remoteUrl }, artifact);
+			const normalizedPnpm = fs.readFileSync(path.join(textRoot, "pnpm-lock.yaml"), "utf8");
+			assert.equal(normalizedPnpm.includes(remoteUrl), true);
+			assert.equal(normalizedPnpm.includes(fileSpec), false);
+
 		} finally {
 			global.fetch = previousFetch;
 		}
