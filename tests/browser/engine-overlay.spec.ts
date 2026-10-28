@@ -18,6 +18,9 @@ test("modal inertness preserves nested overlays and restores focus", async ({ pa
 	const popover = page.getByRole("dialog", { name: "Nested popover" });
 	await expect(popover).toBeVisible();
 	await expect(page.getByTestId("popover-content-action")).toBeVisible();
+	const modalLayer = await modal.evaluate((element) => getComputedStyle(element.parentElement as HTMLElement).zIndex);
+	const popoverLayer = await popover.evaluate((element) => getComputedStyle(element).zIndex);
+	expect(Number(popoverLayer)).toBeGreaterThan(Number(modalLayer));
 	await expect.poll(backgroundIsInert).toBe(true);
 	await expect.poll(() => popover.evaluate((element) => element.closest("[inert]") === null)).toBe(true);
 
@@ -84,6 +87,7 @@ test("drawer releases its scroll lock and restores focus on Escape", async ({ pa
 
 	const drawer = page.getByRole("dialog", { name: "Settings drawer" });
 	await expect(drawer).toBeVisible();
+	await expect(page.getByTestId("drawer-action")).toBeFocused();
 	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe("hidden");
 	await expect.poll(() => page.getByTestId("background-action").evaluate((element) => element.closest("[inert]") !== null)).toBe(true);
 

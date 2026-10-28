@@ -134,6 +134,8 @@ interface OverlayBehaviorOptions {
 	triggerRef: React.RefObject<HTMLButtonElement | null>;
 	close: () => void;
 	modal: boolean;
+	baseZIndex?: number;
+	layers?: Array<{ ref: React.RefObject<HTMLElement | null>; offset?: number }>;
 	closeOnEscape: boolean;
 	trapFocus: boolean;
 	autoFocus: boolean;
@@ -175,8 +177,17 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 			? ownerDocument.activeElement
 			: null;
 		const current = currentOptions.current;
+		const layers = (current.layers ?? []).map((layer) => ({
+			element: layer.ref.current,
+			offset: layer.offset,
+		}));
+		const roots = layers.length > 0
+			? layers.map((layer) => layer.element)
+			: [current.modal ? (panel.parentElement ?? panel) : panel];
 		const unregister = registerOverlay(options.overlayId, ownerDocument, {
-			root: current.modal ? (panel.parentElement ?? panel) : panel,
+			roots,
+			layers,
+			baseZIndex: current.baseZIndex,
 			modal: current.modal,
 		});
 		const frame = requestAnimationFrame(() => {
@@ -240,5 +251,5 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 					: getFocusableElements(ownerDocument.body).find((element) => !panel?.contains(element));
 			if (target?.isConnected) target.focus({ preventScroll: true });
 		};
-	}, [options.modal, options.open, options.overlayId, options.present]);
+	}, [options.baseZIndex, options.layers, options.modal, options.open, options.overlayId, options.present]);
 }

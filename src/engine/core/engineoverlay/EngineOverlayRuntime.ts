@@ -31,11 +31,20 @@ export interface PopoverPosition {
 	placement: EnginePopoverPlacement;
 }
 
+interface OverlayLayerRegistration {
+	element: HTMLElement;
+	offset: number;
+	previousValue: string;
+	previousPriority: string;
+}
+
 interface OverlayRegistration {
 	id: string;
 	token: number;
-	root?: HTMLElement;
-	modal?: boolean;
+	roots: HTMLElement[];
+	layers: OverlayLayerRegistration[];
+	baseZIndex: number;
+	modal: boolean;
 }
 
 interface OverlayDocumentState {
@@ -180,32 +189,54 @@ export function computePopoverPosition(
 	};
 }
 
+function restoreOverlayLayerStyles(registration: OverlayRegistration): void {
+	for (const layer of registration.layers) {
+		if (layer.previousValue) {
+			layer.element.style.setProperty("--e-overlay-stack-z", layer.previousValue, layer.previousPriority);
+		} else {
+			layer.element.style.removeProperty("--e-overlay-stack-z");
+		}
+	}
+}
+
+function syncOverlayLayerZIndexes(state: OverlayDocumentState): void {
+	let previousTopZIndex = Number.NEGATIVE_INFINITY;
+	for (const registration of state.stack) {
+		const requested = Number.isFinite(registration.baseZIndex) ? registration.baseZIndex : 1000;
+		const effective = Math.max(
+			requested,
+			Number.isFinite(previousTopZIndex) ? previousTopZIndex + 10 : requested,
+		);
+		let maxOffset = 0;
+		for (const layer of registration.layers) {
+			layer.element.style.setProperty("--e-overlay-stack-z", String(effective + layer.offset));
+			maxOffset = Math.max(maxOffset, layer.offset);
+		}
+		previousTopZIndex = effective + maxOffset;
+	}
+}
+
 /**
- * Keep the active modal and overlays above it interactive while marking all
- * other sibling branches inert. Original inert values are restored afterward.
+ * Keep all portal roots above the last modal interactive while marking unrelated
+ * sibling branches inert. Multiple roots are needed for Drawer, whose backdrop
+ * and panel are separate portal siblings. Original inert values are restored.
  */
 function syncModalBackgroundInertness(doc: Document, state: OverlayDocumentState): void {
 	const body = doc.body;
 	let modalIndex = -1;
 	for (let index = 0; index < state.stack.length; index += 1) {
 		const registration = state.stack[index];
-		if (registration.modal && registration.root) modalIndex = index;
+		if (registration.modal && registration.roots.length > 0) modalIndex = index;
 	}
 	if (!body || modalIndex < 0) {
-		for (const [element, previouslyInert] of state.inertedElements) {
-			element.inert = previouslyInert;
-		}
+		for (const [element, previouslyInert] of state.inertedElements) element.inert = previouslyInert;
 		state.inertedElements.clear();
 		return;
 	}
-
-	// Only the top modal and overlays registered above it remain interactive.
-	// Walk through shared portal containers so sibling branches inside the same
-	// container are still inerted, while a separate active portal branch is kept.
-	const protectedRoots = state.stack
-		.slice(modalIndex)
-		.map((registration) => registration.root)
-		.filter((root): root is HTMLElement => Boolean(root));
+	const protectedRoots = state.stack.slice(modalIndex)
+		.flatMap((registration) => registration.roots)
+		.filter((root) => root.isConnected);
+	if (protectedRoots.length === 0) return;
 	const shouldBeInert = new Set<HTMLElement>();
 	const visit = (container: HTMLElement) => {
 		for (const child of Array.from(container.children) as HTMLElement[]) {
@@ -217,19 +248,14 @@ function syncModalBackgroundInertness(doc: Document, state: OverlayDocumentState
 			if ("inert" in child) shouldBeInert.add(child);
 		}
 	};
-	// Walking through containers (instead of inerting a container that owns a
-	// protected root) is what keeps nested popovers usable inside shared portals.
 	visit(body);
-
 	for (const [element, previouslyInert] of state.inertedElements) {
 		if (shouldBeInert.has(element)) continue;
 		element.inert = previouslyInert;
 		state.inertedElements.delete(element);
 	}
 	for (const element of shouldBeInert) {
-		if (!state.inertedElements.has(element)) {
-			state.inertedElements.set(element, element.inert);
-		}
+		if (!state.inertedElements.has(element)) state.inertedElements.set(element, element.inert);
 		if (!element.inert) element.inert = true;
 	}
 }
@@ -237,21 +263,56 @@ function syncModalBackgroundInertness(doc: Document, state: OverlayDocumentState
 export function registerOverlay(
 	id: string,
 	ownerDocument?: Document,
-	options: { root?: HTMLElement; modal?: boolean } = {},
+	options: {
+		root?: HTMLElement;
+		roots?: Array<HTMLElement | null>;
+		modal?: boolean;
+		baseZIndex?: number;
+		layers?: Array<{ element: HTMLElement | null; offset?: number }>;
+	} = {},
 ): () => void {
 	const doc = resolveOwnerDocument(ownerDocument);
 	if (!doc) return () => undefined;
 	const state = getOverlayDocumentState(doc);
 	const existingIndex = state.stack.findIndex((entry) => entry.id === id);
-	if (existingIndex >= 0) state.stack.splice(existingIndex, 1);
-	const registration = { id, token: ++state.nextToken, root: options.root, modal: options.modal === true };
+	if (existingIndex >= 0) {
+		const [existing] = state.stack.splice(existingIndex, 1);
+		restoreOverlayLayerStyles(existing);
+	}
+	const requestedLayers = options.layers ?? (
+		options.roots ? options.roots.map((element) => ({ element, offset: 0 }))
+			: [{ element: options.root ?? null, offset: 0 }]
+	);
+	const layers: OverlayLayerRegistration[] = requestedLayers
+		.filter((layer): layer is { element: HTMLElement; offset?: number } => layer.element !== null)
+		.map((layer) => ({
+			element: layer.element,
+			offset: Number.isFinite(layer.offset) ? layer.offset! : 0,
+			previousValue: layer.element.style.getPropertyValue("--e-overlay-stack-z"),
+			previousPriority: layer.element.style.getPropertyPriority("--e-overlay-stack-z"),
+		}));
+	const roots = (options.roots ?? (layers.length > 0 ? layers.map((layer) => layer.element) : options.root ? [options.root] : []))
+		.filter((root): root is HTMLElement => root !== null);
+	const registration: OverlayRegistration = {
+		id,
+		token: ++state.nextToken,
+		roots,
+		layers,
+		baseZIndex: options.baseZIndex ?? 1000,
+		modal: options.modal === true,
+	};
 	state.stack.push(registration);
+	syncOverlayLayerZIndexes(state);
 	syncModalBackgroundInertness(doc, state);
 	return () => {
 		const index = state.stack.findIndex((entry) => (
 			entry.id === registration.id && entry.token === registration.token
 		));
-		if (index >= 0) state.stack.splice(index, 1);
+		if (index >= 0) {
+			const [removed] = state.stack.splice(index, 1);
+			restoreOverlayLayerStyles(removed);
+			syncOverlayLayerZIndexes(state);
+		}
 		syncModalBackgroundInertness(doc, state);
 	};
 }

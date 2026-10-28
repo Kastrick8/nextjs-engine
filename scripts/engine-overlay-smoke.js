@@ -119,8 +119,17 @@ function main() {
 
 		const modalBody = { children: [], parentElement: null };
 		const makeChild = (parent) => {
+			const styleValues = new Map();
+			const stylePriorities = new Map();
 			const element = {
 				inert: false,
+				isConnected: true,
+				style: {
+					getPropertyValue(name) { return styleValues.get(name) ?? ""; },
+					getPropertyPriority(name) { return stylePriorities.get(name) ?? ""; },
+					setProperty(name, value, priority = "") { styleValues.set(name, String(value)); stylePriorities.set(name, priority); },
+					removeProperty(name) { const previous = styleValues.get(name) ?? ""; styleValues.delete(name); stylePriorities.delete(name); return previous; },
+				},
 				children: [],
 				parentElement: parent,
 				contains(target) {
@@ -141,11 +150,13 @@ function main() {
 		const popoverRoot = makeBodyChild();
 		const nestedModalRoot = makeBodyChild();
 		const modalDocument = { body: modalBody };
-		const unregisterModal = runtime.registerOverlay("modal", modalDocument, { root: modalRoot, modal: true });
+		const unregisterModal = runtime.registerOverlay("modal", modalDocument, { root: modalRoot, modal: true, baseZIndex: 1000 });
 		assert.equal(pageBackground.inert, true, "background branches become inert when a modal opens");
 		assert.equal(modalRoot.inert, false, "the active modal root stays interactive");
-		const unregisterPopover = runtime.registerOverlay("popover", modalDocument, { root: popoverRoot, modal: false });
+		const unregisterPopover = runtime.registerOverlay("popover", modalDocument, { root: popoverRoot, modal: false, baseZIndex: 1100 });
 		assert.equal(popoverRoot.inert, false, "a non-modal overlay above the active modal stays interactive");
+		assert.ok(Number(popoverRoot.style.getPropertyValue("--e-overlay-stack-z")) > Number(modalRoot.style.getPropertyValue("--e-overlay-stack-z")),
+			"a later popover receives a higher effective z-index than its parent modal");
 		const unregisterNestedModal = runtime.registerOverlay("nested-modal", modalDocument, { root: nestedModalRoot, modal: true });
 		assert.equal(modalRoot.inert, true, "a nested modal makes the previous modal inert");
 		assert.equal(popoverRoot.inert, true, "overlays below a nested modal become inert");
@@ -181,6 +192,27 @@ function main() {
 		unregisterNestedDialog();
 		assert.equal(nestedBackground.inert, false, "shared-container inertness is restored after closing the modal");
 		assert.equal(inactivePortalBranch.inert, false, "previous state for sibling branches is restored");
+
+		const drawerBody = { children: [], parentElement: null };
+		const drawerBackground = makeChild(drawerBody);
+		const drawerBackdrop = makeChild(drawerBody);
+		const drawerPanel = makeChild(drawerBody);
+		const drawerDocument = { body: drawerBody };
+		const unregisterDrawer = runtime.registerOverlay("drawer", drawerDocument, {
+			modal: true,
+			baseZIndex: 1000,
+			roots: [drawerBackdrop, drawerPanel],
+			layers: [{ element: drawerBackdrop, offset: 0 }, { element: drawerPanel, offset: 1 }],
+		});
+		assert.equal(drawerBackground.inert, true, "a drawer makes only unrelated application content inert");
+		assert.equal(drawerBackdrop.inert, false, "the drawer backdrop stays interactive for dismissal");
+		assert.equal(drawerPanel.inert, false, "the separate body-level drawer panel is not accidentally made inert");
+		assert.ok(Number(drawerPanel.style.getPropertyValue("--e-overlay-stack-z")) > Number(drawerBackdrop.style.getPropertyValue("--e-overlay-stack-z")),
+			"the drawer panel layer sits above its backdrop");
+		unregisterDrawer();
+		assert.equal(drawerBackground.inert, false, "closing a multi-root drawer restores the background");
+		assert.equal(drawerBackdrop.style.getPropertyValue("--e-overlay-stack-z"), "", "unregistering restores the backdrop's previous layer style");
+		assert.equal(drawerPanel.style.getPropertyValue("--e-overlay-stack-z"), "", "unregistering restores the panel's previous layer style");
 
 		const scheduledFrames = new Map();
 		let frameToken = 0;

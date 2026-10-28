@@ -46,8 +46,9 @@ export const EnginePopover = memo(function EnginePopover({
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
 		open: isOpen, present: present && target !== null, overlayId: panelId, panelRef, triggerRef, close, modal: false,
+		baseZIndex: zIndex, layers: [{ ref: panelRef, offset: 0 }],
 		closeOnEscape, trapFocus, autoFocus, lockScroll: false, restoreFocus, initialFocus,
-	}), [autoFocus, close, closeOnEscape, initialFocus, isOpen, panelId, present, restoreFocus, target, trapFocus]);
+	}), [autoFocus, close, closeOnEscape, initialFocus, isOpen, panelId, panelRef, present, restoreFocus, target, trapFocus, zIndex]);
 	useOverlayBehavior(behavior);
 
 	useEffect(() => {
@@ -164,7 +165,7 @@ export const EnginePopover = memo(function EnginePopover({
 					aria-describedby={description != null ? descriptionId : undefined}
 					tabIndex={-1}
 					className={panelClass}
-					style={{ ...panelStyle, zIndex }}
+					style={{ ...panelStyle, zIndex: `var(--e-overlay-stack-z, ${zIndex})` } as React.CSSProperties}
 					data-state={active ? "open" : "closed"}
 					data-placement={actualPlacement}
 				>

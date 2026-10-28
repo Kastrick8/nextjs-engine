@@ -385,7 +385,9 @@ Dialog and Drawer trap Tab by default. Popover does not, because a normal contex
 
 ## Overlay stacking
 
-EngineOverlay maintains one shared stack. The latest registered overlay is considered the top overlay for keyboard and contextual outside-click handling. While a Dialog or Drawer is active, the shared document manager recursively walks body/portal-container branches: it keeps the active modal and overlays registered above it interactive, and marks unrelated sibling branches inert. This also handles nested panels that share a portal container. Original inert values are restored as modal layers close.
+EngineOverlay maintains one per-document stack. The latest registered overlay is considered the top overlay for keyboard and contextual outside-click handling. Each overlay registers its rendered layer roots with the manager: a Dialog registers its backdrop/panel wrapper, a Drawer registers its backdrop and panel separately, and a Popover registers its panel. While a Dialog or Drawer is active, the shared manager recursively walks body/portal-container branches: it keeps the modal roots and overlays registered above them interactive, and marks unrelated sibling branches inert. This avoids inerting a body-level Drawer panel by mistake. Original inert values are restored as modal layers close.
+
+The manager also assigns a CSS variable, `--e-overlay-stack-z`, to each registered layer. A component's `zIndex` is the requested base; if overlays are nested, later layers are raised above the previous top layer. Drawer keeps its backdrop one layer below its panel. Removing an overlay restores the previous inline custom-property values and recomputes the remaining stack.
 
 This allows combinations such as:
 

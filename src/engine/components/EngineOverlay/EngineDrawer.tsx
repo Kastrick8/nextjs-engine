@@ -34,13 +34,15 @@ export const EngineDrawer = memo(function EngineDrawer({
 	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration ?? engineOverlayTheme?.defaults?.duration, 220);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
+	const backdropRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
 		open: isOpen, present: present && target !== null, overlayId: panelId, panelRef, triggerRef, close, modal: true,
+		baseZIndex: zIndex, layers: [{ ref: backdropRef, offset: 0 }, { ref: panelRef, offset: 1 }],
 		closeOnEscape, trapFocus, autoFocus: true, lockScroll, restoreFocus, initialFocus,
-	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, present, restoreFocus, target, trapFocus]);
+	}), [backdropRef, close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, panelRef, present, restoreFocus, target, trapFocus, zIndex]);
 	useOverlayBehavior(behavior);
 
 	const resolvedSide = side ?? engineOverlayTheme?.defaults?.side ?? "right";
@@ -80,8 +82,9 @@ export const EngineDrawer = memo(function EngineDrawer({
 			{target && present && createPortal(
 				<>
 					<div
+						ref={backdropRef}
 						aria-hidden="true"
-						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...engineOverlayTheme?.styles?.backdrop, ...overlayStyle }}
+						style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...engineOverlayTheme?.styles?.backdrop, ...overlayStyle, zIndex: `var(--e-overlay-stack-z, ${zIndex})` } as React.CSSProperties}
 						onPointerDown={() => {
 							if (closeOnBackdrop && isTopOverlay(panelId)) close();
 						}}
@@ -96,7 +99,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 						aria-describedby={description != null ? descriptionId : undefined}
 						tabIndex={-1}
 						className={panelClass}
-						style={{ ...panelStyle, zIndex: zIndex + 1 }}
+						style={{ ...panelStyle, zIndex: `var(--e-overlay-stack-z, ${zIndex + 1})` } as React.CSSProperties}
 						data-state={active ? "open" : "closed"}
 						data-side={resolvedSide}
 					>

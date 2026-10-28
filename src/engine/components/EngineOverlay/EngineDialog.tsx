@@ -62,13 +62,15 @@ export const EngineDialog = memo(function EngineDialog({
 	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration ?? engineOverlayTheme?.defaults?.duration);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
+	const overlayRootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
 		open: isOpen, present: present && target !== null, overlayId: panelId, panelRef, triggerRef, close, modal: true,
+		baseZIndex: zIndex, layers: [{ ref: overlayRootRef, offset: 0 }],
 		closeOnEscape, trapFocus, autoFocus: true, lockScroll, restoreFocus, initialFocus,
-	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, present, restoreFocus, target, trapFocus]);
+	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, present, restoreFocus, target, trapFocus, zIndex]);
 	useOverlayBehavior(behavior);
 
 	const panelStyle = usePrimitiveStyles(props as any, {
@@ -108,10 +110,10 @@ export const EngineDialog = memo(function EngineDialog({
 			/>
 			{target && present && createPortal(
 				<div
+					ref={overlayRootRef}
 					style={{
 						position: "fixed",
 						inset: 0,
-						zIndex,
 						display: "grid",
 						placeItems: "center",
 						padding: "1rem",
@@ -121,7 +123,8 @@ export const EngineDialog = memo(function EngineDialog({
 						transition: `opacity ${transitionMs}ms ease`,
 						...engineOverlayTheme?.styles?.backdrop,
 						...overlayStyle,
-					}}
+						zIndex: `var(--e-overlay-stack-z, ${zIndex})`,
+					} as React.CSSProperties}
 					onPointerDown={(event) => {
 						if (closeOnBackdrop && event.target === event.currentTarget && isTopOverlay(panelId)) close();
 					}}
