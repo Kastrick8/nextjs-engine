@@ -69,13 +69,13 @@ async function main() {
 	const evaluation = evaluateGreenRuns(await response.json(), { repo, branch, sha });
 	if (!evaluation.ok) throw new Error("Prerelease blocked by CI gate:\n- " + evaluation.errors.join("\n- "));
 	for (const item of evaluation.evidence) {
-	\tprocess.stdout.write("[NE RELEASE] PASS " + item.name + " (run " + item.runId + ") for " + branch + "@" + sha + "\n");
+		process.stdout.write("[NE RELEASE] PASS " + item.name + " (run " + item.runId + ") for " + branch + "@" + sha + "\n");
 	}
 }
 
 if (require.main === module) {
 	main().catch((error) => {
-	\tprocess.stderr.write("[NE RELEASE] " + ((error && error.message) || String(error)) + "\n");
+		process.stderr.write("[NE RELEASE] " + ((error && error.message) || String(error)) + "\n");
 		process.exitCode = 1;
 	});
 }
