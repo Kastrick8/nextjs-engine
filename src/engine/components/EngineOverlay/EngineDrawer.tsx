@@ -34,13 +34,15 @@ export const EngineDrawer = memo(function EngineDrawer({
 	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration, 220);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
+	const backdropRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
-		open: isOpen, overlayId: panelId, panelRef, triggerRef, close,
+		open: isOpen, ready: Boolean(target && present), overlayId: panelId, panelRef, triggerRef,
+		baseZIndex: zIndex, layers: [{ ref: backdropRef, offset: 0 }, { ref: panelRef, offset: 1 }], close,
 		closeOnEscape, trapFocus, autoFocus: true, lockScroll, restoreFocus, initialFocus,
-	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, restoreFocus, trapFocus]);
+	}), [backdropRef, close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, present, restoreFocus, target, trapFocus, zIndex]);
 	useOverlayBehavior(behavior);
 
 	const horizontal = side === "left" || side === "right";
@@ -78,6 +80,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 			{target && present && createPortal(
 				<>
 					<div
+						ref={backdropRef}
 						aria-hidden="true"
 						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...themeStyles?.backdrop, ...overlayStyle }}
 						onPointerDown={() => {
