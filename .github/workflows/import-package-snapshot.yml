@@ -155,6 +155,7 @@ jobs:
           if(Object.keys(bins).length) manifest.bin=bins;
           else delete manifest.bin;
           if(fs.existsSync(root+"/content.include")) fs.rmSync(root+"/content.include",{force:true});
+          for(const [key,value] of Object.entries(manifest.exports||{})){
             if(key===".") continue;
             const paths=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
             if(paths.some((p)=>!fs.existsSync(`${root}/${p.replace(/^\.\//,"")}`))) delete manifest.exports[key];
