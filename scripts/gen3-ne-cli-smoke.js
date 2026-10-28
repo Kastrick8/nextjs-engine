@@ -85,6 +85,17 @@ async function main() {
 	assert.equal(parsedRelease.sha256, "b".repeat(64));
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sha256: "not-a-hash" }, release), null);
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sourceBranch: "unknown" }, release), null);
+	const malformedAlpha = {
+		...manifest,
+		version: "3.0.0-preview-alpha.2",
+		tag: "package-alpha.3.0.0-preview-alpha.2",
+		assetName: "nextjs-engine-3.0.0-preview-alpha.2.tgz",
+	};
+	assert.equal(channels.validateReleaseManifest(malformedAlpha, {
+		...release,
+		tag_name: malformedAlpha.tag,
+		assets: [{ ...release.assets[0], name: malformedAlpha.assetName }],
+	}), null);
 	const unexpectedAssetName = "nextjs-engine-" + manifest.version + "-unexpected.tgz";
 	assert.equal(channels.validateReleaseManifest(
 		{ ...manifest, assetName: unexpectedAssetName },
@@ -119,6 +130,10 @@ async function main() {
 	assert.equal(rollingRelease.floating, true);
 	assert.equal(channels.validateReleaseManifest(
 		{ ...rollingManifest, track: "beta" },
+		rollingAsset
+	), null);
+	assert.equal(channels.validateReleaseManifest(
+		{ ...rollingManifest, sourceBranch: "main-2" },
 		rollingAsset
 	), null);
 	assert.equal(channels.validateReleaseManifest(
