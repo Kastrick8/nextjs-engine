@@ -271,7 +271,7 @@ async function downloadVerifiedArtifact(root, release) {
 		}
 		const digest = sha256.digest("hex");
 		if (digest !== release.sha256) {
-			throw new Error("SHA-256 mismatch for " + release.version + ". No project files were changed.");
+			throw new Error("SHA-256 mismatch for " + release.version + ". No dependency manifest or lockfile was changed.");
 		}
 		const integrity = sha512.digest("base64");
 		// The final filename includes the expected SHA-256 prefix. Replace an old
@@ -401,7 +401,7 @@ function normalizeArtifactDependency(root, release, artifact) {
 async function installRelease(root, release, requestedChannel) {
 	if (!release || !release.version) throw new Error("No installable release was selected.");
 	const current = loadState(root);
-	const backup = captureDependencyFiles(root);
+	let backup = null;
 	let artifact = null;
 	let managerInstallStarted = false;
 	try {
@@ -412,6 +412,7 @@ async function installRelease(root, release, requestedChannel) {
 			// ask the package manager to download the URL a second time.
 			installTarget = artifact.file;
 		}
+		backup = captureDependencyFiles(root);
 		managerInstallStarted = true;
 		await installWithManager(root, installTarget);
 		if (artifact) normalizeArtifactDependency(root, release, artifact);
@@ -440,13 +441,15 @@ async function installRelease(root, release, requestedChannel) {
 		if (release.sourceCommit) process.stdout.write("[NE] Source commit: " + release.sourceCommit + "\n");
 		return installed;
 	} catch (error) {
-		try {
-			restoreDependencyFiles(root, backup);
-			if (managerInstallStarted) {
-				await runProcess(managerCommand(detectPackageManager(root)), ["install"], { cwd: root });
+		if (backup) {
+			try {
+				restoreDependencyFiles(root, backup);
+				if (managerInstallStarted) {
+					await runProcess(managerCommand(detectPackageManager(root)), ["install"], { cwd: root });
+				}
+			} catch (restoreError) {
+				error.message += " Automatic rollback also failed: " + restoreError.message;
 			}
-		} catch (restoreError) {
-			error.message += " Automatic rollback also failed: " + restoreError.message;
 		}
 		throw error;
 	}
