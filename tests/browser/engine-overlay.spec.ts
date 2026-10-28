@@ -43,3 +43,4 @@ test("triggerAsChild does not nest buttons and restores focus after Escape", asy
 	await expect(modal).toBeHidden();
 	await expect(trigger).toBeFocused();
 });
+

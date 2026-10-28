@@ -1,5 +1,6 @@
 import type { Metadata, MetadataRoute, ResolvingMetadata } from "next";
 import type { PageMeta, PageSchema, SchemaNode } from "../../schema/types";
+import { createEngineSEODiagnosticError } from "./EngineSEODiagnostics";
 import type {
 	EngineSEOBuilder,
 	EngineSEOGeneratorProps,
@@ -98,6 +99,22 @@ function mergeSchema(base: EngineSEOSchema, overrides: EngineSEOSchema): EngineS
 	};
 }
 
+function canonicalUrl(value: string | undefined, siteUrl: string | undefined): string | undefined {
+	if (!value) return undefined;
+	let resolved: URL;
+	try {
+		resolved = new URL(value, siteUrl);
+	} catch (cause) {
+		// Keep the existing relative-path fallback when no site origin was configured.
+		if (!siteUrl && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)) return value;
+		throw createEngineSEODiagnosticError("NESEO2001", "Invalid canonical URL: " + value, cause);
+	}
+	if (resolved.protocol !== "http:" && resolved.protocol !== "https:") {
+		throw createEngineSEODiagnosticError("NESEO2001", "Canonical URL must use HTTP(S), received " + resolved.protocol);
+	}
+	return resolved.toString();
+}
+
 function absoluteUrl(value: string | undefined, siteUrl: string | undefined): string | undefined {
 	if (!value) return undefined;
 	try {
@@ -126,7 +143,7 @@ export function compileEngineSEOMetadata(schema: EngineSEOSchema): Metadata {
 	const openGraphDescription = schema.social?.openGraphDescription ?? description;
 	const twitterTitle = schema.social?.twitterTitle ?? openGraphTitle;
 	const twitterDescription = schema.social?.twitterDescription ?? openGraphDescription;
-	const canonical = absoluteUrl(page.canonical ?? page.path ?? (schema.preview?.mode === "website" ? schema.preview.pageUrl : undefined), site?.url);
+	const canonical = canonicalUrl(page.canonical ?? page.path ?? (schema.preview?.mode === "website" ? schema.preview.pageUrl : undefined), site?.url);
 	const image = previewImage(schema);
 	const imageUrl = absoluteUrl(image?.url, site?.url);
 	const imageEntry = imageUrl ? [{

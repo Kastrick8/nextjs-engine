@@ -128,3 +128,4 @@ export default createPage({
 	},
 	registry,
 });
+

@@ -222,3 +222,4 @@ try {
 	Module._extensions[".ts"] = previousTsExtension;
 	Module._extensions[".tsx"] = previousTsxExtension;
 }
+

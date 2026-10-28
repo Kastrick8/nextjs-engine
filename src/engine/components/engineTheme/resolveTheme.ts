@@ -747,3 +747,4 @@ export function resolveEngineThemeSchema(schema: PageSchema, registry?: EngineCo
 		...(root !== schema.root ? { root } : {}),
 	};
 }
+

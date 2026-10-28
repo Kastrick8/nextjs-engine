@@ -357,3 +357,4 @@ export function unregisterLoadedRemoteEngineTheme(id: string, registry?: EngineC
   if (!existing || existing.allowRemote !== true) return false;
   return globalThemes.delete(parsed.groupId);
 }
+

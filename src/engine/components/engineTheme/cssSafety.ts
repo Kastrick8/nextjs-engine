@@ -38,3 +38,4 @@ export function isSafeEngineThemeCssValue(value: unknown, maxLength = 256): valu
     && !/\/\*|\*\//.test(decoded)
     && !UNSAFE_CSS_NETWORK_PATTERN.test(decoded);
 }
+
