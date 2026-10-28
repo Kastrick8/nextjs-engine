@@ -721,9 +721,6 @@ EngineTheme and the .etr pipeline were implemented by merged PR #45. This sectio
 - [ ] **Interaction regression matrix:** add/verify concrete browser coverage for controlled open changes, Escape/outside pointer ownership, nested dialog/popover dismissal, focus restoration if the trigger disappears, modal inertness restoration, and close/reopen during exit transitions.
 - [ ] **Carry-over compatibility audit:** audit EngineForms serialization, transition links, custom select and Manim only after the overlay matrix is stable; report each finding separately and avoid unrelated rewrites.
 
-## 16. Gen 3 first-release gap assessment: EngineOverlay and reused Gen 2 surfaces
-
-This is a source-backed planning assessment, not an implementation claim.
 ### Audit method and evidence boundary
 
 The connector could not resolve v2.6.2 as a Git ref, so this section does not claim an exact tag-to-head “last touched” date. It compares file blobs on the available main-2 and main-3 branches. Identical hashes prove those checked files are byte-for-byte unchanged between the branches; they are evidence of Gen 2 carry-over, not by themselves proof that a file is defective.
