@@ -1,0 +1,4 @@
+# Optional extra files for new Generation 2 package snapshots.
+# Add one repository-relative file or directory path per line when needed.
+# Blank lines and lines beginning with # are ignored.
+# Existing archived package versions are not changed by editing this file.
