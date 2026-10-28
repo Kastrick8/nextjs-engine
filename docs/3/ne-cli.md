@@ -54,7 +54,7 @@ Alpha/Beta GitHub prereleases attach a tarball named like **nextjs-engine-3.0.0-
     ...
     <!-- NE-CHANNEL-MANIFEST-END -->
 
-The manifest contains the scoped package name, version, track, source branch, full source commit, package asset name, and SHA-256 digest. The updater rejects missing/mismatched metadata and verifies the downloaded artifact digest before touching project dependency files.
+The manifest contains the scoped package name, version, track, source branch, full source commit, package asset name, and SHA-256 digest. The updater streams the download to a bounded temporary file, verifies SHA-256 and the gzip signature, and installs the exact verified local bytes. After installation, it rewrites the dependency and active text lockfile entry to the commit-specific GitHub asset URL while preserving SHA-512 integrity, so the project does not end up depending on an ignored local cache path. If the package manager cannot retain a portable integrity-pinned lock entry, the update fails and restores the dependency files.
 
 Published npm versions remain immutable. A GitHub Alpha artifact may be published under a new release version; it must not replace a package already published to npm.
 
