@@ -122,6 +122,11 @@ export interface EngineNavLogo {
 
 export type EngineNavVariant = "horizontal" | "vertical" | "minimal";
 
+export type EngineNavThemeStyles = Partial<Record<
+	"inner" | "items" | "item" | "activeItem" | "dropdown" | "logo" | "mobileToggle" | "mobileMenu",
+	CSSProperties
+>>;
+
 export interface EngineNavProps extends Omit<BaseNodeProps, "onClick"> {
 	variant?: EngineNavVariant;
 	sticky?: boolean;
@@ -129,6 +134,7 @@ export interface EngineNavProps extends Omit<BaseNodeProps, "onClick"> {
 	items?: EngineNavItem[];
 	mobileBreakpoint?: number;
 	children?: ReactNode;
+	engineThemeStyles?: EngineNavThemeStyles;
 }
 
 function comparableNavPath(href: string): string | null {
@@ -151,9 +157,10 @@ interface NavItemProps {
 	item: EngineNavItem;
 	pathname: string;
 	variant: EngineNavVariant;
+	themeStyles?: EngineNavThemeStyles;
 }
 
-const NavItem = memo(function NavItem({ item, pathname, variant }: NavItemProps): ReactElement {
+const NavItem = memo(function NavItem({ item, pathname, variant, themeStyles }: NavItemProps): ReactElement {
 	const styleCollector = useStyleCollector();
 	const [open, setOpen] = useState(false);
 	const href = item.cprop?.link?.href ?? item.href ?? "#";
@@ -195,15 +202,15 @@ const NavItem = memo(function NavItem({ item, pathname, variant }: NavItemProps)
 	if (hasChildren) {
 		return (
 			<div className={itemClass}>
-				<button aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((value) => !value)} className={anchorClass} style={{ cursor: "pointer", border: "none", background: "transparent" }}>
+				<button aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((value) => !value)} className={anchorClass} style={{ cursor: "pointer", border: "none", background: "transparent", ...themeStyles?.item, ...(isActive ? themeStyles?.activeItem : {}) }}>
 					{item.label}
 					<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
 						<path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
 					</svg>
 				</button>
-				<div role="menu" className={dropdownClass} style={{ display: open ? "flex" : "none" }}>
+				<div role="menu" className={dropdownClass} style={{ ...themeStyles?.dropdown, display: open ? "flex" : "none" }}>
 					{item.children!.map((child, index) => (
-						<NavItem key={`${child.cprop?.link?.href ?? child.href ?? child.label}-${index}`} item={child} pathname={pathname} variant={variant} />
+						<NavItem key={`${child.cprop?.link?.href ?? child.href ?? child.label}-${index}`} item={child} pathname={pathname} variant={variant} themeStyles={themeStyles} />
 					))}
 				</div>
 			</div>
@@ -217,6 +224,7 @@ const NavItem = memo(function NavItem({ item, pathname, variant }: NavItemProps)
 				target: item.target,
 				transition,
 				className: anchorClass,
+				style: { ...themeStyles?.item, ...(isActive ? themeStyles?.activeItem : {}) },
 				children: item.label,
 				"aria-current": isActive ? "page" : undefined,
 				"emd_show-url-icon": item["emd_show-url-icon"],
@@ -230,7 +238,7 @@ export const EngineNav = memo(
 	forwardRef<HTMLElement, EngineNavProps>((props, ref) => {
 		const {
 			variant = "horizontal", sticky = false, logo, items = [], mobileBreakpoint = 768,
-			children, className, cprop, id, point, style, ...restProps
+			children, className, cprop, id, point, style, engineThemeStyles, ...restProps
 		} = props;
 		const styleCollector = useStyleCollector();
 		const routerPathname = usePathname() ?? "";
@@ -284,9 +292,9 @@ export const EngineNav = memo(
 
 		return (
 			<nav ref={ref} id={id ?? point} className={navClass} style={navStyle} aria-label="Main navigation">
-				<div className={innerClass}>
+				<div className={innerClass} style={engineThemeStyles?.inner}>
 					{logo && (
-						<div className={logoClass}>
+						<div className={logoClass} style={engineThemeStyles?.logo}>
 							{renderEngineAnchor({
 								href: logo.href ?? "/",
 								children: logo.src ? <img src={logo.src} alt={logo.alt ?? "Logo"} width={logo.width as any} height={logo.height as any} style={{ display: "block" }} /> : (logo.alt ?? ""),
@@ -295,13 +303,13 @@ export const EngineNav = memo(
 						</div>
 					)}
 					{items.length > 0 && (
-						<div className={[itemsClass, desktopItemsClass].filter(Boolean).join(" ")}>
-							{items.map((item, index) => <NavItem key={`${item.cprop?.link?.href ?? item.href ?? item.label}-${index}`} item={item} pathname={pathname} variant={variant} />)}
+						<div className={[itemsClass, desktopItemsClass].filter(Boolean).join(" ")} style={engineThemeStyles?.items}>
+							{items.map((item, index) => <NavItem key={`${item.cprop?.link?.href ?? item.href ?? item.label}-${index}`} item={item} pathname={pathname} variant={variant} themeStyles={engineThemeStyles} />)}
 						</div>
 					)}
 					{children}
 					{items.length > 0 && (
-						<button aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} aria-controls="engine-nav-mobile" onClick={toggleMobile} className={mobileToggleClass}>
+						<button aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} aria-controls="engine-nav-mobile" onClick={toggleMobile} className={mobileToggleClass} style={engineThemeStyles?.mobileToggle}>
 							{mobileOpen ? (
 								<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" /></svg>
 							) : (
@@ -311,8 +319,8 @@ export const EngineNav = memo(
 					)}
 				</div>
 				{mobileOpen && items.length > 0 && (
-					<div id="engine-nav-mobile" role="menu" className={mobileMenuClass}>
-						{items.map((item, index) => <NavItem key={`${item.cprop?.link?.href ?? item.href ?? item.label}-${index}`} item={item} pathname={pathname} variant="vertical" />)}
+					<div id="engine-nav-mobile" role="menu" className={mobileMenuClass} style={engineThemeStyles?.mobileMenu}>
+						{items.map((item, index) => <NavItem key={`${item.cprop?.link?.href ?? item.href ?? item.label}-${index}`} item={item} pathname={pathname} variant="vertical" themeStyles={engineThemeStyles} />)}
 					</div>
 				)}
 			</nav>

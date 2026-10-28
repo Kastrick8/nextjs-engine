@@ -473,10 +473,11 @@ const CUSTOM_COMPONENT_THEME_STYLE_KEYS = new Set([
 	"marginBlock", "marginInline", "marginTop", "marginRight", "marginBottom", "marginLeft",
 	"gap", "rowGap", "columnGap", "width", "minWidth", "maxWidth", "height", "minHeight",
 	"maxHeight", "display", "opacity", "cursor", "boxSizing", "verticalAlign", "whiteSpace",
-	"wordBreak", "overflowWrap", "textOverflow", "objectFit", "alignItems", "justifyContent",
+	"wordBreak", "overflowWrap", "textOverflow", "objectFit", "objectPosition", "alignItems", "justifyContent",
 	"alignSelf", "justifySelf", "flex", "flexGrow", "flexShrink", "flexBasis", "flexDirection",
 	"flexWrap", "gridTemplateColumns", "gridTemplateRows", "aspectRatio", "transition",
-	"transform", "filter", "backdropFilter",
+	"transform", "filter", "backdropFilter", "position", "top", "right", "bottom", "left", "zIndex",
+	"overflow", "overflowX", "overflowY", "backgroundPosition", "backgroundSize", "backgroundRepeat",
 ]);
 
 function isCustomComponentStyleKey(key: string): boolean {
@@ -621,6 +622,169 @@ function resolveCustomComponentThemeNode(
 	const { theme: _consumedTheme, ...themedNode } = node;
 	return { ...themedNode, props: nextProps as SchemaNode["props"] };
 }
+const BUILTIN_THEME_COMPONENT_STYLE_SLOTS: Readonly<Record<string, readonly string[]>> = {
+	box: ["root"], stack: ["root"], grid: ["root"], text: ["root"], heading: ["root"],
+	section: ["root"], card: ["root"], button: ["root"], link: ["root"],
+	nav: ["root", "inner", "items", "item", "activeItem", "dropdown", "logo", "mobileToggle", "mobileMenu"],
+	hero: ["root", "inner", "overlay"],
+	image: ["root", "image", "placeholder", "caption"],
+	video: ["root", "video", "poster"],
+	manim: ["root"], manim3d: ["root"], spacer: ["root"], divider: ["root"],
+	canvas: ["root"], scroll: ["root"],
+	"custom-select": ["root", "label", "trigger", "clearButton", "dropdown", "list", "searchInput", "option", "emptyMessage"],
+	suspense: ["root"], option: ["root"], optgroup: ["root"], form: ["root"], input: ["root"],
+	textarea: ["root"], checkbox: ["root"], label: ["root"],
+};
+
+const BUILTIN_THEME_META_KEYS = new Set(["defaults", "props", "styles", "variants"]);
+const BUILTIN_THEME_LAYOUT_LOCKED_SLOT_PROPERTIES = new Set([
+	"display", "position", "top", "right", "bottom", "left", "zIndex", "visibility", "pointerEvents",
+	"flexDirection", "flexWrap", "flexGrow", "flexShrink", "flexBasis", "gridTemplateColumns", "gridTemplateRows",
+]);
+
+function collectBuiltinThemeStyle(
+	target: Record<string, unknown>,
+	candidate: unknown,
+	label: string,
+	styleSlot = "root",
+): void {
+	if (candidate === undefined) return;
+	if (!isThemeRecord(candidate)) {
+		throw new TypeError("EngineTheme built-in styles at '" + label + "' must be a plain object.");
+	}
+	for (const [property, value] of Object.entries(candidate)) {
+		if (!isCustomComponentStyleKey(property)) {
+			throw new TypeError("Unsupported CSS property '" + property + "' in EngineTheme built-in styles at '" + label + "'.");
+		}
+		if (styleSlot !== "root" && BUILTIN_THEME_LAYOUT_LOCKED_SLOT_PROPERTIES.has(property)) {
+			throw new TypeError("CSS property '" + property + "' cannot override structural behavior in EngineTheme slot '" + label + "'.");
+		}
+		if (!isSafeThemeScalar(value)) {
+			throw new TypeError("Unsafe or invalid CSS value for '" + property + "' in EngineTheme built-in styles at '" + label + "'.");
+		}
+		target[property] = value;
+	}
+}
+
+function resolveBuiltinThemeStyles(
+	definition: Record<string, unknown>,
+	nodeType: string,
+): Record<string, Record<string, unknown>> {
+	const allowedSlots = BUILTIN_THEME_COMPONENT_STYLE_SLOTS[nodeType];
+	if (!allowedSlots) throw new Error("No built-in EngineTheme style contract exists for '" + nodeType + "'.");
+	const styles: Record<string, Record<string, unknown>> = { root: {} };
+
+	collectBuiltinThemeStyle(styles.root, definition.defaults, nodeType + ".defaults");
+	collectBuiltinThemeStyle(styles.root, definition.props, nodeType + ".props");
+	collectBuiltinThemeStyle(
+		styles.root,
+		Object.fromEntries(Object.entries(definition).filter(([key]) => isCustomComponentStyleKey(key))),
+		nodeType,
+	);
+
+	for (const key of Object.keys(definition)) {
+		if (BUILTIN_THEME_META_KEYS.has(key) || isCustomComponentStyleKey(key)) continue;
+		throw new TypeError("Unsupported EngineTheme field '" + key + "' in built-in namespace '" + nodeType + "'.");
+	}
+
+	const declaredStyles = definition.styles;
+	if (declaredStyles !== undefined) {
+		if (!isThemeRecord(declaredStyles)) {
+			throw new TypeError("EngineTheme built-in styles at '" + nodeType + ".styles' must be a plain object.");
+		}
+		const entries = Object.entries(declaredStyles);
+		const directRootStyle = entries.length === 0 || entries.every(([key]) => isCustomComponentStyleKey(key));
+		if (directRootStyle) {
+			collectBuiltinThemeStyle(styles.root, declaredStyles, nodeType + ".styles");
+		} else {
+			for (const [slot, candidate] of entries) {
+				if (!allowedSlots.includes(slot)) {
+					throw new TypeError("Unsupported EngineTheme style slot '" + slot + "' for built-in '" + nodeType + "'.");
+				}
+				if (!isThemeRecord(candidate)) {
+					throw new TypeError("EngineTheme style slot '" + nodeType + ".styles." + slot + "' must be a plain object.");
+				}
+				collectBuiltinThemeStyle(styles[slot] ?? (styles[slot] = {}), candidate, nodeType + ".styles." + slot, slot);
+			}
+		}
+	}
+	return styles;
+}
+
+function resolveBuiltinThemeNode(
+	node: SchemaNode,
+	context: EngineThemeResolutionContext,
+	registry?: EngineComponentRegistry,
+): SchemaNode {
+	const namespace = node.type;
+	const explicitId = node.theme;
+	let selection: Record<string, unknown> | undefined;
+
+	if (explicitId !== undefined) {
+		if (typeof explicitId !== "string" || !explicitId) {
+			throw new TypeError("SchemaNode.theme must be a qualified EngineTheme component ID.");
+		}
+		const parsed = parseEngineThemeId(explicitId);
+		if (parsed.componentId !== namespace) {
+			throw new Error("Schema node <" + namespace + "> must use an EngineTheme namespace with the same ID; received '" + explicitId + "'.");
+		}
+		if (!context.groupId) {
+			throw new Error("SchemaNode.theme requires PageSchema.theme to identify an EngineTheme group.");
+		}
+		if (parsed.groupId !== context.groupId) {
+			throw new Error("Schema node theme '" + explicitId + "' must use the same EngineTheme group '" + context.groupId + "' as its PageSchema.");
+		}
+		selection = context.globallyRegistered
+			? resolveRegisteredEngineTheme(explicitId, registry).components[namespace]
+			: resolveLocalVariant(context.components[namespace], parsed.subthemes, explicitId);
+		if (!selection) throw new Error("EngineTheme '" + explicitId + "' did not resolve to a built-in namespace.");
+	} else {
+		selection = context.selectedComponents[namespace]
+			? { ...(context.selectedComponents[namespace] as Record<string, unknown>) }
+			: namespaceDefinition(context, namespace);
+	}
+
+	const originalProps = node.props ?? {};
+	if (!selection) {
+		if (!Object.prototype.hasOwnProperty.call(originalProps, "engineThemeStyles")) return node;
+		const cleanProps: Record<string, unknown> = { ...originalProps };
+		delete cleanProps.engineThemeStyles;
+		return { ...node, props: cleanProps as SchemaNode["props"] };
+	}
+
+	const resolvedStyles = resolveBuiltinThemeStyles(selection, namespace);
+	const rootStyle = resolvedStyles.root ?? {};
+	if (originalProps.style !== undefined && !isThemeRecord(originalProps.style)) {
+		throw new TypeError("Explicit style on built-in node <" + namespace + "> must be an object so it can override EngineTheme defaults.");
+	}
+	const explicitStyle = isThemeRecord(originalProps.style) ? originalProps.style : {};
+	const nextProps: Record<string, unknown> = { ...originalProps };
+	delete nextProps.engineThemeStyles;
+
+	if (namespace === "image" || namespace === "video") {
+		nextProps.style = { ...rootStyle, ...explicitStyle };
+	} else {
+		const rootProps: Record<string, unknown> = {};
+		const rootVariables: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(rootStyle)) {
+			if (key.startsWith("--")) rootVariables[key] = value;
+			else rootProps[key] = value;
+		}
+		Object.assign(nextProps, { ...rootProps, ...originalProps });
+		if (Object.keys(rootVariables).length > 0 || originalProps.style !== undefined) {
+			nextProps.style = { ...rootVariables, ...explicitStyle };
+		}
+	}
+
+	const namedStyles: Record<string, Record<string, unknown>> = {};
+	for (const [slot, value] of Object.entries(resolvedStyles)) {
+		if (slot !== "root" && Object.keys(value).length > 0) namedStyles[slot] = value;
+	}
+	if (Object.keys(namedStyles).length > 0) nextProps.engineThemeStyles = namedStyles;
+	const { theme: _consumedTheme, ...themedNode } = node;
+	return { ...themedNode, props: nextProps as SchemaNode["props"] };
+}
+
 function applyResolvedThemeToNode(
 	node: SchemaNode,
 	context: EngineThemeResolutionContext,
@@ -655,6 +819,8 @@ function applyResolvedThemeToNode(
 				props: nextProps as SchemaNode["props"],
 			};
 		}
+	} else if (BUILTIN_THEME_COMPONENT_STYLE_SLOTS[result.type]) {
+		result = resolveBuiltinThemeNode(result, context, registry);
 	} else {
 		result = resolveCustomComponentThemeNode(result, context, registry);
 	}
@@ -736,6 +902,7 @@ export function resolveEngineThemeSchema(schema: PageSchema, registry?: EngineCo
 		resolvedMarkdownTheme
 		|| schemaHasNodeTheme(schema.root, registry)
 		|| ["overlay", "dialog", "drawer", "popover"].some((name) => components[name] || selectedComponents[name])
+		|| Object.keys(BUILTIN_THEME_COMPONENT_STYLE_SLOTS).some((name) => components[name] || selectedComponents[name])
 		|| Object.keys(components).some((name) => isCustomComponentType(name, registry) && (components[name] || selectedComponents[name])),
 	);
 	const root = needsNodeResolution

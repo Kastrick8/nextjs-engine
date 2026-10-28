@@ -746,6 +746,115 @@ async function testPublicThemeApi() {
 			root: { type: "dialog" },
 		}), /Unsupported EngineTheme default 'side'/, "component namespaces reject defaults that could change the wrong component");
 
+		const builtinRuntimeTheme = createTheme({
+			id: "builtin-theme-runtime-smoke",
+			scope: "global",
+			hero: {
+				defaults: { color: "#f8fafc", backgroundColor: "#111827" },
+				styles: {
+					inner: { gap: "12px", maxWidth: "640px" },
+					overlay: { backgroundColor: "rgba(0,0,0,.2)" },
+				},
+				variants: { accent: { styles: { root: { backgroundColor: "#581c87" } } } },
+			},
+			nav: {
+				styles: {
+					root: { backgroundColor: "#fef3c7" },
+					item: { color: "#78350f" },
+					activeItem: { color: "#be123c" },
+					dropdown: { borderRadius: "8px" },
+				},
+			},
+			link: { styles: { root: { color: "#0e7490", textDecoration: "none" } } },
+			"custom-select": {
+				styles: {
+					root: { maxWidth: "320px" },
+					trigger: { backgroundColor: "#ecfccb" },
+					dropdown: { borderColor: "#65a30d" },
+					option: { color: "#166534" },
+				},
+			},
+			image: {
+				styles: {
+					root: { borderRadius: "12px", backgroundColor: "#f1f5f9" },
+					image: { objectFit: "contain" },
+					placeholder: { backgroundColor: "#e5e7eb" },
+					caption: { color: "#334155" },
+				},
+			},
+			video: {
+				styles: {
+					root: { borderRadius: "12px", backgroundColor: "#0b1120" },
+					video: { objectFit: "contain" },
+					poster: { objectFit: "contain" },
+				},
+			},
+			button: { styles: { root: { backgroundColor: "#0e7490", color: "#ffffff" } } },
+		});
+		const builtinThemedPage = resolveEngineThemeSchema({
+			theme: { id: "builtin-theme-runtime-smoke" },
+			root: {
+				type: "section",
+				children: [
+					{ type: "hero", theme: "builtin-theme-runtime-smoke.hero.accent", props: { backgroundColor: "#7c3aed" } },
+					{ type: "nav", props: { items: [{ label: "Home", href: "/" }] } },
+					{ type: "link", props: { href: "/docs", content: "Read docs" } },
+					{ type: "custom-select", props: { name: "plan", label: "Plan", options: [{ value: "starter", label: "Starter" }], style: { borderRadius: "4px" } } },
+					{ type: "image", props: { src: "/next.svg", alt: "Fixture image", style: { borderRadius: "4px" } } },
+					{ type: "video", props: { src: "/fixture.mp4", style: { borderRadius: "4px" } } },
+					{ type: "button", props: { content: "Themed button" } },
+				],
+			},
+		});
+		const [themedHero, themedNav, themedLink, themedSelect, themedImage, themedVideo, themedButton] = builtinThemedPage.root.children;
+		assert.equal(themedHero.theme, undefined, "built-in node variant IDs are consumed before rendering");
+		assert.equal(themedHero.props.backgroundColor, "#7c3aed", "explicit built-in props override variant defaults");
+		assert.equal(themedHero.props.color, "#f8fafc", "built-in component defaults become root styling props");
+		assert.deepEqual(themedHero.props.engineThemeStyles.inner, { gap: "12px", maxWidth: "640px" });
+		assert.equal(themedHero.props.engineThemeStyles.overlay.backgroundColor, "rgba(0,0,0,.2)");
+		assert.equal(themedNav.props.backgroundColor, "#fef3c7");
+		assert.equal(themedNav.props.engineThemeStyles.item.color, "#78350f");
+		assert.equal(themedNav.props.engineThemeStyles.activeItem.color, "#be123c");
+		assert.equal(themedLink.props.color, "#0e7490");
+		assert.equal(themedLink.props.textDecoration, "none");
+		assert.equal(themedSelect.props.maxWidth, "320px");
+		assert.equal(themedSelect.props.engineThemeStyles.trigger.backgroundColor, "#ecfccb");
+		assert.equal(themedSelect.props.engineThemeStyles.dropdown.borderColor, "#65a30d");
+		assert.equal(themedSelect.props.engineThemeStyles.option.color, "#166534");
+		assert.equal(themedSelect.props.style.borderRadius, "4px", "explicit local styles override root theme styles");
+		assert.equal(themedImage.props.style.backgroundColor, "#f1f5f9");
+		assert.equal(themedImage.props.style.borderRadius, "4px");
+		assert.equal(themedImage.props.engineThemeStyles.image.objectFit, "contain");
+		assert.equal(themedImage.props.engineThemeStyles.placeholder.backgroundColor, "#e5e7eb");
+		assert.equal(themedVideo.props.style.backgroundColor, "#0b1120");
+		assert.equal(themedVideo.props.style.borderRadius, "4px");
+		assert.equal(themedVideo.props.engineThemeStyles.video.objectFit, "contain");
+		assert.equal(themedVideo.props.engineThemeStyles.poster.objectFit, "contain");
+		assert.equal(themedButton.props.backgroundColor, "#0e7490");
+
+		const unsafeBuiltinTheme = createTheme({
+			id: "unsafe-builtin-theme-smoke",
+			scope: "local",
+			hero: { styles: { root: { backgroundImage: "url(https://evil.invalid/pixel)" } } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: unsafeBuiltinTheme,
+			root: { type: "hero" },
+		}), /Unsafe or invalid CSS value/, "built-in themes reject CSS values that can load network resources");
+		const unsupportedBuiltinSlotTheme = createTheme({
+			id: "unsupported-builtin-slot-smoke",
+			scope: "local",
+			hero: { styles: { unknownPart: { color: "#fff" } } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: unsupportedBuiltinSlotTheme,
+			root: { type: "hero" },
+		}), /Unsupported EngineTheme style slot 'unknownPart'/, "built-in named slots are validated per component");
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: builtinRuntimeTheme,
+			root: { type: "hero", theme: "builtin-theme-runtime-smoke.link" },
+		}), /must use an EngineTheme namespace with the same ID/, "built-in namespaces cannot be applied to a different component");
+
 		const localVarsOnlyTheme = createTheme({
 			id: "local-vars-only-theme-smoke",
 			scope: "local",
