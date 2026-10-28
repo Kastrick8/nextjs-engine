@@ -42,7 +42,14 @@ interface OverlayRegistration {
 	token: number;
 	baseZIndex: number;
 	effectiveZIndex: number;
+	modal: boolean;
 	layers: OverlayLayer[];
+}
+
+interface InertSnapshot {
+	inert: boolean;
+	hadInertAttribute: boolean;
+	ariaHidden: string | null;
 }
 
 interface OverlayDocumentState {
@@ -51,6 +58,7 @@ interface OverlayDocumentState {
 	bodyLockCount: number;
 	previousOverflow: string;
 	previousPaddingRight: string;
+	inertSnapshots: Map<HTMLElement, InertSnapshot>;
 }
 
 const overlayDocuments = new WeakMap<Document, OverlayDocumentState>();
@@ -69,6 +77,7 @@ function getOverlayDocumentState(ownerDocument: Document, create = true): Overla
 		bodyLockCount: 0,
 		previousOverflow: "",
 		previousPaddingRight: "",
+		inertSnapshots: new Map(),
 	};
 	overlayDocuments.set(ownerDocument, state);
 	return state;
@@ -176,7 +185,61 @@ function restoreOverlayLayers(registration: OverlayRegistration): void {
 	}
 }
 
-function synchronizeOverlayLayers(state: OverlayDocumentState): void {
+function restoreModalInertness(state: OverlayDocumentState): void {
+	for (const [element, previous] of state.inertSnapshots) {
+		element.inert = previous.inert;
+		if (previous.hadInertAttribute) element.setAttribute("inert", "");
+		else element.removeAttribute("inert");
+		if (previous.ariaHidden === null) element.removeAttribute("aria-hidden");
+		else element.setAttribute("aria-hidden", previous.ariaHidden);
+	}
+	state.inertSnapshots.clear();
+}
+
+function makeElementInert(state: OverlayDocumentState, element: HTMLElement): void {
+	if (!state.inertSnapshots.has(element)) {
+		state.inertSnapshots.set(element, {
+			inert: element.inert,
+			hadInertAttribute: element.hasAttribute("inert"),
+			ariaHidden: element.getAttribute("aria-hidden"),
+		});
+	}
+	element.inert = true;
+	element.setAttribute("inert", "");
+	element.setAttribute("aria-hidden", "true");
+}
+
+function synchronizeModalInertness(state: OverlayDocumentState, ownerDocument: Document): void {
+	restoreModalInertness(state);
+	let lastModalIndex = -1;
+	for (let index = 0; index < state.stack.length; index += 1) {
+		if (state.stack[index].modal) lastModalIndex = index;
+	}
+	if (lastModalIndex < 0 || !ownerDocument.body) return;
+
+	const protectedElements = state.stack.slice(lastModalIndex)
+		.flatMap((entry) => entry.layers.map((layer) => layer.element))
+		.filter((element) => element.isConnected);
+	if (protectedElements.length === 0) return;
+
+	for (const protectedElement of protectedElements) {
+		let current: HTMLElement | null = protectedElement;
+		while (current?.parentElement) {
+			const parent = current.parentElement;
+			for (const sibling of Array.from(parent.children)) {
+				if (!(sibling instanceof HTMLElement) || sibling === current) continue;
+				const containsProtected = protectedElements.some((element) => (
+					sibling === element || sibling.contains(element)
+				));
+				if (!containsProtected) makeElementInert(state, sibling);
+			}
+			if (parent === ownerDocument.body) break;
+			current = parent;
+		}
+	}
+}
+
+function synchronizeOverlayLayers(state: OverlayDocumentState, ownerDocument: Document): void {
 	let previousTopZIndex = Number.NEGATIVE_INFINITY;
 	for (const registration of state.stack) {
 		const requestedBase = Number.isFinite(registration.baseZIndex) ? registration.baseZIndex : 1000;
@@ -191,6 +254,7 @@ function synchronizeOverlayLayers(state: OverlayDocumentState): void {
 		}
 		previousTopZIndex = registration.effectiveZIndex + maximumOffset;
 	}
+	synchronizeModalInertness(state, ownerDocument);
 }
 
 export function registerOverlay(
@@ -198,6 +262,7 @@ export function registerOverlay(
 	ownerDocument?: Document,
 	options: {
 		baseZIndex?: number;
+		modal?: boolean;
 		layers?: Array<{ element: HTMLElement | null; offset?: number }>;
 	} = {},
 ): () => void {
@@ -221,10 +286,11 @@ export function registerOverlay(
 		token: ++state.registrationToken,
 		baseZIndex: options.baseZIndex ?? 1000,
 		effectiveZIndex: options.baseZIndex ?? 1000,
+		modal: options.modal === true,
 		layers,
 	};
 	state.stack.push(registration);
-	synchronizeOverlayLayers(state);
+	synchronizeOverlayLayers(state, doc);
 	return () => {
 		const index = state.stack.findIndex((entry) => (
 			entry.id === registration.id && entry.token === registration.token
@@ -232,7 +298,7 @@ export function registerOverlay(
 		if (index >= 0) {
 			const [removed] = state.stack.splice(index, 1);
 			restoreOverlayLayers(removed);
-			synchronizeOverlayLayers(state);
+			synchronizeOverlayLayers(state, doc);
 		}
 	};
 }
