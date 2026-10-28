@@ -32,7 +32,7 @@ After the package's bin entry has shipped:
 ## Channels
 
 - **Stable:** exact package versions from the npm registry.
-- **Alpha:** the newest validated Alpha package artifact attached to a GitHub prerelease. Alpha artifacts are not published to npm by the release workflow.
+- **Alpha:** the newest validated Alpha package artifact attached to a GitHub prerelease. Named versioned Alpha releases may also be published to npm by the source/archive release workflows; the moving `channel-alpha-latest` artifact is never published to npm.
 - **Latest Green:** the highest SemVer release among Stable and Beta. Alpha versions are excluded.
 - **Beta:** prerelease artifacts enter the catalog only after runtime CI and cross-browser CI both pass for the exact source commit recorded in the snapshot.
 
@@ -58,7 +58,7 @@ The manifest contains the scoped package name, version, track, source branch, fu
 
 Source-pinned and archived Alpha/Beta release paths run the same exact-commit green check before npm publication or GitHub Release creation. The gate requires completed `Engine runtime CI` and `Engine cross-browser compatibility` push runs for the source branch/SHA and fails closed if either run is missing or not successful. Workflow-generated release tags use the `package-snapshot-published` repository-dispatch event so the release builder runs even when a tag push was made with `GITHUB_TOKEN`.
 
-Published npm versions remain immutable. A GitHub Alpha artifact may be published under a new release version; it must not replace a package already published to npm.
+Published npm versions remain immutable. The source/archive release workflows can publish named Alpha/Beta versions after the exact-source CI gate passes; the rolling `channel-alpha-latest` channel only updates GitHub assets and never publishes to npm. Existing npm versions are never overwritten.
 
 ## Confirmation, rollback, and cleanup
 
