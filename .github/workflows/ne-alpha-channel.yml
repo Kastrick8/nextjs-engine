@@ -1,0 +1,328 @@
+name: Update NE latest Alpha channel
+
+on:
+  workflow_run:
+    workflows:
+      - "Engine runtime CI"
+    types: [completed]
+    branches: [main-3]
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: ne-alpha-channel-latest
+  cancel-in-progress: false
+
+jobs:
+  gate-latest-alpha:
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main-3' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+    steps:
+      - name: Wait for cross-browser CI on the exact same commit
+        id: gate
+        shell: bash
+        env:
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RESULT="pending"
+          echo "Checking exact commit $SOURCE_BRANCH@$SOURCE_SHA."
+          for attempt in $(seq 1 60); do
+            curl --fail --silent --show-error \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100" \
+              > "$RUNNER_TEMP/actions-runs.json"
+
+            RESULT="$(node - "$SOURCE_BRANCH" "$SOURCE_SHA" "$RUNNER_TEMP/actions-runs.json" <<'NODE'
+          const fs = require("node:fs");
+          const [branch, sha, file] = process.argv.slice(2);
+          const payload = JSON.parse(fs.readFileSync(file, "utf8"));
+          const matches = (payload.workflow_runs || [])
+            .filter((run) => run.name === "Engine cross-browser compatibility" &&
+              run.head_branch === branch && run.head_sha === sha && run.event === "push")
+            .sort((a, b) => Date.parse(b.run_started_at || b.created_at || 0) -
+              Date.parse(a.run_started_at || a.created_at || 0));
+          if (!matches.length || matches[0].status !== "completed") console.log("pending");
+          else console.log(matches[0].conclusion === "success" ? "success" : "failure");
+          NODE
+            )"
+
+            if [[ "$RESULT" == "success" ]]; then
+              break
+            fi
+            if [[ "$RESULT" == "failure" ]]; then
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::Cross-browser CI failed for $SOURCE_SHA; latest Alpha was not updated."
+              exit 0
+            fi
+            echo "Cross-browser CI is queued or running (attempt $attempt/60)."
+            sleep 20
+          done
+
+          if [[ "$RESULT" != "success" ]]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Cross-browser CI did not succeed within 20 minutes; latest Alpha was not updated."
+            exit 0
+          fi
+
+          # Do not let an older completion replace a newer main-3 commit.
+          curl --fail --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/branches/main-3" \
+            > "$RUNNER_TEMP/main-3.json"
+          CURRENT_SHA="$(node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).commit.sha)' "$RUNNER_TEMP/main-3.json")"
+          if [[ "$CURRENT_SHA" != "$SOURCE_SHA" ]]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::A newer main-3 commit exists; this older passing commit will not replace latest Alpha."
+            exit 0
+          fi
+
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "Runtime CI and exact-SHA cross-browser CI passed for the current main-3 head."
+
+  publish-latest-alpha:
+    needs: gate-latest-alpha
+    if: needs.gate-latest-alpha.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact tested source commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout package archive templates
+        uses: actions/checkout@v6
+        with:
+          ref: package/main
+          path: archive
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Prepare package pinned to this commit
+        id: prepare
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync("source/package.json","utf8"));if(typeof p.version!=="string"||!/^3\.\d+\.\d+-alpha\.\d+$/.test(p.version))process.exit(1);process.stdout.write(p.version)')"
+          MAJOR="$(printf '%s' "$VERSION" | cut -d. -f1)"
+          TEMPLATE_ROOT="archive/alpha/version/$MAJOR.alpha/version"
+          TEMPLATE_DIR="$(find "$TEMPLATE_ROOT" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          [[ -n "$TEMPLATE_DIR" && -f "$TEMPLATE_DIR/package.json" && -f "$TEMPLATE_DIR/tsconfig.json" ]] || {
+            echo "No archived alpha package template found at $TEMPLATE_ROOT." >&2; exit 1;
+          }
+
+          if [[ -d source/src/engine ]]; then ENGINE_DIR="source/src/engine"
+          elif [[ -d source/engine ]]; then ENGINE_DIR="source/engine"
+          else echo "Pinned source has neither src/engine/ nor engine/." >&2; exit 1
+          fi
+          [[ -f source/bin/ne.js ]] || { echo "Pinned main-3 commit does not contain bin/ne.js." >&2; exit 1; }
+
+          OUT="$RUNNER_TEMP/ne-alpha-package"
+          PKG="$OUT/package"
+          mkdir -p "$PKG/engine" "$OUT/artifacts"
+          cp "$TEMPLATE_DIR/package.json" "$PKG/package.json"
+          cp "$TEMPLATE_DIR/tsconfig.json" "$PKG/tsconfig.json"
+          cp -a "$ENGINE_DIR/." "$PKG/engine/"
+          cp -a source/bin "$PKG/bin"
+          chmod +x "$PKG/bin/ne.js"
+          printf '%s\n' 'export * from "./engine";' > "$PKG/index.ts"
+
+          for file in README.md DOCUMENT.md; do
+            if [[ -f "source/$file" ]]; then cp "source/$file" "$PKG/$file"
+            elif [[ -f "$TEMPLATE_DIR/$file" ]]; then cp "$TEMPLATE_DIR/$file" "$PKG/$file"
+            fi
+          done
+          if [[ -d source/docs ]]; then cp -a source/docs "$PKG/docs"
+          elif [[ -d "$TEMPLATE_DIR/docs" ]]; then cp -a "$TEMPLATE_DIR/docs" "$PKG/docs"
+          fi
+
+          export PKG VERSION SOURCE_SHA
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import path from "node:path";
+          const {PKG, VERSION, SOURCE_SHA} = process.env;
+          const manifestPath = path.join(PKG, "package.json");
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+          manifest.name = "@kastrick/nextjs-engine";
+          manifest.version = VERSION;
+          manifest.private = false;
+          manifest.bin = {...(manifest.bin || {}), ne: "./bin/ne.js"};
+          manifest.files = [...new Set([...(manifest.files || []), "bin"])]
+            .filter((item) => fs.existsSync(path.join(PKG, item)));
+          for (const [name, value] of Object.entries(manifest.exports || {})) {
+            if (name === ".") continue;
+            const targets = typeof value === "string" ? [value] :
+              [value.types, value.import, value.require, value.default].filter(Boolean);
+            if (targets.some((target) => !fs.existsSync(path.join(PKG, target.replace(/^\.\//, ""))))) {
+              delete manifest.exports[name];
+            }
+          }
+          fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+          if (!/^[0-9a-f]{40}$/.test(SOURCE_SHA)) throw new Error("Source SHA must be a full commit ID.");
+          NODE
+
+          cd "$PKG"
+          npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+          npm run type-check
+          npm run pack:check
+          npm pack --ignore-scripts --pack-destination "$OUT/artifacts" --json > "$OUT/pack.json"
+          PACKED="$(node - "$OUT/pack.json" <<'NODE'
+          const fs=require("node:fs");
+          const result=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          if(!Array.isArray(result)||!result[0]||typeof result[0].filename!=="string")throw new Error("npm pack output is invalid.");
+          process.stdout.write(result[0].filename);
+          NODE
+          )"
+          ASSET_SUFFIX="$SOURCE_SHA"
+          ASSET_NAME="nextjs-engine-$VERSION-$ASSET_SUFFIX.tgz"
+          mv "$OUT/artifacts/$PACKED" "$OUT/artifacts/$ASSET_NAME"
+          SHA256="$(sha256sum "$OUT/artifacts/$ASSET_NAME" | cut -d' ' -f1)"
+
+          export VERSION SOURCE_SHA SHA256 ASSET_NAME
+          OUTPUT_PATH="$OUT/ne-release.json"
+          export OUTPUT_PATH
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const {VERSION, SOURCE_SHA, SHA256, ASSET_NAME, OUTPUT_PATH} = process.env;
+          const manifest = {
+            schemaVersion: 1,
+            packageName: "@kastrick/nextjs-engine",
+            version: VERSION,
+            track: "alpha",
+            tag: "channel-alpha-latest",
+            sourceBranch: "main-3",
+            sourceCommit: SOURCE_SHA,
+            sha256: SHA256,
+            assetName: ASSET_NAME,
+            floating: true,
+            summary: "Latest CI-checked Gen 3 Alpha build from main-3.",
+          };
+          fs.writeFileSync(OUTPUT_PATH, JSON.stringify(manifest, null, 2) + "\n");
+          NODE
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "asset_name=$ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "artifact_dir=$OUT/artifacts" >> "$GITHUB_OUTPUT"
+          echo "manifest=$OUT/ne-release.json" >> "$GITHUB_OUTPUT"
+
+      - name: Reconfirm this commit is still the current main-3 head
+        id: final-gate
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/branches/main-3" \
+            > "$RUNNER_TEMP/final-main-3.json"
+          CURRENT_SHA="$(node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).commit.sha)' "$RUNNER_TEMP/final-main-3.json")"
+          if [[ "$CURRENT_SHA" == "$SOURCE_SHA" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "The packaged source is still the current main-3 head."
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main-3 advanced during packaging; this older Alpha will not be promoted."
+          fi
+
+      - name: Move rolling channel tag to the exact source commit
+        if: steps.final-gate.outputs.publish == 'true'
+        working-directory: archive
+        env:
+          SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          git tag -f channel-alpha-latest "$SOURCE_SHA"
+          git push --force origin refs/tags/channel-alpha-latest
+
+      - name: Create or update GitHub latest Alpha release
+        if: steps.final-gate.outputs.publish == 'true'
+        env:
+          TAG_NAME: channel-alpha-latest
+          VERSION: ${{ steps.prepare.outputs.version }}
+          ASSET_NAME: ${{ steps.prepare.outputs.asset_name }}
+          SHA256: ${{ steps.prepare.outputs.sha256 }}
+          SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+          ARTIFACT_DIR: ${{ steps.prepare.outputs.artifact_dir }}
+          MANIFEST: ${{ steps.prepare.outputs.manifest }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES="$RUNNER_TEMP/ne-alpha-release-notes.md"
+          {
+            echo "## Nextjs Engine — Latest Alpha"
+            echo
+            echo "- Package version: $VERSION"
+            echo "- Source commit: $SOURCE_SHA"
+            echo "- SHA-256: $SHA256"
+            echo "- Artifact: $ASSET_NAME"
+            echo "- This is a moving channel; the artifact URL remains commit-specific."
+            echo
+            echo "<!-- NE-CHANNEL-MANIFEST-START -->"
+            cat "$MANIFEST"
+            echo "<!-- NE-CHANNEL-MANIFEST-END -->"
+          } > "$NOTES"
+
+          TARBALL="$ARTIFACT_DIR/$ASSET_NAME"
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "$TARBALL" "$MANIFEST" --clobber
+            gh release edit "$TAG_NAME" --title "Nextjs Engine Latest Alpha ($VERSION)" --notes-file "$NOTES" --prerelease
+          else
+            gh release create "$TAG_NAME" "$TARBALL" "$MANIFEST" \
+              --title "Nextjs Engine Latest Alpha ($VERSION)" \
+              --notes-file "$NOTES" \
+              --prerelease \
+              --target "$SOURCE_SHA"
+          fi
+
+      - name: Summarize rolling Alpha
+        if: always()
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+          SHA256: ${{ steps.prepare.outputs.sha256 }}
+          FINAL_PROMOTION: ${{ steps.final-gate.outputs.publish || 'false' }}
+        run: |
+          {
+            echo "## NE latest Alpha channel"
+            echo "- Version: ${VERSION:-not packaged}"
+            echo "- Source SHA: ${SOURCE_SHA:-unknown}"
+            echo "- SHA-256: ${SHA256:-not calculated}"
+            if [[ "$FINAL_PROMOTION" == "true" ]]; then
+              echo "- Rolling tag/release: updated"
+            else
+              echo "- Rolling tag/release: not updated (CI failed, packaging failed, or main-3 advanced)"
+            fi
+            echo "- npm publication: none"
+          } >> "$GITHUB_STEP_SUMMARY"
