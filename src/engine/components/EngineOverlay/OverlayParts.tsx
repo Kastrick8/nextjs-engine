@@ -100,7 +100,7 @@ function setElementRef<T>(ref: React.Ref<T> | undefined, value: T | null): void 
 }
 
 const UNSUPPORTED_NATIVE_TRIGGER_TAGS = new Set([
-	"input", "select", "textarea", "summary", "audio", "video",
+	"input", "select", "textarea", "summary", "label", "audio", "video",
 ]);
 
 export function OverlayTrigger({ label, children, className, style, disabled, expanded, controls, hasPopup, ariaLabel, onClick, triggerRef, asChild }: {
@@ -171,14 +171,27 @@ export function OverlayTrigger({ label, children, className, style, disabled, ex
 					return;
 				}
 				childOnClick?.(event);
-				if (!event.defaultPrevented) onClick();
+				if (!event.defaultPrevented) {
+					// An anchor is being used as a trigger, not as navigation. Preserve
+					// its attributes but prevent the default URL change when opening.
+					if (isAnchor) event.preventDefault();
+					onClick();
+				}
 			},
 		} as Record<string, unknown>);
 	}
 
-	if (childTag && UNSUPPORTED_NATIVE_TRIGGER_TAGS.has(childTag)) {
+	const childTabIndex = child?.props.tabIndex;
+	const childRole = child?.props.role;
+	const childIsTabbable = typeof childTabIndex === "number" && childTabIndex >= 0;
+	const childIsEditable = child?.props.contentEditable === true || child?.props.contentEditable === "true";
+	const childHasInteractiveRole = typeof childRole === "string"
+		&& ["button", "link", "checkbox", "radio", "switch", "combobox", "menuitem", "option"].includes(childRole);
+	if ((childTag && UNSUPPORTED_NATIVE_TRIGGER_TAGS.has(childTag))
+		|| childIsTabbable || childIsEditable || childHasInteractiveRole) {
 		if (process.env.NODE_ENV !== "production") {
-			console.error(`[EngineOverlay] A native <${childTag}> cannot be nested in a trigger button. Use a native button/anchor trigger instead.`);
+			const description = childTag ? `<${childTag}>` : `child with role/tabIndex/contentEditable`;
+			console.error(`[EngineOverlay] An interactive ${description} cannot be nested in the generated trigger button. Use a native button/anchor with triggerAsChild instead.`);
 		}
 		return null;
 	}
