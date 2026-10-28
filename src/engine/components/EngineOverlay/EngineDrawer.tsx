@@ -97,7 +97,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 						aria-describedby={description != null ? descriptionId : undefined}
 						tabIndex={-1}
 						className={panelClass}
-						style={{ ...panelStyle, zIndex: zIndex + 1 }}
+						style={panelStyle}
 						data-state={active ? "open" : "closed"}
 						data-side={side}
 					>
