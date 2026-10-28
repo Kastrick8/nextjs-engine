@@ -23,6 +23,7 @@ export const EngineDialog = memo(function EngineDialog({
 	defaultOpen = false,
 	onOpenChange,
 	trigger,
+	triggerAsChild,
 	triggerLabel,
 	triggerClassName,
 	triggerStyle,
@@ -61,7 +62,7 @@ export const EngineDialog = memo(function EngineDialog({
 	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
-	const triggerRef = useRef<HTMLButtonElement>(null);
+	const triggerRef = useRef<HTMLElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
@@ -103,6 +104,7 @@ export const EngineDialog = memo(function EngineDialog({
 				ariaLabel={triggerAriaLabel}
 				onClick={() => setOpen(!isOpen)}
 				triggerRef={triggerRef}
+				asChild={triggerAsChild}
 			/>
 			{target && present && createPortal(
 				<div
@@ -121,7 +123,7 @@ export const EngineDialog = memo(function EngineDialog({
 						...overlayStyle,
 					}}
 					onPointerDown={(event) => {
-						if (closeOnBackdrop && event.target === event.currentTarget && isTopOverlay(panelId)) close();
+						if (closeOnBackdrop && event.target === event.currentTarget && isTopOverlay(panelId, panelRef.current?.ownerDocument ?? triggerRef.current?.ownerDocument)) close();
 					}}
 				>
 					<div
