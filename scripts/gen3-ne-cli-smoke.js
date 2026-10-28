@@ -89,7 +89,7 @@ async function main() {
 		...manifest,
 		tag: "channel-alpha-latest",
 		floating: true,
-		assetName: "nextjs-engine-3.0.0-alpha.2-" + rollingManifest.sourceCommit + ".tgz",
+		assetName: "nextjs-engine-3.0.0-alpha.2-" + manifest.sourceCommit + ".tgz",
 	};
 	const rollingAsset = {
 		...release,
