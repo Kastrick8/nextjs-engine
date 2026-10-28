@@ -198,7 +198,7 @@ jobs:
           process.stdout.write(result[0].filename);
           NODE
           )"
-          ASSET_SUFFIX="$(printf '%s' "$SOURCE_SHA" | cut -c1-8)"
+          ASSET_SUFFIX="$SOURCE_SHA"
           ASSET_NAME="nextjs-engine-$VERSION-$ASSET_SUFFIX.tgz"
           mv "$OUT/artifacts/$PACKED" "$OUT/artifacts/$ASSET_NAME"
           SHA256="$(sha256sum "$OUT/artifacts/$ASSET_NAME" | cut -d' ' -f1)"
