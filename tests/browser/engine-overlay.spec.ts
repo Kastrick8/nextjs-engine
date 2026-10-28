@@ -87,6 +87,33 @@ test("controlled open state notifies once and restores its external trigger", as
 	await expect(trigger).toBeFocused();
 });
 
+test("anchor triggers open overlays without performing anchor navigation", async ({ page }) => {
+	await page.goto(FIXTURE);
+	const trigger = page.getByTestId("anchor-popover-trigger");
+	await expect(trigger).toHaveAttribute("href", "#must-not-navigate");
+	await trigger.click();
+	await expect(page.getByRole("dialog", { name: "Anchor-triggered popover" })).toBeVisible();
+	await expect(page).toHaveURL(/\/engine-compat-test\/overlay-runtime$/);
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+});
+
+test("a controlled overlay can reopen before its exit-presence timer expires", async ({ page }) => {
+	await page.goto(FIXTURE);
+	const trigger = page.getByTestId("open-controlled-dialog");
+	const dialog = page.locator('[role="dialog"]').filter({ has: page.getByTestId("controlled-dialog-action") });
+	await trigger.click();
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(page.getByTestId("controlled-changes")).toHaveText("1");
+
+	// Use a direct DOM activation so the transparent exit backdrop's hit-test
+	// behavior doesn't add an artificial wait beyond the actual close event.
+	await trigger.evaluate((element) => (element as HTMLButtonElement).click());
+	await expect(dialog).toBeVisible();
+	await expect(page.getByTestId("controlled-changes")).toHaveText("1");
+	await expect.poll(() => page.getByTestId("overlay-background").evaluate((element) => element.closest("[inert]") !== null)).toBe(true);
+});
+
 test("focus restoration uses a safe fallback if the trigger disappears", async ({ page }) => {
 	await page.goto(FIXTURE);
 	await page.getByTestId("parent-dialog-trigger").click();
