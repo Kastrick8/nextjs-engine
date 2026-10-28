@@ -119,7 +119,7 @@ test("reduced motion keeps overlay interaction functional without transition del
 	await page.getByRole("button", { name: "Open modal" }).click();
 	const modal = page.getByRole("dialog", { name: "Overlay regression modal" });
 	await expect(modal).toBeVisible();
-	await expect.poll(() => modal.evaluate((element) => (element as HTMLElement).style.transition)).toContain("0ms");
+	await expect.poll(() => modal.evaluate((element) => (element as HTMLElement).style.transition)).toBe("none");
 	await page.keyboard.press("Escape");
 	await expect(modal).toBeHidden();
 });
