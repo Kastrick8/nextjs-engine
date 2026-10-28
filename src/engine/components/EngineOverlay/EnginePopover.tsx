@@ -146,7 +146,7 @@ export const EnginePopover = memo(function EnginePopover({
 			opacity: active ? 1 : 0,
 			transform: active ? "translate(0,0) scale(1)" : `${hiddenTransform} scale(.985)`,
 			transformOrigin: actualPlacement === "top" ? "bottom center" : actualPlacement === "bottom" ? "top center" : actualPlacement === "left" ? "center right" : "center left",
-			transition: `opacity ${transitionMs}ms ease, transform ${transitionMs}ms ease`,
+			transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease, transform ${transitionMs}ms ease`,
 		},
 	});
 	const panelClass = [className, useCpropClass(cprop)].filter(Boolean).join(" ") || undefined;
