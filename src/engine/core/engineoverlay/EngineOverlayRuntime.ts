@@ -31,9 +31,18 @@ export interface PopoverPosition {
 	placement: EnginePopoverPlacement;
 }
 
+interface OverlayLayer {
+	element: HTMLElement;
+	offset: number;
+	previousZIndex: string;
+}
+
 interface OverlayRegistration {
 	id: string;
 	token: number;
+	baseZIndex: number;
+	effectiveZIndex: number;
+	layers: OverlayLayer[];
 }
 
 interface OverlayDocumentState {
@@ -161,19 +170,70 @@ export function computePopoverPosition(
 	};
 }
 
-export function registerOverlay(id: string, ownerDocument?: Document): () => void {
+function restoreOverlayLayers(registration: OverlayRegistration): void {
+	for (const layer of registration.layers) {
+		layer.element.style.zIndex = layer.previousZIndex;
+	}
+}
+
+function synchronizeOverlayLayers(state: OverlayDocumentState): void {
+	let previousTopZIndex = Number.NEGATIVE_INFINITY;
+	for (const registration of state.stack) {
+		const requestedBase = Number.isFinite(registration.baseZIndex) ? registration.baseZIndex : 1000;
+		registration.effectiveZIndex = Math.max(
+			requestedBase,
+			Number.isFinite(previousTopZIndex) ? previousTopZIndex + 10 : requestedBase,
+		);
+		let maximumOffset = 0;
+		for (const layer of registration.layers) {
+			layer.element.style.zIndex = String(registration.effectiveZIndex + layer.offset);
+			maximumOffset = Math.max(maximumOffset, layer.offset);
+		}
+		previousTopZIndex = registration.effectiveZIndex + maximumOffset;
+	}
+}
+
+export function registerOverlay(
+	id: string,
+	ownerDocument?: Document,
+	options: {
+		baseZIndex?: number;
+		layers?: Array<{ element: HTMLElement | null; offset?: number }>;
+	} = {},
+): () => void {
 	const doc = getOwnerDocument(ownerDocument);
 	if (!doc) return () => undefined;
 	const state = getOverlayDocumentState(doc)!;
 	const existingIndex = state.stack.findIndex((entry) => entry.id === id);
-	if (existingIndex >= 0) state.stack.splice(existingIndex, 1);
-	const registration = { id, token: ++state.registrationToken };
+	if (existingIndex >= 0) {
+		const [existing] = state.stack.splice(existingIndex, 1);
+		restoreOverlayLayers(existing);
+	}
+	const layers: OverlayLayer[] = (options.layers ?? [])
+		.filter((layer): layer is { element: HTMLElement; offset?: number } => layer.element !== null)
+		.map((layer) => ({
+			element: layer.element,
+			offset: Number.isFinite(layer.offset) ? layer.offset! : 0,
+			previousZIndex: layer.element.style.zIndex,
+		}));
+	const registration: OverlayRegistration = {
+		id,
+		token: ++state.registrationToken,
+		baseZIndex: options.baseZIndex ?? 1000,
+		effectiveZIndex: options.baseZIndex ?? 1000,
+		layers,
+	};
 	state.stack.push(registration);
+	synchronizeOverlayLayers(state);
 	return () => {
 		const index = state.stack.findIndex((entry) => (
 			entry.id === registration.id && entry.token === registration.token
 		));
-		if (index >= 0) state.stack.splice(index, 1);
+		if (index >= 0) {
+			const [removed] = state.stack.splice(index, 1);
+			restoreOverlayLayers(removed);
+			synchronizeOverlayLayers(state);
+		}
 	};
 }
 
