@@ -1,0 +1,651 @@
+export interface EngineAPIStaticEndpoint {
+	static: string;
+	operation?: string;
+}
+
+export type APIStaticRunSource = "query" | "body" | "input" | "proxy";
+export type APIStaticInputSchema = Record<string, string>;
+
+export interface APIStaticRunContext {
+	query: Record<string, unknown>;
+	body: Record<string, unknown>;
+	input: Record<string, unknown>;
+	proxy: APIStaticProxyHandler;
+}
+
+export interface APIStaticOperation {
+	name: string;
+	source: APIStaticRunSource;
+	schema?: APIStaticInputSchema;
+	run: (context: APIStaticRunContext) => unknown | Promise<unknown>;
+}
+
+export interface APIStaticRouteModule {
+	route: string;
+	hash: string;
+	operations: APIStaticOperation[];
+}
+
+export interface APIStaticResponseDescriptor {
+	__engine_api_static_response__: true;
+	status?: number;
+	headers?: HeadersInit;
+	body?: unknown;
+}
+
+export interface APIStaticErrorDescriptor extends Error {
+	__engine_api_static_error__?: true;
+	status?: number;
+	details?: unknown;
+}
+
+export type APIStaticProxyHandler = (
+	target: string,
+	input?: unknown,
+	init?: RequestInit,
+) => Promise<unknown>;
+
+export interface APIStaticEndpointManifestEntry {
+	hash: string;
+	operations: string[];
+}
+
+export interface APIStaticManifest {
+	version: 1;
+	endpoints: Record<string, APIStaticEndpointManifestEntry>;
+}
+
+export interface APIStaticEndpointInfo extends APIStaticEndpointManifestEntry {
+	route: string;
+	url: string;
+}
+
+export interface APIStaticOptions {
+	basePath?: string;
+	loadTimeoutMs?: number;
+	proxy?: APIStaticProxyHandler;
+	/** Add a changing query token when loading generated modules. Defaults to true in development. */
+	cacheBust?: boolean;
+	/** Generated discovery file name under basePath. */
+	manifestFile?: string;
+}
+
+export interface APIStaticExecuteOptions {
+	operation?: string;
+	input?: unknown;
+}
+
+const DEFAULT_BASE_PATH = "/_static/endpoint";
+const DEFAULT_LOAD_TIMEOUT_MS = 10_000;
+const DEFAULT_MANIFEST_FILE = "manifest.json";
+const SAFE_ROUTE_SEGMENT = /^[A-Za-z0-9._-]+$/;
+const NULL_BODY_STATUSES = new Set([204, 205, 304]);
+
+interface APIStaticGlobal extends Record<string, unknown> {
+	__NEXTJS_ENGINE_API_STATIC__?: Map<string, APIStaticRouteModule>;
+}
+
+class APIStaticValidationError extends Error {
+	status = 400;
+	readonly code = "NEAPI2002";
+	readonly reason = "The request input does not satisfy the endpoint's declared schema.";
+	readonly action = "Check the field named in the validation message and match its declared string, number, boolean, object, or array type. Do not log raw request values while debugging validation failures.";
+
+	constructor(message: string) {
+		super("[NEAPI2002] " + message);
+		this.name = "APIStaticValidationError";
+	}
+}
+
+class APIStaticExecutionError extends Error {
+	readonly code = "NEAPI4001";
+	readonly reason = "An APIStatic operation threw an unexpected runtime exception.";
+	readonly action = "Inspect the named route/operation and original cause. Use the generated error(status, message, details) helper for intentional HTTP failures; do not expose internal provider details in production responses.";
+	readonly route: string;
+	readonly operation: string;
+	readonly cause: unknown;
+
+	constructor(route: string, operation: string, cause: unknown) {
+		const causeMessage = cause instanceof Error ? cause.message : String(cause);
+		super("[NEAPI4001] APIStatic operation '" + operation + "' on route '" + route + "' failed: " + causeMessage);
+		this.name = "APIStaticExecutionError";
+		this.route = route;
+		this.operation = operation;
+		this.cause = cause;
+	}
+}
+
+function getRegistry(): Map<string, APIStaticRouteModule> {
+	const root = globalThis as unknown as APIStaticGlobal;
+	if (!root.__NEXTJS_ENGINE_API_STATIC__) {
+		root.__NEXTJS_ENGINE_API_STATIC__ = new Map<string, APIStaticRouteModule>();
+	}
+	return root.__NEXTJS_ENGINE_API_STATIC__;
+}
+
+function normalizeBasePath(basePath: string): string {
+	const normalized = basePath.trim().replace(/^\/+|\/+$/g, "");
+	return normalized ? `/${normalized}` : "";
+}
+
+function normalizeManifestFile(fileName: string): string {
+	const normalized = fileName.trim().replace(/^\/+|\/+$/g, "");
+	if (!normalized || normalized === "." || normalized === ".." || normalized.split("/").some((part) => part === "." || part === "..")) {
+		throw new Error("[APIStatic] Invalid manifest file path.");
+	}
+	return normalized;
+}
+
+export function normalizeAPIStaticRoute(route: string): string {
+	const normalized = route.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+	if (!normalized) throw new Error("[APIStatic] Static endpoint name cannot be empty.");
+
+	const segments = normalized.split("/");
+	for (const segment of segments) {
+		if (!segment || segment === "." || segment === ".." || !SAFE_ROUTE_SEGMENT.test(segment)) {
+			throw new Error(`[APIStatic] Invalid static endpoint segment: ${segment || "<empty>"}`);
+		}
+	}
+	return segments.join("/");
+}
+
+export function getAPIStaticRouteHash(route: string): string {
+	const normalized = normalizeAPIStaticRoute(route);
+	let hash = 0x811c9dc5;
+	for (let index = 0; index < normalized.length; index += 1) {
+		hash ^= normalized.charCodeAt(index);
+		hash = Math.imul(hash, 0x01000193) >>> 0;
+	}
+	return hash.toString(36).padStart(7, "0").slice(-7);
+}
+
+export function getAPIStaticRouteURL(route: string, basePath = DEFAULT_BASE_PATH): string {
+	const normalized = normalizeAPIStaticRoute(route);
+	const segments = normalized.split("/");
+	const fileName = `${segments.pop()}-${getAPIStaticRouteHash(normalized)}.js`;
+	return `${normalizeBasePath(basePath)}/${[...segments, fileName].join("/")}`;
+}
+
+export function staticEndpoint(route: string, operation?: string): EngineAPIStaticEndpoint {
+	return {
+		static: normalizeAPIStaticRoute(route),
+		...(operation ? { operation } : {}),
+	};
+}
+
+function formDataToRecord(formData: FormData): Record<string, unknown> {
+	const output: Record<string, unknown> = {};
+	for (const [key, value] of formData.entries()) {
+		const existing = output[key];
+		if (existing === undefined) output[key] = value;
+		else if (Array.isArray(existing)) existing.push(value);
+		else output[key] = [existing, value];
+	}
+	return output;
+}
+
+function inputToRecord(input: unknown): Record<string, unknown> {
+	if (input === undefined || input === null) return {};
+	if (typeof FormData !== "undefined" && input instanceof FormData) return formDataToRecord(input);
+	if (typeof URLSearchParams !== "undefined" && input instanceof URLSearchParams) {
+		return Object.fromEntries(input.entries());
+	}
+	if (typeof input === "object" && !Array.isArray(input)) return { ...(input as Record<string, unknown>) };
+	return { value: input };
+}
+
+function parseBoolean(value: unknown): boolean | undefined {
+	if (typeof value === "boolean") return value;
+	if (value === 1 || value === "1" || value === "true") return true;
+	if (value === 0 || value === "0" || value === "false") return false;
+	return undefined;
+}
+
+function parseDefaultValue(type: string, value: string): unknown {
+	switch (type) {
+		case "number": {
+			const parsed = Number(value);
+			if (!Number.isFinite(parsed)) throw new APIStaticValidationError(`Invalid number default: ${value}`);
+			return parsed;
+		}
+		case "boolean": {
+			const parsed = parseBoolean(value);
+			if (parsed === undefined) throw new APIStaticValidationError(`Invalid boolean default: ${value}`);
+			return parsed;
+		}
+		case "object":
+		case "array":
+			try {
+				return JSON.parse(value);
+			} catch {
+				throw new APIStaticValidationError(`Invalid JSON default: ${value}`);
+			}
+		case "string":
+		case "any":
+		default:
+			return value;
+	}
+}
+
+function normalizeValue(name: string, rule: string, value: unknown): unknown {
+	const equalsIndex = rule.indexOf("=");
+	const rawType = (equalsIndex >= 0 ? rule.slice(0, equalsIndex) : rule).trim();
+	const defaultRaw = equalsIndex >= 0 ? rule.slice(equalsIndex + 1) : undefined;
+	const optional = rawType.endsWith("?");
+	const type = (optional ? rawType.slice(0, -1) : rawType).trim().toLowerCase() || "any";
+
+	let resolved = value;
+	if (resolved === undefined || resolved === null || resolved === "") {
+		if (defaultRaw !== undefined) resolved = parseDefaultValue(type, defaultRaw);
+		else if (optional) return undefined;
+		else throw new APIStaticValidationError(`Missing required input: ${name}`);
+	}
+
+	switch (type) {
+		case "any":
+			return resolved;
+		case "string":
+			return String(resolved);
+		case "number": {
+			const parsed = typeof resolved === "number" ? resolved : Number(resolved);
+			if (!Number.isFinite(parsed)) throw new APIStaticValidationError(`Input ${name} must be a number.`);
+			return parsed;
+		}
+		case "boolean": {
+			const parsed = parseBoolean(resolved);
+			if (parsed === undefined) throw new APIStaticValidationError(`Input ${name} must be a boolean.`);
+			return parsed;
+		}
+		case "array":
+			if (!Array.isArray(resolved)) throw new APIStaticValidationError(`Input ${name} must be an array.`);
+			return resolved;
+		case "object":
+			if (typeof resolved !== "object" || resolved === null || Array.isArray(resolved)) {
+				throw new APIStaticValidationError(`Input ${name} must be an object.`);
+			}
+			return resolved;
+		default:
+			throw new APIStaticValidationError(`Unsupported input type ${type} for ${name}.`);
+	}
+}
+
+function applySchema(schema: APIStaticInputSchema | undefined, input: unknown): Record<string, unknown> {
+	const source = inputToRecord(input);
+	if (!schema) return source;
+
+	const output: Record<string, unknown> = { ...source };
+	for (const [name, rule] of Object.entries(schema)) {
+		const value = normalizeValue(name, rule, source[name]);
+		if (value === undefined) delete output[name];
+		else output[name] = value;
+	}
+	return output;
+}
+
+async function unconfiguredProxy(): Promise<never> {
+	throw new Error(
+		"[APIStatic] proxy() has no backend bridge. Configure one with configureAPIStatic({ proxy }) or use fetch() for a public browser API.",
+	);
+}
+
+function isResponseDescriptor(value: unknown): value is APIStaticResponseDescriptor {
+	return typeof value === "object"
+		&& value !== null
+		&& (value as Partial<APIStaticResponseDescriptor>).__engine_api_static_response__ === true;
+}
+
+function normalizeResponseStatus(status: number | undefined): number {
+	if (status === undefined) return 200;
+	if (!Number.isInteger(status) || status < 200 || status > 599) {
+		throw new APIStaticValidationError(`Response status must be an integer from 200 to 599; received ${String(status)}.`);
+	}
+	return status;
+}
+
+function normalizeErrorStatus(status: number | undefined): number {
+	return Number.isInteger(status) && status! >= 400 && status! <= 599 ? status! : 500;
+}
+
+function toResponse(value: unknown): Response {
+	if (value instanceof Response) return value;
+	if (isResponseDescriptor(value)) {
+		const status = normalizeResponseStatus(value.status);
+		const headers = new Headers(value.headers);
+		if (value.body === undefined || NULL_BODY_STATUSES.has(status)) return new Response(null, { status, headers });
+		if (typeof value.body === "string") return new Response(value.body, { status, headers });
+		if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json; charset=utf-8");
+		return new Response(JSON.stringify(value.body), { status, headers });
+	}
+	if (value === undefined) return new Response(null, { status: 204 });
+	if (typeof value === "string") {
+		return new Response(value, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+	}
+	return new Response(JSON.stringify(value), {
+		headers: { "Content-Type": "application/json; charset=utf-8" },
+	});
+}
+
+function isProductionRuntime(): boolean {
+	return typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+}
+
+function errorResponse(reason: unknown): Response {
+	const candidate = reason as APIStaticErrorDescriptor;
+	const isStaticError = candidate?.__engine_api_static_error__ === true;
+	const isValidationError = reason instanceof APIStaticValidationError;
+	const isExecutionError = reason instanceof APIStaticExecutionError;
+	const status = isStaticError
+		? normalizeErrorStatus(candidate.status)
+		: isValidationError
+			? reason.status
+			: 500;
+	const message = isStaticError || isValidationError || !isProductionRuntime()
+		? reason instanceof Error ? reason.message : "APIStatic operation failed."
+		: "APIStatic operation failed.";
+	const payload: Record<string, unknown> = { error: message };
+	if (isValidationError || isExecutionError) payload.code = reason.code;
+	if (isStaticError && candidate.details !== undefined) payload.details = candidate.details;
+
+	let body: string;
+	try {
+		body = JSON.stringify(payload);
+	} catch {
+		body = JSON.stringify({ error: message });
+	}
+
+	return new Response(body, {
+		status,
+		headers: { "Content-Type": "application/json; charset=utf-8" },
+	});
+}
+
+function removeLoadedScripts(route?: string): void {
+	if (typeof document === "undefined") return;
+	for (const script of Array.from(document.querySelectorAll<HTMLScriptElement>("script[data-engine-api-static]"))) {
+		if (!route || script.dataset.engineApiStatic === route) script.remove();
+	}
+}
+
+function normalizeManifest(value: unknown): APIStaticManifest {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		throw new Error("[APIStatic] Invalid endpoint manifest.");
+	}
+
+	const candidate = value as Partial<APIStaticManifest>;
+	if (candidate.version !== 1 || typeof candidate.endpoints !== "object" || candidate.endpoints === null || Array.isArray(candidate.endpoints)) {
+		throw new Error("[APIStatic] Unsupported endpoint manifest.");
+	}
+
+	const endpoints: Record<string, APIStaticEndpointManifestEntry> = Object.create(null);
+	for (const [rawRoute, rawEntry] of Object.entries(candidate.endpoints)) {
+		const route = normalizeAPIStaticRoute(rawRoute);
+		if (route !== rawRoute || typeof rawEntry !== "object" || rawEntry === null || Array.isArray(rawEntry)) {
+			throw new Error(`[APIStatic] Invalid manifest entry for ${rawRoute}.`);
+		}
+		const entry = rawEntry as Partial<APIStaticEndpointManifestEntry>;
+		if (typeof entry.hash !== "string" || !entry.hash || !Array.isArray(entry.operations) || !entry.operations.every((name) => typeof name === "string" && name.length > 0)) {
+			throw new Error(`[APIStatic] Invalid manifest entry for ${route}.`);
+		}
+		endpoints[route] = {
+			hash: entry.hash,
+			operations: [...entry.operations],
+		};
+	}
+
+	return { version: 1, endpoints };
+}
+
+export class APIStatic {
+	private readonly basePath: string;
+	private readonly loadTimeoutMs: number;
+	private readonly proxyHandler: APIStaticProxyHandler;
+	private readonly cacheBust: boolean;
+	private readonly manifestFile: string;
+	private readonly pendingLoads = new Map<string, Promise<APIStaticRouteModule>>();
+	private manifestPromise: Promise<APIStaticManifest> | null = null;
+
+	constructor(options: APIStaticOptions = {}) {
+		this.basePath = options.basePath ?? DEFAULT_BASE_PATH;
+		const timeout = options.loadTimeoutMs ?? DEFAULT_LOAD_TIMEOUT_MS;
+		this.loadTimeoutMs = Number.isFinite(timeout) ? Math.max(0, timeout) : DEFAULT_LOAD_TIMEOUT_MS;
+		this.proxyHandler = options.proxy || unconfiguredProxy;
+		this.cacheBust = options.cacheBust ?? !isProductionRuntime();
+		this.manifestFile = normalizeManifestFile(options.manifestFile ?? DEFAULT_MANIFEST_FILE);
+	}
+
+	static endpoint(route: string, operation?: string): EngineAPIStaticEndpoint {
+		return staticEndpoint(route, operation);
+	}
+
+	static async getEndpoints(): Promise<Record<string, APIStaticEndpointInfo>> {
+		return getDefaultAPIStatic().getEndpoints();
+	}
+
+	static async names(): Promise<string[]> {
+		return getDefaultAPIStatic().names();
+	}
+
+	static async has(route: string): Promise<boolean> {
+		return getDefaultAPIStatic().has(route);
+	}
+
+	static async resolve(route: string, input?: unknown): Promise<Response>;
+	static async resolve(route: string, operation: string, input?: unknown): Promise<Response>;
+	static async resolve(route: string, operationOrInput?: string | unknown, maybeInput?: unknown): Promise<Response> {
+		const runtime = getDefaultAPIStatic();
+		if (arguments.length >= 3) return runtime.resolve(route, operationOrInput as string, maybeInput);
+		return runtime.resolve(route, operationOrInput);
+	}
+
+	endpoint(route: string, operation?: string): EngineAPIStaticEndpoint {
+		return staticEndpoint(route, operation);
+	}
+
+	getURL(route: string): string {
+		return getAPIStaticRouteURL(route, this.basePath);
+	}
+
+	getManifestURL(): string {
+		return `${normalizeBasePath(this.basePath)}/${this.manifestFile}`;
+	}
+
+	async getEndpoints(): Promise<Record<string, APIStaticEndpointInfo>> {
+		const manifest = await this.loadManifest();
+		return Object.fromEntries(
+			Object.entries(manifest.endpoints).map(([route, entry]) => [
+				route,
+				{
+					route,
+					hash: entry.hash,
+					operations: [...entry.operations],
+					url: this.getURL(route),
+				},
+			]),
+		);
+	}
+
+	async names(): Promise<string[]> {
+		return Object.keys((await this.loadManifest()).endpoints).sort();
+	}
+
+	async has(route: string): Promise<boolean> {
+		const normalized = normalizeAPIStaticRoute(route);
+		return Object.prototype.hasOwnProperty.call((await this.loadManifest()).endpoints, normalized);
+	}
+
+	clear(route?: string): void {
+		const registry = getRegistry();
+		if (!route) {
+			registry.clear();
+			this.pendingLoads.clear();
+			this.manifestPromise = null;
+			removeLoadedScripts();
+			return;
+		}
+		const normalized = normalizeAPIStaticRoute(route);
+		registry.delete(normalized);
+		this.pendingLoads.delete(normalized);
+		removeLoadedScripts(normalized);
+	}
+
+	async execute(route: string, options: APIStaticExecuteOptions = {}): Promise<unknown> {
+		const module = await this.load(route);
+		const operation = this.pickOperation(module, options.operation);
+		const normalizedInput = applySchema(operation.schema, options.input);
+		const context: APIStaticRunContext = {
+			query: normalizedInput,
+			body: normalizedInput,
+			input: normalizedInput,
+			proxy: this.proxyHandler,
+		};
+		try {
+			return await operation.run(context);
+		} catch (reason) {
+			const candidate = reason as APIStaticErrorDescriptor;
+			if (reason instanceof APIStaticValidationError || candidate?.__engine_api_static_error__ === true) throw reason;
+			throw new APIStaticExecutionError(module.route, operation.name, reason);
+		}
+	}
+
+	async resolve(route: string, input?: unknown): Promise<Response>;
+	async resolve(route: string, operation: string, input?: unknown): Promise<Response>;
+	async resolve(route: string, operationOrInput?: string | unknown, maybeInput?: unknown): Promise<Response> {
+		const hasOperation = typeof operationOrInput === "string" && arguments.length >= 2;
+		return this.resolveRequest(route, {
+			operation: hasOperation ? operationOrInput : undefined,
+			input: hasOperation ? maybeInput : operationOrInput,
+		});
+	}
+
+	async resolveRequest(route: string, options: APIStaticExecuteOptions = {}): Promise<Response> {
+		try {
+			return toResponse(await this.execute(route, options));
+		} catch (reason) {
+			return errorResponse(reason);
+		}
+	}
+
+	private async loadManifest(): Promise<APIStaticManifest> {
+		if (this.manifestPromise) return this.manifestPromise;
+		if (typeof fetch === "undefined") {
+			throw new Error("[APIStatic] Endpoint discovery requires the Fetch API.");
+		}
+
+		const stableURL = this.getManifestURL();
+		const url = this.cacheBust
+			? `${stableURL}${stableURL.includes("?") ? "&" : "?"}__eas=${Date.now().toString(36)}`
+			: stableURL;
+		const loadPromise = fetch(url, {
+			cache: this.cacheBust ? "no-store" : "default",
+		})
+			.then(async (response) => {
+				if (!response.ok) throw new Error(`[APIStatic] Could not load endpoint manifest (${response.status}). Did the .route compiler run?`);
+				return normalizeManifest(await response.json());
+			});
+		this.manifestPromise = loadPromise;
+
+		try {
+			return await loadPromise;
+		} finally {
+			// Production keeps a stable manifest cache. Development discovery must
+			// see watcher-generated route additions/removals without a page reload.
+			if (this.manifestPromise === loadPromise && this.cacheBust) this.manifestPromise = null;
+			if (this.manifestPromise === loadPromise && !this.cacheBust) {
+				loadPromise.catch(() => {
+					if (this.manifestPromise === loadPromise) this.manifestPromise = null;
+				});
+			}
+		}
+	}
+
+	private async load(route: string): Promise<APIStaticRouteModule> {
+		const normalized = normalizeAPIStaticRoute(route);
+		const registry = getRegistry();
+		const existing = registry.get(normalized);
+		if (existing) return existing;
+
+		const pending = this.pendingLoads.get(normalized);
+		if (pending) return pending;
+
+		const loadPromise = this.loadBrowserModule(normalized);
+		this.pendingLoads.set(normalized, loadPromise);
+		try {
+			return await loadPromise;
+		} finally {
+			if (this.pendingLoads.get(normalized) === loadPromise) this.pendingLoads.delete(normalized);
+		}
+	}
+
+	private loadBrowserModule(route: string): Promise<APIStaticRouteModule> {
+		if (typeof document === "undefined") {
+			return Promise.reject(new Error("[APIStatic] Static endpoints execute in the browser. Use a configured proxy/backend for server-only work."));
+		}
+
+		const stableSource = this.getURL(route);
+		const source = this.cacheBust
+			? `${stableSource}${stableSource.includes("?") ? "&" : "?"}__eas=${Date.now().toString(36)}`
+			: stableSource;
+		return new Promise<APIStaticRouteModule>((resolve, reject) => {
+			const script = document.createElement("script");
+			script.type = "module";
+			script.src = source;
+			script.async = true;
+			script.dataset.engineApiStatic = route;
+
+			let settled = false;
+			const timeout = window.setTimeout(() => {
+				settle(() => reject(new Error(`[APIStatic] Timed out loading ${route}.`)));
+			}, this.loadTimeoutMs);
+
+			const cleanup = (): void => {
+				window.clearTimeout(timeout);
+				script.onload = null;
+				script.onerror = null;
+				script.remove();
+			};
+			const settle = (complete: () => void): void => {
+				if (settled) return;
+				settled = true;
+				cleanup();
+				complete();
+			};
+
+			script.onerror = () => {
+				settle(() => reject(new Error(`[APIStatic] Could not load ${stableSource}. Did the .route compiler run?`)));
+			};
+			script.onload = () => {
+				const loaded = getRegistry().get(route);
+				if (!loaded) {
+					settle(() => reject(new Error(`[APIStatic] ${stableSource} loaded without registering ${route}.`)));
+					return;
+				}
+				settle(() => resolve(loaded));
+			};
+
+			document.head.appendChild(script);
+		});
+	}
+
+	private pickOperation(module: APIStaticRouteModule, requested?: string): APIStaticOperation {
+		if (requested) {
+			const operation = module.operations.find((entry) => entry.name === requested);
+			if (!operation) throw new APIStaticValidationError(`Unknown operation ${requested} on ${module.route}.`);
+			return operation;
+		}
+		if (module.operations.length === 1) return module.operations[0];
+		if (module.operations.length === 0) throw new APIStaticValidationError(`Static endpoint ${module.route} has no operations.`);
+		throw new APIStaticValidationError(`Static endpoint ${module.route} has multiple operations; choose one by name.`);
+	}
+}
+
+let defaultAPIStatic: APIStatic | null = null;
+
+export function getDefaultAPIStatic(): APIStatic {
+	if (!defaultAPIStatic) defaultAPIStatic = new APIStatic();
+	return defaultAPIStatic;
+}
+
+export function configureAPIStatic(options: APIStaticOptions): APIStatic {
+	defaultAPIStatic = new APIStatic(options);
+	return defaultAPIStatic;
+}
