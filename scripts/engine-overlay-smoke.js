@@ -344,6 +344,21 @@ function main() {
 		assert.equal(unsupportedAsChildMarkup, "", "explicit asChild rejects non-native elements rather than cloning arbitrary components");
 		assert.equal(reportedErrors.length, 2, "invalid trigger contracts emit development diagnostics");
 
+		const stackDocument = makeDocument();
+		const lowerLayer = { isConnected: true, style: { zIndex: "1000" } };
+		const upperLayer = { isConnected: true, style: { zIndex: "1100" } };
+		const releaseLowerLayer = runtime.registerOverlay("lower-layer", stackDocument, {
+			baseZIndex: 1000, layers: [{ element: lowerLayer, offset: 0 }],
+		});
+		const releaseUpperLayer = runtime.registerOverlay("upper-layer", stackDocument, {
+			baseZIndex: 1000, layers: [{ element: upperLayer, offset: 0 }],
+		});
+		assert.ok(Number(upperLayer.style.zIndex) > Number(lowerLayer.style.zIndex),
+			"later overlays receive a higher effective z-index even with the same base");
+		releaseUpperLayer();
+		assert.equal(lowerLayer.style.zIndex, "1000", "removing the top layer restores the remaining overlay's base layer");
+		releaseLowerLayer();
+
 		console.log("EngineOverlay runtime and trigger smoke tests passed");
 	} finally {
 		fs.rmSync(tempRoot, { recursive: true, force: true });
