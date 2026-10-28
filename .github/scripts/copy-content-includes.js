@@ -205,11 +205,11 @@ function runSelfTest() {
       if (!error || !["EPERM", "EACCES", "ENOTSUP", "EINVAL"].includes(error.code)) throw error;
     }
     if (linkedPath) {
-      fs.writeFileSync(path.join(sourceRoot, "content.include"), "linked/secret.txt\\n");
+      fs.writeFileSync(path.join(sourceRoot, "content.include"), "linked/secret.txt\n");
       assert.throws(() => parseEntries(sourceRoot, false), /symbolic link/);
       fs.rmSync(path.join(sourceRoot, "linked"));
     }
-    fs.writeFileSync(path.join(sourceRoot, "content.include"), "bin/\\nbin/ne.js\\n");
+    fs.writeFileSync(path.join(sourceRoot, "content.include"), "bin/\nbin/ne.js\n");
     assert.throws(() => parseEntries(sourceRoot, false), /overlapping or duplicate paths/);
 
     fs.rmSync(path.join(sourceRoot, "content.include"));
