@@ -68,8 +68,8 @@ export default function EngineOverlayTestPage() {
 				<button type="button" data-testid="standalone-popover-action">Standalone popover action</button>
 			</EnginePopover>
 
-			<EngineDrawer triggerLabel="Open settings drawer" title="Settings drawer" side="right" closeOnEscape trapFocus restoreFocus>
-				<button type="button" data-testid="drawer-action">Drawer action</button>
+			<EngineDrawer triggerLabel="Open settings drawer" title="Settings drawer" side="right" closeOnEscape trapFocus restoreFocus initialFocus="#drawer-action-initial-focus">
+				<button id="drawer-action-initial-focus" type="button" data-testid="drawer-action">Drawer action</button>
 			</EngineDrawer>
 
 			<button type="button" data-testid="open-controlled-dialog" onClick={() => setControlledOpen(true)}>
