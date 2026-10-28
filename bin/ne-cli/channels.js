@@ -89,6 +89,7 @@ function validateReleaseManifest(manifest, release) {
 	if (!/^[0-9a-f]{64}$/.test(manifest.sha256 || "")) return null;
 	if (typeof manifest.assetName !== "string" || !/^nextjs-engine-.+\.tgz$/.test(manifest.assetName)) return null;
 	if (manifest.tag !== release.tag_name) return null;
+	if (!["main-2", "main-3"].includes(manifest.sourceBranch)) return null;
 	if (manifest.floating !== undefined && typeof manifest.floating !== "boolean") return null;
 	if (release.tag_name === "channel-alpha-latest" && manifest.floating !== true) return null;
 	if (manifest.floating === true) {
@@ -96,6 +97,10 @@ function validateReleaseManifest(manifest, release) {
 		const fullCommitSuffix = "-" + manifest.sourceCommit + ".tgz";
 		const legacyCommitSuffix = "-" + manifest.sourceCommit.slice(0, 8) + ".tgz";
 		if (!manifest.assetName.endsWith(fullCommitSuffix) && !manifest.assetName.endsWith(legacyCommitSuffix)) return null;
+	} else {
+		const expectedTag = "package-" + manifest.track + "." + manifest.version;
+		if (manifest.tag !== expectedTag) return null;
+		if (manifest.assetName !== "nextjs-engine-" + manifest.version + ".tgz") return null;
 	}
 
 	const asset = Array.isArray(release.assets)
