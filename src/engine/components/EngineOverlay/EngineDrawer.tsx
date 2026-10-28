@@ -82,7 +82,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 					<div
 						ref={backdropRef}
 						aria-hidden="true"
-						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...themeStyles?.backdrop, ...overlayStyle }}
+						style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...themeStyles?.backdrop, ...overlayStyle }}
 						onPointerDown={() => {
 							if (closeOnBackdrop && isTopOverlay(panelId, panelRef.current?.ownerDocument ?? triggerRef.current?.ownerDocument)) close();
 						}}
