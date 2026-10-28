@@ -227,11 +227,12 @@ function synchronizeModalInertness(state: OverlayDocumentState, ownerDocument: D
 		while (current?.parentElement) {
 			const parent = current.parentElement;
 			for (const sibling of Array.from(parent.children)) {
-				if (!(sibling instanceof HTMLElement) || sibling === current) continue;
+				if (sibling === current) continue;
+				const siblingElement = sibling as HTMLElement;
 				const containsProtected = protectedElements.some((element) => (
-					sibling === element || sibling.contains(element)
+					siblingElement === element || siblingElement.contains(element)
 				));
-				if (!containsProtected) makeElementInert(state, sibling);
+				if (!containsProtected) makeElementInert(state, siblingElement);
 			}
 			if (parent === ownerDocument.body) break;
 			current = parent;
