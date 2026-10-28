@@ -840,7 +840,7 @@ jobs:
           DISPATCH_TAG: ${{ github.event.client_payload.tag_name || '' }}
         run: |
           set -euo pipefail
-          TAG_NAME="\${DISPATCH_TAG:-$GITHUB_REF_NAME}"
+          TAG_NAME="${DISPATCH_TAG:-$GITHUB_REF_NAME}"
           [[ "$TAG_NAME" =~ ^package(-alpha|-beta)?\.[A-Za-z0-9.-]+$ ]] || {
             echo "Invalid package release tag: $TAG_NAME" >&2; exit 1;
           }
