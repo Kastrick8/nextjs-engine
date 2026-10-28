@@ -19,7 +19,7 @@ import type { EnginePopoverProps } from "./types";
 
 export const EnginePopover = memo(function EnginePopover({
 	children, open, defaultOpen = false, onOpenChange,
-	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
+	trigger, triggerAsChild, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = false, closeLabel = "Close popover",
 	closeOnEscape = true, restoreFocus = true, initialFocus, duration, portalTargetId, ariaLabel, themeStyles,
 	placement = "bottom", align = "center", offset = 8, viewportPadding = 8,
@@ -34,7 +34,7 @@ export const EnginePopover = memo(function EnginePopover({
 	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration, 140);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
-	const triggerRef = useRef<HTMLButtonElement>(null);
+	const triggerRef = useRef<HTMLElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const [position, setPosition] = useState<{ top: number; left: number; placement: EnginePopoverPlacement } | null>(null);
 	const close = useCallback(() => setOpen(false), [setOpen]);
@@ -107,7 +107,7 @@ export const EnginePopover = memo(function EnginePopover({
 	useEffect(() => {
 		if (!isOpen || !closeOnOutsideClick) return;
 		const onPointerDown = (event: PointerEvent) => {
-			if (!isTopOverlay(panelId)) return;
+			if (!isTopOverlay(panelId, panelRef.current?.ownerDocument ?? triggerRef.current?.ownerDocument)) return;
 			const eventTarget = event.target as Node | null;
 			if (eventTarget && (panelRef.current?.contains(eventTarget) || triggerRef.current?.contains(eventTarget))) return;
 			close();
@@ -143,11 +143,11 @@ export const EnginePopover = memo(function EnginePopover({
 		},
 	});
 	const panelClass = [className, useCpropClass(cprop)].filter(Boolean).join(" ") || undefined;
-	const hasPopup: React.AriaAttributes["aria-haspopup"] = role === "menu" ? "menu" : role === "listbox" ? "listbox" : "dialog";
+	const hasPopup: React.AriaAttributes["aria-haspopup"] = "dialog";
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} asChild={triggerAsChild} />
 			{target && present && createPortal(
 				<div
 					ref={panelRef}
