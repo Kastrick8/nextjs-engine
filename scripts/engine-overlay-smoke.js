@@ -95,23 +95,24 @@ function main() {
 		assert.ok(clamped.top >= 12);
 		assert.ok(clamped.left + 220 <= 308);
 
-		const releaseA = runtime.registerOverlay("a");
-		assert.equal(runtime.isTopOverlay("a"), true);
-		const releaseB = runtime.registerOverlay("b");
-		assert.equal(runtime.isTopOverlay("a"), false);
-		assert.equal(runtime.isTopOverlay("b"), true);
+		const stackDocument = makeDocument();
+		const releaseA = runtime.registerOverlay("a", stackDocument);
+		assert.equal(runtime.isTopOverlay("a", stackDocument), true);
+		const releaseB = runtime.registerOverlay("b", stackDocument);
+		assert.equal(runtime.isTopOverlay("a", stackDocument), false);
+		assert.equal(runtime.isTopOverlay("b", stackDocument), true);
 		releaseB();
-		assert.equal(runtime.isTopOverlay("a"), true);
+		assert.equal(runtime.isTopOverlay("a", stackDocument), true);
 		releaseA();
-		assert.equal(runtime.isTopOverlay("a"), false);
+		assert.equal(runtime.isTopOverlay("a", stackDocument), false);
 
-		const releaseOld = runtime.registerOverlay("same");
-		const releaseNew = runtime.registerOverlay("same");
-		assert.equal(runtime.isTopOverlay("same"), true);
+		const releaseOld = runtime.registerOverlay("same", stackDocument);
+		const releaseNew = runtime.registerOverlay("same", stackDocument);
+		assert.equal(runtime.isTopOverlay("same", stackDocument), true);
 		releaseOld();
-		assert.equal(runtime.isTopOverlay("same"), true);
+		assert.equal(runtime.isTopOverlay("same", stackDocument), true);
 		releaseNew();
-		assert.equal(runtime.isTopOverlay("same"), false);
+		assert.equal(runtime.isTopOverlay("same", stackDocument), false);
 
 		// Overlay stacks and body-scroll locking are isolated per Document.
 		function makeEventTarget() {
