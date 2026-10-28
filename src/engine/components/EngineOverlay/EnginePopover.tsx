@@ -159,7 +159,7 @@ export const EnginePopover = memo(function EnginePopover({
 					aria-describedby={description != null ? descriptionId : undefined}
 					tabIndex={-1}
 					className={panelClass}
-					style={{ ...panelStyle, zIndex }}
+					style={panelStyle}
 					data-state={active ? "open" : "closed"}
 					data-placement={actualPlacement}
 				>
