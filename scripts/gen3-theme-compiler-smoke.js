@@ -513,7 +513,7 @@ async function testPublicThemeApi() {
 			},
 			dialog: {
 				defaults: { styles: { panel: { backgroundColor: "#f8fafc" }, title: { color: "#111827" } } },
-				variants: { confirm: { styles: { panel: { borderColor: "#16a34a" } } } },
+				variants: { confirm: { styles: { panel: { borderColor: "#16a34a", backgroundColor: "#dcfce7" } } } },
 			},
 			drawer: { defaults: { styles: { panel: { backgroundColor: "#fff7ed" } } } },
 			popover: {
@@ -563,6 +563,8 @@ async function testPublicThemeApi() {
 			"qualified overlay component references retain shared overlay styles");
 		assert.equal(selectedOverlayVariant.root.children[0].props.themeStyles.panel.borderColor, "#16a34a",
 			"qualified overlay variant styles are inherited");
+		assert.equal(selectedOverlayVariant.root.children[0].props.themeStyles.panel.backgroundColor, "#dcfce7",
+			"overlay variant styles override the same property defined in component defaults");
 		assert.equal(selectedOverlayVariant.root.children[1].props.themeStyles, undefined,
 			"a qualified dialog reference does not unexpectedly theme other overlay components");
 
