@@ -10,6 +10,7 @@ const channels = require("../bin/ne-cli/channels");
 const terminal = require("../bin/ne-cli/terminal");
 const cli = require("../bin/ne-cli/cli");
 const project = require("../bin/ne-cli/project");
+const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
 
 async function main() {
 	assert.equal(channels.compareVersions("3.0.0-alpha.1", "3.0.0-alpha.2"), -1);
@@ -17,6 +18,40 @@ async function main() {
 	assert.equal(channels.compareVersions("3.0.0-beta.1", "2.7.0"), 1);
 	assert.equal(channels.compareVersions("2.7.0", "2.7.0"), 0);
 	assert.equal(channels.parseVersion("3.0.0.alpha.1"), null);
+
+	const greenContext = {
+		repo: "Kate-alt-69/nextjs-engine",
+		branch: "main-3",
+		sha: "d".repeat(40),
+	};
+	const greenRun = (id, name, patch = {}) => ({
+		id,
+		name,
+		event: "push",
+		head_sha: greenContext.sha,
+		head_branch: greenContext.branch,
+		head_repository: { full_name: greenContext.repo },
+		status: "completed",
+		conclusion: "success",
+		created_at: "2026-10-28T10:00:00Z",
+		...patch,
+	});
+	const greenPayload = {
+		workflow_runs: [
+			greenRun(1, "Engine runtime CI"),
+			greenRun(2, "Engine cross-browser compatibility"),
+		],
+	};
+	assert.equal(evaluateGreenRuns(greenPayload, greenContext).ok, true);
+	assert.equal(evaluateGreenRuns({
+		workflow_runs: [greenRun(1, "Engine runtime CI"), greenRun(2, "Engine cross-browser compatibility", { event: "pull_request" })],
+	}, greenContext).ok, false);
+	assert.equal(evaluateGreenRuns({
+		workflow_runs: [greenRun(1, "Engine runtime CI", { conclusion: "failure" }), greenRun(2, "Engine cross-browser compatibility")],
+	}, greenContext).ok, false);
+	assert.equal(evaluateGreenRuns({
+		workflow_runs: [greenRun(1, "Engine runtime CI"), greenRun(2, "Engine cross-browser compatibility", { head_sha: "e".repeat(40) })],
+	}, greenContext).ok, false);
 
 	const manifest = {
 		schemaVersion: 1,
