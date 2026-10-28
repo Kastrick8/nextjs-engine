@@ -41,6 +41,7 @@ export const EngineDialog = memo(function EngineDialog({
 	portalTargetId,
 	ariaLabel,
 	overlayStyle,
+	themeStyles,
 	lockScroll = true,
 	trapFocus = true,
 	role = "dialog",
@@ -78,7 +79,7 @@ export const EngineDialog = memo(function EngineDialog({
 			overflow: "auto",
 			padding: "1.25rem",
 		},
-		style,
+		style: { ...(themeStyles?.panel ?? {}), ...(style ?? {}) },
 		runtime: {
 			opacity: active ? 1 : 0,
 			transform: active ? "translateY(0) scale(1)" : "translateY(10px) scale(.985)",
@@ -93,7 +94,7 @@ export const EngineDialog = memo(function EngineDialog({
 				label={triggerLabel}
 				children={trigger}
 				className={triggerClassName}
-				style={triggerStyle}
+				style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }}
 				disabled={triggerDisabled}
 				expanded={isOpen}
 				controls={panelId}
@@ -115,6 +116,7 @@ export const EngineDialog = memo(function EngineDialog({
 						backdropFilter: "blur(6px)",
 						opacity: active ? 1 : 0,
 						transition: `opacity ${transitionMs}ms ease`,
+						...themeStyles?.backdrop,
 						...overlayStyle,
 					}}
 					onPointerDown={(event) => {
@@ -134,7 +136,7 @@ export const EngineDialog = memo(function EngineDialog({
 						style={panelStyle}
 						data-state={active ? "open" : "closed"}
 					>
-						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} themeStyles={themeStyles}>{children}</OverlayContent>
 					</div>
 				</div>,
 				target,
