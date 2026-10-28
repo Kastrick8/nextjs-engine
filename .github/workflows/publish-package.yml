@@ -722,12 +722,12 @@ jobs:
           fi
 
       - name: Create or verify immutable prerelease tag
-        if: \${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
         env:
-          TAG_NAME: \${{ steps.snapshot.outputs.version_tag }}
-          VERSION: \${{ steps.snapshot.outputs.version }}
-          DIRECTORY: \${{ steps.snapshot.outputs.directory }}
-          SOURCE_SHA: \${{ steps.snapshot.outputs.source_commit }}
+          TAG_NAME: ${{ steps.snapshot.outputs.version_tag }}
+          VERSION: ${{ steps.snapshot.outputs.version }}
+          DIRECTORY: ${{ steps.snapshot.outputs.directory }}
+          SOURCE_SHA: ${{ steps.snapshot.outputs.source_commit }}
         shell: bash
         run: |
           set -euo pipefail
@@ -752,11 +752,11 @@ jobs:
           fi
 
       - name: Dispatch archived prerelease GitHub Release builder
-        if: \${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
         env:
-          TAG_NAME: \${{ steps.snapshot.outputs.version_tag }}
-          GH_TOKEN: \${{ github.token }}
-          GITHUB_API_URL: \${{ github.api_url }}
+          TAG_NAME: ${{ steps.snapshot.outputs.version_tag }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
         shell: bash
         run: |
           set -euo pipefail
@@ -837,7 +837,7 @@ jobs:
         id: snapshot
         shell: bash
         env:
-          DISPATCH_TAG: \${{ github.event.client_payload.tag_name || '' }}
+          DISPATCH_TAG: ${{ github.event.client_payload.tag_name || '' }}
         run: |
           set -euo pipefail
           TAG_NAME="\${DISPATCH_TAG:-$GITHUB_REF_NAME}"
@@ -928,14 +928,14 @@ jobs:
           NODE
 
       - name: Require green runtime and browser CI for prereleases
-        if: \${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
         working-directory: tooling
         env:
-          GITHUB_REPOSITORY: \${{ github.repository }}
-          GITHUB_API_URL: \${{ github.api_url }}
-          SOURCE_BRANCH: \${{ steps.snapshot.outputs.source_branch }}
-          SOURCE_SHA: \${{ steps.snapshot.outputs.source_commit }}
-          GH_TOKEN: \${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          SOURCE_BRANCH: ${{ steps.snapshot.outputs.source_branch }}
+          SOURCE_SHA: ${{ steps.snapshot.outputs.source_commit }}
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/gen3-assert-green-commit.js
 
       - name: Validate and pack the selected snapshot
@@ -952,7 +952,7 @@ jobs:
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
           TRACK: ${{ steps.snapshot.outputs.track }}
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ steps.snapshot.outputs.version_tag }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
