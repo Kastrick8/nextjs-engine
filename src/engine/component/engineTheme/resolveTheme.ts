@@ -95,6 +95,127 @@ function resolveMarkdownThemeDefinition(value: EngineThemeJsonObject, themeId?: 
 	return { props, styles };
 }
 
+const OVERLAY_THEME_SLOTS: readonly EngineOverlayThemeSlot[] = [
+	"trigger", "backdrop", "panel", "header", "title", "description", "content",
+	"actions", "actionPrimary", "actionSecondary", "actionDanger", "actionGhost", "closeButton",
+];
+
+const OVERLAY_STYLE_PROPERTIES = new Set([
+	"background", "backgroundColor", "backgroundImage", "backgroundPosition", "backgroundSize",
+	"backgroundRepeat", "backgroundClip", "color", "border", "borderTop", "borderRight",
+	"borderBottom", "borderLeft", "borderColor", "borderStyle", "borderWidth", "borderRadius",
+	"boxShadow", "outline", "outlineColor", "outlineStyle", "outlineWidth", "outlineOffset",
+	"padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "paddingBlock",
+	"paddingInline", "paddingBlockStart", "paddingBlockEnd", "paddingInlineStart", "paddingInlineEnd",
+	"margin", "marginTop", "marginRight", "marginBottom", "marginLeft", "marginBlock", "marginInline",
+	"gap", "rowGap", "columnGap", "font", "fontFamily", "fontSize", "fontWeight", "fontStyle",
+	"fontVariant", "lineHeight", "letterSpacing", "textAlign", "textDecoration", "textDecorationColor",
+	"textDecorationLine", "textDecorationStyle", "textUnderlineOffset", "textTransform", "whiteSpace",
+	"wordBreak", "overflowWrap", "textOverflow", "maxWidth", "minWidth", "width", "maxHeight",
+	"minHeight", "height", "boxSizing", "opacity", "filter", "backdropFilter", "transform",
+	"transformOrigin", "transition", "transitionDuration", "transitionDelay", "transitionProperty",
+	"transitionTimingFunction", "alignItems", "justifyContent", "alignContent", "justifyItems",
+	"placeItems", "placeContent", "flexDirection", "flexWrap", "flexGrow", "flexShrink", "flexBasis",
+	"gridTemplateColumns", "gridTemplateRows", "gridAutoFlow",
+]);
+const UNSAFE_OVERLAY_STYLE_VALUE = /url\s*\(|expression\s*\(|javascript\s*:|@import|\/\*|\*\//i;
+const OVERLAY_NODE_TYPES = new Set(["dialog", "drawer", "popover"]);
+
+function sanitizeOverlayThemeStyle(value: unknown): CSSProperties | undefined {
+	if (!isThemeRecord(value)) return undefined;
+	const output: Record<string, string | number> = {};
+	for (const key of Object.keys(value).slice(0, 64)) {
+		if (!OVERLAY_STYLE_PROPERTIES.has(key)) continue;
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		if (!descriptor || !("value" in descriptor)) continue;
+		const raw = descriptor.value;
+		if (typeof raw === "number") {
+			if (Number.isFinite(raw) && Math.abs(raw) <= 100_000) output[key] = raw;
+			continue;
+		}
+		if (typeof raw !== "string" || raw.length > 512
+			|| /[\u0000-\u001f\u007f{};<>]/.test(raw)
+			|| UNSAFE_OVERLAY_STYLE_VALUE.test(raw)) continue;
+		output[key] = raw;
+	}
+	return Object.keys(output).length > 0 ? output as CSSProperties : undefined;
+}
+
+function mergeOverlayThemeStyles(...sources: unknown[]): EngineOverlayThemeStyles {
+	const output: EngineOverlayThemeStyles = {};
+	for (const source of sources) {
+		if (!isThemeRecord(source)) continue;
+		for (const slot of OVERLAY_THEME_SLOTS) {
+			const descriptor = Object.getOwnPropertyDescriptor(source, slot);
+			if (!descriptor || !("value" in descriptor)) continue;
+			const style = sanitizeOverlayThemeStyle(descriptor.value);
+			if (!style) continue;
+			output[slot] = { ...(output[slot] ?? {}), ...style };
+		}
+	}
+	return output;
+}
+
+function resolveOverlayThemeStyles(value: unknown): EngineOverlayThemeStyles {
+	if (!isThemeRecord(value)) return {};
+	const defaults = isThemeRecord(value.defaults) ? value.defaults : undefined;
+	const explicitProps = isThemeRecord(value.props) ? value.props : undefined;
+	return mergeOverlayThemeStyles(
+		value.styles,
+		value.themeStyles,
+		defaults?.styles,
+		defaults?.themeStyles,
+		explicitProps?.styles,
+		explicitProps?.themeStyles,
+	);
+}
+
+function resolveOverlayStylesByNodeType(
+	definitions: Record<string, EngineThemeJsonObject>,
+	selectedComponentId?: string,
+): Partial<Record<"dialog" | "drawer" | "popover", EngineOverlayThemeStyles>> {
+	const nodeTypes = selectedComponentId && selectedComponentId !== "overlay"
+		? (OVERLAY_NODE_TYPES.has(selectedComponentId) ? [selectedComponentId] : [])
+		: ["dialog", "drawer", "popover"];
+	const shared = resolveOverlayThemeStyles(definitions.overlay);
+	const result: Partial<Record<"dialog" | "drawer" | "popover", EngineOverlayThemeStyles>> = {};
+	for (const nodeType of nodeTypes) {
+		if (!OVERLAY_NODE_TYPES.has(nodeType)) continue;
+		const styles = mergeOverlayThemeStyles(shared, resolveOverlayThemeStyles(definitions[nodeType]));
+		if (Object.keys(styles).length > 0) {
+			result[nodeType as "dialog" | "drawer" | "popover"] = styles;
+		}
+	}
+	return result;
+}
+
+function applyOverlayThemeToNode(
+	node: SchemaNode,
+	stylesByNodeType: Partial<Record<"dialog" | "drawer" | "popover", EngineOverlayThemeStyles>>,
+): SchemaNode {
+	let children = node.children;
+	if (Array.isArray(node.children)) {
+		const mapped = node.children.map((child) => typeof child === "string"
+			? child
+			: applyOverlayThemeToNode(child, stylesByNodeType));
+		if (mapped.some((child, index) => child !== node.children?.[index])) children = mapped;
+	}
+
+	const overlayStyles = stylesByNodeType[node.type as "dialog" | "drawer" | "popover"];
+	if (!overlayStyles) return children === node.children ? node : { ...node, children };
+
+	const originalProps = (node.props ?? {}) as Record<string, unknown>;
+	const resolvedStyles = mergeOverlayThemeStyles(overlayStyles, originalProps.themeStyles);
+	if (Object.keys(resolvedStyles).length === 0) {
+		return children === node.children ? node : { ...node, children };
+	}
+	return {
+		...node,
+		...(children !== node.children ? { children } : {}),
+		props: { ...originalProps, themeStyles: resolvedStyles } as SchemaNode["props"],
+	};
+}
+
 function applyMarkdownThemeToNode(node: SchemaNode, markdownTheme: ResolvedMarkdownTheme): SchemaNode {
 	let children = node.children;
 	if (Array.isArray(node.children)) {
@@ -151,7 +272,8 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 	const isReference = isQualifiedReference || isBareReference;
 
 	let resolvedCssTheme: EngineTheme = theme;
-	let markdownThemes = getEngineThemeComponentDefinitions(theme);
+	let componentThemes = getEngineThemeComponentDefinitions(theme);
+	let selectedComponentId: string | undefined;
 
 	if (isReference) {
 		if (themeRecord.sourceUrl || themeRecord.scope === "remote") {
@@ -165,6 +287,7 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 			}
 		}
 		const resolved = resolveRegisteredEngineTheme(theme.id);
+		selectedComponentId = resolved.componentId;
 		resolvedCssTheme = {
 			...resolved.group,
 			...(isThemeRecord(themeRecord.vars)
@@ -177,30 +300,48 @@ export function resolveEngineThemeSchema(schema: PageSchema): PageSchema {
 				? { globalStyles: themeRecord.globalStyles }
 				: {}),
 		};
-		markdownThemes = resolved.components;
+		if (resolved.componentId && OVERLAY_NODE_TYPES.has(resolved.componentId)) {
+			const allDefinitions = getEngineThemeComponentDefinitions(resolved.group as EngineTheme);
+			componentThemes = {
+				...(allDefinitions.overlay ? { overlay: allDefinitions.overlay } : {}),
+				...resolved.components,
+			};
+		} else {
+			componentThemes = resolved.components;
+		}
 	} else if (theme.scope === "global") {
 		// Calling createTheme() registered the group in this module instance.
 		// Resolve by root ID so unknown/redefined IDs fail consistently.
 		const resolved = resolveRegisteredEngineTheme(theme.id);
-		markdownThemes = resolved.components;
+		componentThemes = resolved.components;
 	}
 
-	const markdownTheme = markdownThemes.markdown;
-	if (!markdownTheme) {
-		return resolvedCssTheme === theme ? schema : { ...schema, theme: resolvedCssTheme };
+	const markdownTheme = componentThemes.markdown;
+	const resolvedMarkdownTheme = markdownTheme
+		? resolveMarkdownThemeDefinition(
+			markdownTheme,
+			typeof resolvedCssTheme.id === "string" ? resolvedCssTheme.id.split(".")[0] : undefined,
+		)
+		: undefined;
+	const hasMarkdownDefaults = Boolean(resolvedMarkdownTheme && (
+		Object.keys(resolvedMarkdownTheme.props).length > 0
+		|| resolvedMarkdownTheme.styles !== undefined
+	));
+	const overlayStylesByNodeType = resolveOverlayStylesByNodeType(componentThemes, selectedComponentId);
+	const hasOverlayStyles = Object.keys(overlayStylesByNodeType).length > 0;
+
+	let root = schema.root;
+	if (resolvedMarkdownTheme && hasMarkdownDefaults) {
+		root = applyMarkdownThemeToNode(root, resolvedMarkdownTheme);
+	}
+	if (hasOverlayStyles) {
+		root = applyOverlayThemeToNode(root, overlayStylesByNodeType);
 	}
 
-	const resolvedMarkdownTheme = resolveMarkdownThemeDefinition(
-		markdownTheme,
-		typeof resolvedCssTheme.id === "string" ? resolvedCssTheme.id.split(".")[0] : undefined,
-	);
-	const hasMarkdownDefaults = Object.keys(resolvedMarkdownTheme.props).length > 0
-		|| resolvedMarkdownTheme.styles !== undefined;
+	if (root === schema.root && resolvedCssTheme === theme) return schema;
 	return {
 		...schema,
 		theme: resolvedCssTheme,
-		...(hasMarkdownDefaults
-			? { root: applyMarkdownThemeToNode(schema.root, resolvedMarkdownTheme) }
-			: {}),
+		...(root !== schema.root ? { root } : {}),
 	};
 }
