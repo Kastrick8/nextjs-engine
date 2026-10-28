@@ -303,6 +303,91 @@ function verifyInstalledVersion(root, release, artifact) {
 	return installed;
 }
 
+function normalizeArtifactDependency(root, release, artifact) {
+	if (!release || !release.artifactUrl || !artifact || !artifact.file || !artifact.sha512) {
+		throw new Error("The verified artifact is missing its URL, local file, or integrity digest.");
+	}
+	const packageFile = path.join(root, "package.json");
+	const pkgText = fs.readFileSync(packageFile, "utf8");
+	const pkg = JSON.parse(pkgText);
+	const sections = ["dependencies", "devDependencies", "optionalDependencies"];
+	let foundDependency = false;
+	for (const section of sections) {
+		if (pkg[section] && Object.prototype.hasOwnProperty.call(pkg[section], PACKAGE_NAME)) {
+			pkg[section][PACKAGE_NAME] = release.artifactUrl;
+			foundDependency = true;
+		}
+	}
+	if (!foundDependency) {
+		throw new Error("The package manager did not save " + PACKAGE_NAME + " to package.json; refusing to leave an untracked install.");
+	}
+	const indent = (pkgText.match(/\n([ \t]+)"/) || [null, "\t"])[1];
+	fs.writeFileSync(packageFile, JSON.stringify(pkg, null, indent) + "\n", "utf8");
+
+	const manager = detectPackageManager(root);
+	const lockFilesByManager = {
+		npm: ["npm-shrinkwrap.json", "package-lock.json"],
+		pnpm: ["pnpm-lock.yaml"],
+		yarn: ["yarn.lock"],
+		bun: ["bun.lock"],
+	};
+	if (manager === "bun" && fs.existsSync(path.join(root, "bun.lockb")) && !fs.existsSync(path.join(root, "bun.lock"))) {
+		throw new Error("This Bun project still uses binary bun.lockb. Convert it to bun.lock before installing a verified NE channel artifact.");
+	}
+
+	const tarballName = path.basename(artifact.file);
+	const escapedName = tarballName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const localFileReference = new RegExp("file:[^\\s\"'\\x60,}]*" + escapedName, "g");
+	const remoteUrl = release.artifactUrl;
+	const rewriteTextLock = (text) => {
+		let updated = text.replace(localFileReference, remoteUrl);
+		updated = updated.split(artifact.file).join(remoteUrl);
+		const relativeFile = path.relative(root, artifact.file);
+		if (relativeFile) updated = updated.split(relativeFile).join(remoteUrl);
+		if (new RegExp("file:[^\\s\"'\\x60,}]*" + escapedName).test(updated) ||
+			updated.includes(artifact.file) || (relativeFile && updated.includes(relativeFile))) {
+			throw new Error("Could not normalize the local verified artifact reference in a lockfile.");
+		}
+		return updated;
+	};
+
+	let lockCount = 0;
+	for (const name of lockFilesByManager[manager] || []) {
+		const file = path.join(root, name);
+		if (!fs.existsSync(file)) continue;
+		const text = fs.readFileSync(file, "utf8");
+		let updated;
+		if (name === "package-lock.json" || name === "npm-shrinkwrap.json") {
+			const lock = JSON.parse(text);
+			for (const section of sections) {
+				if (lock.packages && lock.packages[""] && lock.packages[""][section] &&
+					Object.prototype.hasOwnProperty.call(lock.packages[""][section], PACKAGE_NAME)) {
+					lock.packages[""][section][PACKAGE_NAME] = remoteUrl;
+				}
+			}
+			const packageEntry = lock.packages && lock.packages["node_modules/" + PACKAGE_NAME];
+			const legacyEntry = lock.dependencies && lock.dependencies[PACKAGE_NAME];
+			if (packageEntry) {
+				packageEntry.resolved = remoteUrl;
+				packageEntry.integrity = "sha512-" + artifact.sha512;
+			}
+			if (legacyEntry) {
+				legacyEntry.resolved = remoteUrl;
+				legacyEntry.integrity = "sha512-" + artifact.sha512;
+			}
+			if (!packageEntry && !legacyEntry) {
+				throw new Error(name + " did not contain an entry for " + PACKAGE_NAME + " after installation.");
+			}
+			updated = rewriteTextLock(JSON.stringify(lock, null, 2) + "\n");
+		} else {
+			updated = rewriteTextLock(text);
+		}
+		fs.writeFileSync(file, updated, "utf8");
+		lockCount += 1;
+	}
+	return { manager, lockFilesUpdated: lockCount, dependencyUrl: remoteUrl };
+}
+
 async function installRelease(root, release, requestedChannel) {
 	if (!release || !release.version) throw new Error("No installable release was selected.");
 	const current = loadState(root);
@@ -317,6 +402,7 @@ async function installRelease(root, release, requestedChannel) {
 			installTarget = artifact.file;
 		}
 		await installWithManager(root, installTarget);
+		if (artifact) normalizeArtifactDependency(root, release, artifact);
 		const installed = verifyInstalledVersion(root, release, artifact);
 		const resolvedChannel = requestedChannel || (release.track === "beta" ? "latest-green" : release.track);
 		saveState(root, {
@@ -481,6 +567,7 @@ module.exports = {
 	downloadVerifiedArtifact,
 	verifyInstalledVersion,
 	installRelease,
+	normalizeArtifactDependency,
 	rollback,
 	runCheck,
 	runBuild,
