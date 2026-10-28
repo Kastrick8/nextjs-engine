@@ -403,6 +403,7 @@ async function installRelease(root, release, requestedChannel) {
 	const current = loadState(root);
 	const backup = captureDependencyFiles(root);
 	let artifact = null;
+	let managerInstallStarted = false;
 	try {
 		let installTarget = release.installSpec;
 		if (release.source === "github") {
@@ -411,6 +412,7 @@ async function installRelease(root, release, requestedChannel) {
 			// ask the package manager to download the URL a second time.
 			installTarget = artifact.file;
 		}
+		managerInstallStarted = true;
 		await installWithManager(root, installTarget);
 		if (artifact) normalizeArtifactDependency(root, release, artifact);
 		const installed = verifyInstalledVersion(root, release, artifact);
@@ -440,7 +442,9 @@ async function installRelease(root, release, requestedChannel) {
 	} catch (error) {
 		try {
 			restoreDependencyFiles(root, backup);
-			await runProcess(managerCommand(detectPackageManager(root)), ["install"], { cwd: root });
+			if (managerInstallStarted) {
+				await runProcess(managerCommand(detectPackageManager(root)), ["install"], { cwd: root });
+			}
 		} catch (restoreError) {
 			error.message += " Automatic rollback also failed: " + restoreError.message;
 		}
