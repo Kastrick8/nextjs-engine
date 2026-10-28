@@ -87,7 +87,7 @@ export const EngineDialog = memo(function EngineDialog({
 		runtime: {
 			opacity: active ? 1 : 0,
 			transform: active ? "translateY(0) scale(1)" : "translateY(10px) scale(.985)",
-			transition: `opacity ${transitionMs}ms ease, transform ${transitionMs}ms ease`,
+			transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease, transform ${transitionMs}ms ease`,
 		},
 	});
 	const panelClass = [className, useCpropClass(cprop)].filter(Boolean).join(" ") || undefined;
@@ -120,9 +120,10 @@ export const EngineDialog = memo(function EngineDialog({
 						background: "rgba(2,6,23,.58)",
 						backdropFilter: "blur(6px)",
 						opacity: active ? 1 : 0,
-						transition: `opacity ${transitionMs}ms ease`,
+						transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
 						...engineOverlayTheme?.styles?.backdrop,
 						...overlayStyle,
+						...(transitionMs === 0 ? { transition: "none" } : {}),
 						zIndex: `var(--e-overlay-stack-z, ${zIndex})`,
 					} as React.CSSProperties}
 					onPointerDown={(event) => {
