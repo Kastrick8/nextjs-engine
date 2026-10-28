@@ -153,9 +153,12 @@ export function useOverlayPresence(open: boolean, duration: number) {
 
 interface OverlayBehaviorOptions {
 	open: boolean;
+	ready?: boolean;
 	overlayId: string;
 	panelRef: React.RefObject<HTMLElement | null>;
 	triggerRef: React.RefObject<HTMLElement | null>;
+	baseZIndex?: number;
+	layers?: Array<{ ref: React.RefObject<HTMLElement | null>; offset?: number }>;
 	close: () => void;
 	closeOnEscape: boolean;
 	trapFocus: boolean;
@@ -189,19 +192,26 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 		?? (typeof document !== "undefined" ? document : undefined);
 
 	useEffect(() => {
-		if (!options.open || !options.lockScroll) return;
+		if (!options.open || options.ready === false || !options.lockScroll) return;
 		const doc = options.panelRef.current?.ownerDocument
 			?? options.triggerRef.current?.ownerDocument
 			?? (typeof document !== "undefined" ? document : undefined);
 		if (!doc) return;
 		return lockBodyScroll(doc);
-	}, [options.lockScroll, options.open, options.overlayId]);
+	}, [options.lockScroll, options.open, options.overlayId, options.ready]);
 
 	useEffect(() => {
-		if (!options.open || !ownerDocument) return;
+		if (!options.open || options.ready === false || !ownerDocument) return;
 		const doc = ownerDocument;
 		previousFocus.current = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
-		const unregister = registerOverlay(options.overlayId, doc);
+		const layers = (options.layers ?? []).map((layer) => ({
+			element: layer.ref.current,
+			offset: layer.offset,
+		}));
+		const unregister = registerOverlay(options.overlayId, doc, {
+			baseZIndex: options.baseZIndex,
+			layers,
+		});
 		const onKeyDown = (event: KeyboardEvent) => {
 			const current = currentOptions.current;
 			if (!isTopOverlay(current.overlayId, doc)) return;
@@ -243,10 +253,10 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 			const target = trigger?.isConnected ? trigger : previousFocus.current;
 			if (target?.isConnected) target.focus({ preventScroll: true });
 		};
-	}, [options.open, options.overlayId, ownerDocument]);
+	}, [options.open, options.overlayId, options.ready, options.baseZIndex, ownerDocument]);
 
 	useEffect(() => {
-		if (!options.open || !options.autoFocus || !ownerDocument) return;
+		if (!options.open || options.ready === false || !options.autoFocus || !ownerDocument) return;
 		const view = ownerDocument.defaultView;
 		let frame: number | undefined;
 		const focus = () => {
@@ -265,5 +275,5 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 		return () => {
 			if (frame !== undefined) view?.cancelAnimationFrame(frame);
 		};
-	}, [options.autoFocus, options.initialFocus, options.open, options.overlayId, ownerDocument]);
+	}, [options.autoFocus, options.initialFocus, options.open, options.overlayId, options.ready, ownerDocument]);
 }
