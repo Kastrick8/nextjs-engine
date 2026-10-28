@@ -67,7 +67,7 @@ export const EngineDialog = memo(function EngineDialog({
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
-		open: isOpen, ready: Boolean(target && present), overlayId: panelId, panelRef, triggerRef,
+		open: isOpen, ready: Boolean(target && present), modal: true, overlayId: panelId, panelRef, triggerRef,
 		baseZIndex: zIndex, layers: [{ ref: backdropRef, offset: 0 }], close,
 		closeOnEscape, trapFocus, autoFocus: true, lockScroll, restoreFocus, initialFocus,
 	}), [backdropRef, close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, present, restoreFocus, target, trapFocus, zIndex]);
