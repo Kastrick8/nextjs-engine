@@ -165,6 +165,74 @@ async function main() {
 				() => project.downloadVerifiedArtifact(temp, { ...release, sha256: "a".repeat(64) }),
 				/SHA-256 mismatch/
 			);
+
+			const artifactPath = path.join(temp, ".nextjs-engine", "cache", "ne-downloads", "nextjs-engine-3.0.0-alpha.2-" + "c".repeat(12) + ".tgz");
+			const remoteUrl = "https://github.com/Kate-alt-69/nextjs-engine/releases/download/channel-alpha-latest/" + path.basename(artifactPath);
+			const artifactBytes = Buffer.from("verified fixture bytes");
+			const artifact = {
+				file: artifactPath,
+				sha512: crypto.createHash("sha512").update(artifactBytes).digest("base64"),
+			};
+			fs.writeFileSync(artifactPath, artifactBytes);
+			const fileSpec = "file:" + artifactPath;
+			const manifest = {
+				name: "fixture",
+				version: "1.0.0",
+				dependencies: { "@kastrick/nextjs-engine": fileSpec },
+			};
+			fs.writeFileSync(path.join(temp, "package.json"), JSON.stringify(manifest, null, 2) + "\\n");
+			fs.writeFileSync(path.join(temp, "package-lock.json"), JSON.stringify({
+				name: "fixture",
+				version: "1.0.0",
+				lockfileVersion: 3,
+				packages: {
+					"": { name: "fixture", version: "1.0.0", dependencies: { "@kastrick/nextjs-engine": fileSpec } },
+					"node_modules/@kastrick/nextjs-engine": {
+						version: "3.0.0-alpha.2",
+						resolved: fileSpec,
+						integrity: "sha512-" + artifact.sha512,
+					},
+				},
+				dependencies: {
+					"@kastrick/nextjs-engine": {
+						version: "3.0.0-alpha.2",
+						resolved: fileSpec,
+						integrity: "sha512-" + artifact.sha512,
+					},
+				},
+			}, null, 2) + "\\n");
+			project.normalizeArtifactDependency(temp, { version: "3.0.0-alpha.2", artifactUrl: remoteUrl }, artifact);
+			const normalizedManifest = JSON.parse(fs.readFileSync(path.join(temp, "package.json"), "utf8"));
+			const normalizedLock = JSON.parse(fs.readFileSync(path.join(temp, "package-lock.json"), "utf8"));
+			assert.equal(normalizedManifest.dependencies["@kastrick/nextjs-engine"], remoteUrl);
+			assert.equal(normalizedLock.packages[""].dependencies["@kastrick/nextjs-engine"], remoteUrl);
+			assert.equal(normalizedLock.packages["node_modules/@kastrick/nextjs-engine"].resolved, remoteUrl);
+			assert.equal(normalizedLock.packages["node_modules/@kastrick/nextjs-engine"].version, "3.0.0-alpha.2");
+			assert.equal(normalizedLock.packages["node_modules/@kastrick/nextjs-engine"].integrity, "sha512-" + artifact.sha512);
+			assert.doesNotMatch(JSON.stringify(normalizedLock), /file:[^"]*nextjs-engine-3\\.0\\.0-alpha\\.2-/);
+
+			const textRoot = path.join(temp, "pnpm-project");
+			fs.mkdirSync(textRoot, { recursive: true });
+			fs.writeFileSync(path.join(textRoot, "package.json"), JSON.stringify({
+				name: "fixture-pnpm",
+				version: "1.0.0",
+				packageManager: "pnpm@10.0.0",
+				dependencies: { "@kastrick/nextjs-engine": fileSpec },
+			}, null, 2) + "\\n");
+			fs.writeFileSync(path.join(textRoot, "pnpm-lock.yaml"),
+				"lockfileVersion: '9.0'\\nimporters:\\n  .:\\n    dependencies:\\n      '@kastrick/nextjs-engine':\\n        specifier: " + fileSpec + "\\n        version: " + fileSpec + "\\npackages:\\n  '@kastrick/nextjs-engine@" + fileSpec + "':\\n    resolution: {tarball: " + fileSpec + ", integrity: sha512-" + artifact.sha512 + "}\\nsnapshots:\\n  '@kastrick/nextjs-engine@" + fileSpec + "': {}\\n");
+		project.normalizeArtifactDependency(textRoot, { version: "3.0.0-alpha.2", artifactUrl: remoteUrl }, artifact);
+		const normalizedPnpm = fs.readFileSync(path.join(textRoot, "pnpm-lock.yaml"), "utf8");
+		assert.match(normalizedPnpm, new RegExp(remoteUrl.replace(/[.*+?^\\x24{}()|[\\]\\\\]/g, "\\\\		global.fetch = async () => new Response(bytes, { status: 200 });
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, { ...release, sha256: "a".repeat(64) }),
+				/SHA-256 mismatch/
+			);
+		} finally {
+			global.fetch = previousFetch;
+		}
+")));
+		assert.doesNotMatch(normalizedPnpm, /file:[^\\s]*nextjs-engine-3\\.0\\.0-alpha\\.2-/);
 		} finally {
 			global.fetch = previousFetch;
 		}
