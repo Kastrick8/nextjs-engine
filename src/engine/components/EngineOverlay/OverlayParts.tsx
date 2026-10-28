@@ -140,8 +140,9 @@ export function OverlayTrigger({ label, children, className, style, disabled, ex
 			? childProps.style as CSSProperties
 			: undefined;
 		const childClassName = typeof childProps.className === "string" ? childProps.className : undefined;
-		const childRef = (childProps.ref as React.Ref<HTMLElement> | undefined)
-			?? (child as React.ReactElement & { ref?: React.Ref<HTMLElement> }).ref;
+		// The package targets React 19, where ref is part of props; avoid
+		// the deprecated ReactElement.ref accessor.
+		const childRef = childProps.ref as React.Ref<HTMLElement> | undefined;
 		const childOnClick = typeof childProps.onClick === "function"
 			? childProps.onClick as React.MouseEventHandler<HTMLElement>
 			: undefined;
