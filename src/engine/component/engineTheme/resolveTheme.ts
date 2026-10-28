@@ -169,10 +169,10 @@ function resolveOverlayThemeStyles(value: unknown): EngineOverlayThemeStyles {
 	const defaults = isThemeRecord(value.defaults) ? value.defaults : undefined;
 	const explicitProps = isThemeRecord(value.props) ? value.props : undefined;
 	return mergeOverlayThemeStyles(
-		value.styles,
-		value.themeStyles,
 		defaults?.styles,
 		defaults?.themeStyles,
+		value.styles,
+		value.themeStyles,
 		explicitProps?.styles,
 		explicitProps?.themeStyles,
 	);
