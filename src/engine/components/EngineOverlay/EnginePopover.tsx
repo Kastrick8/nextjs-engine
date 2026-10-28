@@ -124,8 +124,9 @@ export const EnginePopover = memo(function EnginePopover({
 			maxHeight: "min(70vh, 36rem)",
 			overflow: "auto",
 			padding: "1rem",
+			...(themeStyles?.panel ?? {}),
 		},
-		style: { ...(themeStyles?.panel ?? {}), ...(style ?? {}) },
+		style,
 		runtime: {
 			top: position?.top ?? 0,
 			left: position?.left ?? 0,
