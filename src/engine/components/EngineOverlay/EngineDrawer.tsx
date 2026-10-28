@@ -71,7 +71,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 		runtime: {
 			opacity: active ? 1 : 0.98,
 			transform: active ? "translate(0,0)" : hiddenTransform,
-			transition: `transform ${transitionMs}ms cubic-bezier(.2,.8,.2,1), opacity ${transitionMs}ms ease`,
+			transition: transitionMs === 0 ? "none" : `transform ${transitionMs}ms cubic-bezier(.2,.8,.2,1), opacity ${transitionMs}ms ease`,
 		},
 	});
 	const panelClass = [className, useCpropClass(cprop)].filter(Boolean).join(" ") || undefined;
@@ -84,7 +84,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 					<div
 						ref={backdropRef}
 						aria-hidden="true"
-						style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...engineOverlayTheme?.styles?.backdrop, ...overlayStyle, zIndex: `var(--e-overlay-stack-z, ${zIndex})` } as React.CSSProperties}
+						style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`, ...engineOverlayTheme?.styles?.backdrop, ...overlayStyle, ...(transitionMs === 0 ? { transition: "none" } : {}), zIndex: `var(--e-overlay-stack-z, ${zIndex})` } as React.CSSProperties}
 						onPointerDown={() => {
 							if (closeOnBackdrop && isTopOverlay(panelId)) close();
 						}}
