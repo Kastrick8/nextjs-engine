@@ -499,6 +499,83 @@ async function testPublicThemeApi() {
 		});
 		assert.equal(localPage.root.props.codeColor, "#abcdef", "a local theme definition can be applied directly");
 
+		const overlayTheme = createTheme({
+			id: "overlay-theme-runtime-smoke",
+			scope: "global",
+			overlay: {
+				defaults: {
+					styles: {
+						panel: { borderRadius: "20px" },
+						backdrop: { backgroundColor: "rgba(2,6,23,.42)" },
+						trigger: { fontWeight: 600 },
+					},
+				},
+			},
+			dialog: {
+				defaults: { styles: { panel: { backgroundColor: "#f8fafc" }, title: { color: "#111827" } } },
+				variants: { confirm: { styles: { panel: { borderColor: "#16a34a" } } } },
+			},
+			drawer: { defaults: { styles: { panel: { backgroundColor: "#fff7ed" } } } },
+			popover: {
+				defaults: {
+					styles: {
+						panel: {
+							backgroundColor: "#eff6ff",
+							backgroundImage: "url(https://evil.invalid/theme.svg)",
+						},
+					},
+				},
+			},
+		});
+		const overlayPage = resolveEngineThemeSchema({
+			theme: { id: "overlay-theme-runtime-smoke" },
+			root: {
+				type: "section",
+				children: [
+					{ type: "dialog", props: { style: { padding: "2rem" }, themeStyles: { title: { color: "#f9fafb" } } },
+					{ type: "drawer", props: {} },
+					{ type: "popover", props: {} },
+				],
+			},
+		});
+		const [themedDialog, themedDrawer, themedPopover] = overlayPage.root.children;
+		assert.equal(themedDialog.props.themeStyles.panel.borderRadius, "20px", "shared overlay panel slots reach dialogs");
+		assert.equal(themedDialog.props.themeStyles.panel.backgroundColor, "#f8fafc", "dialog slots override shared style properties");
+		assert.equal(themedDialog.props.themeStyles.backdrop.backgroundColor, "rgba(2,6,23,.42)", "shared backdrop slots reach dialogs");
+		assert.equal(themedDialog.props.themeStyles.title.color, "#f9fafb", "explicit node theme slots win over theme defaults");
+		assert.equal(themedDialog.props.style.padding, "2rem", "explicit node styles stay intact and are applied after theme slots");
+		assert.equal(themedDrawer.props.themeStyles.panel.backgroundColor, "#fff7ed", "drawer namespaces target drawer nodes");
+		assert.equal(themedDrawer.props.themeStyles.panel.borderRadius, "20px", "shared overlay styles also apply to drawers");
+		assert.equal(themedPopover.props.themeStyles.panel.backgroundColor, "#eff6ff", "popover namespaces target popover nodes");
+		assert.equal(themedPopover.props.themeStyles.panel.backgroundImage, undefined, "theme CSS URL values are rejected");
+		assert.equal(themedPopover.props.themeStyles.trigger.fontWeight, 600, "shared trigger slots reach popovers");
+
+		const selectedOverlayVariant = resolveEngineThemeSchema({
+			theme: { id: "overlay-theme-runtime-smoke.dialog.confirm" },
+			root: {
+				type: "section",
+				children: [{ type: "dialog", props: {} }, { type: "drawer", props: {} }],
+			},
+		});
+		assert.equal(selectedOverlayVariant.root.children[0].props.themeStyles.panel.borderRadius, "20px",
+			"qualified overlay component references retain shared overlay styles");
+		assert.equal(selectedOverlayVariant.root.children[0].props.themeStyles.panel.borderColor, "#16a34a",
+			"qualified overlay variant styles are inherited");
+		assert.equal(selectedOverlayVariant.root.children[1].props.themeStyles, undefined,
+			"a qualified dialog reference does not unexpectedly theme other overlay components");
+
+		const localOverlayTheme = createTheme({
+			id: "local-overlay-theme-runtime-smoke",
+			scope: "local",
+			dialog: { defaults: { styles: { panel: { borderColor: "#123456" } } } },
+		});
+		const localOverlayPage = resolveEngineThemeSchema({
+			theme: localOverlayTheme,
+			root: { type: "dialog", props: {} },
+		});
+		assert.equal(localOverlayPage.root.props.themeStyles.panel.borderColor, "#123456",
+			"local theme groups also resolve overlay slots");
+
 		assert.throws(() => resolveEngineThemeSchema({
 			theme: { id: "missing-theme.markdown.dark" },
 			root: { type: "markdown", props: { content: "missing" } },
