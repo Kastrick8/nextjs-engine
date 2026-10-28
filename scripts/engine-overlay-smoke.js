@@ -359,6 +359,41 @@ function main() {
 		assert.equal(lowerLayer.style.zIndex, "1000", "removing the top layer restores the remaining overlay's base layer");
 		releaseLowerLayer();
 
+		const modalDocument = makeDocument();
+		const attributes = new Map();
+		const bodyNode = {
+			style: { overflow: "auto", paddingRight: "0px" },
+			children: [],
+			parentElement: null,
+			contains(target) { return this === target || this.children.some((child) => child.contains(target)); },
+		};
+		function makeNode(name) {
+			const nodeAttrs = new Map();
+			return {
+				name, style: { zIndex: "" }, children: [], parentElement: null, inert: false, isConnected: true,
+				contains(target) { return this === target || this.children.some((child) => child.contains(target)); },
+				setAttribute(key, value) { nodeAttrs.set(key, String(value)); },
+				removeAttribute(key) { nodeAttrs.delete(key); },
+				hasAttribute(key) { return nodeAttrs.has(key); },
+				getAttribute(key) { return nodeAttrs.has(key) ? nodeAttrs.get(key) : null; },
+			};
+		}
+		function attach(parent, child) { child.parentElement = parent; parent.children.push(child); }
+		const applicationNode = makeNode("application");
+		applicationNode.setAttribute("aria-hidden", "false");
+		const modalLayer = makeNode("modal");
+		attach(bodyNode, applicationNode);
+		attach(bodyNode, modalLayer);
+		modalDocument.body = bodyNode;
+		const releaseModal = runtime.registerOverlay("modal-inert-smoke", modalDocument, {
+			modal: true, baseZIndex: 1000, layers: [{ element: modalLayer, offset: 0 }],
+		});
+		assert.equal(applicationNode.inert, true, "opening a modal makes background siblings inert");
+		assert.equal(applicationNode.getAttribute("aria-hidden"), "true", "background siblings become hidden to assistive technology");
+		releaseModal();
+		assert.equal(applicationNode.inert, false, "closing the modal restores prior inert state");
+		assert.equal(applicationNode.getAttribute("aria-hidden"), "false", "closing the modal restores existing aria-hidden values");
+
 		console.log("EngineOverlay runtime and trigger smoke tests passed");
 	} finally {
 		fs.rmSync(tempRoot, { recursive: true, force: true });
