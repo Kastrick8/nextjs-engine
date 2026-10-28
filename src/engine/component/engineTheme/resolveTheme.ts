@@ -1,4 +1,7 @@
+import type { CSSProperties } from "react";
 import type {
+	EngineOverlayThemeSlot,
+	EngineOverlayThemeStyles,
 	EngineTheme,
 	EngineThemeJsonObject,
 	PageSchema,
@@ -118,7 +121,7 @@ const OVERLAY_STYLE_PROPERTIES = new Set([
 	"placeItems", "placeContent", "flexDirection", "flexWrap", "flexGrow", "flexShrink", "flexBasis",
 	"gridTemplateColumns", "gridTemplateRows", "gridAutoFlow",
 ]);
-const UNSAFE_OVERLAY_STYLE_VALUE = /url\s*\(|expression\s*\(|javascript\s*:|@import|\/\*|\*\//i;
+const UNSAFE_OVERLAY_STYLE_VALUE = /url\s*\(|expression\s*\(|javascript\s*:|@import|image-set\s*\(|cross-fade\s*\(|element\s*\(|\/\*|\*\//i;
 const OVERLAY_NODE_TYPES = new Set(["dialog", "drawer", "popover"]);
 
 function sanitizeOverlayThemeStyle(value: unknown): CSSProperties | undefined {
@@ -136,6 +139,11 @@ function sanitizeOverlayThemeStyle(value: unknown): CSSProperties | undefined {
 		if (typeof raw !== "string" || raw.length > 512
 			|| /[\u0000-\u001f\u007f{};<>]/.test(raw)
 			|| UNSAFE_OVERLAY_STYLE_VALUE.test(raw)) continue;
+		// Avoid image loaders inside remote theme values. Gradients are the
+		// only image syntax accepted; colors and "none" remain valid.
+		if (key === "backgroundImage"
+			&& raw !== "none"
+			&& !/^(?:repeating-)?(?:linear|radial|conic)-gradient\s*\(/i.test(raw.trim())) continue;
 		output[key] = raw;
 	}
 	return Object.keys(output).length > 0 ? output as CSSProperties : undefined;
