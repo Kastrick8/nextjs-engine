@@ -252,7 +252,14 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 			const current = currentOptions.current;
 			if (!current.restoreFocus) return;
 			const trigger = current.triggerRef.current;
-			const target = trigger?.isConnected ? trigger : previousFocus.current;
+			const panel = current.panelRef.current;
+			const target = trigger?.isConnected
+				? trigger
+				: previousFocus.current?.isConnected
+					? previousFocus.current
+					: getFocusableElements(doc.body).find((element) => (
+						element !== trigger && !panel?.contains(element)
+					));
 			if (target?.isConnected) target.focus({ preventScroll: true });
 		};
 	}, [options.open, options.overlayId, options.ready, options.baseZIndex, ownerDocument]);
