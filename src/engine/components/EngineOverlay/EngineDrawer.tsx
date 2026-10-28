@@ -19,7 +19,7 @@ import type { EngineDrawerProps } from "./types";
 
 export const EngineDrawer = memo(function EngineDrawer({
 	children, open, defaultOpen = false, onOpenChange,
-	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
+	trigger, triggerAsChild, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = true, closeLabel = "Close drawer",
 	closeOnEscape = true, closeOnBackdrop = true, restoreFocus = true, initialFocus,
 	duration, portalTargetId, ariaLabel, overlayStyle, themeStyles, lockScroll = true, trapFocus = true,
@@ -34,7 +34,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration, 220);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
-	const triggerRef = useRef<HTMLButtonElement>(null);
+	const triggerRef = useRef<HTMLElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
@@ -74,14 +74,14 @@ export const EngineDrawer = memo(function EngineDrawer({
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} asChild={triggerAsChild} />
 			{target && present && createPortal(
 				<>
 					<div
 						aria-hidden="true"
 						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...themeStyles?.backdrop, ...overlayStyle }}
 						onPointerDown={() => {
-							if (closeOnBackdrop && isTopOverlay(panelId)) close();
+							if (closeOnBackdrop && isTopOverlay(panelId, panelRef.current?.ownerDocument ?? triggerRef.current?.ownerDocument)) close();
 						}}
 					/>
 					<div
