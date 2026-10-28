@@ -120,6 +120,10 @@ jobs:
           if [[ "$REPLACE_EXISTING" == "true" && -e "archive/$TARGET" ]]; then rm -rf -- "archive/$TARGET"; fi
           mkdir -p "archive/$TARGET/engine"
           cp -a "$ENGINE_DIR/." "archive/$TARGET/engine/"
+          if [[ -d source/bin ]]; then
+            mkdir -p "archive/$TARGET/bin"
+            cp -a source/bin/. "archive/$TARGET/bin/"
+          fi
           for file in README.md DOCUMENT.md; do
             if [[ -f "source/$file" ]]; then cp "source/$file" "archive/$TARGET/$file"; fi
           done
@@ -135,6 +139,13 @@ jobs:
           manifest.name="@kastrick/nextjs-engine";
           manifest.version=VERSION;
           manifest.files=(manifest.files||[]).filter((p)=>fs.existsSync(`${root}/${p}`));
+          if (fs.existsSync(`${root}/bin/ne.js`)) {
+            manifest.bin = { ...(manifest.bin || {}), ne: "./bin/ne.js" };
+            if (!manifest.files.includes("bin")) manifest.files.push("bin");
+          } else if (manifest.bin?.ne === "./bin/ne.js") {
+            delete manifest.bin.ne;
+            if (Object.keys(manifest.bin).length === 0) delete manifest.bin;
+          }
           for(const [key,value] of Object.entries(manifest.exports||{})){
             if(key===".") continue;
             const paths=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);

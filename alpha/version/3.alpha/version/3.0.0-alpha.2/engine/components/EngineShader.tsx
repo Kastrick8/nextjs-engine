@@ -1,0 +1,531 @@
+"use client";
+
+import React, { memo, useEffect, useRef, useState, type CSSProperties } from "react";
+import { EngineScroll } from "../core/enginescroll";
+import { EngineScheduler } from "../core/enginescheduler/EngineScheduler";
+import {
+	EngineShaderScheduler,
+	loadEngineShader,
+	normalizeEngineShaderName,
+	subscribeEngineShaderHotReload,
+} from "../core/engineshader/EngineShaderRuntime";
+import type {
+	EngineShaderConfig,
+	EngineShaderInput,
+	EngineShaderRenderPlan,
+	EngineShaderVariableDefinition,
+	EngineShaderVariableValue,
+} from "../core/engineshader/EngineShaderTypes";
+
+export interface EngineShaderProps extends Omit<Partial<EngineShaderConfig>, "src"> {
+	shader?: EngineShaderInput;
+	src?: string;
+	layer?: boolean;
+	onReady?: () => void;
+	onError?: (reason: unknown) => void;
+}
+
+type GLContext = WebGLRenderingContext;
+
+function normalizeConfig(props: EngineShaderProps): EngineShaderConfig | null {
+	const nested: Partial<EngineShaderConfig> = typeof props.shader === "string"
+		? { src: props.shader }
+		: (props.shader ?? {});
+	const src = props.src ?? nested.src;
+	if (!src) return null;
+	const direct = props as Partial<EngineShaderConfig>;
+	return {
+		...nested,
+		...direct,
+		src: normalizeEngineShaderName(src),
+		variables: { ...(nested.variables ?? {}), ...(props.variables ?? {}) },
+	};
+}
+
+function createShader(gl: GLContext, type: number, source: string): WebGLShader {
+	const shader = gl.createShader(type);
+	if (!shader) throw new Error("[EngineShader] Failed to create WebGL shader object.");
+	gl.shaderSource(shader, source);
+	gl.compileShader(shader);
+	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+		const log = gl.getShaderInfoLog(shader) || "Unknown shader compiler error.";
+		gl.deleteShader(shader);
+		throw new Error(`[EngineShader] GPU shader compilation failed:\n${log}`);
+	}
+	return shader;
+}
+
+function createProgram(gl: GLContext, plan: EngineShaderRenderPlan): WebGLProgram {
+	const vertex = createShader(gl, gl.VERTEX_SHADER, plan.vertex);
+	const fragment = createShader(gl, gl.FRAGMENT_SHADER, plan.fragment);
+	const program = gl.createProgram();
+	if (!program) {
+		gl.deleteShader(vertex);
+		gl.deleteShader(fragment);
+		throw new Error("[EngineShader] Failed to create WebGL program.");
+	}
+	gl.attachShader(program, vertex);
+	gl.attachShader(program, fragment);
+	gl.linkProgram(program);
+	gl.deleteShader(vertex);
+	gl.deleteShader(fragment);
+	if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+		const log = gl.getProgramInfoLog(program) || "Unknown shader linker error.";
+		gl.deleteProgram(program);
+		throw new Error(`[EngineShader] GPU shader link failed:\n${log}`);
+	}
+	return program;
+}
+
+function parseColor(value: string): number[] | null {
+	const normalized = value.trim().replace(/^#/, "");
+	if (![3, 4, 6, 8].includes(normalized.length) || !/^[0-9a-f]+$/i.test(normalized)) return null;
+	const expanded = normalized.length <= 4
+		? normalized.split("").map((character) => `${character}${character}`).join("")
+		: normalized;
+	return [
+		parseInt(expanded.slice(0, 2), 16) / 255,
+		parseInt(expanded.slice(2, 4), 16) / 255,
+		parseInt(expanded.slice(4, 6), 16) / 255,
+		expanded.length === 8 ? parseInt(expanded.slice(6, 8), 16) / 255 : 1,
+	];
+}
+
+function numericValues(value: EngineShaderVariableValue): number[] {
+	if (Array.isArray(value)) return value.map(Number);
+	if (typeof value === "number") return [value];
+	if (typeof value === "boolean") return [value ? 1 : 0];
+	if (typeof value === "string") return parseColor(value) ?? [Number(value) || 0];
+	return [0];
+}
+
+function uploadVariable(
+	gl: GLContext,
+	location: WebGLUniformLocation | null,
+	definition: EngineShaderVariableDefinition,
+	value: EngineShaderVariableValue,
+): void {
+	if (!location) return;
+	const values = numericValues(value);
+	switch (definition.type) {
+		case "bool":
+		case "float":
+			gl.uniform1f(location, values[0] ?? 0);
+			break;
+		case "vec2":
+			gl.uniform2f(location, values[0] ?? 0, values[1] ?? 0);
+			break;
+		case "vec3":
+			gl.uniform3f(location, values[0] ?? 0, values[1] ?? 0, values[2] ?? 0);
+			break;
+		case "vec4":
+		case "color":
+			gl.uniform4f(location, values[0] ?? 0, values[1] ?? 0, values[2] ?? 0, values[3] ?? 1);
+			break;
+	}
+}
+
+function variableSignature(value: EngineShaderVariableValue): string {
+	return Array.isArray(value)
+		? `array:${JSON.stringify(value)}`
+		: `${typeof value}:${String(value)}`;
+}
+
+function variableSetSignature(
+	values: Record<string, EngineShaderVariableValue> | undefined,
+): string {
+	if (!values) return "";
+	return JSON.stringify(Object.keys(values).sort().map((name) => [
+		name,
+		variableSignature(values[name]),
+	]));
+}
+
+function boundedFps(value: number | undefined, layer: boolean): number {
+	const fallback = layer ? 30 : 60;
+	if (!Number.isFinite(value)) return fallback;
+	return Math.max(1, Math.min(120, Number(value)));
+}
+
+function desiredDpr(maxDpr: number, resolutionScale: number): number {
+	const deviceDpr = typeof window === "undefined" ? 1 : window.devicePixelRatio;
+	const safeDeviceDpr = Number.isFinite(deviceDpr) && deviceDpr > 0 ? deviceDpr : 1;
+	const safeMaxDpr = Number.isFinite(maxDpr) ? Math.max(0.5, maxDpr) : 2;
+	const safeResolutionScale = Number.isFinite(resolutionScale)
+		? Math.max(0.125, Math.min(2, resolutionScale))
+		: 1;
+	const scaledDpr = Math.min(safeDeviceDpr, safeMaxDpr) * safeResolutionScale;
+	return Math.max(0.125, Math.min(scaledDpr, safeMaxDpr));
+}
+
+export const EngineShader = memo(function EngineShader(props: EngineShaderProps) {
+	const config = normalizeConfig(props);
+	const variableSignatureKey = variableSetSignature(config?.variables);
+	const frameIntervalRef = useRef(1000 / boundedFps(config?.fps, props.layer === true));
+	frameIntervalRef.current = 1000 / boundedFps(config?.fps, props.layer === true);
+	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const variablesRef = useRef<Record<string, EngineShaderVariableValue>>(config?.variables ?? {});
+	const requestDrawRef = useRef<() => void>(() => {});
+	const readyRef = useRef(false);
+	const onReadyRef = useRef(props.onReady);
+	const onErrorRef = useRef(props.onError);
+	const lastGoodPlanRef = useRef<EngineShaderRenderPlan | null>(null);
+	const lastGoodSourceRef = useRef<string | null>(null);
+	const [plan, setPlan] = useState<EngineShaderRenderPlan | null>(null);
+	const [contextVersion, setContextVersion] = useState(0);
+	variablesRef.current = config?.variables ?? {};
+	onReadyRef.current = props.onReady;
+	onErrorRef.current = props.onError;
+
+	useEffect(() => {
+		if (!config) return;
+		if (lastGoodSourceRef.current !== config.src) {
+			lastGoodSourceRef.current = config.src;
+			lastGoodPlanRef.current = null;
+			readyRef.current = false;
+		}
+		let alive = true;
+		const load = async (forceManifest = false) => {
+			try {
+				const result = await loadEngineShader(config.src, { forceManifest });
+				if (alive) setPlan(result.plan);
+			} catch (reason) {
+				if (!alive) return;
+				onErrorRef.current?.(reason);
+				if (process.env.NODE_ENV !== "production") console.error(reason);
+			}
+		};
+		void load(false);
+		const unsubscribe = subscribeEngineShaderHotReload(config.src, () => void load(false));
+		return () => {
+			alive = false;
+			unsubscribe();
+		};
+	}, [config?.src]);
+
+	useEffect(() => {
+		requestDrawRef.current();
+	}, [variableSignatureKey]);
+
+	useEffect(() => {
+		const canvas = canvasRef.current;
+		if (!canvas || !config || !plan) return;
+		const gl = canvas.getContext("webgl", {
+			alpha: true,
+			antialias: false,
+			depth: false,
+			stencil: false,
+			preserveDrawingBuffer: false,
+			powerPreference: config.powerPreference ?? (props.layer ? "low-power" : "high-performance"),
+		}) as GLContext | null;
+		if (!gl) {
+			onErrorRef.current?.(new Error("[EngineShader] WebGL is unavailable in this browser/device."));
+			return;
+		}
+
+		let program: WebGLProgram;
+		try {
+			program = createProgram(gl, plan);
+		} catch (reason) {
+			const lastGoodPlan = lastGoodPlanRef.current;
+			if (lastGoodPlan && lastGoodPlan !== plan) {
+				setPlan(lastGoodPlan);
+			}
+			onErrorRef.current?.(reason);
+			if (process.env.NODE_ENV !== "production") console.error(reason);
+			return;
+		}
+		lastGoodPlanRef.current = plan;
+
+		const positionBuffer = gl.createBuffer();
+		if (!positionBuffer) {
+			gl.deleteProgram(program);
+			onErrorRef.current?.(new Error("[EngineShader] Failed to allocate fullscreen triangle."));
+			return;
+		}
+		gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+		const position = gl.getAttribLocation(program, "a_position");
+		if (position < 0) {
+			gl.deleteBuffer(positionBuffer);
+			gl.deleteProgram(program);
+			onErrorRef.current?.(new Error("[EngineShader] Compiled plan is missing a_position."));
+			return;
+		}
+		gl.useProgram(program);
+		gl.enableVertexAttribArray(position);
+		gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+		gl.clearColor(0, 0, 0, 0);
+
+		const builtins = {
+			resolution: gl.getUniformLocation(program, "e_resolution"),
+			time: gl.getUniformLocation(program, "e_time"),
+			delta: gl.getUniformLocation(program, "e_delta"),
+			frame: gl.getUniformLocation(program, "e_frame"),
+			pointer: gl.getUniformLocation(program, "e_pointer"),
+			scroll: gl.getUniformLocation(program, "e_scroll"),
+		};
+		const variableStates = new Map(plan.variables.map((definition) => [definition.name, {
+			definition,
+			location: gl.getUniformLocation(program, `u_var_${definition.name}`),
+			signature: "",
+		}]));
+
+		const dependencySet = new Set(plan.dependencies);
+		const layer = props.layer === true;
+
+		const configuredMaxDpr = config.maxDpr;
+		const maxDpr = typeof configuredMaxDpr === "number" && Number.isFinite(configuredMaxDpr)
+			? Math.max(0.5, configuredMaxDpr)
+			: layer ? 1.5 : 2;
+		const resolutionScale = Math.max(0.125, Math.min(2, plan.render.resolution || 1));
+		const reducedMotion = (config.respectReducedMotion ?? true)
+			&& window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+		const host = props.layer ? canvas.parentElement ?? canvas : canvas;
+		let currentDpr = desiredDpr(maxDpr, resolutionScale);
+		let cssWidth = Math.max(1, host.clientWidth || canvas.clientWidth || 1);
+		let cssHeight = Math.max(1, host.clientHeight || canvas.clientHeight || 1);
+		let lastTimestamp = 0;
+		let lastDrawTimestamp = 0;
+		let frameNumber = 0;
+		let pointerX = 0.5;
+		let pointerY = 0.5;
+		let pointerClientX = 0;
+		let pointerClientY = 0;
+		let pointerDirty = false;
+		let scrollProgress = 0;
+		let offscreen = false;
+		let contextLost = false;
+		let disposed = false;
+		let eventFrame = 0;
+		let animationCleanup: (() => void) | null = null;
+		let animationMonitorCleanup: (() => void) | null = null;
+
+		const resizeBackingStore = (): boolean => {
+			const width = Math.max(1, Math.round(cssWidth * currentDpr));
+			const height = Math.max(1, Math.round(cssHeight * currentDpr));
+			if (canvas.width === width && canvas.height === height) return false;
+			if (canvas.width !== width) canvas.width = width;
+			if (canvas.height !== height) canvas.height = height;
+			gl.viewport(0, 0, width, height);
+			return true;
+		};
+		resizeBackingStore();
+
+		const uploadVariables = () => {
+			for (const [name, state] of variableStates) {
+				const value = variablesRef.current[name] ?? state.definition.defaultValue;
+				const signature = variableSignature(value);
+				if (signature === state.signature) continue;
+				uploadVariable(gl, state.location, state.definition, value);
+				state.signature = signature;
+			}
+		};
+
+		const syncPointer = () => {
+			if (!pointerDirty) return;
+			const rect = host.getBoundingClientRect();
+			pointerX = rect.width > 0 ? (pointerClientX - rect.left) / rect.width : 0.5;
+			pointerY = rect.height > 0 ? 1 - (pointerClientY - rect.top) / rect.height : 0.5;
+			pointerDirty = false;
+		};
+
+		const draw = (timestamp: number) => {
+			if (disposed || contextLost || offscreen || ((config.pauseWhenHidden ?? true) && document.hidden)) return;
+			syncPointer();
+			const delta = lastDrawTimestamp === 0 ? 0 : Math.min(250, timestamp - lastDrawTimestamp);
+			lastDrawTimestamp = timestamp;
+			frameNumber += 1;
+			gl.uniform2f(builtins.resolution, canvas.width, canvas.height);
+			gl.uniform1f(builtins.time, timestamp / 1000);
+			gl.uniform1f(builtins.delta, delta / 1000);
+			gl.uniform1f(builtins.frame, frameNumber);
+			gl.uniform2f(builtins.pointer, pointerX, pointerY);
+			gl.uniform1f(builtins.scroll, scrollProgress);
+			uploadVariables();
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			gl.drawArrays(gl.TRIANGLES, 0, 3);
+			if (!readyRef.current) {
+				readyRef.current = true;
+				onReadyRef.current?.();
+			}
+		};
+
+		const requestEventDraw = () => {
+			if (eventFrame !== 0 || disposed || contextLost || offscreen
+				|| ((config.pauseWhenHidden ?? true) && document.hidden)) return;
+			eventFrame = requestAnimationFrame((timestamp) => {
+				eventFrame = 0;
+				draw(timestamp);
+			});
+		};
+		requestDrawRef.current = requestEventDraw;
+		const cleanups: Array<() => void> = [];
+
+		const animationFrame = (timestamp: number) => {
+			if (lastTimestamp !== 0) {
+				const interval = timestamp - lastTimestamp;
+				if (interval + 0.5 < frameIntervalRef.current) return;
+			}
+			lastTimestamp = timestamp;
+			draw(timestamp);
+		};
+
+		const scheduledAnimationFrame = (timestamp: number) => {
+			try {
+				animationFrame(timestamp);
+			} catch (reason) {
+				animationCleanup?.();
+				animationCleanup = null;
+				animationMonitorCleanup?.();
+				animationMonitorCleanup = null;
+				throw reason;
+			}
+		};
+
+		const syncAnimationSubscription = () => {
+			const shouldAnimate = plan.execution === "animated"
+				&& !reducedMotion
+				&& !contextLost
+				&& !offscreen
+				&& !((config.pauseWhenHidden ?? true) && document.hidden);
+			if (shouldAnimate && !animationCleanup) {
+				lastTimestamp = 0;
+				lastDrawTimestamp = 0;
+				animationMonitorCleanup = EngineScheduler.acquireFrameMonitor();
+				animationCleanup = EngineShaderScheduler.add(scheduledAnimationFrame);
+			} else if (!shouldAnimate && animationCleanup) {
+				animationCleanup();
+				animationCleanup = null;
+				animationMonitorCleanup?.();
+				animationMonitorCleanup = null;
+			}
+		};
+
+		if (dependencySet.has("pointer.x") || dependencySet.has("pointer.y")) {
+			const pointerMove = (event: PointerEvent) => {
+				pointerClientX = event.clientX;
+				pointerClientY = event.clientY;
+				pointerDirty = true;
+				if (plan.execution === "event") requestEventDraw();
+			};
+			host.addEventListener("pointermove", pointerMove, { passive: true });
+			cleanups.push(() => host.removeEventListener("pointermove", pointerMove));
+		}
+		if (dependencySet.has("scroll.position")) {
+			EngineScroll.initialize();
+			const updateScroll = () => {
+				const cache = EngineScroll.runtime().getCache();
+				const scrollRange = Math.max(1, cache.documentHeight - cache.viewportHeight);
+				scrollProgress = Math.max(0, Math.min(1, cache.scrollY / scrollRange));
+				if (plan.execution === "event") requestEventDraw();
+			};
+			updateScroll();
+			cleanups.push(EngineScroll.subscribe(updateScroll));
+		}
+		const syncCanvasSize = (observedSize?: { width: number; height: number }) => {
+			const nextWidth = Math.max(1, observedSize?.width || host.clientWidth || canvas.clientWidth || 1);
+			const nextHeight = Math.max(1, observedSize?.height || host.clientHeight || canvas.clientHeight || 1);
+			const nextDpr = desiredDpr(maxDpr, resolutionScale);
+			const changed = nextWidth !== cssWidth || nextHeight !== cssHeight || nextDpr !== currentDpr;
+			if (!changed) return;
+			cssWidth = nextWidth;
+			cssHeight = nextHeight;
+			currentDpr = nextDpr;
+			resizeBackingStore();
+			if (plan.execution !== "animated") requestEventDraw();
+		};
+		if (typeof ResizeObserver !== "undefined") {
+			const resizeObserver = new ResizeObserver(([entry]) => {
+				if (!entry) return;
+				syncCanvasSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+			});
+			resizeObserver.observe(host);
+			cleanups.push(() => resizeObserver.disconnect());
+		}
+		const handleWindowResize = () => syncCanvasSize();
+		window.addEventListener("resize", handleWindowResize, { passive: true });
+		cleanups.push(() => window.removeEventListener("resize", handleWindowResize));
+		if ((config.pauseWhenOffscreen ?? true) && typeof IntersectionObserver !== "undefined") {
+			const intersectionObserver = new IntersectionObserver(([entry]) => {
+				offscreen = !entry?.isIntersecting;
+				syncAnimationSubscription();
+				if (!offscreen && plan.execution !== "animated") requestEventDraw();
+			}, { rootMargin: "180px" });
+			intersectionObserver.observe(host);
+			cleanups.push(() => intersectionObserver.disconnect());
+		}
+
+		const visibilityChange = () => {
+			syncAnimationSubscription();
+			if (!document.hidden && plan.execution !== "animated") requestEventDraw();
+		};
+		if (config.pauseWhenHidden ?? true) {
+			document.addEventListener("visibilitychange", visibilityChange);
+			cleanups.push(() => document.removeEventListener("visibilitychange", visibilityChange));
+		}
+
+		if (plan.execution === "animated" && !reducedMotion) {
+			syncAnimationSubscription();
+		} else {
+			requestEventDraw();
+		}
+
+		const onContextLost = (event: Event) => {
+			event.preventDefault();
+			contextLost = true;
+			if (eventFrame !== 0) {
+				cancelAnimationFrame(eventFrame);
+				eventFrame = 0;
+			}
+			animationCleanup?.();
+			animationCleanup = null;
+			animationMonitorCleanup?.();
+			animationMonitorCleanup = null;
+		};
+		const onContextRestored = () => {
+			contextLost = false;
+			setContextVersion((version) => version + 1);
+		};
+		canvas.addEventListener("webglcontextlost", onContextLost);
+		canvas.addEventListener("webglcontextrestored", onContextRestored);
+		cleanups.push(() => {
+			canvas.removeEventListener("webglcontextlost", onContextLost);
+			canvas.removeEventListener("webglcontextrestored", onContextRestored);
+		});
+
+		return () => {
+			disposed = true;
+			requestDrawRef.current = () => {};
+			if (eventFrame !== 0) cancelAnimationFrame(eventFrame);
+			animationCleanup?.();
+			animationCleanup = null;
+			animationMonitorCleanup?.();
+			animationMonitorCleanup = null;
+			for (const cleanup of cleanups) cleanup();
+			gl.deleteBuffer(positionBuffer);
+			gl.deleteProgram(program);
+		};
+	}, [
+		plan,
+		config?.src,
+		config?.maxDpr,
+		config?.pauseWhenOffscreen,
+		config?.pauseWhenHidden,
+		config?.respectReducedMotion,
+		config?.powerPreference,
+		props.layer,
+		contextVersion,
+	]);
+
+	const fallback = plan?.fallback && plan.fallback !== "transparent" ? plan.fallback : undefined;
+	const style: CSSProperties = {
+		display: "block",
+		width: "100%",
+		height: "100%",
+		background: fallback,
+		imageRendering: plan?.render.filter === "nearest" ? "pixelated" : undefined,
+		...config?.style,
+	};
+	return <canvas ref={canvasRef} aria-hidden="true" className={config?.className} style={style} />;
+});

@@ -1,0 +1,2 @@
+this product is NOT affiliated with Next.js Nor Vercel 
+NE is a Kastrick Product: https://kastrick.vercel.app/project/nextjs-engine

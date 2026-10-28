@@ -1,0 +1,536 @@
+"use client";
+// ─────────────────────────────────────────────────────────────────────────────
+//  Engine — SchemaRenderer
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { lazy, memo, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import {
+	BREAKPOINTS,
+	BREAKPOINT_ORDER,
+	type Breakpoint,
+	type PageSchema,
+	type SchemaNode,
+} from "../schema/types";
+import type { EngineShaderInput } from "./engineshader/EngineShaderTypes";
+import type { StyleCollector } from "./StyleCollector";
+import {
+	EngineScrollPointManager,
+	type EngineScrollAlignment,
+	type EngineScrollPointGroupInput,
+} from "./enginescroll";
+import { getComponent, isSplitComponent } from "./registry";
+import { validatePageSchema } from "./validateSchema";
+import { decideLazy } from "./lazyDetect";
+import { LazyMount, LazySection } from "../components/LazyMount";
+import { useSlot, useStyleCollector } from "../providers/EngineProvider";
+
+interface VisibilityRule {
+	className: string;
+	css: string;
+}
+
+interface PointRegistrationProps {
+	name: string;
+	domId: string;
+	group?: EngineScrollPointGroupInput;
+	align?: EngineScrollAlignment;
+	offset?: number;
+}
+
+const visibilityRuleCache = new Map<string, VisibilityRule>();
+const SHADER_SURFACE_TYPES = new Set(["box", "stack", "grid", "section", "hero", "card"]);
+const SHADER_PENDING_CLASS = "e-shader-pending";
+const SHADER_PENDING_CSS = [
+	`.${SHADER_PENDING_CLASS}:not([data-engine-shader-ready="true"]){opacity:0!important}`,
+	`@media (scripting: none){.${SHADER_PENDING_CLASS}{opacity:1!important}}`,
+].join("\n");
+const POINT_ALIGNMENTS = new Set<EngineScrollAlignment>([
+	"start",
+	"center",
+	"end",
+	"nearest",
+]);
+const LazyEngineShaderSurface = lazy(() =>
+	import("../components/EngineShaderSurface").then((module) => ({ default: module.EngineShaderSurface })),
+);
+
+function shortHash(value: string): string {
+	let hashValue = 5381;
+	for (let index = 0; index < value.length; index++) {
+		hashValue = ((hashValue << 5) + hashValue + value.charCodeAt(index)) | 0;
+	}
+	return Math.abs(hashValue).toString(36).slice(0, 7);
+}
+
+function UnknownNodeWarning({ type }: { type: string }) {
+	if (process.env.NODE_ENV === "production") return null;
+	return (
+		<div
+			style={{
+				border: "2px dashed #f59e0b",
+				borderRadius: "6px",
+				padding: "0.75rem 1rem",
+				background: "#fffbeb",
+				color: "#92400e",
+				fontFamily: "monospace",
+				fontSize: "0.8rem",
+			}}
+		>
+			⚠ Engine: Unknown node type <strong>"{type}"</strong> — register it with{" "}
+			<code>registerComponent("{type}", YourComponent)</code>
+		</div>
+	);
+}
+
+function SlotNode({
+	name,
+	fallback,
+	depth,
+	path,
+}: {
+	name: string;
+	fallback?: SchemaNode;
+	depth: number;
+	path: string;
+}) {
+	const slotContent = useSlot(name);
+	if (slotContent != null) return <>{slotContent}</>;
+	if (fallback) return <NodeRenderer node={fallback} depth={depth} path={`${path}.fallback`} />;
+	return null;
+}
+
+function PointRegistration({
+	name,
+	domId,
+	group,
+	align,
+	offset,
+}: PointRegistrationProps) {
+	const groupSignature = typeof group === "string"
+		? group
+		: group?.join("\u001f") ?? "";
+
+	useEffect(() => {
+		const element = document.getElementById(domId);
+		if (!element) return;
+
+		EngineScrollPointManager.registerElement(name, element, {
+			group,
+			align,
+			offset,
+		});
+		return () => {
+			const registered = EngineScrollPointManager.get(name);
+			if (registered?.element === element) {
+				EngineScrollPointManager.unregister(name);
+			}
+		};
+	}, [align, domId, groupSignature, name, offset]);
+	return null;
+}
+
+function normalizePointGroup(value: unknown): EngineScrollPointGroupInput | undefined {
+	if (typeof value === "string") return value;
+	if (!Array.isArray(value)) return undefined;
+	const groups = value.filter((group): group is string => typeof group === "string");
+	return groups.length > 0 ? groups : undefined;
+}
+
+function normalizePointAlign(value: unknown): EngineScrollAlignment | undefined {
+	return typeof value === "string" && POINT_ALIGNMENTS.has(value as EngineScrollAlignment)
+		? value as EngineScrollAlignment
+		: undefined;
+}
+
+function buildVisibilityClass(
+	props: Record<string, unknown>,
+	styleCollector: StyleCollector,
+): string | undefined {
+	const hideOn = Array.isArray(props.hideOn) ? props.hideOn as Breakpoint[] : [];
+	const showOnly = Array.isArray(props.showOnly) ? props.showOnly as Breakpoint[] : [];
+	if (hideOn.length === 0 && showOnly.length === 0) return undefined;
+
+	const hiddenBreakpoints = BREAKPOINT_ORDER.filter((breakpoint) => {
+		const allowedByShowOnly = showOnly.length === 0 || showOnly.includes(breakpoint);
+		return !allowedByShowOnly || hideOn.includes(breakpoint);
+	});
+	if (hiddenBreakpoints.length === 0) return undefined;
+
+	const signature = hiddenBreakpoints.join("|");
+	let cachedRule = visibilityRuleCache.get(signature);
+	if (!cachedRule) {
+		const className = `e-v-${shortHash(signature)}`;
+		const cssRules: string[] = [];
+
+		for (const breakpoint of hiddenBreakpoints) {
+			const breakpointIndex = BREAKPOINT_ORDER.indexOf(breakpoint);
+			const minWidth = BREAKPOINTS[breakpoint];
+			const nextBreakpoint = BREAKPOINT_ORDER[breakpointIndex + 1];
+			const maxWidth = nextBreakpoint ? BREAKPOINTS[nextBreakpoint] - 0.02 : undefined;
+			const selectorRule = `.${className}{display:none!important}`;
+
+			if (minWidth === 0 && maxWidth !== undefined) {
+				cssRules.push(`@media(max-width:${maxWidth}px){${selectorRule}}`);
+			} else if (maxWidth === undefined) {
+				cssRules.push(`@media(min-width:${minWidth}px){${selectorRule}}`);
+			} else {
+				cssRules.push(`@media(min-width:${minWidth}px) and (max-width:${maxWidth}px){${selectorRule}}`);
+			}
+		}
+
+		cachedRule = { className, css: cssRules.join("\n") };
+		visibilityRuleCache.set(signature, cachedRule);
+	}
+
+	styleCollector.add(cachedRule.css);
+	return cachedRule.className;
+}
+
+function getLazyAspectRatio(node: SchemaNode, props: Record<string, unknown>): string | undefined {
+	if (props.aspectRatio !== undefined && props.aspectRatio !== null) return String(props.aspectRatio);
+	if (node.type === "video") return "16 / 9";
+	if (node.type === "image" && typeof props.width === "number" && typeof props.height === "number" && props.height > 0) {
+		return `${props.width} / ${props.height}`;
+	}
+	return undefined;
+}
+
+function normalizeFallbackSize(value: unknown): string | undefined {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) return `${value}px`;
+	if (typeof value === "string" && value.length > 0 && value !== "auto") return value;
+	return undefined;
+}
+
+function SplitModuleFallback({
+	node,
+	props,
+	placeholderHeight,
+	className,
+}: {
+	node: SchemaNode;
+	props: Record<string, unknown>;
+	placeholderHeight: string;
+	className?: string;
+}) {
+	const aspectRatio = getLazyAspectRatio(node, props);
+	const minHeight = normalizeFallbackSize(placeholderHeight)
+		?? normalizeFallbackSize(props.height)
+		?? normalizeFallbackSize(props.minH)
+		?? normalizeFallbackSize(props.minHeight);
+
+	if (!aspectRatio && !minHeight) return null;
+	return (
+		<div
+			aria-hidden="true"
+			className={className}
+			style={{
+				width: "100%",
+				...(aspectRatio ? { aspectRatio } : {}),
+				...(minHeight ? { minHeight } : {}),
+			}}
+		/>
+	);
+}
+
+interface NodeRendererProps {
+	node: SchemaNode;
+	depth: number;
+	path: string;
+}
+
+interface NodeErrorBoundaryProps {
+	path: string;
+	nodeType: string;
+	children: ReactNode;
+}
+
+interface NodeErrorBoundaryState {
+	error: Error | null;
+}
+
+class NodeErrorBoundary extends React.Component<NodeErrorBoundaryProps, NodeErrorBoundaryState> {
+	state: NodeErrorBoundaryState = { error: null };
+
+	static getDerivedStateFromError(error: Error): NodeErrorBoundaryState {
+		return { error };
+	}
+
+	componentDidCatch(error: Error, info: React.ErrorInfo): void {
+		console.error(
+			"[EngineDebug] isolated Engine node \"" + this.props.nodeType + "\" at " + this.props.path,
+			error,
+			info.componentStack,
+		);
+	}
+
+	render(): ReactNode {
+		if (!this.state.error) return this.props.children;
+		const message = this.state.error.message || "This component threw during render.";
+		return (
+			<div
+				role="alert"
+				data-engine-debug-error="true"
+				data-engine-debug-path={this.props.path}
+				data-engine-debug-name={this.props.nodeType}
+				title={this.props.path}
+				style={{
+					boxSizing: "border-box",
+					minWidth: 0,
+					padding: "10px 12px",
+					border: "1px solid #b42335",
+					borderLeft: "4px solid #e5484d",
+					borderRadius: 4,
+					background: "#2a171a",
+					color: "#ffd7dc",
+					font: "12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace",
+					overflowWrap: "anywhere",
+				}}
+			>
+				<strong>EngineDebug · component isolated</strong>
+				<div>{this.props.nodeType} at {this.props.path}</div>
+				<div>{message}</div>
+			</div>
+		);
+	}
+}
+
+function NodeRenderer(props: NodeRendererProps) {
+	if (process.env.NODE_ENV !== "development") return <NodeRendererContent {...props} />;
+	return (
+		<NodeErrorBoundary path={props.path} nodeType={props.node.type}>
+			<NodeRendererContent {...props} />
+		</NodeErrorBoundary>
+	);
+}
+
+interface DevelopmentNodeElementProps {
+	component: React.ElementType;
+	props: Record<string, unknown>;
+	path: string;
+	nodeType: string;
+	children: ReactNode;
+}
+
+function safePlaceholderStyle(value: unknown): CSSProperties | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	try {
+		const safe: Record<string, string | number> = {};
+		for (const [key, entry] of Object.entries(value as Record<string, unknown>).slice(0, 80)) {
+			if (typeof entry === "string" || (typeof entry === "number" && Number.isFinite(entry))) {
+				safe[key] = entry;
+			}
+		}
+		return safe as CSSProperties;
+	} catch {
+		// A malformed style object must not abort the development route's server render.
+		return undefined;
+	}
+}
+
+function DevelopmentNodeElement({ component: Component, props, path, nodeType, children }: DevelopmentNodeElementProps) {
+	const [clientReady, setClientReady] = useState(false);
+	useEffect(() => setClientReady(true), []);
+
+	if (clientReady) return <Component {...props}>{children}</Component>;
+
+	// Error boundaries cannot catch server-render errors. In dev, avoid running
+	// arbitrary Engine component render functions on the server; keep a safe
+	// DOM shell and children, then instantiate the real component after hydration.
+	return (
+		<div
+			id={typeof props.id === "string" ? props.id : undefined}
+			className={typeof props.className === "string" ? props.className : undefined}
+			style={safePlaceholderStyle(props.style)}
+			role={typeof props.role === "string" ? props.role : undefined}
+			title={typeof props.title === "string" ? props.title : undefined}
+			aria-label={typeof props["aria-label"] === "string" ? props["aria-label"] as string : undefined}
+			data-engine-debug-path={path}
+			data-engine-debug-name={nodeType}
+			data-engine-debug-pending="true"
+		>
+			{children}
+		</div>
+	);
+}
+
+function NodeRendererContent({ node, depth, path }: NodeRendererProps) {
+	const styleCollector = useStyleCollector();
+
+	if (node.type === "slot") {
+		const props = (node.props ?? {}) as { name?: string; fallback?: SchemaNode };
+		return (
+			<SlotNode
+				name={props.name ?? ""}
+				fallback={props.fallback}
+				depth={depth}
+				path={path}
+			/>
+		);
+	}
+
+	let renderedChildren: ReactNode = null;
+	const hasTreeChildren = node.children !== undefined;
+
+	if (typeof node.children === "string") {
+		renderedChildren = node.children;
+	} else if (Array.isArray(node.children) && node.children.length > 0) {
+		renderedChildren = node.children.map((child, index) => (
+			<NodeRenderer
+				key={child.key ?? `${child.type}-${index}`}
+				node={child}
+				depth={depth + 1}
+				path={`${path}.${child.key ?? index}`}
+			/>
+		));
+	}
+
+	const Component = getComponent(node.type);
+	if (!Component) return <UnknownNodeWarning type={node.type} />;
+	const splitComponent = isSplitComponent(Component);
+
+	const lazy = decideLazy(node, depth);
+	const extraStyle: CSSProperties = lazy.contentVisibility && !lazy.lazy
+		? {
+			contentVisibility: "auto" as CSSProperties["contentVisibility"],
+			containIntrinsicHeight: lazy.placeholderHeight,
+		}
+		: {};
+
+	const originalProps = (node.props ?? {}) as Record<string, unknown>;
+	const shader = originalProps.shader as EngineShaderInput | undefined;
+	const hasLayerShader = shader !== undefined && shader !== null && SHADER_SURFACE_TYPES.has(String(node.type));
+	const componentProps = { ...originalProps };
+	const pointGroup = normalizePointGroup(originalProps.pointGroup);
+	const pointAlign = normalizePointAlign(originalProps.pointAlign);
+	const pointOffset = typeof originalProps.pointOffset === "number" && Number.isFinite(originalProps.pointOffset)
+		? originalProps.pointOffset
+		: undefined;
+	// Engine-only metadata is consumed by SchemaRenderer and never forwarded to
+	// primitive/custom component DOM props.
+	delete componentProps.pointGroup;
+	delete componentProps.pointAlign;
+	delete componentProps.pointOffset;
+	// Layer-capable surfaces consume `shader` here. Canvas owns its shader
+	// directly, and custom components keep unrelated props named `shader`.
+	if (hasLayerShader) delete componentProps.shader;
+	if (hasLayerShader) styleCollector.add(SHADER_PENDING_CSS);
+
+	const visibilityClass = buildVisibilityClass(originalProps, styleCollector);
+	const originalClassName = typeof originalProps.className === "string" ? originalProps.className : undefined;
+	const mergedClassName = [
+		originalClassName,
+		visibilityClass,
+		hasLayerShader ? SHADER_PENDING_CLASS : undefined,
+	].filter(Boolean).join(" ") || undefined;
+	const pointName = typeof originalProps.point === "string" && originalProps.point.length > 0
+		? originalProps.point
+		: undefined;
+	const explicitId = typeof originalProps.id === "string" && originalProps.id.length > 0
+		? originalProps.id
+		: undefined;
+	const shaderId = hasLayerShader ? `e-shader-${shortHash(`${path}|${String(node.type)}|${node.name ?? ""}`)}` : undefined;
+	const resolvedDomId = explicitId ?? pointName ?? shaderId;
+	const debugMetadata = process.env.NODE_ENV === "development" ? { "data-engine-debug-path": path, "data-engine-debug-name": String(node.type) } : {};
+	const nodeProps = {
+		...componentProps,
+		...debugMetadata,
+		...(resolvedDomId ? { id: resolvedDomId } : {}),
+		...(mergedClassName ? { className: mergedClassName } : {}),
+		...(Object.keys(extraStyle).length > 0
+			? {
+				style: {
+					...((originalProps.style as CSSProperties) ?? {}),
+					...extraStyle,
+				},
+			}
+			: {}),
+	};
+
+	const effectiveChildren = hasTreeChildren
+		? renderedChildren
+		: (originalProps.children as ReactNode | undefined) ?? null;
+	const element = process.env.NODE_ENV === "development"
+		? <DevelopmentNodeElement component={Component} props={nodeProps} path={path} nodeType={String(node.type)}>{effectiveChildren}</DevelopmentNodeElement>
+		: <Component {...nodeProps}>{effectiveChildren}</Component>;
+	const shaderSurface = hasLayerShader && resolvedDomId
+		? (
+			<Suspense fallback={null}>
+				<LazyEngineShaderSurface targetId={resolvedDomId} shader={shader!} />
+			</Suspense>
+		)
+		: null;
+	const anchoredElement = pointName && resolvedDomId
+		? (
+			<>
+				<PointRegistration
+					name={pointName}
+					domId={resolvedDomId}
+					group={pointGroup}
+					align={pointAlign}
+					offset={pointOffset}
+				/>
+				{element}
+				{shaderSurface}
+			</>
+		)
+		: <>{element}{shaderSurface}</>;
+
+	if (!lazy.lazy) {
+		if (!splitComponent) return anchoredElement;
+		return (
+			<Suspense
+				fallback={(
+					<SplitModuleFallback
+						node={node}
+						props={originalProps}
+						placeholderHeight={lazy.placeholderHeight}
+						className={visibilityClass}
+					/>
+				)}
+			>
+				{anchoredElement}
+			</Suspense>
+		);
+	}
+
+	const isSection = node.type === "section" || node.type === "hero";
+	if (isSection) {
+		return (
+			<LazySection
+				className={visibilityClass}
+				height={lazy.placeholderHeight}
+				rootMargin={lazy.rootMargin}
+				contentVisibility={lazy.contentVisibility}
+				containIntrinsicHeight={lazy.placeholderHeight}
+			>
+				{anchoredElement}
+			</LazySection>
+		);
+	}
+
+	return (
+		<LazyMount
+			className={visibilityClass}
+			height={lazy.placeholderHeight}
+			aspectRatio={getLazyAspectRatio(node, originalProps)}
+			rootMargin={lazy.rootMargin}
+		>
+			{anchoredElement}
+		</LazyMount>
+	);
+}
+
+interface SchemaRendererProps {
+	schema: PageSchema;
+}
+
+export const SchemaRenderer = memo(function SchemaRenderer({ schema }: SchemaRendererProps) {
+	if (
+		process.env.NODE_ENV !== "production" ||
+		process.env.NEXT_PUBLIC_ENGINE_VALIDATE === "1"
+	) {
+		validatePageSchema(schema);
+	}
+
+	return <NodeRenderer node={schema.root} depth={0} path="root" />;
+});
