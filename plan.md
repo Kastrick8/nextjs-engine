@@ -505,6 +505,13 @@ Before any agent or contributor marks a task complete, the corresponding verific
 | **Gen 2 — `2.7.0`** | `main-2` | `version/2.7/version/2.7` | `ne` CLI binary, Play Store Channel Updater, API compatibility scanner (`ne check`), cross-platform `ne clean`, and backported Gen 3 fixes. | 
 | **Gen 3 — `3.0.0-alpha.2`** | `main-3` | `alpha/version/3.alpha/version/3.0.0-alpha.2` | Native `ne` control plane, GitHub-hosted dynamic Alpha/Latest-Green channel updates, and full Error Code Book diagnostics. | 
 
+#### Prerelease CI, Provenance & Channel Gate
+
+- Alpha/Beta source and archived release flows must verify that both `Engine runtime CI` and `Engine cross-browser compatibility` completed successfully for the exact source SHA and source branch before publishing to npm or creating a versioned GitHub Release. Missing or non-green checks block prerelease promotion; a green result from a different SHA is not accepted.
+- Workflow-generated version tags explicitly dispatch the `package-snapshot-published` event. This is required because a tag push authenticated with `GITHUB_TOKEN` does not itself start another `push`-triggered workflow. The release builder resolves the requested tag from `package/main` and checks the archived manifest/provenance before creating assets.
+- Versioned Alpha/Beta releases use immutable tag names and a `ne-release.json` manifest with `floating: false`. The moving `channel-alpha-latest` release is created only for a fully green current `main-3` commit; its tarball filename includes that full 40-character source SHA, and the rolling channel never publishes to npm.
+- `Latest Green` may select stable or validated Beta releases; it never selects Alpha. The updater streams downloads under a 100 MiB ceiling, verifies SHA-256 before installing local bytes, then persists the immutable asset URL and artifact integrity in the package manager's text lockfile.
+
 #### Universal Experimental Notice Banner
 
 Every interactive invocation of `ne` on both `2.7.0` and `3.0.0-alpha.2` renders the experimental warning banner before mounting the main view (suppressed automatically when `-q`, `--quiet`, `CI=true`, or `NE_NO_WARN=1` is present):
