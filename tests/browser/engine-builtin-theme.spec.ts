@@ -6,7 +6,7 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	const hero = page.locator("#themed-hero");
 	await expect(hero).toHaveCSS("background-color", "rgb(124, 58, 237)");
 	await expect(hero).toHaveCSS("color", "rgb(248, 250, 252)");
-	await expect(hero.locator(":scope > div").first()).toHaveCSS("gap", "12px");
+	await expect(hero.locator(":scope > div:not([aria-hidden='true'])")).toHaveCSS("gap", "12px");
 	await expect(hero.locator(":scope > div[aria-hidden='true']")).toHaveCSS("background-color", "rgba(0, 0, 0, 0.2)");
 
 	const nav = page.locator("#themed-nav");
