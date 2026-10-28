@@ -90,7 +90,13 @@ function validateReleaseManifest(manifest, release) {
 	if (typeof manifest.assetName !== "string" || !/^nextjs-engine-.+\.tgz$/.test(manifest.assetName)) return null;
 	if (manifest.tag !== release.tag_name) return null;
 	if (manifest.floating !== undefined && typeof manifest.floating !== "boolean") return null;
-	if (manifest.floating === true && (manifest.track !== "alpha" || release.tag_name !== "channel-alpha-latest")) return null;
+	if (release.tag_name === "channel-alpha-latest" && manifest.floating !== true) return null;
+	if (manifest.floating === true) {
+		if (manifest.track !== "alpha" || release.tag_name !== "channel-alpha-latest") return null;
+		const fullCommitSuffix = "-" + manifest.sourceCommit + ".tgz";
+		const legacyCommitSuffix = "-" + manifest.sourceCommit.slice(0, 8) + ".tgz";
+		if (!manifest.assetName.endsWith(fullCommitSuffix) && !manifest.assetName.endsWith(legacyCommitSuffix)) return null;
+	}
 
 	const asset = Array.isArray(release.assets)
 		? release.assets.find((item) => item.name === manifest.assetName && item.state === "uploaded" && item.size > 0)
