@@ -4,7 +4,7 @@ import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState }
 import { createPortal } from "react-dom";
 import { useCpropClass } from "../../hooks/usePropStyles";
 import { usePrimitiveStyles } from "../../hooks/usePrimitiveStyles";
-import { computePopoverPosition, isTopOverlay, type EnginePopoverPlacement } from "../../core/engineoverlay";
+import { computePopoverPosition, isTopOverlay, registerPopoverPositioner, type EnginePopoverPlacement } from "../../core/engineoverlay";
 import {
 	SURFACE_BASE,
 	clampDuration,
@@ -46,30 +46,43 @@ export const EnginePopover = memo(function EnginePopover({
 
 	useEffect(() => {
 		if (!present || !target) return;
-		let frame = 0;
-		const update = () => {
-			cancelAnimationFrame(frame);
-			frame = requestAnimationFrame(() => {
-				const triggerElement = triggerRef.current;
-				const panelElement = panelRef.current;
-				if (!triggerElement || !panelElement) return;
-				const triggerRect = triggerElement.getBoundingClientRect();
-				const visualViewport = window.visualViewport;
-				const viewportWidth = visualViewport?.width ?? window.innerWidth;
-				const viewportHeight = visualViewport?.height ?? window.innerHeight;
-				const viewportLeft = visualViewport?.offsetLeft ?? 0;
-				const viewportTop = visualViewport?.offsetTop ?? 0;
+		const triggerElement = triggerRef.current;
+		const panelElement = panelRef.current;
+		if (!triggerElement || !panelElement) return;
+
+		const ownerDocument = panelElement.ownerDocument ?? target.ownerDocument;
+		const ownerWindow = ownerDocument.defaultView;
+		let triggerRect: DOMRect | null = null;
+		let viewportWidth = ownerWindow?.innerWidth ?? 0;
+		let viewportHeight = ownerWindow?.innerHeight ?? 0;
+		let viewportLeft = 0;
+		let viewportTop = 0;
+
+		return registerPopoverPositioner({
+			ownerDocument,
+			trigger: triggerElement,
+			panel: panelElement,
+			beforeMeasure: () => {
+				triggerRect = triggerElement.getBoundingClientRect();
+				const visualViewport = ownerWindow?.visualViewport;
+				viewportWidth = visualViewport?.width ?? ownerWindow?.innerWidth ?? 0;
+				viewportHeight = visualViewport?.height ?? ownerWindow?.innerHeight ?? 0;
+				viewportLeft = visualViewport?.offsetLeft ?? 0;
+				viewportTop = visualViewport?.offsetTop ?? 0;
 				if (matchTriggerWidth) {
 					const usableViewportWidth = Math.max(0, viewportWidth - viewportPadding * 2);
-					panelElement.style.setProperty(
-						"--e-popover-trigger-width",
-						`${Math.min(triggerRect.width, usableViewportWidth)}px`,
-					);
-				} else {
+					const nextWidth = `${Math.min(triggerRect.width, usableViewportWidth)}px`;
+					if (panelElement.style.getPropertyValue("--e-popover-trigger-width") !== nextWidth) {
+						panelElement.style.setProperty("--e-popover-trigger-width", nextWidth);
+					}
+				} else if (panelElement.style.getPropertyValue("--e-popover-trigger-width")) {
 					panelElement.style.removeProperty("--e-popover-trigger-width");
 				}
+			},
+			measure: () => {
+				if (!triggerRect) return null;
 				const panelRect = panelElement.getBoundingClientRect();
-				setPosition(computePopoverPosition(triggerRect, panelRect, {
+				return computePopoverPosition(triggerRect, panelRect, {
 					placement,
 					align,
 					offset,
@@ -78,25 +91,17 @@ export const EnginePopover = memo(function EnginePopover({
 					viewportLeft,
 					viewportTop,
 					viewportPadding,
-				}));
-			});
-		};
-		update();
-		window.addEventListener("resize", update, { passive: true });
-		window.addEventListener("scroll", update, { passive: true, capture: true });
-		window.visualViewport?.addEventListener("resize", update, { passive: true });
-		window.visualViewport?.addEventListener("scroll", update, { passive: true });
-		const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
-		if (observer && triggerRef.current) observer.observe(triggerRef.current);
-		if (observer && panelRef.current) observer.observe(panelRef.current);
-		return () => {
-			cancelAnimationFrame(frame);
-			window.removeEventListener("resize", update);
-			window.removeEventListener("scroll", update, true);
-			window.visualViewport?.removeEventListener("resize", update);
-			window.visualViewport?.removeEventListener("scroll", update);
-			observer?.disconnect();
-		};
+				});
+			},
+			onPosition: (next) => {
+				setPosition((current) => current
+					&& current.top === next.top
+					&& current.left === next.left
+					&& current.placement === next.placement
+					? current
+					: next);
+			},
+		});
 	}, [align, matchTriggerWidth, offset, placement, present, target, viewportPadding]);
 
 	useEffect(() => {
