@@ -522,6 +522,7 @@ async function testPublicThemeApi() {
 						panel: {
 							backgroundColor: "#eff6ff",
 							backgroundImage: "url(https://evil.invalid/theme.svg)",
+							background: 'image-set("https://evil.invalid/theme@2x.png" 2x)',
 						},
 					},
 				},
@@ -548,6 +549,7 @@ async function testPublicThemeApi() {
 		assert.equal(themedDrawer.props.themeStyles.panel.borderRadius, "20px", "shared overlay styles also apply to drawers");
 		assert.equal(themedPopover.props.themeStyles.panel.backgroundColor, "#eff6ff", "popover namespaces target popover nodes");
 		assert.equal(themedPopover.props.themeStyles.panel.backgroundImage, undefined, "theme CSS URL values are rejected");
+		assert.equal(themedPopover.props.themeStyles.panel.background, undefined, "theme CSS image-set loaders are rejected");
 		assert.equal(themedPopover.props.themeStyles.trigger.fontWeight, 600, "shared trigger slots reach popovers");
 
 		const selectedOverlayVariant = resolveEngineThemeSchema({
