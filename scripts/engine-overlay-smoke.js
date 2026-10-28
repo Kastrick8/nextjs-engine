@@ -109,6 +109,168 @@ function main() {
 		releaseNew();
 		assert.equal(runtime.isTopOverlay("same"), false);
 
+		// Overlay stacks and body-scroll locking are isolated per Document.
+		function makeEventTarget() {
+			const listeners = new Map();
+			return {
+				addEventListener(type, listener) {
+					if (!listeners.has(type)) listeners.set(type, new Set());
+					listeners.get(type).add(listener);
+				},
+				removeEventListener(type, listener) {
+					listeners.get(type)?.delete(listener);
+				},
+				emit(type) {
+					for (const listener of [...(listeners.get(type) ?? [])]) {
+						if (typeof listener === "function") listener({ type });
+						else listener.handleEvent({ type });
+					}
+				},
+				count(type) { return listeners.get(type)?.size ?? 0; },
+			};
+		}
+		function makeDocument() {
+			const view = makeEventTarget();
+			const visualViewport = makeEventTarget();
+			const frames = new Map();
+			let nextFrame = 1;
+			Object.assign(view, {
+				innerWidth: 1000,
+				innerHeight: 800,
+				visualViewport,
+				getComputedStyle: () => ({ paddingRight: "4px" }),
+				requestAnimationFrame(callback) {
+					const id = nextFrame++;
+					frames.set(id, callback);
+					return id;
+				},
+				cancelAnimationFrame(id) { frames.delete(id); },
+				runAnimationFrame() {
+					const callbacks = [...frames.values()];
+					frames.clear();
+					for (const callback of callbacks) callback(0);
+				},
+				pendingFrames: () => frames.size,
+			});
+			Object.assign(visualViewport, { width: 1000, height: 800, offsetLeft: 0, offsetTop: 0 });
+			const body = { style: { overflow: "auto", paddingRight: "4px" } };
+			const ownerDocument = { defaultView: view, body, documentElement: { clientWidth: 980 }, activeElement: null };
+			return ownerDocument;
+		}
+
+		const documentA = makeDocument();
+		const documentB = makeDocument();
+		const unregisterA = runtime.registerOverlay("dialog-a", documentA);
+		const unregisterB = runtime.registerOverlay("dialog-b", documentB);
+		assert.equal(runtime.isTopOverlay("dialog-a", documentA), true, "overlay stack is scoped to its owning document");
+		assert.equal(runtime.isTopOverlay("dialog-b", documentB), true, "another document has an independent overlay stack");
+		const releaseLockA = runtime.lockBodyScroll(documentA);
+		const releaseLockA2 = runtime.lockBodyScroll(documentA);
+		assert.equal(documentA.body.style.overflow, "hidden", "scroll locking starts on the owning document");
+		assert.equal(documentA.body.style.paddingRight, "24px", "scrollbar compensation is applied once");
+		releaseLockA();
+		assert.equal(documentA.body.style.overflow, "hidden", "a nested lock keeps scrolling disabled");
+		releaseLockA2();
+		assert.equal(documentA.body.style.overflow, "auto", "last lock restores original overflow");
+		assert.equal(documentA.body.style.paddingRight, "4px", "last lock restores original padding");
+		unregisterA();
+		unregisterB();
+
+		// Multiple popovers share one listener set, one observer and one RAF pass.
+		const previousResizeObserver = global.ResizeObserver;
+		let resizeObserverInstances = 0;
+		let resizeObserverDisconnects = 0;
+		let resizeObserverObservations = 0;
+		let resizeObserverUnobservations = 0;
+		global.ResizeObserver = class TestResizeObserver {
+			constructor(callback) { this.callback = callback; this.targets = new Set(); resizeObserverInstances += 1; }
+			observe(element) { this.targets.add(element); resizeObserverObservations += 1; }
+			unobserve(element) { this.targets.delete(element); resizeObserverUnobservations += 1; }
+			disconnect() { this.targets.clear(); resizeObserverDisconnects += 1; }
+		};
+		const positionDoc = makeDocument();
+		const phases = [];
+		function makeElement(rect) {
+			const properties = new Map();
+			return {
+				ownerDocument: positionDoc,
+				getBoundingClientRect: () => rect,
+				style: {
+					getPropertyValue: (name) => properties.get(name) ?? "",
+					setProperty: (name, value) => properties.set(name, value),
+					removeProperty: (name) => properties.delete(name),
+				},
+			};
+		}
+		let releasePositionA;
+		let releasePositionB;
+		try {
+			const triggerA = makeElement(rect(100, 100, 80, 40));
+			const panelA = makeElement(rect(0, 0, 120, 60));
+			const triggerB = makeElement(rect(250, 200, 70, 35));
+			const panelB = makeElement(rect(0, 0, 140, 75));
+			releasePositionA = runtime.registerPopoverPositioner({
+				ownerDocument: positionDoc, trigger: triggerA, panel: panelA,
+				beforeMeasure: () => phases.push("before-a"),
+				measure: () => { phases.push("read-a"); return { top: 10, left: 20, placement: "bottom" }; },
+				onPosition: () => phases.push("write-a"),
+			});
+			releasePositionB = runtime.registerPopoverPositioner({
+				ownerDocument: positionDoc, trigger: triggerB, panel: panelB,
+				beforeMeasure: () => phases.push("before-b"),
+				measure: () => { phases.push("read-b"); return { top: 30, left: 40, placement: "top" }; },
+				onPosition: () => phases.push("write-b"),
+			});
+			assert.equal(resizeObserverInstances, 1, "multiple popovers share one ResizeObserver");
+			assert.equal(resizeObserverObservations, 4, "the shared observer tracks each trigger and panel");
+			assert.equal(positionDoc.defaultView.count("resize"), 1, "only one window resize listener is installed");
+			assert.equal(positionDoc.defaultView.count("scroll"), 1, "only one capture-phase scroll listener is installed");
+			assert.equal(positionDoc.defaultView.visualViewport.count("resize"), 1, "only one visual viewport listener is installed");
+			assert.equal(positionDoc.defaultView.pendingFrames(), 1, "initial positioning work is coalesced into one frame");
+			positionDoc.defaultView.runAnimationFrame();
+			assert.deepEqual(phases, ["before-a", "before-b", "read-a", "read-b", "write-a", "write-b"],
+				"all positioners finish style-write and geometry-read phases before publishing positions");
+			phases.length = 0;
+			positionDoc.defaultView.emit("scroll");
+			positionDoc.defaultView.emit("resize");
+			positionDoc.defaultView.emit("scroll");
+			assert.equal(positionDoc.defaultView.pendingFrames(), 1, "repeated viewport events schedule only one frame");
+			positionDoc.defaultView.runAnimationFrame();
+			assert.equal(phases.filter((value) => value.startsWith("read-")).length, 2,
+				"one shared frame measures each registered popover exactly once");
+			releasePositionA();
+			releasePositionA = undefined;
+			assert.equal(positionDoc.defaultView.count("resize"), 1, "one remaining popover keeps the shared listeners");
+			assert.equal(resizeObserverUnobservations, 2, "removed popover elements are unobserved independently");
+			releasePositionB();
+			releasePositionB = undefined;
+			assert.equal(positionDoc.defaultView.count("resize"), 0, "last popover removes the shared resize listener");
+			assert.equal(positionDoc.defaultView.count("scroll"), 0, "last popover removes the shared scroll listener");
+			assert.equal(positionDoc.defaultView.visualViewport.count("resize"), 0, "last popover removes viewport listeners");
+			assert.equal(resizeObserverDisconnects, 1, "last popover disconnects the shared ResizeObserver");
+		} finally {
+			releasePositionA?.();
+			releasePositionB?.();
+			if (previousResizeObserver === undefined) delete global.ResizeObserver;
+			else global.ResizeObserver = previousResizeObserver;
+		}
+
+		// Focusable discovery ignores hidden/inert ancestors and negative tab stops.
+		const focusable = (options = {}) => ({
+			isConnected: true,
+			tabIndex: options.tabIndex ?? 0,
+			matches: (selector) => selector === ":disabled" && Boolean(options.disabled),
+			closest: () => options.hiddenAncestor ? {} : null,
+			getClientRects: () => options.noRects ? [] : [{}],
+		});
+		const focusableVisible = focusable();
+		const hiddenDescendant = focusable({ hiddenAncestor: true });
+		const negativeTabStop = focusable({ tabIndex: -1 });
+		const disabledControl = focusable({ disabled: true });
+		const focusRoot = { querySelectorAll: () => [focusableVisible, hiddenDescendant, negativeTabStop, disabledControl] };
+		assert.deepEqual(runtime.getFocusableElements(focusRoot), [focusableVisible],
+			"hidden/inert descendants, disabled controls and negative tab stops are excluded");
+
 		console.log("EngineOverlay runtime smoke tests passed");
 	} finally {
 		fs.rmSync(tempRoot, { recursive: true, force: true });
