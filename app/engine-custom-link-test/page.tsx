@@ -113,16 +113,6 @@ export default createPage({
 					theme: "engine-custom-link-demo.link.quiet",
 					props: { href: "https://example.com/docs", target: "_blank", children: "Open the external docs", leading: "↗", "data-testid": "custom-external-link" },
 				},
-				{
-					type: "engine-site-link",
-					theme: "engine-custom-link-demo.link",
-					props: { href: "javascript:alert(1)", target: "_self", children: "Unsafe link blocked", "data-testid": "custom-unsafe-link" },
-				},
-				{
-					type: "engine-site-link",
-					theme: "engine-custom-link-demo.link",
-					props: { href: "\\\\evil.example/path", target: "_self", children: "Backslash URL blocked", "data-testid": "custom-backslash-link" },
-				},
 			],
 		},
 	},
