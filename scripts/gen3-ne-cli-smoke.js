@@ -180,7 +180,7 @@ async function main() {
 				version: "1.0.0",
 				dependencies: { "@kastrick/nextjs-engine": fileSpec },
 			};
-			fs.writeFileSync(path.join(temp, "package.json"), JSON.stringify(manifest, null, 2) + "\\n");
+			fs.writeFileSync(path.join(temp, "package.json"), JSON.stringify(manifest, null, 2) + "\n");
 			fs.writeFileSync(path.join(temp, "package-lock.json"), JSON.stringify({
 				name: "fixture",
 				version: "1.0.0",
@@ -200,7 +200,7 @@ async function main() {
 						integrity: "sha512-" + artifact.sha512,
 					},
 				},
-			}, null, 2) + "\\n");
+			}, null, 2) + "\n");
 			project.normalizeArtifactDependency(temp, { version: "3.0.0-alpha.2", artifactUrl: remoteUrl }, artifact);
 			const normalizedManifest = JSON.parse(fs.readFileSync(path.join(temp, "package.json"), "utf8"));
 			const normalizedLock = JSON.parse(fs.readFileSync(path.join(temp, "package-lock.json"), "utf8"));
@@ -209,7 +209,7 @@ async function main() {
 			assert.equal(normalizedLock.packages["node_modules/@kastrick/nextjs-engine"].resolved, remoteUrl);
 			assert.equal(normalizedLock.packages["node_modules/@kastrick/nextjs-engine"].version, "3.0.0-alpha.2");
 			assert.equal(normalizedLock.packages["node_modules/@kastrick/nextjs-engine"].integrity, "sha512-" + artifact.sha512);
-			assert.doesNotMatch(JSON.stringify(normalizedLock), /file:[^"]*nextjs-engine-3\\.0\\.0-alpha\\.2-/);
+			assert.equal(JSON.stringify(normalizedLock).includes(fileSpec), false);
 
 			const textRoot = path.join(temp, "pnpm-project");
 			fs.mkdirSync(textRoot, { recursive: true });
