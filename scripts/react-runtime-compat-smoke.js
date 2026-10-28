@@ -66,6 +66,12 @@ function main() {
 			"scroll-lock lifecycle must track open state, overlay identity, and portal readiness",
 		);
 
+		const transitionLinkSource = fs.readFileSync(path.join(repoRoot, "src", "engine", "components", "EngineTransitionLink.tsx"), "utf8");
+		assert.ok(transitionLinkSource.includes("{...nextLinkProps}"), "EngineTransitionLink forwards supported Next.js Link options");
+		assert.ok(transitionLinkSource.includes("function isInternalNavigation(href: string)"), "external destinations keep native navigation");
+		assert.ok(transitionLinkSource.includes("replace ? transitions.replace : transitions.push"), "replace links use router.replace");
+		assert.ok(transitionLinkSource.includes("shouldKeepNativeClick(event, target, download)"), "targeted and download links keep their native click behavior");
+
 		const { withEngineImageConfig } = require(path.join(repoRoot, "src", "engine", "plugins", "enginePlugin.js"));
 		const originalImageConfig = {
 			reactStrictMode: true,
