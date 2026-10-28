@@ -291,11 +291,13 @@ function verifyInstalledVersion(root, release, artifact) {
 		throw new Error("Installed package identity did not match " + PACKAGE_NAME + "@" + release.version + ".");
 	}
 	if (artifact) {
-		const lockPath = path.join(root, "package-lock.json");
-		if (fs.existsSync(lockPath)) {
+		const lockPath = ["npm-shrinkwrap.json", "package-lock.json"].map((name) => path.join(root, name))
+			.find((file) => fs.existsSync(file));
+		if (lockPath) {
 			const lock = readJson(lockPath, {});
-			const entry = lock.packages && lock.packages["node_modules/" + PACKAGE_NAME];
-			if (entry && entry.integrity && !entry.integrity.split(/\s+/).includes("sha512-" + artifact.sha512)) {
+			const entry = (lock.packages && lock.packages["node_modules/" + PACKAGE_NAME]) ||
+				(lock.dependencies && lock.dependencies[PACKAGE_NAME]);
+			if (!entry || !entry.integrity || !entry.integrity.split(/\s+/).includes("sha512-" + artifact.sha512)) {
 				throw new Error("The lockfile integrity did not match the checksum-verified artifact.");
 			}
 		}
@@ -337,7 +339,7 @@ function normalizeArtifactDependency(root, release, artifact) {
 
 	const tarballName = path.basename(artifact.file);
 	const escapedName = tarballName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	const localFileReference = new RegExp("file:[^\\s\"'\\x60,}]*" + escapedName, "g");
+	const localFileReference = new RegExp("(?:file:)?[^\\s\"'\\x60,}]*" + escapedName, "g");
 	const remoteUrl = release.artifactUrl;
 	const rewriteTextLock = (text) => {
 		let updated = text.replace(localFileReference, remoteUrl);
@@ -384,8 +386,14 @@ function normalizeArtifactDependency(root, release, artifact) {
 		} else {
 			updated = rewriteTextLock(text);
 		}
+		if (!updated.includes(artifact.sha512) && !(name === "yarn.lock" && /^\s*checksum:\s*\S+/m.test(updated))) {
+			throw new Error(name + " did not preserve integrity metadata for the verified artifact.");
+		}
 		fs.writeFileSync(file, updated, "utf8");
 		lockCount += 1;
+	}
+	if (lockCount === 0) {
+		throw new Error("No supported text lockfile was available to pin the verified channel artifact. Refusing to save an unpinned dependency.");
 	}
 	return { manager, lockFilesUpdated: lockCount, dependencyUrl: remoteUrl };
 }
