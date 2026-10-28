@@ -211,7 +211,7 @@ try {
 	assert.throws(() => resolveEngineThemeSchema({
 		theme: customTheme,
 		root: { type: "box", theme: "custom-link-theme.link.quiet" },
-	}), /registered custom node types/);
+	}), /same ID/);
 
 	console.log("Engine custom component and theme smoke tests passed");
 } finally {
