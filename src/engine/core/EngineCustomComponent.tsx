@@ -1,7 +1,7 @@
-import { isSafeEngineThemeCssValue } from "../components/engineTheme/cssSafety";
+import { isSafeEngineThemeCssValue } from "../component/engineTheme/cssSafety";
 import * as React from "react";
 import type { ComponentType, CSSProperties } from "react";
-import { parseEngineThemeId } from "../components/engineTheme/createTheme";
+import { parseEngineThemeId } from "../component/engineTheme/createTheme";
 
 export type EngineCustomPropType =
 	| "string"

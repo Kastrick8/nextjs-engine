@@ -29,8 +29,8 @@ Module._extensions[".tsx"] = transpileEngineModule;
 let registered = false;
 try {
 	const React = require("react");
-	const { createTheme } = require(path.resolve(__dirname, "../src/engine/components/engineTheme/createTheme.ts"));
-	const { resolveEngineThemeSchema } = require(path.resolve(__dirname, "../src/engine/components/engineTheme/resolveTheme.ts"));
+	const { createTheme } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/createTheme.ts"));
+	const { resolveEngineThemeSchema } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/resolveTheme.ts"));
 	const {
 		createTrustedEngineComponent,
 	} = require(path.resolve(__dirname, "../src/engine/core/EngineCustomComponent.tsx"));

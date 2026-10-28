@@ -195,7 +195,7 @@ The font compiler cache is `.nextjs-engine/.cache/gen3/fonts/`; manifest metadat
 
 | Path | Implemented responsibility |
 |---|---|
-| `src/engine/components/engineTheme/` | Public `createTheme` model, ID parsing/resolution, tokens, remote ETR loading, safe templates, Data-API handlers, and highlighter/provider registry. |
+| `src/engine/component/engineTheme/` | Public `createTheme` model, ID parsing/resolution, tokens, remote ETR loading, safe templates, Data-API handlers, and highlighter/provider registry. |
 | `src/engine/compiler/theme/3/compiler.ts` | Static NENC extraction, deterministic ETR generation, atomic output, and stale-artifact tracking. |
 | `src/engine/compiler/font/3/compiler.ts` | Production-only font CSS/font downloading, local asset output, origin and DNS policy, and cache/fallback/offline behavior. |
 | `src/engine/compiler/build.compiler.ts` | Coordinates Generation 3 discovery, compilation, and build integrations. |
@@ -212,7 +212,7 @@ The font compiler cache is `.nextjs-engine/.cache/gen3/fonts/`; manifest metadat
 | `app/engine-markdown-test/page.tsx`, `tests/browser/engine-markdown.spec.ts`, and EngineTheme docs | Theme/highlighting examples, browser regressions, and public behavior documentation. |
 | `.gitignore` | Ignores generated ETRs, schema/font caches, and emitted local font assets; publishing remains explicit. |
 
-Runtime modules stay in `src/engine/components/engineTheme/`, with static compile logic under `src/engine/compiler/theme/3/compiler.ts` and font compilation under `src/engine/compiler/font/3/compiler.ts`. Next.js hooks and compatibility links remain in `src/engine/plugins/`. The legacy `src/engine/component/engineTheme/` files are re-export shims only; all new internal imports target the plural directory.
+Runtime modules stay in `src/engine/component/engineTheme/`, with static compile logic under `src/engine/compiler/theme/3/compiler.ts` and font compilation under `src/engine/compiler/font/3/compiler.ts`. Next.js hooks and compatibility links remain in `src/engine/plugins/`. The plural `src/engine/components/engineTheme/` files are compatibility re-exports only; all new internal imports target the canonical singular directory.
 
 ## 9. Implementation record — complete
 

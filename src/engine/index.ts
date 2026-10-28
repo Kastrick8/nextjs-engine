@@ -192,8 +192,8 @@ export type {
 export { validateSchema, validatePageSchema } from "./core/validateSchema";
 export type { ValidationError, ValidationResult } from "./core/validateSchema";
 
-export { createTheme, parseEngineThemeId } from "./components/engineTheme/createTheme";
-export type { ParsedEngineThemeId, CreateEngineThemeOptions } from "./components/engineTheme/createTheme";
+export { createTheme, parseEngineThemeId } from "./component/engineTheme/createTheme";
+export type { ParsedEngineThemeId, CreateEngineThemeOptions } from "./component/engineTheme/createTheme";
 
 export {
 	registerEngineHighlighterProvider,
@@ -204,43 +204,43 @@ export {
 	highlightEngineCode,
 	normalizeEngineHighlightLanguage,
 	normalizeEngineThemeColor,
-} from "./components/engineTheme/highlighting";
-export { createShikiEngineHighlighterProvider } from "./components/engineTheme/shikiProvider";
-export type { EngineShikiHighlighter, EngineShikiProviderOptions } from "./components/engineTheme/shikiProvider";
+} from "./component/engineTheme/highlighting";
+export { createShikiEngineHighlighterProvider } from "./component/engineTheme/shikiProvider";
+export type { EngineShikiHighlighter, EngineShikiProviderOptions } from "./component/engineTheme/shikiProvider";
 export type {
 	EngineHighlighterProvider,
 	EngineHighlighterProviderInfo,
 	EngineHighlighterThemeInfo,
 	EngineHighlighterToken,
 	EngineHighlighterContext,
-} from "./components/engineTheme/highlighting";
+} from "./component/engineTheme/highlighting";
 
 export {
 	registerEngineThemeDataHandler,
 	unregisterEngineThemeDataHandler,
 	listEngineThemeDataHandlers,
 	dispatchEngineThemeDataEvent,
-} from "./components/engineTheme/dataApi";
+} from "./component/engineTheme/dataApi";
 
 export {
 	registerEngineThemeTemplateAdapter,
 	unregisterEngineThemeTemplateAdapter,
 	listEngineThemeTemplateAdapters,
 	renderEngineThemeTemplate,
-} from "./components/engineTheme/templates";
+} from "./component/engineTheme/templates";
 
 export {
 	loadRemoteEngineTheme,
 	clearRemoteEngineThemeCache,
 	getRemoteEngineThemeCacheSize,
 	unregisterRemoteEngineTheme,
-} from "./components/engineTheme/remoteTheme";
-export type { EngineThemeArtifact, LoadRemoteEngineThemeOptions } from "./components/engineTheme/remoteTheme";
+} from "./component/engineTheme/remoteTheme";
+export type { EngineThemeArtifact, LoadRemoteEngineThemeOptions } from "./component/engineTheme/remoteTheme";
 
 export type {
 	EngineThemeTemplateAdapter,
 	EngineThemeTemplateContext,
-} from "./components/engineTheme/templates";
+} from "./component/engineTheme/templates";
 
 export type {
 	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,

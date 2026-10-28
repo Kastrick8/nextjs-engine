@@ -11,11 +11,11 @@ import type {
 	MarkdownProps,
 	EngineTheme as EngineThemeConfig,
 } from "./schema/types";
-import { resolveEngineThemeSchema } from "./components/engineTheme/resolveTheme";
+import { resolveEngineThemeSchema } from "./component/engineTheme/resolveTheme";
 import type { EngineComponentRegistry } from "./core/registry";
 import { createTrustedEngineComponent, type CreateCustomComponentOptions, type EngineCustomReactComponent } from "./core/EngineCustomComponent";
-import { normalizeEngineThemeFontHrefs } from "./components/engineTheme/fontUrls";
-import { flattenEngineThemeTokens, normalizeEngineThemeVariables } from "./components/engineTheme/tokens";
+import { normalizeEngineThemeFontHrefs } from "./component/engineTheme/fontUrls";
+import { flattenEngineThemeTokens, normalizeEngineThemeVariables } from "./component/engineTheme/tokens";
 import { EngineCollectedStyles, EngineProvider } from "./providers/EngineProvider";
 import { EngineScrollProvider } from "./core/enginescroll";
 import { SchemaRenderer } from "./core/SchemaRenderer";
