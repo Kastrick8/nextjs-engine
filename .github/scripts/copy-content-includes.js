@@ -19,6 +19,61 @@ function fail(message) {
   throw new Error("content.include: " + message);
 }
 
+function validateIncludedTree(sourceRoot, relative, lineNumber) {
+  const parts = relative.split("/");
+  let current = sourceRoot;
+  let currentStat = null;
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const segment = parts[index];
+    if (FORBIDDEN_SEGMENTS.has(segment)) {
+      fail("line " + lineNumber + " contains a forbidden path segment: " + segment);
+    }
+    current = path.join(current, segment);
+    try {
+      currentStat = fs.lstatSync(current);
+    } catch {
+      fail("line " + lineNumber + " does not exist in this source commit: " + relative);
+    }
+    if (currentStat.isSymbolicLink()) {
+      fail("line " + lineNumber + " traverses a symbolic link: " + relative);
+    }
+    if (index < parts.length - 1 && !currentStat.isDirectory()) {
+      fail("line " + lineNumber + " traverses a non-directory path: " + relative);
+    }
+    if (!currentStat.isFile() && !currentStat.isDirectory()) {
+      fail("line " + lineNumber + " contains a non-regular file: " + relative);
+    }
+  }
+
+  function inspectDirectory(directory, relativeDirectory) {
+    for (const name of fs.readdirSync(directory)) {
+      const childRelative = relativeDirectory + "/" + name;
+      if (FORBIDDEN_SEGMENTS.has(name)) {
+        fail("line " + lineNumber + " includes a forbidden path inside a directory: " + childRelative);
+      }
+      const childPath = path.join(directory, name);
+      let childStat;
+      try {
+        childStat = fs.lstatSync(childPath);
+      } catch {
+        fail("line " + lineNumber + " could not inspect included path: " + childRelative);
+      }
+      if (childStat.isSymbolicLink()) {
+        fail("line " + lineNumber + " includes a symbolic link inside a directory: " + childRelative);
+      }
+      if (childStat.isDirectory()) {
+        inspectDirectory(childPath, childRelative);
+      } else if (!childStat.isFile()) {
+        fail("line " + lineNumber + " includes a non-regular file: " + childRelative);
+      }
+    }
+  }
+
+  if (currentStat.isDirectory()) inspectDirectory(current, relative);
+  return currentStat;
+}
+
 function parseEntries(sourceRoot, legacyBin) {
   const configPath = path.join(sourceRoot, "content.include");
   if (!fs.existsSync(configPath)) {
@@ -61,15 +116,7 @@ function parseEntries(sourceRoot, legacyBin) {
       fail("line " + (index + 1) + " escapes the source root: " + line);
     }
 
-    let stat;
-    try {
-      stat = fs.lstatSync(sourcePath);
-    } catch {
-      fail("line " + (index + 1) + " does not exist in this source commit: " + line);
-    }
-    if (stat.isSymbolicLink()) {
-      fail("line " + (index + 1) + " may not select a symbolic link: " + line);
-    }
+    const stat = validateIncludedTree(sourceRoot, relative, index + 1);
     if (!stat.isFile() && !stat.isDirectory()) {
       fail("line " + (index + 1) + " is not a regular file or directory: " + line);
     }
@@ -145,6 +192,25 @@ function runSelfTest() {
     assert.throws(() => parseEntries(sourceRoot, false), /unsafe path segment|escapes the source root/);
     fs.writeFileSync(path.join(sourceRoot, "content.include"), "content.include\n");
     assert.throws(() => parseEntries(sourceRoot, false), /forbidden content\/dependency path|conflicts with package-generated content/);
+
+
+    const outsideRoot = path.join(tempRoot, "outside");
+    fs.mkdirSync(outsideRoot, { recursive: true });
+    fs.writeFileSync(path.join(outsideRoot, "secret.txt"), "must not be copied");
+    let linkedPath = false;
+    try {
+      fs.symlinkSync(outsideRoot, path.join(sourceRoot, "linked"), "dir");
+      linkedPath = true;
+    } catch (error) {
+      if (!error || !["EPERM", "EACCES", "ENOTSUP", "EINVAL"].includes(error.code)) throw error;
+    }
+    if (linkedPath) {
+      fs.writeFileSync(path.join(sourceRoot, "content.include"), "linked/secret.txt\\n");
+      assert.throws(() => parseEntries(sourceRoot, false), /symbolic link/);
+      fs.rmSync(path.join(sourceRoot, "linked"));
+    }
+    fs.writeFileSync(path.join(sourceRoot, "content.include"), "bin/\\nbin/ne.js\\n");
+    assert.throws(() => parseEntries(sourceRoot, false), /overlapping or duplicate paths/);
 
     fs.rmSync(path.join(sourceRoot, "content.include"));
     assert.deepEqual(parseEntries(sourceRoot, false), []);
