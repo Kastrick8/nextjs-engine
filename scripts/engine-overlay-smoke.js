@@ -95,24 +95,24 @@ function main() {
 		assert.ok(clamped.top >= 12);
 		assert.ok(clamped.left + 220 <= 308);
 
-		const stackDocument = makeDocument();
-		const releaseA = runtime.registerOverlay("a", stackDocument);
-		assert.equal(runtime.isTopOverlay("a", stackDocument), true);
-		const releaseB = runtime.registerOverlay("b", stackDocument);
-		assert.equal(runtime.isTopOverlay("a", stackDocument), false);
-		assert.equal(runtime.isTopOverlay("b", stackDocument), true);
+		const legacyStackDocument = makeDocument();
+		const releaseA = runtime.registerOverlay("a", legacyStackDocument);
+		assert.equal(runtime.isTopOverlay("a", legacyStackDocument), true);
+		const releaseB = runtime.registerOverlay("b", legacyStackDocument);
+		assert.equal(runtime.isTopOverlay("a", legacyStackDocument), false);
+		assert.equal(runtime.isTopOverlay("b", legacyStackDocument), true);
 		releaseB();
-		assert.equal(runtime.isTopOverlay("a", stackDocument), true);
+		assert.equal(runtime.isTopOverlay("a", legacyStackDocument), true);
 		releaseA();
-		assert.equal(runtime.isTopOverlay("a", stackDocument), false);
+		assert.equal(runtime.isTopOverlay("a", legacyStackDocument), false);
 
-		const releaseOld = runtime.registerOverlay("same", stackDocument);
-		const releaseNew = runtime.registerOverlay("same", stackDocument);
-		assert.equal(runtime.isTopOverlay("same", stackDocument), true);
+		const releaseOld = runtime.registerOverlay("same", legacyStackDocument);
+		const releaseNew = runtime.registerOverlay("same", legacyStackDocument);
+		assert.equal(runtime.isTopOverlay("same", legacyStackDocument), true);
 		releaseOld();
-		assert.equal(runtime.isTopOverlay("same", stackDocument), true);
+		assert.equal(runtime.isTopOverlay("same", legacyStackDocument), true);
 		releaseNew();
-		assert.equal(runtime.isTopOverlay("same", stackDocument), false);
+		assert.equal(runtime.isTopOverlay("same", legacyStackDocument), false);
 
 		// Overlay stacks and body-scroll locking are isolated per Document.
 		function makeEventTarget() {
