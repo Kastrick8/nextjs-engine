@@ -368,10 +368,12 @@ function normalizeArtifactDependency(root, release, artifact) {
 			const packageEntry = lock.packages && lock.packages["node_modules/" + PACKAGE_NAME];
 			const legacyEntry = lock.dependencies && lock.dependencies[PACKAGE_NAME];
 			if (packageEntry) {
+				packageEntry.version = release.version;
 				packageEntry.resolved = remoteUrl;
 				packageEntry.integrity = "sha512-" + artifact.sha512;
 			}
 			if (legacyEntry) {
+				legacyEntry.version = release.version;
 				legacyEntry.resolved = remoteUrl;
 				legacyEntry.integrity = "sha512-" + artifact.sha512;
 			}
