@@ -4,6 +4,8 @@ export {
 	isTopOverlay,
 	lockBodyScroll,
 	registerOverlay,
+	registerPopoverPositioner,
+	schedulePopoverPositionUpdate,
 } from "./EngineOverlayRuntime";
 
 export type {
@@ -12,4 +14,5 @@ export type {
 	OverlayRect,
 	PopoverPosition,
 	PopoverPositionOptions,
+	PopoverPositionRegistration,
 } from "./EngineOverlayRuntime";

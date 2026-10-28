@@ -236,6 +236,7 @@ export type {
 export type {
 	PageSchema, SchemaNode, PageMeta, EngineTheme, EngineThemeDefinition, EngineThemeReference,
 	EngineThemeScope, EngineThemeJsonValue, EngineThemeJsonObject, EngineConfig,
+	EngineOverlayThemeSlot, EngineOverlayThemeStyles,
 	EngineThemeJoinDirection, EngineThemeDataEventType, EngineThemeDataEventBinding, EngineThemeDataEventContext,
 	EngineThemeDataEvent, EngineThemeDataCompositionResult, EngineThemeDataHandlerResult, EngineThemeDataHandler,
 	EngineThemeTemplateNodeType, EngineThemeTemplateNode, EngineThemeTemplateDefinition, EngineThemeTemplateOptions,

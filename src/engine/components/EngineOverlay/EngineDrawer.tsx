@@ -19,10 +19,10 @@ import type { EngineDrawerProps } from "./types";
 
 export const EngineDrawer = memo(function EngineDrawer({
 	children, open, defaultOpen = false, onOpenChange,
-	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
+	trigger, triggerAsChild, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = true, closeLabel = "Close drawer",
 	closeOnEscape = true, closeOnBackdrop = true, restoreFocus = true, initialFocus,
-	duration, portalTargetId, ariaLabel, overlayStyle, lockScroll = true, trapFocus = true,
+	duration, portalTargetId, ariaLabel, overlayStyle, themeStyles, lockScroll = true, trapFocus = true,
 	side = "right", size = "min(26rem, 92vw)", style, className, cprop, id, point,
 	zIndex = 1000, ...props
 }: EngineDrawerProps) {
@@ -34,13 +34,15 @@ export const EngineDrawer = memo(function EngineDrawer({
 	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration, 220);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
-	const triggerRef = useRef<HTMLButtonElement>(null);
+	const backdropRef = useRef<HTMLDivElement>(null);
+	const triggerRef = useRef<HTMLElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
-		open: isOpen, overlayId: panelId, panelRef, triggerRef, close,
+		open: isOpen, ready: Boolean(target && present), modal: true, overlayId: panelId, panelRef, triggerRef,
+		baseZIndex: zIndex, layers: [{ ref: backdropRef, offset: 0 }, { ref: panelRef, offset: 1 }], close,
 		closeOnEscape, trapFocus, autoFocus: true, lockScroll, restoreFocus, initialFocus,
-	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, restoreFocus, trapFocus]);
+	}), [backdropRef, close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, present, restoreFocus, target, trapFocus, zIndex]);
 	useOverlayBehavior(behavior);
 
 	const horizontal = side === "left" || side === "right";
@@ -61,6 +63,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 			borderRadius: 0,
 			overflow: "auto",
 			padding: "1.25rem",
+			...(themeStyles?.panel ?? {}),
 		},
 		style,
 		runtime: {
@@ -73,14 +76,15 @@ export const EngineDrawer = memo(function EngineDrawer({
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={triggerStyle} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} asChild={triggerAsChild} />
 			{target && present && createPortal(
 				<>
 					<div
+						ref={backdropRef}
 						aria-hidden="true"
-						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...overlayStyle }}
+						style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...themeStyles?.backdrop, ...overlayStyle }}
 						onPointerDown={() => {
-							if (closeOnBackdrop && isTopOverlay(panelId)) close();
+							if (closeOnBackdrop && isTopOverlay(panelId, panelRef.current?.ownerDocument ?? triggerRef.current?.ownerDocument)) close();
 						}}
 					/>
 					<div
@@ -93,11 +97,11 @@ export const EngineDrawer = memo(function EngineDrawer({
 						aria-describedby={description != null ? descriptionId : undefined}
 						tabIndex={-1}
 						className={panelClass}
-						style={{ ...panelStyle, zIndex: zIndex + 1 }}
+						style={panelStyle}
 						data-state={active ? "open" : "closed"}
 						data-side={side}
 					>
-						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} themeStyles={themeStyles}>{children}</OverlayContent>
 					</div>
 				</>,
 				target,

@@ -20,6 +20,28 @@ export type EngineStyleObject = CSSProperties & {
 	[key: `@${string}`]: EngineStyleObject | CSSProperties | string | number | null | undefined;
 };
 
+/**
+ * Appearance-only slots supported by the built-in EngineOverlay theme bridge.
+ * Structural and interaction behavior stays owned by the local React component.
+ */
+export type EngineOverlayThemeSlot =
+	| "trigger"
+	| "backdrop"
+	| "panel"
+	| "header"
+	| "title"
+	| "description"
+	| "content"
+	| "actions"
+	| "actionPrimary"
+	| "actionSecondary"
+	| "actionDanger"
+	| "actionGhost"
+	| "closeButton";
+
+/** JSON-compatible visual overrides for the supported EngineOverlay slots. */
+export type EngineOverlayThemeStyles = Partial<Record<EngineOverlayThemeSlot, CSSProperties>>;
+
 export type BuiltinNodeType =
 	| "box" | "stack" | "grid" | "text" | "heading" | "markdown"
 	| "image" | "video" | "section" | "hero" | "card" | "button" | "link" | "nav" | "manim" | "manim3d"

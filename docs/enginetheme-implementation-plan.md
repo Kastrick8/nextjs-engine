@@ -708,7 +708,18 @@ A third-party package should integrate through a small public adapter rather tha
 
 ## 16. Gen 3 first-release gap assessment: EngineOverlay and reused Gen 2 surfaces
 
-This is a source-backed planning assessment, not an implementation claim. EngineTheme and the .etr pipeline are already implemented by merged PR #45; this section focuses on the missing component integration and the older modules that still carry their Gen 2 implementation into Gen 3.
+EngineTheme and the .etr pipeline were implemented by merged PR #45. This section tracks the additional Gen 3 overlay integration and first-release contract hardening; it does not reopen the completed .etr implementation.
+
+### Current implementation checkpoint — draft PR #55
+
+- [x] **EngineTheme bridge:** the existing resolver now merges `overlay`, `dialog`, `drawer`, and `popover` style slots for `createPage()` and `createComponent()` schemas. Variant precedence, local node overrides and bounded visual CSS sanitization are covered by `scripts/gen3-theme-compiler-smoke.js`.
+- [x] **Shared runtime:** stack and scroll-lock state are document-scoped; active popovers share a per-document requestAnimationFrame scheduler, viewport listener set and ResizeObserver; unchanged position state does not schedule an unnecessary React update.
+- [x] **Reduced motion:** one subscribable media-query listener is shared per document with a legacy listener fallback.
+- [x] **Trigger and role boundary:** native button/anchor triggers are composed instead of nested; explicit `triggerAsChild` accepts only native buttons/anchors; unsupported interactive children fail closed; Popover is typed as dialog-only until menu/listbox semantics exist.
+- [x] **Modal state:** Dialog/Drawer registration establishes a modal boundary, makes background siblings inert/aria-hidden, restores prior DOM state, and assigns deterministic z-index layers to later overlays.
+- [ ] **Final verification:** run the latest-head runtime CI/type-check/Gen 3 build, smoke tests and Chromium/Firefox/WebKit workflows; this checkpoint is not complete until those checks pass on the final commit.
+- [ ] **Interaction regression matrix:** add/verify concrete browser coverage for controlled open changes, Escape/outside pointer ownership, nested dialog/popover dismissal, focus restoration if the trigger disappears, modal inertness restoration, and close/reopen during exit transitions.
+- [ ] **Carry-over compatibility audit:** audit EngineForms serialization, transition links, custom select and Manim only after the overlay matrix is stable; report each finding separately and avoid unrelated rewrites.
 
 ### Audit method and evidence boundary
 

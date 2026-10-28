@@ -149,7 +149,7 @@ export function OverlayExamples() {
 
 All three also accept normal Engine styling props through `BaseNodeProps`.
 
-**Trigger contract:** EngineOverlay renders its own native button around trigger / triggerLabel. Supply non-interactive trigger content; do not pass an existing button, link or other interactive element as trigger, because that can produce nested interactive HTML. If the application must own the interactive trigger element, use the controlled-open API and keep the actual trigger outside EngineOverlay until a dedicated trigger-composition API is available.
+**Trigger contract:** when `trigger` contains ordinary non-interactive content, EngineOverlay renders its own native button. A supplied native `<button>` or `<a>` is composed directly with the open handler, ref, style/class, and runtime ARIA state, so it is not nested inside another interactive element. Set `triggerAsChild` to require an explicit native button/anchor slot; the implementation deliberately does not clone arbitrary React components. Unsupported native interactive children fail closed with a development diagnostic rather than being wrapped in a second control.
 
 ---
 
@@ -162,7 +162,8 @@ These props are shared by Dialog, Drawer and Popover unless noted otherwise.
 | `open` | `boolean` | controlled open state |
 | `defaultOpen` | `boolean` | `false` |
 | `onOpenChange` | handler name or function | called with the new boolean state |
-| `trigger` | `ReactNode` | custom trigger content |
+| `trigger` | `ReactNode` | custom trigger content; native buttons/anchors compose directly |
+| `triggerAsChild` | `boolean` | requires one native button/anchor child; arbitrary components are not cloned |
 | `triggerLabel` | `string` | generated trigger text |
 | `triggerClassName` | `string` | class for generated trigger button |
 | `triggerStyle` | `CSSProperties` | style for generated trigger button |
@@ -324,7 +325,7 @@ There is intentionally no separate `sheet` primitive because it would duplicate 
 
 Popover is anchored to its generated trigger and is non-modal by default.
 
-**Keyboard-role limitation:** the current type permits role: menu and role: listbox, but EnginePopover does not implement the complete menu/listbox composite-widget keyboard contract (for example, arrow-key item movement and active-item semantics). Do not interpret those role values as a complete menu/listbox implementation. Use the default dialog semantics unless the application supplies and tests the required role-specific keyboard/ARIA behavior.
+**Keyboard-role boundary:** Gen 3 currently exposes only `role: "dialog"` for EnginePopover. Menu and listbox roles are intentionally not accepted until arrow-key navigation, active-item semantics, and role-specific ARIA behavior have their own implementation and tests.
 
 | Prop | Default | Meaning |
 |---|---|---|
@@ -336,7 +337,7 @@ Popover is anchored to its generated trigger and is non-modal by default.
 | `matchTriggerWidth` | `false` | panel min-width follows trigger width |
 | `autoFocus` | `false` | focuses the first panel control |
 | `trapFocus` | `false` | keeps Tab inside the popover |
-| `role` | `dialog` | `dialog`, `menu`, `listbox` |
+| `role` | `dialog` | `dialog` only until menu/listbox semantics are implemented |
 | `duration` | `140` | animation duration in ms |
 
 The open Popover repositions when:
@@ -382,7 +383,9 @@ Dialog and Drawer trap Tab by default. Popover does not, because a normal contex
 
 ## Overlay stacking
 
-EngineOverlay maintains one shared stack. The latest registered overlay is considered the top overlay for keyboard and contextual outside-click handling.
+EngineOverlay maintains one document-scoped stack. The latest registered overlay is considered the top overlay for keyboard and contextual outside-click handling. Effective z-index is assigned from each component's requested `zIndex` base; later overlays receive a higher layer than the previous top overlay, including nested dialogs and drawers. A Drawer reserves adjacent backdrop/panel layers.
+
+When a modal Dialog or Drawer opens, the runtime temporarily applies `inert` and `aria-hidden` to background siblings outside the active modal/overlay path. Nested overlays remain available, and the runtime restores each element's original attributes/property state as the modal stack changes or closes.
 
 This allows combinations such as:
 
@@ -410,9 +413,36 @@ The portal runtime is client-side only; the trigger can still participate in nor
 
 ---
 
-## EngineTheme integration status
+## EngineTheme integration
 
-The current EngineTheme runtime resolves Markdown component defaults/styles and page-level theme fields. It does not yet apply component-specific theme namespaces directly to EngineDialog, EngineDrawer or EnginePopover. For overlays, use the documented styling props and CSS variables below; do not assume a components.overlay, components.dialog, components.drawer or components.popover theme namespace is wired in this alpha. The planned integration is tracked in [plan.md](../../../plan.md#16-gen-3-first-release-gap-assessment-engineoverlay-and-reused-gen-2-surfaces).
+EngineTheme now resolves the appearance-only namespaces `overlay`, `dialog`, `drawer`, and `popover` through the existing `resolveEngineThemeSchema()` path used by `createPage()` and `createComponent()`. No new theme API or `.etr` format version is required.
+
+A global theme can define shared overlay slots plus component-specific defaults and variants:
+
+```ts
+createTheme({
+  id: "product-ui",
+  scope: "global",
+  overlay: {
+    defaults: {
+      styles: {
+        panel: { borderRadius: "18px" },
+        backdrop: { backgroundColor: "rgba(2, 6, 23, .48)" },
+      },
+    },
+  },
+  dialog: {
+    defaults: { styles: { panel: { backgroundColor: "#ffffff" } } },
+    variants: {
+      confirm: { styles: { panel: { borderColor: "#16a34a" } } },
+    },
+  },
+});
+```
+
+Reference it through the normal page/component schema theme field, for example `theme: { id: "product-ui.dialog.confirm" }`. Slots support trigger, backdrop, panel, header, title, description, content, actions, actionPrimary, actionSecondary, actionDanger, actionGhost and closeButton. Component defaults and variants merge over shared `overlay` styles; explicit node styles remain stronger than theme defaults. The bridge only accepts a bounded visual CSS property/value set and rejects URL/image-loader CSS, so theme data cannot replace runtime interaction behavior.
+
+See [plan.md](../../../plan.md#16-gen-3-first-release-gap-assessment-engineoverlay-and-reused-gen-2-surfaces) for remaining P0 accessibility/runtime coverage.
 
 ---
 
@@ -488,9 +518,11 @@ This is the intended Overlay UI architecture: a small number of strong primitive
 - Closed overlays do not keep portal DOM mounted after their exit duration.
 - No persistent animation loop runs while overlays are idle.
 - Dialog/Drawer share one reference-counted body-scroll lock.
-- Popover positioning work is RAF-coalesced.
-- Popover `ResizeObserver` instances exist only while the panel is present.
-- `prefers-reduced-motion` avoids unnecessary animation work.
+- Open popovers share one resize/scroll/visual-viewport listener set and one `ResizeObserver` per document; positioning reads are coalesced in a single animation frame.
+- Unchanged popover geometry reuses the previous position state instead of forcing a React render.
+- The shared positioning listeners and observer disconnect when the final popover leaves the visible lifecycle.
+- Reduced-motion preference changes use one media-query listener per document, with a legacy listener fallback.
+- Focus discovery excludes disabled controls, negative tab stops, and descendants of hidden/inert/aria-hidden ancestors.
 
 ---
 

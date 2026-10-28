@@ -1,6 +1,6 @@
 "use client";
 
-import React, { forwardRef, memo, type CSSProperties, type ReactNode } from "react";
+import React, { forwardRef, memo, type ReactNode } from "react";
 import NextLink from "next/link";
 import {
 	resolveEngineTransition,
@@ -8,25 +8,28 @@ import {
 	type EngineTransitionInput,
 } from "../core/enginetransitions";
 
-export interface EngineTransitionLinkProps {
+export type EngineTransitionLinkProps = Omit<
+	React.ComponentProps<typeof NextLink>,
+	"href" | "onClick" | "children" | "ref"
+> & {
 	href: string;
 	transition: EngineTransitionInput;
-	target?: string;
-	className?: string;
 	children?: ReactNode;
 	onClick?: React.MouseEventHandler<HTMLAnchorElement>;
-	style?: CSSProperties;
-	"aria-label"?: string;
-	"aria-current"?: React.AriaAttributes["aria-current"];
-}
+};
 
-function shouldKeepNativeClick(event: React.MouseEvent<HTMLAnchorElement>, target?: string): boolean {
+function shouldKeepNativeClick(
+	event: React.MouseEvent<HTMLAnchorElement>,
+	target?: string | null,
+	download?: boolean | string,
+): boolean {
 	return event.button !== 0
 		|| event.metaKey
 		|| event.ctrlKey
 		|| event.shiftKey
 		|| event.altKey
-		|| (target !== undefined && target !== "_self");
+		|| (target !== undefined && target !== null && target !== "_self")
+		|| download !== undefined && download !== false;
 }
 
 function isHashOnlyNavigation(href: string): boolean {
@@ -42,46 +45,57 @@ function isHashOnlyNavigation(href: string): boolean {
 	}
 }
 
+/** Return true only for same-origin HTTP(S) destinations the router owns. */
+function isInternalNavigation(href: string): boolean {
+	try {
+		const nextUrl = new URL(href, window.location.href);
+		return (nextUrl.protocol === "http:" || nextUrl.protocol === "https:")
+			&& nextUrl.origin === window.location.origin;
+	} catch {
+		return false;
+	}
+}
+
 export const EngineTransitionLink = memo(
 	forwardRef<HTMLAnchorElement, EngineTransitionLinkProps>((props, ref) => {
 		const {
 			href,
 			transition,
 			target,
-			className,
+			download,
+			replace = false,
 			children,
 			onClick,
-			style,
-			"aria-label": ariaLabel,
-			"aria-current": ariaCurrent,
+			...nextLinkProps
 		} = props;
 		const transitions = useEngineTransitions();
 
 		const handleClick = (event: React.MouseEvent<HTMLAnchorElement>): void => {
 			onClick?.(event);
-			if (event.defaultPrevented || shouldKeepNativeClick(event, target)) return;
+			if (event.defaultPrevented || shouldKeepNativeClick(event, target, download)) return;
+			if (!isInternalNavigation(href) || isHashOnlyNavigation(href)) return;
 
 			const resolved = resolveEngineTransition(transition, {
 				pointer: { x: event.clientX, y: event.clientY },
 			});
-			if (resolved.type === "instant" || isHashOnlyNavigation(href)) return;
+			if (resolved.type === "instant") return;
 
 			event.preventDefault();
-			void transitions.push(href, transition, {
+			const navigate = replace ? transitions.replace : transitions.push;
+			void navigate(href, transition, {
 				pointer: { x: event.clientX, y: event.clientY },
 			});
 		};
 
 		return (
 			<NextLink
+				{...nextLinkProps}
 				ref={ref}
 				href={href}
 				target={target}
-				className={className}
+				download={download}
+				replace={replace}
 				onClick={handleClick}
-				style={style}
-				aria-label={ariaLabel}
-				aria-current={ariaCurrent}
 			>
 				{children}
 			</NextLink>

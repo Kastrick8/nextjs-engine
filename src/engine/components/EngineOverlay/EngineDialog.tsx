@@ -23,6 +23,7 @@ export const EngineDialog = memo(function EngineDialog({
 	defaultOpen = false,
 	onOpenChange,
 	trigger,
+	triggerAsChild,
 	triggerLabel,
 	triggerClassName,
 	triggerStyle,
@@ -41,6 +42,7 @@ export const EngineDialog = memo(function EngineDialog({
 	portalTargetId,
 	ariaLabel,
 	overlayStyle,
+	themeStyles,
 	lockScroll = true,
 	trapFocus = true,
 	role = "dialog",
@@ -60,13 +62,15 @@ export const EngineDialog = memo(function EngineDialog({
 	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
-	const triggerRef = useRef<HTMLButtonElement>(null);
+	const backdropRef = useRef<HTMLDivElement>(null);
+	const triggerRef = useRef<HTMLElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
-		open: isOpen, overlayId: panelId, panelRef, triggerRef, close,
+		open: isOpen, ready: Boolean(target && present), modal: true, overlayId: panelId, panelRef, triggerRef,
+		baseZIndex: zIndex, layers: [{ ref: backdropRef, offset: 0 }], close,
 		closeOnEscape, trapFocus, autoFocus: true, lockScroll, restoreFocus, initialFocus,
-	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, restoreFocus, trapFocus]);
+	}), [backdropRef, close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, present, restoreFocus, target, trapFocus, zIndex]);
 	useOverlayBehavior(behavior);
 
 	const panelStyle = usePrimitiveStyles(props as any, {
@@ -77,6 +81,7 @@ export const EngineDialog = memo(function EngineDialog({
 			maxHeight: "min(85vh, 52rem)",
 			overflow: "auto",
 			padding: "1.25rem",
+			...(themeStyles?.panel ?? {}),
 		},
 		style,
 		runtime: {
@@ -93,7 +98,7 @@ export const EngineDialog = memo(function EngineDialog({
 				label={triggerLabel}
 				children={trigger}
 				className={triggerClassName}
-				style={triggerStyle}
+				style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }}
 				disabled={triggerDisabled}
 				expanded={isOpen}
 				controls={panelId}
@@ -101,13 +106,14 @@ export const EngineDialog = memo(function EngineDialog({
 				ariaLabel={triggerAriaLabel}
 				onClick={() => setOpen(!isOpen)}
 				triggerRef={triggerRef}
+				asChild={triggerAsChild}
 			/>
 			{target && present && createPortal(
 				<div
+					ref={backdropRef}
 					style={{
 						position: "fixed",
 						inset: 0,
-						zIndex,
 						display: "grid",
 						placeItems: "center",
 						padding: "1rem",
@@ -115,10 +121,11 @@ export const EngineDialog = memo(function EngineDialog({
 						backdropFilter: "blur(6px)",
 						opacity: active ? 1 : 0,
 						transition: `opacity ${transitionMs}ms ease`,
+						...themeStyles?.backdrop,
 						...overlayStyle,
 					}}
 					onPointerDown={(event) => {
-						if (closeOnBackdrop && event.target === event.currentTarget && isTopOverlay(panelId)) close();
+						if (closeOnBackdrop && event.target === event.currentTarget && isTopOverlay(panelId, panelRef.current?.ownerDocument ?? triggerRef.current?.ownerDocument)) close();
 					}}
 				>
 					<div
@@ -134,7 +141,7 @@ export const EngineDialog = memo(function EngineDialog({
 						style={panelStyle}
 						data-state={active ? "open" : "closed"}
 					>
-						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} themeStyles={themeStyles}>{children}</OverlayContent>
 					</div>
 				</div>,
 				target,

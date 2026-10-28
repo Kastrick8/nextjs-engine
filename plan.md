@@ -464,7 +464,7 @@ export interface EngineBrowserStaticAcceleratorConfig {
 
 * \[ \] **Finish `docs/3/` Consolidation:** Ensure all component and compiler documentation in `docs/3/` is the single canonical source and remove outdated duplicate files in `docs/engine-components/` and `docs/gen3/` once links in `DOCUMENT.md` and `README.md` are updated.
 
-* \[ \] **Normalize Theme Component Directory:** Alias or move `src/engine/component/engineTheme/` into `src/engine/components/engineTheme/` while keeping backwards-compatible re-exports in `src/engine/index.ts`.
+* \[x\] **Preserve the chosen EngineTheme component path:** Keep `src/engine/component/engineTheme/` as the canonical path, as explicitly requested. Do not move it to `src/engine/components/engineTheme/`; its public API remains exported from `src/engine/index.ts`.
 
 * \[ \] **Consolidate Private Search Example:** Unify duplicated example files between `examples/gen3-private-search/` and `src/example/private-search/` so `app/engine-private-search/` imports from a single canonical source.
 
