@@ -533,7 +533,7 @@ async function testPublicThemeApi() {
 			root: {
 				type: "section",
 				children: [
-					{ type: "dialog", props: { style: { padding: "2rem" }, themeStyles: { title: { color: "#f9fafb" } } },
+					{ type: "dialog", props: { style: { padding: "2rem" }, themeStyles: { title: { color: "#f9fafb" } } } },
 					{ type: "drawer", props: {} },
 					{ type: "popover", props: {} },
 				],
