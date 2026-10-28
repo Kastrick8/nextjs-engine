@@ -22,7 +22,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = true, closeLabel = "Close drawer",
 	closeOnEscape = true, closeOnBackdrop = true, restoreFocus = true, initialFocus,
-	duration, portalTargetId, ariaLabel, overlayStyle, lockScroll = true, trapFocus = true,
+	duration, portalTargetId, ariaLabel, overlayStyle, themeStyles, lockScroll = true, trapFocus = true,
 	side = "right", size = "min(26rem, 92vw)", style, className, cprop, id, point,
 	zIndex = 1000, ...props
 }: EngineDrawerProps) {
@@ -62,7 +62,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 			overflow: "auto",
 			padding: "1.25rem",
 		},
-		style,
+		style: { ...(themeStyles?.panel ?? {}), ...(style ?? {}) },
 		runtime: {
 			opacity: active ? 1 : 0.98,
 			transform: active ? "translate(0,0)" : hiddenTransform,
@@ -73,12 +73,12 @@ export const EngineDrawer = memo(function EngineDrawer({
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={triggerStyle} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup="dialog" ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
 			{target && present && createPortal(
 				<>
 					<div
 						aria-hidden="true"
-						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...overlayStyle }}
+						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...themeStyles?.backdrop, ...overlayStyle }}
 						onPointerDown={() => {
 							if (closeOnBackdrop && isTopOverlay(panelId)) close();
 						}}
@@ -97,7 +97,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 						data-state={active ? "open" : "closed"}
 						data-side={side}
 					>
-						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} themeStyles={themeStyles}>{children}</OverlayContent>
 					</div>
 				</>,
 				target,
