@@ -176,7 +176,7 @@ jobs:
             else echo "Pinned source has neither src/engine/ nor engine/; refusing to guess." >&2; exit 1
             fi
             DEST="archive/$TARGET"
-            if [[ "$TRACK" == "alpha" || "$VERSION" =~ ^2\.7\.[0-9]+$ ]]; then
+            if [[ "$TRACK" == "alpha" || "$TRACK" == "beta" || "$VERSION" =~ ^2\.7\.[0-9]+$ ]]; then
               test -f "source/bin/ne.js" || { echo "This release requires the NE CLI, but source/bin/ne.js is missing." >&2; exit 1; }
             fi
             mkdir -p "$DEST/engine"
