@@ -182,7 +182,7 @@ export function useOverlayBehavior(options: OverlayBehaviorOptions) {
 			offset: layer.offset,
 		}));
 		const roots = layers.length > 0
-			? layers.map((layer) => layer.element)
+			? layers.map((layer) => layer.element).filter((root): root is HTMLElement => root !== null)
 			: [current.modal ? (panel.parentElement ?? panel) : panel];
 		const unregister = registerOverlay(options.overlayId, ownerDocument, {
 			roots,
