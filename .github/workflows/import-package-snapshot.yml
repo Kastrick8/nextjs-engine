@@ -51,6 +51,8 @@ jobs:
           path: source
           fetch-depth: 0
           persist-credentials: false
+      - name: Test content.include helper
+        run: node .github/scripts/copy-content-includes.js --self-test
       - name: Build versioned package candidate
         id: prepare
         shell: bash
@@ -120,16 +122,14 @@ jobs:
           if [[ "$REPLACE_EXISTING" == "true" && -e "archive/$TARGET" ]]; then rm -rf -- "archive/$TARGET"; fi
           mkdir -p "archive/$TARGET/engine"
           cp -a "$ENGINE_DIR/." "archive/$TARGET/engine/"
-          if [[ -d source/bin ]]; then
-            mkdir -p "archive/$TARGET/bin"
-            cp -a source/bin/. "archive/$TARGET/bin/"
-          fi
           for file in README.md DOCUMENT.md; do
             if [[ -f "source/$file" ]]; then cp "source/$file" "archive/$TARGET/$file"; fi
           done
           if [[ -d source/docs ]]; then cp -a source/docs "archive/$TARGET/docs"; fi
           cp "$TSCONFIG_FILE" "archive/$TARGET/tsconfig.json"
           printf '%s\n' 'export * from "./engine";' > "archive/$TARGET/index.ts"
+          INCLUDED_CONTENT_PATHS="$(node .github/scripts/copy-content-includes.js source "archive/$TARGET" --legacy-bin)"
+          export CONTENT_INCLUDE_PATHS="$INCLUDED_CONTENT_PATHS"
           export TARGET TEMPLATE_FILE SOURCE_SHA ENGINE_DIR
           node --input-type=module <<'NODE'
           import fs from "node:fs";
@@ -138,15 +138,23 @@ jobs:
           const manifest=JSON.parse(fs.readFileSync(TEMPLATE_FILE,"utf8"));
           manifest.name="@kastrick/nextjs-engine";
           manifest.version=VERSION;
-          manifest.files=(manifest.files||[]).filter((p)=>fs.existsSync(`${root}/${p}`));
-          if (fs.existsSync(`${root}/bin/ne.js`)) {
-            manifest.bin = { ...(manifest.bin || {}), ne: "./bin/ne.js" };
-            if (!manifest.files.includes("bin")) manifest.files.push("bin");
-          } else if (manifest.bin?.ne === "./bin/ne.js") {
-            delete manifest.bin.ne;
-            if (Object.keys(manifest.bin).length === 0) delete manifest.bin;
+          manifest.files=(manifest.files||[]).filter(p=>p!=="content.include"&&fs.existsSync(root+"/"+p));
+          const includedPaths=JSON.parse(process.env.CONTENT_INCLUDE_PATHS||"[]");
+          for(const included of includedPaths){
+            const top=included.split("/")[0];
+            if(top&&fs.existsSync(root+"/"+top)&&!manifest.files.includes(top)) manifest.files.push(top);
           }
-          for(const [key,value] of Object.entries(manifest.exports||{})){
+          const sourceManifest=JSON.parse(fs.readFileSync("source/package.json","utf8"));
+          const bins={};
+          for(const [name,target] of Object.entries(sourceManifest.bin||{})){
+            if(typeof target!=="string") continue;
+            const relative=target.replace(/^\.\//,"");
+            const included=includedPaths.some(p=>relative===p||relative.startsWith(p+"/"));
+            if(included&&fs.existsSync(root+"/"+relative)) bins[name]="./"+relative;
+          }
+          if(Object.keys(bins).length) manifest.bin=bins;
+          else delete manifest.bin;
+          if(fs.existsSync(root+"/content.include")) fs.rmSync(root+"/content.include",{force:true});
             if(key===".") continue;
             const paths=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
             if(paths.some((p)=>!fs.existsSync(`${root}/${p.replace(/^\.\//,"")}`))) delete manifest.exports[key];
