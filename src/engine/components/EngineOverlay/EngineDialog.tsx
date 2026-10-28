@@ -78,8 +78,9 @@ export const EngineDialog = memo(function EngineDialog({
 			maxHeight: "min(85vh, 52rem)",
 			overflow: "auto",
 			padding: "1.25rem",
+			...(themeStyles?.panel ?? {}),
 		},
-		style: { ...(themeStyles?.panel ?? {}), ...(style ?? {}) },
+		style,
 		runtime: {
 			opacity: active ? 1 : 0,
 			transform: active ? "translateY(0) scale(1)" : "translateY(10px) scale(.985)",
