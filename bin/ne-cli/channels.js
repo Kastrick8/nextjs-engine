@@ -83,8 +83,8 @@ function validateReleaseManifest(manifest, release) {
 	if (manifest.packageName !== PACKAGE_NAME) return null;
 	if (!["alpha", "beta"].includes(manifest.track)) return null;
 	if (typeof manifest.version !== "string" || !parseVersion(manifest.version)) return null;
-	if (manifest.track === "alpha" && !/-alpha\.\d+$/.test(manifest.version)) return null;
-	if (manifest.track === "beta" && !/-beta\.\d+$/.test(manifest.version)) return null;
+	if (manifest.track === "alpha" && !/^\d+\.\d+\.\d+-alpha\.\d+$/.test(manifest.version)) return null;
+	if (manifest.track === "beta" && !/^\d+\.\d+\.\d+-beta\.\d+$/.test(manifest.version)) return null;
 	if (!/^[0-9a-f]{40}$/.test(manifest.sourceCommit || "")) return null;
 	if (!/^[0-9a-f]{64}$/.test(manifest.sha256 || "")) return null;
 	if (typeof manifest.assetName !== "string" || !/^nextjs-engine-.+\.tgz$/.test(manifest.assetName)) return null;
@@ -93,7 +93,7 @@ function validateReleaseManifest(manifest, release) {
 	if (manifest.floating !== undefined && typeof manifest.floating !== "boolean") return null;
 	if (release.tag_name === "channel-alpha-latest" && manifest.floating !== true) return null;
 	if (manifest.floating === true) {
-		if (manifest.track !== "alpha" || release.tag_name !== "channel-alpha-latest") return null;
+		if (manifest.track !== "alpha" || manifest.sourceBranch !== "main-3" || release.tag_name !== "channel-alpha-latest") return null;
 		const fullCommitSuffix = "-" + manifest.sourceCommit + ".tgz";
 		const legacyCommitSuffix = "-" + manifest.sourceCommit.slice(0, 8) + ".tgz";
 		if (!manifest.assetName.endsWith(fullCommitSuffix) && !manifest.assetName.endsWith(legacyCommitSuffix)) return null;
