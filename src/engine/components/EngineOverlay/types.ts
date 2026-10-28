@@ -19,6 +19,8 @@ export interface EngineOverlayCommonProps extends Omit<BaseNodeProps, "onClick">
 	defaultOpen?: boolean;
 	onOpenChange?: EngineOverlayOpenChange;
 	trigger?: ReactNode;
+	/** Compose a single native <button> or <a> as the trigger instead of creating an outer button. */
+	triggerAsChild?: boolean;
 	triggerLabel?: string;
 	triggerClassName?: string;
 	triggerStyle?: CSSProperties;
@@ -64,5 +66,6 @@ export interface EnginePopoverProps extends EngineOverlayCommonProps {
 	matchTriggerWidth?: boolean;
 	autoFocus?: boolean;
 	trapFocus?: boolean;
-	role?: "dialog" | "menu" | "listbox";
+	/** Gen 3 popovers currently implement dialog semantics; menu/listbox roles are intentionally unsupported. */
+	role?: "dialog";
 }
