@@ -339,7 +339,7 @@ function normalizeArtifactDependency(root, release, artifact) {
 
 	const tarballName = path.basename(artifact.file);
 	const escapedName = tarballName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	const localFileReference = new RegExp("(?:file:)?[^\\s\"'\\x60,}]*" + escapedName, "g");
+	const localFileReference = new RegExp("file:[^\\s\"'\\x60,}]*" + escapedName, "g");
 	const remoteUrl = release.artifactUrl;
 	const rewriteTextLock = (text) => {
 		let updated = text.replace(localFileReference, remoteUrl);
