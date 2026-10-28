@@ -92,7 +92,18 @@ export function OverlayContent({ title, description, children, actions, close, s
 	);
 }
 
-export function OverlayTrigger({ label, children, className, style, disabled, expanded, controls, hasPopup, ariaLabel, onClick, triggerRef }: {
+function setElementRef<T>(ref: React.Ref<T> | undefined, value: T | null): void {
+	if (typeof ref === "function") ref(value);
+	else if (ref && typeof ref === "object") {
+		(ref as React.MutableRefObject<T | null>).current = value;
+	}
+}
+
+const UNSUPPORTED_NATIVE_TRIGGER_TAGS = new Set([
+	"input", "select", "textarea", "summary", "audio", "video",
+]);
+
+export function OverlayTrigger({ label, children, className, style, disabled, expanded, controls, hasPopup, ariaLabel, onClick, triggerRef, asChild }: {
 	label?: string;
 	children?: ReactNode;
 	className?: string;
@@ -103,12 +114,78 @@ export function OverlayTrigger({ label, children, className, style, disabled, ex
 	hasPopup: React.AriaAttributes["aria-haspopup"];
 	ariaLabel?: string;
 	onClick: () => void;
-	triggerRef: React.RefObject<HTMLButtonElement | null>;
+	triggerRef: React.RefObject<HTMLElement | null>;
+	asChild?: boolean;
 }) {
 	if (label == null && children == null) return null;
+
+	const child = React.isValidElement(children)
+		? children as React.ReactElement<Record<string, unknown>>
+		: null;
+	const childTag = child && typeof child.type === "string" ? child.type : null;
+	const composeNativeChild = childTag === "button" || childTag === "a";
+
+	// Native button/link triggers are composed directly; never wrap them in a
+	// second interactive element. Arbitrary React components are not cloned.
+	if (composeNativeChild || asChild) {
+		if (!child || (child.type !== "button" && child.type !== "a")) {
+			if (process.env.NODE_ENV !== "production") {
+				console.error("[EngineOverlay] triggerAsChild supports exactly one native button or anchor. The invalid trigger was not rendered.");
+			}
+			return null;
+		}
+
+		const childProps = child.props;
+		const childStyle = childProps.style && typeof childProps.style === "object"
+			? childProps.style as CSSProperties
+			: undefined;
+		const childClassName = typeof childProps.className === "string" ? childProps.className : undefined;
+		const childRef = (childProps.ref as React.Ref<HTMLElement> | undefined)
+			?? (child as React.ReactElement & { ref?: React.Ref<HTMLElement> }).ref;
+		const childOnClick = typeof childProps.onClick === "function"
+			? childProps.onClick as React.MouseEventHandler<HTMLElement>
+			: undefined;
+		const isAnchor = child.type === "a";
+		const childDisabled = childProps.disabled === true;
+		const disabledAnchor = isAnchor && Boolean(disabled || childProps["aria-disabled"] === true || childProps["aria-disabled"] === "true");
+		return React.cloneElement(child, {
+			ref: (element: HTMLElement | null) => {
+				setElementRef(childRef, element);
+				setElementRef(triggerRef, element);
+			},
+			type: !isAnchor ? "button" : childProps.type,
+			disabled: !isAnchor ? Boolean(disabled) || childDisabled : undefined,
+			"aria-disabled": disabledAnchor ? "true" : childProps["aria-disabled"],
+			tabIndex: disabledAnchor ? -1 : childProps.tabIndex,
+			"aria-label": ariaLabel ?? childProps["aria-label"] ?? (typeof label === "string" ? label : undefined),
+			"aria-haspopup": hasPopup,
+			"aria-expanded": expanded,
+			"aria-controls": controls,
+			className: [childClassName, className].filter(Boolean).join(" ") || undefined,
+			style: { ...BUTTON_BASE, ...style, ...childStyle, ...(disabledAnchor ? { cursor: "not-allowed" } : {}) },
+			onClick: (event: React.MouseEvent<HTMLElement>) => {
+				if (disabled || childDisabled || disabledAnchor) {
+					event.preventDefault();
+					event.stopPropagation();
+					return;
+				}
+				childOnClick?.(event);
+				if (!event.defaultPrevented) onClick();
+			},
+		} as Record<string, unknown>);
+	}
+
+	if (childTag && UNSUPPORTED_NATIVE_TRIGGER_TAGS.has(childTag)) {
+		if (process.env.NODE_ENV !== "production") {
+			console.error(`[EngineOverlay] A native <${childTag}> cannot be nested in a trigger button. Use a native button/anchor trigger instead.`);
+		}
+		return null;
+	}
+	if (asChild) return null;
+
 	return (
 		<button
-			ref={triggerRef}
+			ref={triggerRef as React.Ref<HTMLButtonElement>}
 			type="button"
 			disabled={disabled}
 			aria-label={ariaLabel}
