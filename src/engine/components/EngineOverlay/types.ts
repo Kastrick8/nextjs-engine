@@ -1,5 +1,5 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import type { BaseNodeProps } from "../../schema/types";
+import type { BaseNodeProps, EngineOverlayThemeStyles } from "../../schema/types";
 import type { EnginePopoverAlign, EnginePopoverPlacement } from "../../core/engineoverlay";
 
 export type EngineOverlayOpenChange = string | ((open: boolean) => void);
@@ -36,6 +36,8 @@ export interface EngineOverlayCommonProps extends Omit<BaseNodeProps, "onClick">
 	ariaLabel?: string;
 	triggerAriaLabel?: string;
 	overlayStyle?: CSSProperties;
+	/** Appearance-only slots resolved from EngineTheme; behavior props are never theme-controlled. */
+	themeStyles?: EngineOverlayThemeStyles;
 }
 
 export interface EngineDialogProps extends EngineOverlayCommonProps {
