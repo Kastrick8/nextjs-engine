@@ -276,6 +276,7 @@ jobs:
           ARTIFACT_DIR: ${{ steps.prepare.outputs.artifact_dir }}
           MANIFEST: ${{ steps.prepare.outputs.manifest }}
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
