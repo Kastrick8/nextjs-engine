@@ -232,7 +232,31 @@ jobs:
           echo "artifact_dir=$OUT/artifacts" >> "$GITHUB_OUTPUT"
           echo "manifest=$OUT/ne-release.json" >> "$GITHUB_OUTPUT"
 
+      - name: Reconfirm this commit is still the current main-3 head
+        id: final-gate
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/branches/main-3" \
+            > "$RUNNER_TEMP/final-main-3.json"
+          CURRENT_SHA="$(node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).commit.sha)' "$RUNNER_TEMP/final-main-3.json")"
+          if [[ "$CURRENT_SHA" == "$SOURCE_SHA" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "The packaged source is still the current main-3 head."
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main-3 advanced during packaging; this older Alpha will not be promoted."
+          fi
+
       - name: Move rolling channel tag to the exact source commit
+        if: steps.final-gate.outputs.publish == 'true'
         working-directory: archive
         env:
           SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
@@ -242,6 +266,7 @@ jobs:
           git push --force origin refs/tags/channel-alpha-latest
 
       - name: Create or update GitHub latest Alpha release
+        if: steps.final-gate.outputs.publish == 'true'
         env:
           TAG_NAME: channel-alpha-latest
           VERSION: ${{ steps.prepare.outputs.version }}
