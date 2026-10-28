@@ -2,7 +2,7 @@
 
 > **GENERATION 3 · ALPHA** · Source branch: main-3. The theme pipeline and .etr work were implemented by merged PR #45.
 
-**Implementation layout:** EngineTheme runtime modules live in `src/engine/component/engineTheme/`. The plural `src/engine/components/engineTheme/` paths are compatibility re-exports only. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`.
+**Implementation layout:** EngineTheme runtime modules live in `src/engine/component/engineTheme/`. The plural `src/engine/components/engineTheme/` paths are compatibility re-exports only. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`.
 
 EngineTheme is the data-only theming layer for Next.js Engine. The current foundation provides a validated createTheme() API, qualified theme IDs, local/global/explicitly preloaded remote theme resolution for Markdown, static NENC .etr generation, lightweight Pretty-please highlighting, safe declarative UI templates, and a typed event-driven Data-API.
 
