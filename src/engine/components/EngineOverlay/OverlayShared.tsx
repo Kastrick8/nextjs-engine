@@ -155,7 +155,7 @@ interface OverlayBehaviorOptions {
 	open: boolean;
 	overlayId: string;
 	panelRef: React.RefObject<HTMLElement | null>;
-	triggerRef: React.RefObject<HTMLButtonElement | null>;
+	triggerRef: React.RefObject<HTMLElement | null>;
 	close: () => void;
 	closeOnEscape: boolean;
 	trapFocus: boolean;
