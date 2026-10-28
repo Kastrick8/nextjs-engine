@@ -3,6 +3,7 @@
 import React, { type CSSProperties, type ReactNode } from "react";
 import { useHandler } from "../../providers/EngineProvider";
 import type { EngineOverlayAction } from "./types";
+import type { EngineOverlayThemeStyles } from "../../schema/types";
 
 const BUTTON_BASE: CSSProperties = {
 	appearance: "none",
@@ -15,9 +16,17 @@ const BUTTON_BASE: CSSProperties = {
 	cursor: "pointer",
 };
 
-function OverlayActionButton({ action, close }: { action: EngineOverlayAction; close: () => void }) {
+function OverlayActionButton({ action, close, themeStyles }: {
+	action: EngineOverlayAction;
+	close: () => void;
+	themeStyles?: EngineOverlayThemeStyles;
+}) {
 	const namedHandler = useHandler(typeof action.onClick === "string" ? action.onClick : "");
 	const variant = action.variant ?? "secondary";
+	const styleSlot = variant === "primary" ? themeStyles?.actionPrimary
+		: variant === "danger" ? themeStyles?.actionDanger
+			: variant === "ghost" ? themeStyles?.actionGhost
+				: themeStyles?.actionSecondary;
 	return (
 		<button
 			type="button"
@@ -28,7 +37,8 @@ function OverlayActionButton({ action, close }: { action: EngineOverlayAction; c
 				background: variant === "primary" ? "var(--e-accent, #4f46e5)" : variant === "danger" ? "#dc2626" : variant === "ghost" ? "transparent" : "var(--e-overlay-action-bg, #f1f5f9)",
 				color: variant === "primary" || variant === "danger" ? "#fff" : "inherit",
 				borderColor: variant === "ghost" ? "transparent" : undefined,
-				opacity: action.disabled ? 0.55 : 1,
+				...(styleSlot ?? {}),
+				opacity: action.disabled ? 0.55 : (styleSlot?.opacity ?? 1),
 				cursor: action.disabled ? "not-allowed" : "pointer",
 			}}
 			onClick={(event) => {
@@ -42,7 +52,7 @@ function OverlayActionButton({ action, close }: { action: EngineOverlayAction; c
 	);
 }
 
-export function OverlayContent({ title, description, children, actions, close, showCloseButton, closeLabel, titleId, descriptionId }: {
+export function OverlayContent({ title, description, children, actions, close, showCloseButton, closeLabel, titleId, descriptionId, themeStyles }: {
 	title?: ReactNode;
 	description?: ReactNode;
 	children?: ReactNode;
@@ -52,6 +62,7 @@ export function OverlayContent({ title, description, children, actions, close, s
 	closeLabel: string;
 	titleId: string;
 	descriptionId: string;
+	themeStyles?: EngineOverlayThemeStyles;
 }) {
 	return (
 		<>
@@ -60,17 +71,21 @@ export function OverlayContent({ title, description, children, actions, close, s
 					type="button"
 					aria-label={closeLabel}
 					onClick={close}
-					style={{ position: "absolute", top: 10, right: 10, border: 0, background: "transparent", color: "inherit", font: "inherit", fontSize: "1.25rem", cursor: "pointer", lineHeight: 1 }}
+					style={{ position: "absolute", top: 10, right: 10, border: 0, background: "transparent", color: "inherit", font: "inherit", fontSize: "1.25rem", cursor: "pointer", lineHeight: 1, ...(themeStyles?.closeButton ?? {}) }}
 				>
 					×
 				</button>
 			)}
-			{title != null && <h2 id={titleId} style={{ margin: "0 2rem .35rem 0", fontSize: "1.125rem" }}>{title}</h2>}
-			{description != null && <p id={descriptionId} style={{ margin: "0 0 1rem", color: "var(--e-overlay-muted, #64748b)", lineHeight: 1.5 }}>{description}</p>}
-			<div>{children}</div>
+			{(title != null || description != null) && (
+				<div style={themeStyles?.header}>
+					{title != null && <h2 id={titleId} style={{ margin: "0 2rem .35rem 0", fontSize: "1.125rem", ...(themeStyles?.title ?? {}) }}>{title}</h2>}
+					{description != null && <p id={descriptionId} style={{ margin: "0 0 1rem", color: "var(--e-overlay-muted, #64748b)", lineHeight: 1.5, ...(themeStyles?.description ?? {}) }}>{description}</p>}
+				</div>
+			)}
+			<div style={themeStyles?.content}>{children}</div>
 			{actions && actions.length > 0 && (
-				<div style={{ display: "flex", justifyContent: "flex-end", gap: ".5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
-					{actions.map((action, index) => <OverlayActionButton key={`${action.label}-${index}`} action={action} close={close} />)}
+				<div style={{ display: "flex", justifyContent: "flex-end", gap: ".5rem", marginTop: "1.25rem", flexWrap: "wrap", ...(themeStyles?.actions ?? {}) }}>
+					{actions.map((action, index) => <OverlayActionButton key={`${action.label}-${index}`} action={action} close={close} themeStyles={themeStyles} />)}
 				</div>
 			)}
 		</>
