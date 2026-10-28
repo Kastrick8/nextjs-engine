@@ -69,6 +69,14 @@ export default function EngineOverlayRuntimeTestPage() {
 					<button data-testid="standalone-popover-action" type="button">Standalone popover action</button>
 				</EnginePopover>
 
+				<EnginePopover
+					trigger={<a href="#must-not-navigate" data-testid="anchor-popover-trigger">Open with anchor</a>}
+					title="Anchor-triggered popover"
+					closeOnEscape
+				>
+					<button data-testid="anchor-popover-action" type="button">Anchor trigger action</button>
+				</EnginePopover>
+
 				<EngineDrawer triggerLabel="Open settings drawer" title="Settings drawer" side="right" closeOnEscape trapFocus restoreFocus>
 					<button data-testid="drawer-action" type="button">Drawer action</button>
 				</EngineDrawer>
