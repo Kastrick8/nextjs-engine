@@ -230,10 +230,16 @@ async function downloadVerifiedArtifact(root, release) {
 		headers: { "User-Agent": "nextjs-engine-ne-cli", Accept: "application/octet-stream" },
 		signal: AbortSignal.timeout(30000),
 	});
-	if (!response.ok) throw new Error("GitHub artifact download returned HTTP " + response.status + ".");
+	if (!response.ok) {
+		try { await response.body?.cancel(); } catch {}
+		throw new Error("GitHub artifact download returned HTTP " + response.status + ".");
+	}
 	const maxBytes = 100 * 1024 * 1024;
 	const declaredSize = Number(response.headers.get("content-length") || 0);
-	if (declaredSize > maxBytes) throw new Error("Refusing to download an NE package larger than 100 MiB.");
+	if (declaredSize > maxBytes) {
+		try { await response.body?.cancel(); } catch {}
+		throw new Error("Refusing to download an NE package larger than 100 MiB.");
+	}
 	if (!response.body) throw new Error("GitHub artifact response did not include a body.");
 
 	const directory = path.join(root, ".nextjs-engine", "cache", "ne-downloads");
