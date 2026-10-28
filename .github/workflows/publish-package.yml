@@ -201,8 +201,7 @@ jobs:
           manifest.files=(manifest.files||[]).filter(p=>p!=="content.include"&&fs.existsSync(root+"/"+p));
           const includedPaths=JSON.parse(process.env.CONTENT_INCLUDE_PATHS||"[]");
           for(const included of includedPaths){
-            const top=included.split("/")[0];
-            if(top&&fs.existsSync(root+"/"+top)&&!manifest.files.includes(top)) manifest.files.push(top);
+            if(fs.existsSync(root+"/"+included)&&!manifest.files.includes(included)) manifest.files.push(included);
           }
           const sourceManifest=JSON.parse(fs.readFileSync("source/package.json","utf8"));
           const bins={};
