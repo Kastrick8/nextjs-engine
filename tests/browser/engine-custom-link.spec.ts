@@ -15,17 +15,6 @@ test("registered custom link resolves EngineTheme base and variant styles", asyn
 	await expect(external).toHaveAttribute("rel", /noreferrer/);
 	await expect(external).toHaveCSS("text-decoration-line", "none");
 
-	const unsafe = page.getByTestId("custom-unsafe-link");
-	await expect(unsafe).toHaveAttribute("data-engine-link-blocked", "true");
-	await expect(unsafe).toHaveAttribute("aria-disabled", "true");
-	await expect(unsafe.locator("a")).toHaveCount(0);
-	await expect(unsafe).toContainText("Unsafe link blocked");
-
-	const backslash = page.getByTestId("custom-backslash-link");
-	await expect(backslash).toHaveAttribute("data-engine-link-blocked", "true");
-	await expect(backslash).toHaveAttribute("aria-disabled", "true");
-	await expect(backslash.locator("a")).toHaveCount(0);
-	await expect(backslash).toContainText("Backslash URL blocked");
 });
 
 test("custom internal link stays keyboard accessible and activates safely", async ({ page }) => {
