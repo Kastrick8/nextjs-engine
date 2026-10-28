@@ -84,6 +84,16 @@ async function main() {
 	assert.equal(parsedRelease.sourceCommit, "a".repeat(40));
 	assert.equal(parsedRelease.sha256, "b".repeat(64));
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sha256: "not-a-hash" }, release), null);
+	assert.equal(channels.validateReleaseManifest({ ...manifest, sourceBranch: "unknown" }, release), null);
+	const unexpectedAssetName = "nextjs-engine-" + manifest.version + "-unexpected.tgz";
+	assert.equal(channels.validateReleaseManifest(
+		{ ...manifest, assetName: unexpectedAssetName },
+		{ ...release, assets: [{ ...release.assets[0], name: unexpectedAssetName }] }
+	), null);
+	assert.equal(channels.validateReleaseManifest(
+		{ ...manifest, tag: "arbitrary-release-tag" },
+		{ ...release, tag_name: "arbitrary-release-tag" }
+	), null);
 
 	const rollingManifest = {
 		...manifest,
