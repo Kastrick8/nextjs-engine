@@ -64,6 +64,15 @@ jobs:
           path: source
           fetch-depth: 0
           persist-credentials: false
+      - name: Checkout content.include helper
+        uses: actions/checkout@v6
+        with:
+          ref: package/main
+          path: tooling
+          fetch-depth: 1
+          sparse-checkout: .github/scripts/copy-content-includes.js
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
 
       - name: Set up Node.js for npm Trusted Publishing
         uses: actions/setup-node@v6
@@ -75,6 +84,9 @@ jobs:
 
 
       - name: Install npm CLI with OIDC support
+      - name: Test content.include helper
+        run: node tooling/.github/scripts/copy-content-includes.js --self-test
+
         run: npm install --global npm@^11.21.0
 
       - name: Validate source pin and prepare immutable snapshot
@@ -175,6 +187,8 @@ jobs:
             fi
             cp -a "$ENGINE_DIR/." "$DEST/engine/"
             printf '%s\n' 'export * from "./engine";' > "$DEST/index.ts"
+            INCLUDED_CONTENT_PATHS="$(node tooling/.github/scripts/copy-content-includes.js source "$DEST")"
+            export CONTENT_INCLUDE_PATHS="$INCLUDED_CONTENT_PATHS"
             export TARGET VERSION TRACK PINNED_SHA SOURCE_BRANCH ENGINE_DIR TEMPLATE_DIR
             node --input-type=module <<'NODE'
           import fs from "node:fs";
@@ -184,8 +198,23 @@ jobs:
           manifest.name="@kastrick/nextjs-engine";
           manifest.version=VERSION;
           manifest.private=false;
-          manifest.files=(manifest.files||[]).filter(p=>fs.existsSync(root+"/"+p));
-          for(const [name,value] of Object.entries(manifest.exports||{})){
+          manifest.files=(manifest.files||[]).filter(p=>p!=="content.include"&&fs.existsSync(root+"/"+p));
+          const includedPaths=JSON.parse(process.env.CONTENT_INCLUDE_PATHS||"[]");
+          for(const included of includedPaths){
+            const top=included.split("/")[0];
+            if(top&&fs.existsSync(root+"/"+top)&&!manifest.files.includes(top)) manifest.files.push(top);
+          }
+          const sourceManifest=JSON.parse(fs.readFileSync("source/package.json","utf8"));
+          const bins={};
+          for(const [name,target] of Object.entries(sourceManifest.bin||{})){
+            if(typeof target!=="string") continue;
+            const relative=target.replace(/^\.\//,"");
+            const included=includedPaths.some(p=>relative===p||relative.startsWith(p+"/"));
+            if(included&&fs.existsSync(root+"/"+relative)) bins[name]="./"+relative;
+          }
+          if(Object.keys(bins).length) manifest.bin=bins;
+          else delete manifest.bin;
+          if(fs.existsSync(root+"/content.include")) fs.rmSync(root+"/content.include",{force:true});
             if(name===".") continue;
             const targets=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
             if(targets.some(p=>!fs.existsSync(root+"/"+p.replace(/^\.\//,"")))) delete manifest.exports[name];
