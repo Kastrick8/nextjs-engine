@@ -21,7 +21,7 @@ export const EnginePopover = memo(function EnginePopover({
 	children, open, defaultOpen = false, onOpenChange,
 	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = false, closeLabel = "Close popover",
-	closeOnEscape = true, restoreFocus = true, initialFocus, duration, portalTargetId, ariaLabel,
+	closeOnEscape = true, restoreFocus = true, initialFocus, duration, portalTargetId, ariaLabel, themeStyles,
 	placement = "bottom", align = "center", offset = 8, viewportPadding = 8,
 	closeOnOutsideClick = true, matchTriggerWidth = false, autoFocus = false, trapFocus = false,
 	role = "dialog", style, className, cprop, id, point, zIndex = 1100, ...props
@@ -125,7 +125,7 @@ export const EnginePopover = memo(function EnginePopover({
 			overflow: "auto",
 			padding: "1rem",
 		},
-		style,
+		style: { ...(themeStyles?.panel ?? {}), ...(style ?? {}) },
 		runtime: {
 			top: position?.top ?? 0,
 			left: position?.left ?? 0,
@@ -141,7 +141,7 @@ export const EnginePopover = memo(function EnginePopover({
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={triggerStyle} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={{ ...(themeStyles?.trigger ?? {}), ...(triggerStyle ?? {}) }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
 			{target && present && createPortal(
 				<div
 					ref={panelRef}
@@ -156,7 +156,7 @@ export const EnginePopover = memo(function EnginePopover({
 					data-state={active ? "open" : "closed"}
 					data-placement={actualPlacement}
 				>
-					<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+					<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} themeStyles={themeStyles}>{children}</OverlayContent>
 				</div>,
 				target,
 			)}
