@@ -8,6 +8,8 @@ import type {
 	EngineThemeJsonValue,
 } from "../../schema/types";
 import { parseEngineThemeId } from "./createTheme";
+import type { EngineComponentRegistry } from "../../core/registry";
+import { getScopedEngineThemeContribution, listScopedEngineThemeContributions, registerScopedEngineThemeContribution, unregisterScopedEngineThemeContribution } from "./themeRegistry";
 
 const HANDLER_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const COMPONENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -122,12 +124,16 @@ function validateContext(
  * Register a trusted, project-local event handler. Remote .etr themes may
  * reference this stable ID, but cannot provide executable handler source.
  */
-export function registerEngineThemeDataHandler(id: string, handler: EngineThemeDataHandler): void {
+export function registerEngineThemeDataHandler(id: string, handler: EngineThemeDataHandler, registry?: EngineComponentRegistry): void {
 	if (typeof id !== "string" || !HANDLER_ID.test(id) || RESERVED_IDS.has(id)) {
 		throw new TypeError("EngineTheme Data-API handler IDs must use safe alphanumeric, dot, underscore, or hyphen segments and cannot be reserved names.");
 	}
 	if (typeof handler !== "function") {
 		throw new TypeError("EngineTheme Data-API handler must be a local function.");
+	}
+	if (registry) {
+		registerScopedEngineThemeContribution(registry, "data-api", id, handler);
+		return;
 	}
 	const existing = handlers.get(id);
 	if (existing && existing !== handler) {
@@ -136,12 +142,12 @@ export function registerEngineThemeDataHandler(id: string, handler: EngineThemeD
 	handlers.set(id, handler);
 }
 
-export function unregisterEngineThemeDataHandler(id: string): boolean {
-	return handlers.delete(id);
+export function unregisterEngineThemeDataHandler(id: string, registry?: EngineComponentRegistry): boolean {
+	return registry ? unregisterScopedEngineThemeContribution(registry, "data-api", id) : handlers.delete(id);
 }
 
-export function listEngineThemeDataHandlers(): string[] {
-	return [...handlers.keys()].sort();
+export function listEngineThemeDataHandlers(registry?: EngineComponentRegistry): string[] {
+	return registry ? listScopedEngineThemeContributions(registry, "data-api") : [...handlers.keys()].sort();
 }
 
 /**
@@ -153,12 +159,16 @@ export function dispatchEngineThemeDataEvent(
 	type: EngineThemeDataEventType,
 	binding: string | EngineThemeDataEventBinding,
 	context: EngineThemeDataEventContext,
+	registry?: EngineComponentRegistry,
 ): EngineThemeDataHandlerResult {
 	if (!EVENT_TYPES.has(type)) throw new TypeError("Unsupported EngineTheme Data-API event: " + String(type));
 	const handlerId = normalizeBinding(binding);
-	const handler = handlers.get(handlerId);
+	const handler = registry
+		? getScopedEngineThemeContribution<EngineThemeDataHandler>(registry, "data-api", handlerId)
+		: handlers.get(handlerId);
 	if (!handler) {
-		throw new Error("EngineTheme Data-API handler '" + handlerId + "' is not registered in this project.");
+		throw new Error("EngineTheme Data-API handler '" + handlerId + "' is not registered in "
+			+ (registry ? "the supplied EngineComponentRegistry." : "this project."));
 	}
 	const event: EngineThemeDataEvent = Object.freeze({
 		type,
@@ -171,3 +181,4 @@ export function dispatchEngineThemeDataEvent(
 		throw new Error("EngineTheme Data-API handler '" + handlerId + "' failed for " + type + ": " + reason);
 	}
 }
+

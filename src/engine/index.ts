@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export { createPage, createComponent, defineSchema } from "./createPage";
+export { createEngineComponentRegistry, EngineComponentRegistry } from "./core/registry";
 export type {
 	CreateComponentOptions,
 	CreatePageOptions,
@@ -10,6 +11,14 @@ export type {
 	EngineCompilerOptions,
 	EnginePageComponent,
 } from "./createPage";
+export type {
+	CreateCustomComponentOptions,
+	EngineCustomPropRule,
+	EngineCustomPropSchema,
+	EngineCustomPropType,
+	EngineCustomReactComponent,
+	EngineCustomThemeStyles,
+} from "./core/EngineCustomComponent";
 
 export {
 	ERROR_BOOK_URL,
@@ -184,7 +193,7 @@ export { validateSchema, validatePageSchema } from "./core/validateSchema";
 export type { ValidationError, ValidationResult } from "./core/validateSchema";
 
 export { createTheme, parseEngineThemeId } from "./component/engineTheme/createTheme";
-export type { ParsedEngineThemeId } from "./component/engineTheme/createTheme";
+export type { ParsedEngineThemeId, CreateEngineThemeOptions } from "./component/engineTheme/createTheme";
 
 export {
 	registerEngineHighlighterProvider,

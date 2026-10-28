@@ -113,6 +113,7 @@ Every feature in this repository is governed by four non-negotiable pillars:
   * `EngineMarkdown`: `src/engine/core/markdownParser.ts`, `src/engine/components/EngineMarkdown.tsx`, `EngineMarkdownRenderer.tsx`, `EngineUrlIcon.tsx`, `app/%5Fstatic/emd/favicon/route.ts`.
 
   * `EngineTheme`: `src/engine/component/engineTheme/` (`createTheme.ts`, `resolveTheme.ts`, `remoteTheme.ts`, `tokens.ts`, `templates.tsx`, `dataApi.ts`, `fontUrls.ts`, `highlighting.ts`, `shikiProvider.ts`).
+	  * Custom component/theme integration: `createComponent({ mode: "custom" })` wraps trusted local React components with a declared prop/slot contract; explicit `createEngineComponentRegistry()` scopes component and theme metadata, and remote `.etr` themes remain data-only.
 
   * `EngineSEO`: `src/engine/core/engineseo/` (`EngineSEO.ts`, `EngineSEOImage.tsx`, `EngineSEOJsonLd.tsx`, `EngineSEOProviderSitemap.ts`, `EngineSEOTypes.ts`).
 
@@ -464,7 +465,7 @@ export interface EngineBrowserStaticAcceleratorConfig {
 
 * \[ \] **Finish `docs/3/` Consolidation:** Ensure all component and compiler documentation in `docs/3/` is the single canonical source and remove outdated duplicate files in `docs/engine-components/` and `docs/gen3/` once links in `DOCUMENT.md` and `README.md` are updated.
 
-* \[ \] **Normalize Theme Component Directory:** Alias or move `src/engine/component/engineTheme/` into `src/engine/components/engineTheme/` while keeping backwards-compatible re-exports in `src/engine/index.ts`.
+* [x] **Preserve the requested EngineTheme component path:** Keep `src/engine/component/engineTheme/` canonical, as explicitly requested. Do not move implementation modules into `src/engine/components/engineTheme/`; keep the public API exported from `src/engine/index.ts`.
 
 * \[ \] **Consolidate Private Search Example:** Unify duplicated example files between `examples/gen3-private-search/` and `src/example/private-search/` so `app/engine-private-search/` imports from a single canonical source.
 

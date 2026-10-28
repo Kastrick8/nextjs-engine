@@ -11,6 +11,7 @@ import React, {
 	type ReactNode,
 } from "react";
 import { globalStyleCollector, StyleCollector } from "../core/StyleCollector";
+import type { EngineComponentRegistry } from "../core/registry";
 import {
 	type EngineConfig,
 	BREAKPOINTS,
@@ -22,6 +23,7 @@ export interface EngineContextValue {
 	handlers: Record<string, (...args: unknown[]) => void>;
 	slots: Record<string, ReactNode>;
 	styleCollector: StyleCollector;
+	registry?: EngineComponentRegistry;
 }
 
 const DEFAULT_CONFIG: Required<EngineConfig> = {
@@ -39,6 +41,7 @@ const EngineContext = createContext<EngineContextValue>({
 	handlers: EMPTY_HANDLERS,
 	slots: EMPTY_SLOTS,
 	styleCollector: globalStyleCollector,
+	registry: undefined,
 });
 
 export interface EngineProviderProps {
@@ -46,6 +49,7 @@ export interface EngineProviderProps {
 	handlers?: Record<string, (...args: unknown[]) => void>;
 	slots?: Record<string, ReactNode>;
 	styleCollector?: StyleCollector;
+	registry?: EngineComponentRegistry;
 	children: ReactNode;
 }
 
@@ -54,6 +58,7 @@ export function EngineProvider({
 	handlers,
 	slots,
 	styleCollector,
+	registry,
 	children,
 }: EngineProviderProps) {
 	const ownedStyleCollectorRef = React.useRef<StyleCollector | null>(null);
@@ -79,8 +84,9 @@ export function EngineProvider({
 			handlers: resolvedHandlers,
 			slots: resolvedSlots,
 			styleCollector: collector,
+			registry,
 		}),
-		[collector, mergedConfig, resolvedHandlers, resolvedSlots],
+		[collector, mergedConfig, registry, resolvedHandlers, resolvedSlots],
 	);
 
 	return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;
@@ -96,6 +102,10 @@ export function useEngineConfig(): Required<EngineConfig> {
 
 export function useStyleCollector(): StyleCollector {
 	return useContext(EngineContext).styleCollector;
+}
+
+export function useEngineComponentRegistry(): EngineComponentRegistry | undefined {
+	return useContext(EngineContext).registry;
 }
 
 export function useHandler(name: string): ((...args: unknown[]) => void) | undefined {

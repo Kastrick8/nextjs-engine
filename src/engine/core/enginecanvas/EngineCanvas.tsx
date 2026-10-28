@@ -449,7 +449,7 @@ export const EngineCanvas = memo(function EngineCanvas({
 			disposed = true;
 			requestLoopRef.current = () => {};
 			stopLoop();
-			userCleanup?.();
+			if (typeof userCleanup === "function") userCleanup();
 			graphicsEngine?.dispose();
 			graphicsEngine = null;
 			resizeObserver?.disconnect();
@@ -565,7 +565,7 @@ export function useEngineCanvas(
 
 		return () => {
 			cancelAnimationFrame(raf);
-			cleanup?.();
+			if (typeof cleanup === "function") cleanup();
 		};
 	}, [mode, alpha, antialias, desynchronized, powerPreference]);
 

@@ -5,6 +5,28 @@ import type { EnginePopoverAlign, EnginePopoverPlacement } from "../../core/engi
 export type EngineOverlayOpenChange = string | ((open: boolean) => void);
 export type EngineOverlayActionVariant = "primary" | "secondary" | "danger" | "ghost";
 
+export type EngineOverlayThemeSlot =
+	| "trigger" | "backdrop" | "panel" | "header" | "title" | "description"
+	| "content" | "actions" | "actionPrimary" | "actionSecondary" | "actionDanger"
+	| "closeButton";
+
+export interface EngineOverlayThemeDefaults {
+	duration?: number;
+	size?: string | number;
+	side?: "left" | "right" | "top" | "bottom";
+	placement?: EnginePopoverPlacement;
+	align?: EnginePopoverAlign;
+	offset?: number;
+	viewportPadding?: number;
+	matchTriggerWidth?: boolean;
+}
+
+/** Compiler-resolved, allowlisted appearance values; theme IDs never reach DOM props. */
+export interface EngineOverlayResolvedTheme {
+	defaults?: EngineOverlayThemeDefaults;
+	styles?: Partial<Record<EngineOverlayThemeSlot, CSSProperties>>;
+}
+
 export interface EngineOverlayAction {
 	label: string;
 	onClick?: string | ((event: MouseEvent<HTMLButtonElement>) => void);
@@ -14,11 +36,15 @@ export interface EngineOverlayAction {
 }
 
 export interface EngineOverlayCommonProps extends Omit<BaseNodeProps, "onClick"> {
+	/** Internal resolved EngineTheme data injected by the schema theme compiler. */
+	engineOverlayTheme?: EngineOverlayResolvedTheme;
 	children?: ReactNode;
 	open?: boolean;
 	defaultOpen?: boolean;
 	onOpenChange?: EngineOverlayOpenChange;
 	trigger?: ReactNode;
+	/** Opt in to using a native button trigger as the actual control, without nesting buttons. */
+	triggerAsChild?: boolean;
 	triggerLabel?: string;
 	triggerClassName?: string;
 	triggerStyle?: CSSProperties;
@@ -62,5 +88,6 @@ export interface EnginePopoverProps extends EngineOverlayCommonProps {
 	matchTriggerWidth?: boolean;
 	autoFocus?: boolean;
 	trapFocus?: boolean;
-	role?: "dialog" | "menu" | "listbox";
+	/** Only dialog semantics are supported until menu/listbox keyboard behavior exists. */
+	role?: "dialog";
 }

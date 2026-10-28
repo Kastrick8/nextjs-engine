@@ -2,7 +2,7 @@
 
 import React, { type CSSProperties, type ReactNode } from "react";
 import { useHandler } from "../../providers/EngineProvider";
-import type { EngineOverlayAction } from "./types";
+import type { EngineOverlayAction, EngineOverlayResolvedTheme } from "./types";
 
 const BUTTON_BASE: CSSProperties = {
 	appearance: "none",
@@ -15,7 +15,17 @@ const BUTTON_BASE: CSSProperties = {
 	cursor: "pointer",
 };
 
-function OverlayActionButton({ action, close }: { action: EngineOverlayAction; close: () => void }) {
+const INTERACTIVE_TRIGGER_TAGS = new Set(["button", "a", "input", "select", "textarea", "summary"]);
+
+/** Prevent known interactive descendants from being nested inside the generated trigger button. */
+function containsInteractiveTrigger(node: ReactNode): boolean {
+	if (Array.isArray(node)) return node.some(containsInteractiveTrigger);
+	if (!React.isValidElement(node)) return false;
+	if (typeof node.type === "string" && INTERACTIVE_TRIGGER_TAGS.has(node.type)) return true;
+	return containsInteractiveTrigger((node.props as { children?: ReactNode }).children);
+}
+
+function OverlayActionButton({ action, close, theme }: { action: EngineOverlayAction; close: () => void; theme?: EngineOverlayResolvedTheme }) {
 	const namedHandler = useHandler(typeof action.onClick === "string" ? action.onClick : "");
 	const variant = action.variant ?? "secondary";
 	return (
@@ -28,6 +38,7 @@ function OverlayActionButton({ action, close }: { action: EngineOverlayAction; c
 				background: variant === "primary" ? "var(--e-accent, #4f46e5)" : variant === "danger" ? "#dc2626" : variant === "ghost" ? "transparent" : "var(--e-overlay-action-bg, #f1f5f9)",
 				color: variant === "primary" || variant === "danger" ? "#fff" : "inherit",
 				borderColor: variant === "ghost" ? "transparent" : undefined,
+				...(variant === "primary" ? theme?.styles?.actionPrimary : variant === "danger" ? theme?.styles?.actionDanger : theme?.styles?.actionSecondary),
 				opacity: action.disabled ? 0.55 : 1,
 				cursor: action.disabled ? "not-allowed" : "pointer",
 			}}
@@ -42,7 +53,7 @@ function OverlayActionButton({ action, close }: { action: EngineOverlayAction; c
 	);
 }
 
-export function OverlayContent({ title, description, children, actions, close, showCloseButton, closeLabel, titleId, descriptionId }: {
+export function OverlayContent({ title, description, children, actions, close, showCloseButton, closeLabel, titleId, descriptionId, theme }: {
 	title?: ReactNode;
 	description?: ReactNode;
 	children?: ReactNode;
@@ -52,34 +63,39 @@ export function OverlayContent({ title, description, children, actions, close, s
 	closeLabel: string;
 	titleId: string;
 	descriptionId: string;
+	theme?: EngineOverlayResolvedTheme;
 }) {
+	const themedStyles = theme?.styles;
 	return (
 		<>
+			<div style={themedStyles?.header}>
 			{showCloseButton && (
 				<button
 					type="button"
 					aria-label={closeLabel}
 					onClick={close}
-					style={{ position: "absolute", top: 10, right: 10, border: 0, background: "transparent", color: "inherit", font: "inherit", fontSize: "1.25rem", cursor: "pointer", lineHeight: 1 }}
+					style={{ position: "absolute", top: 10, right: 10, border: 0, background: "transparent", color: "inherit", font: "inherit", fontSize: "1.25rem", cursor: "pointer", lineHeight: 1, ...themedStyles?.closeButton }}
 				>
 					×
 				</button>
 			)}
-			{title != null && <h2 id={titleId} style={{ margin: "0 2rem .35rem 0", fontSize: "1.125rem" }}>{title}</h2>}
-			{description != null && <p id={descriptionId} style={{ margin: "0 0 1rem", color: "var(--e-overlay-muted, #64748b)", lineHeight: 1.5 }}>{description}</p>}
-			<div>{children}</div>
+			{title != null && <h2 id={titleId} style={{ margin: "0 2rem .35rem 0", fontSize: "1.125rem", ...themedStyles?.title }}>{title}</h2>}
+			{description != null && <p id={descriptionId} style={{ margin: "0 0 1rem", color: "var(--e-overlay-muted, #64748b)", lineHeight: 1.5, ...themedStyles?.description }}>{description}</p>}
+			</div>
+			<div style={themedStyles?.content}>{children}</div>
 			{actions && actions.length > 0 && (
-				<div style={{ display: "flex", justifyContent: "flex-end", gap: ".5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
-					{actions.map((action, index) => <OverlayActionButton key={`${action.label}-${index}`} action={action} close={close} />)}
+				<div style={{ display: "flex", justifyContent: "flex-end", gap: ".5rem", marginTop: "1.25rem", flexWrap: "wrap", ...themedStyles?.actions }}>
+					{actions.map((action, index) => <OverlayActionButton key={`${action.label}-${index}`} action={action} close={close} theme={theme} />)}
 				</div>
 			)}
 		</>
 	);
 }
 
-export function OverlayTrigger({ label, children, className, style, disabled, expanded, controls, hasPopup, ariaLabel, onClick, triggerRef }: {
+export function OverlayTrigger({ label, children, asChild = false, className, style, disabled, expanded, controls, hasPopup, ariaLabel, onClick, triggerRef }: {
 	label?: string;
 	children?: ReactNode;
+	asChild?: boolean;
 	className?: string;
 	style?: CSSProperties;
 	disabled?: boolean;
@@ -91,6 +107,35 @@ export function OverlayTrigger({ label, children, className, style, disabled, ex
 	triggerRef: React.RefObject<HTMLButtonElement | null>;
 }) {
 	if (label == null && children == null) return null;
+	if (asChild) {
+		if (!React.isValidElement(children) || children.type !== "button") {
+			throw new Error("[EngineOverlay] triggerAsChild requires exactly one native <button> element.");
+		}
+		const child = children as React.ReactElement<React.ComponentPropsWithRef<"button">>;
+		const childRef = child.props.ref;
+		return React.cloneElement(child, {
+			ref: (node: HTMLButtonElement | null) => {
+				if (typeof childRef === "function") childRef(node);
+				else if (childRef && typeof childRef === "object") (childRef as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+				triggerRef.current = node;
+			},
+			type: "button",
+			disabled: Boolean(disabled || child.props.disabled),
+			"aria-label": ariaLabel ?? child.props["aria-label"],
+			"aria-haspopup": hasPopup,
+			"aria-expanded": expanded,
+			"aria-controls": controls,
+			className: [child.props.className, className].filter(Boolean).join(" ") || undefined,
+			style: { ...BUTTON_BASE, ...style, ...child.props.style },
+			onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+				child.props.onClick?.(event);
+				if (!event.defaultPrevented) onClick();
+			},
+		});
+	}
+	if (containsInteractiveTrigger(children)) {
+		throw new Error("[EngineOverlay] Interactive trigger elements must use triggerAsChild; nested interactive controls are not supported.");
+	}
 	return (
 		<button
 			ref={triggerRef}

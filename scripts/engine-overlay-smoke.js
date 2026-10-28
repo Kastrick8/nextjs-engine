@@ -91,23 +91,188 @@ function main() {
 		assert.ok(clamped.top >= 12);
 		assert.ok(clamped.left + 220 <= 308);
 
-		const releaseA = runtime.registerOverlay("a");
-		assert.equal(runtime.isTopOverlay("a"), true);
-		const releaseB = runtime.registerOverlay("b");
-		assert.equal(runtime.isTopOverlay("a"), false);
-		assert.equal(runtime.isTopOverlay("b"), true);
+		const ownerDocument = {};
+		const otherDocument = {};
+		const releaseA = runtime.registerOverlay("a", ownerDocument);
+		assert.equal(runtime.isTopOverlay("a", ownerDocument), true);
+		const releaseB = runtime.registerOverlay("b", ownerDocument);
+		assert.equal(runtime.isTopOverlay("a", ownerDocument), false);
+		assert.equal(runtime.isTopOverlay("b", ownerDocument), true);
 		releaseB();
-		assert.equal(runtime.isTopOverlay("a"), true);
+		assert.equal(runtime.isTopOverlay("a", ownerDocument), true);
 		releaseA();
-		assert.equal(runtime.isTopOverlay("a"), false);
+		assert.equal(runtime.isTopOverlay("a", ownerDocument), false);
 
-		const releaseOld = runtime.registerOverlay("same");
-		const releaseNew = runtime.registerOverlay("same");
-		assert.equal(runtime.isTopOverlay("same"), true);
+		const releaseOld = runtime.registerOverlay("same", ownerDocument);
+		const releaseNew = runtime.registerOverlay("same", ownerDocument);
+		assert.equal(runtime.isTopOverlay("same", ownerDocument), true);
 		releaseOld();
-		assert.equal(runtime.isTopOverlay("same"), true);
+		assert.equal(runtime.isTopOverlay("same", ownerDocument), true);
 		releaseNew();
-		assert.equal(runtime.isTopOverlay("same"), false);
+		assert.equal(runtime.isTopOverlay("same", ownerDocument), false);
+
+		const releaseOtherDocument = runtime.registerOverlay("other", otherDocument);
+		assert.equal(runtime.isTopOverlay("other", otherDocument), true);
+		assert.equal(runtime.isTopOverlay("other", ownerDocument), false,
+			"overlay stacks are isolated by their owning Document");
+		releaseOtherDocument();
+
+		const modalBody = { children: [], parentElement: null };
+		const makeChild = (parent) => {
+			const styleValues = new Map();
+			const stylePriorities = new Map();
+			const element = {
+				inert: false,
+				isConnected: true,
+				style: {
+					getPropertyValue(name) { return styleValues.get(name) ?? ""; },
+					getPropertyPriority(name) { return stylePriorities.get(name) ?? ""; },
+					setProperty(name, value, priority = "") { styleValues.set(name, String(value)); stylePriorities.set(name, priority); },
+					removeProperty(name) { const previous = styleValues.get(name) ?? ""; styleValues.delete(name); stylePriorities.delete(name); return previous; },
+				},
+				children: [],
+				parentElement: parent,
+				contains(target) {
+					let current = target;
+					while (current) {
+						if (current === element) return true;
+						current = current.parentElement;
+					}
+					return false;
+				},
+			};
+			parent.children.push(element);
+			return element;
+		};
+		const makeBodyChild = () => makeChild(modalBody);
+		const pageBackground = makeBodyChild();
+		const modalRoot = makeBodyChild();
+		const popoverRoot = makeBodyChild();
+		const nestedModalRoot = makeBodyChild();
+		const modalDocument = { body: modalBody };
+		const unregisterModal = runtime.registerOverlay("modal", modalDocument, { root: modalRoot, modal: true, baseZIndex: 1000 });
+		assert.equal(pageBackground.inert, true, "background branches become inert when a modal opens");
+		assert.equal(modalRoot.inert, false, "the active modal root stays interactive");
+		const unregisterPopover = runtime.registerOverlay("popover", modalDocument, { root: popoverRoot, modal: false, baseZIndex: 1100 });
+		assert.equal(popoverRoot.inert, false, "a non-modal overlay above the active modal stays interactive");
+		assert.ok(Number(popoverRoot.style.getPropertyValue("--e-overlay-stack-z")) > Number(modalRoot.style.getPropertyValue("--e-overlay-stack-z")),
+			"a later popover receives a higher effective z-index than its parent modal");
+		const unregisterNestedModal = runtime.registerOverlay("nested-modal", modalDocument, { root: nestedModalRoot, modal: true });
+		assert.equal(modalRoot.inert, true, "a nested modal makes the previous modal inert");
+		assert.equal(popoverRoot.inert, true, "overlays below a nested modal become inert");
+		assert.equal(nestedModalRoot.inert, false, "the top nested modal stays interactive");
+		unregisterNestedModal();
+		assert.equal(pageBackground.inert, true, "closing a nested modal does not reactivate the page background");
+		assert.equal(modalRoot.inert, false, "closing a nested modal reactivates its parent modal");
+		assert.equal(popoverRoot.inert, false, "an overlay above the parent modal becomes interactive again");
+		unregisterPopover();
+		unregisterModal();
+		assert.equal(pageBackground.inert, false, "closing the final modal restores prior inert state");
+
+		const nestedBody = { children: [], parentElement: null };
+		const portalContainer = makeChild(nestedBody);
+		const nestedBackground = makeChild(nestedBody);
+		const nestedDialogRoot = makeChild(portalContainer);
+		const inactivePortalBranch = makeChild(portalContainer);
+		const nestedPopoverRoot = makeChild(portalContainer);
+		const nestedDocument = { body: nestedBody };
+		const unregisterNestedDialog = runtime.registerOverlay("nested-container-dialog", nestedDocument, {
+			root: nestedDialogRoot, modal: true,
+		});
+		assert.equal(nestedBackground.inert, true, "background outside a shared portal container becomes inert");
+		assert.equal(inactivePortalBranch.inert, true, "inactive sibling branches inside a portal container become inert");
+		assert.equal(nestedPopoverRoot.inert, true, "an unregistered sibling portal is initially inert");
+		const unregisterNestedPopover = runtime.registerOverlay("nested-container-popover", nestedDocument, {
+			root: nestedPopoverRoot, modal: false,
+		});
+		assert.equal(nestedPopoverRoot.inert, false, "registering a non-modal portal restores its own branch");
+		assert.equal(nestedDialogRoot.inert, false, "the active modal remains interactive");
+		assert.equal(inactivePortalBranch.inert, true, "other branches in the same portal stay inert");
+		unregisterNestedPopover();
+		unregisterNestedDialog();
+		assert.equal(nestedBackground.inert, false, "shared-container inertness is restored after closing the modal");
+		assert.equal(inactivePortalBranch.inert, false, "previous state for sibling branches is restored");
+
+		const drawerBody = { children: [], parentElement: null };
+		const drawerBackground = makeChild(drawerBody);
+		const drawerBackdrop = makeChild(drawerBody);
+		const drawerPanel = makeChild(drawerBody);
+		const drawerDocument = { body: drawerBody };
+		const unregisterDrawer = runtime.registerOverlay("drawer", drawerDocument, {
+			modal: true,
+			baseZIndex: 1000,
+			roots: [drawerBackdrop, drawerPanel],
+			layers: [{ element: drawerBackdrop, offset: 0 }, { element: drawerPanel, offset: 1 }],
+		});
+		assert.equal(drawerBackground.inert, true, "a drawer makes only unrelated application content inert");
+		assert.equal(drawerBackdrop.inert, false, "the drawer backdrop stays interactive for dismissal");
+		assert.equal(drawerPanel.inert, false, "the separate body-level drawer panel is not accidentally made inert");
+		assert.ok(Number(drawerPanel.style.getPropertyValue("--e-overlay-stack-z")) > Number(drawerBackdrop.style.getPropertyValue("--e-overlay-stack-z")),
+			"the drawer panel layer sits above its backdrop");
+		unregisterDrawer();
+		assert.equal(drawerBackground.inert, false, "closing a multi-root drawer restores the background");
+		assert.equal(drawerBackdrop.style.getPropertyValue("--e-overlay-stack-z"), "", "unregistering restores the backdrop's previous layer style");
+		assert.equal(drawerPanel.style.getPropertyValue("--e-overlay-stack-z"), "", "unregistering restores the panel's previous layer style");
+
+		const scheduledFrames = new Map();
+		let frameToken = 0;
+		const frameDocument = {
+			defaultView: {
+				requestAnimationFrame(callback) {
+					const token = ++frameToken;
+					scheduledFrames.set(token, callback);
+					return token;
+				},
+				cancelAnimationFrame(token) {
+					scheduledFrames.delete(token);
+				},
+			},
+		};
+		const frameResults = [];
+		runtime.scheduleOverlayFrame(() => frameResults.push("first"), frameDocument);
+		const cancelSecondFrame = runtime.scheduleOverlayFrame(() => frameResults.push("cancelled"), frameDocument);
+		cancelSecondFrame();
+		runtime.scheduleOverlayFrame(() => frameResults.push("third"), frameDocument);
+		assert.equal(scheduledFrames.size, 1, "overlay layout callbacks share one animation frame per Document");
+		const [scheduledId, runFrame] = scheduledFrames.entries().next().value;
+		scheduledFrames.delete(scheduledId);
+		runFrame(0);
+		assert.deepEqual(frameResults, ["first", "third"], "cancelled layout work is not executed");
+
+		const resizeObservers = [];
+		class FakeResizeObserver {
+			constructor(callback) {
+				this.callback = callback;
+				this.targets = new Set();
+				this.disconnectCount = 0;
+				resizeObservers.push(this);
+			}
+			observe(target) { this.targets.add(target); }
+			unobserve(target) { this.targets.delete(target); }
+			disconnect() { this.disconnectCount += 1; this.targets.clear(); }
+			notify(target) { this.callback([{ target }]); }
+		}
+		const resizeDocument = { defaultView: { ResizeObserver: FakeResizeObserver } };
+		const trigger = {};
+		const panel = {};
+		let triggerNotifications = 0;
+		let panelNotifications = 0;
+		const stopTrigger = runtime.subscribeOverlayResize(trigger, () => triggerNotifications += 1, resizeDocument);
+		const stopPanel = runtime.subscribeOverlayResize(panel, () => panelNotifications += 1, resizeDocument);
+		assert.equal(resizeObservers.length, 1, "all observed popover elements share one ResizeObserver per Document");
+		resizeObservers[0].notify(trigger);
+		assert.equal(triggerNotifications, 1);
+		assert.equal(panelNotifications, 0, "resize callbacks are scoped to their own observed element");
+		stopTrigger();
+		assert.equal(resizeObservers[0].targets.has(trigger), false, "inactive trigger targets are unobserved");
+		resizeObservers[0].notify(panel);
+		assert.equal(panelNotifications, 1);
+		stopPanel();
+		assert.equal(resizeObservers[0].disconnectCount, 1, "the shared ResizeObserver disconnects when its last target is released");
+
+		const fallbackDocument = { defaultView: {} };
+		const stopWithoutObserver = runtime.subscribeOverlayResize({}, () => assert.fail("unsupported ResizeObserver must not subscribe"), fallbackDocument);
+		assert.doesNotThrow(stopWithoutObserver, "missing ResizeObserver degrades to a no-op");
 
 		console.log("EngineOverlay runtime smoke tests passed");
 	} finally {

@@ -1,5 +1,8 @@
+import { hasUnsafeEngineThemeCssNetworkPrimitive, isSafeEngineThemeCssValue } from "./cssSafety";
 import type { EngineThemeDefinition } from "../../schema/types";
+import type { EngineComponentRegistry } from "../../core/registry";
 import {
+	createTheme,
 	registerLoadedRemoteEngineTheme,
 	unregisterLoadedRemoteEngineTheme,
 } from "./createTheme";
@@ -36,6 +39,8 @@ export interface LoadRemoteEngineThemeOptions {
 	cacheTtlMs?: number;
 	/** Optional injectable fetcher for tests/controlled transports. */
 	fetchImpl?: typeof fetch;
+	/** Optional application scope for verified theme registration; prevents process-global theme leakage. */
+	registry?: EngineComponentRegistry;
 	/** Optional caller cancellation signal. */
 	signal?: AbortSignal;
 }
@@ -306,7 +311,7 @@ function validateArtifactShape(value: unknown): asserts value is EngineThemeArti
 	}
 }
 
-const REMOTE_CSS_NETWORK_PATTERN = /url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|@import\b|-moz-binding\s*:|behavior\s*:/i;
+
 
 /** Bound and reject CSS/network primitives throughout JSON theme data before registration. */
 function assertSafeRemoteThemeStrings(
@@ -320,7 +325,7 @@ function assertSafeRemoteThemeStrings(
 		throw createRemoteThemeError("NESEC4001", "Remote EngineTheme exceeds the nested-data validation budget at " + path + ".");
 	}
 	if (typeof value === "string") {
-		if (REMOTE_CSS_NETWORK_PATTERN.test(value)) {
+		if (hasUnsafeEngineThemeCssNetworkPrimitive(value)) {
 			throw createRemoteThemeError("NESEC4001", "Remote EngineTheme contains an unsafe CSS/network primitive at " + path + ".");
 		}
 		return;
@@ -365,9 +370,7 @@ function sanitizeRemoteThemeContent(
 			if (!/^--[A-Za-z0-9_-]{1,80}$/.test(key)) {
 				throw createRemoteThemeError("NESEC4001", "Remote EngineTheme CSS variable names must start with -- and use safe identifier characters.");
 			}
-			if (typeof value !== "string" || value.length > 256
-				|| /[\u0000-\u001f\u007f{};<>]/.test(value)
-				|| /url\s*\(|expression\s*\(|javascript\s*:|@import|\/\*|\*\//i.test(value)) {
+			if (typeof value !== "string" || !isSafeEngineThemeCssValue(value, 256)) {
 				throw createRemoteThemeError("NESEC4001", "Remote EngineTheme CSS variable '" + key + "' contains an unsafe CSS value.");
 			}
 			normalizedVars[key] = value;
@@ -403,7 +406,7 @@ function sanitizeRemoteThemeContent(
 	return safe as EngineThemeDefinition;
 }
 
-async function parseAndRegisterArtifact(
+async function parseRemoteThemeArtifact(
 	text: string,
 	url: URL,
 	options: LoadRemoteEngineThemeOptions,
@@ -432,7 +435,10 @@ async function parseAndRegisterArtifact(
 		throw createRemoteThemeError("NETH8001", "Remote .etr SHA-256 verification failed.");
 	}
 	const safeContent = sanitizeRemoteThemeContent(artifact.content, url, options);
-	const registered = registerLoadedRemoteEngineTheme(safeContent);
+	if (safeContent.scope !== "remote") {
+		throw new TypeError("A remote .etr artifact must declare scope remote.");
+	}
+	const registered = createTheme(safeContent);
 	return registered as Readonly<EngineThemeDefinition & { scope: "remote" }>;
 }
 
@@ -460,11 +466,14 @@ export async function loadRemoteEngineTheme(
 	if (existing && existing.expiresAt > Date.now()) {
 		cache.delete(key);
 		cache.set(key, existing);
-		return existing.theme;
+		return registerLoadedRemoteEngineTheme(existing.theme, options.registry) as Readonly<EngineThemeDefinition & { scope: "remote" }>;
 	}
 	if (existing) cache.delete(key);
 	const running = inFlight.get(key);
-	if (running) return running;
+	if (running) {
+		const loaded = await running;
+		return registerLoadedRemoteEngineTheme(loaded, options.registry) as Readonly<EngineThemeDefinition & { scope: "remote" }>;
+	}
 
 	const promise = (async () => {
 		const fetcher = options.fetchImpl ?? globalThis.fetch;
@@ -490,7 +499,7 @@ export async function loadRemoteEngineTheme(
 				if (finalUrl.origin !== url.origin) throw createRemoteThemeError("NESEC2001", "Remote .etr response origin changed during retrieval.");
 			}
 			const text = await readBoundedResponse(response, maxBytes);
-			const theme = await parseAndRegisterArtifact(text, url, options);
+			const theme = await parseRemoteThemeArtifact(text, url, options);
 			if (ttlMs > 0) {
 				cache.set(key, { theme, expiresAt: Date.now() + ttlMs });
 				while (cache.size > MAX_CACHE_ENTRIES) {
@@ -511,7 +520,8 @@ export async function loadRemoteEngineTheme(
 	})();
 	inFlight.set(key, promise);
 	try {
-		return await promise;
+		const loaded = await promise;
+		return registerLoadedRemoteEngineTheme(loaded, options.registry) as Readonly<EngineThemeDefinition & { scope: "remote" }>;
 	} finally {
 		inFlight.delete(key);
 	}
@@ -526,12 +536,13 @@ export function getRemoteEngineThemeCacheSize(): number {
 	return cache.size;
 }
 
-export function unregisterRemoteEngineTheme(id: string): boolean {
-	const removed = unregisterLoadedRemoteEngineTheme(id);
-	if (removed) {
+export function unregisterRemoteEngineTheme(id: string, registry?: EngineComponentRegistry): boolean {
+	const removed = unregisterLoadedRemoteEngineTheme(id, registry);
+	if (removed && !registry) {
 		for (const [key, entry] of cache) {
 			if (entry.theme.id === id) cache.delete(key);
 		}
 	}
 	return removed;
 }
+

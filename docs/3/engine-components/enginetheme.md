@@ -2,13 +2,42 @@
 
 > **GENERATION 3 · ALPHA** · Source branch: main-3. The theme pipeline and .etr work were implemented by merged PR #45.
 
-**Implementation layout:** EngineTheme runtime modules live in `src/engine/component/engineTheme/`. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`.
+**Implementation layout:** EngineTheme runtime modules live in `src/engine/component/engineTheme/`. The plural `src/engine/components/engineTheme/` paths are compatibility re-exports only. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`.
 
 EngineTheme is the data-only theming layer for Next.js Engine. The current foundation provides a validated createTheme() API, qualified theme IDs, local/global/explicitly preloaded remote theme resolution for Markdown, static NENC .etr generation, lightweight Pretty-please highlighting, safe declarative UI templates, and a typed event-driven Data-API.
 
+## Trusted custom component authoring
+
+Generation 3 keeps `createComponent({ schema })` as the existing schema-composition API. A separate discriminated `mode: "custom"` path creates an adapter around trusted, local React component code, validates the declared props/slot contract at runtime, and exposes a stable schema-node ID. Register it explicitly with `registerComponent(id, component)`; the factory does not mutate the registry.
+
+```tsx
+import { createComponent, registerComponent } from "nextjs-engine";
+
+const SiteLink = createComponent({
+  mode: "custom",
+  id: "site-link",
+  theme: "site.link",
+  component: SiteLinkImplementation,
+  props: {
+    href: { type: "string", required: true, maxLength: 2048 },
+    target: { type: "string", enum: ["_self", "_blank"] },
+  },
+  slots: ["children"],
+  strictProps: true,
+});
+
+registerComponent("site-link", SiteLink);
+```
+
+The prop contract supports string, number, boolean, object, array, function and ReactNode values, plus required/nullability, enum, length and numeric bounds. The `strictProps` option rejects undeclared props while allowing common DOM attributes and `aria-*` / `data-*` attributes. Reserved dangerous HTML and prototype-related keys are rejected. Built-in Engine registry IDs cannot be replaced or unregistered; custom IDs remain explicitly registered application code.
+
+The optional `theme` field names a **base** group/namespace such as `site.link`; it cannot contain a variant segment. A `SchemaNode` can use `theme: "site.link.quiet"` to select a variant in that same group and namespace, or omit the node-level ID to inherit the base styles. The namespace may differ from the registered schema node ID. Explicit node `style` overrides theme-generated root styles; declared named-slot styles are delivered in the validated `engineThemeStyles` prop.
+
+This is the trusted local-component contract, not a remote component loader: `.etr` themes remain data only and cannot supply React implementations. Custom namespace and variant resolution are implemented for registered custom nodes. The new `EngineComponentRegistry` path scopes components, their theme groups, trusted Data-API handlers and template adapters; final cross-request verification and browser/assistive-technology coverage remain open until the current feature head passes CI.
+
 ## Current runtime scope
 
-The public createTheme() API, versioned .etr compiler/loader, templates, Data-API, highlighting adapters and font pipeline are implemented. The current schema resolver applies component-specific theme props/styles to EngineMarkdown. Although the JSON definition supports component namespaces, generic component-specific styling is not automatically applied to every registered component yet; dialog/drawer/popover and arbitrary custom-node theme bindings are separate future work.
+The public createTheme() API, versioned `.etr` compiler/loader, templates, Data-API, highlighting adapters and font pipeline are implemented. Generation 3 resolves component-specific styles for EngineMarkdown, EngineDialog/Drawer/Popover, and registered custom schema-node types. Custom-node styles are restricted to a validated visual-property vocabulary; trusted application code still owns component behavior and accessibility. The scoped registry API now isolates custom components, global/verified remote theme groups, Data-API handlers and template adapters when passed explicitly. Full cross-request acceptance and broader built-in adapters remain unfinished pending current-head tests.
 
 This distinction matters: EngineTheme is implemented, while the component-binding coverage is still being expanded. Use page-level vars and other documented supported theme fields where appropriate, or ordinary Engine styling props for components without a theme resolver.
 
@@ -83,9 +112,33 @@ The limit is three subtheme segments after the component segment. Variants inher
 
 Local themes can be supplied directly as a theme object. Global themes are registered in-process and can be referenced by ID. Missing global groups or variants produce an error. A remote ID resolves only after loadRemoteEngineTheme() explicitly loads and verifies its .etr artifact; render and module initialization never perform network requests.
 
+## Application-scoped component registries
+
+The backwards-compatible `registerComponent()` and default `createTheme({ scope: "global" })` paths still use process-global compatibility registries. For multi-app applications, isolated tests, or applications that need different trusted components/themes under the same IDs, create a registry with `createEngineComponentRegistry()` and pass it to `createPage({ registry })` or `createComponent({ registry })`. Register a global theme group with `createTheme(definition, { registry })`, or load a verified remote theme with `loadRemoteEngineTheme(url, { ..., registry })`. Each registry owns its custom components, slot/theme namespace metadata, and scoped global/remote theme groups independently. Remote ETR response caching may be shared, but every caller explicitly registers the verified immutable theme in its own scope. NENC reads only the first `createTheme()` argument into `.etr`; the runtime registry option is not serialized. Scoped registration never mutates the process-global compatibility maps.
+
+Scoped registries use the Generation 3 server-first renderer. Supplying one while configuring the legacy renderer (for example, `compiler.serverFirst: false` or named render-time handlers) fails explicitly rather than silently changing render modes. In server-first rendering, registered trusted components resolve from the supplied registry; the default global registration path retains its existing client-island behavior. Calls without a registry retain the process-global compatibility map; for tenant-specific global themes, use `createTheme(definition, { registry })` so the group is owned by the same application scope.
+
+## Scoped Data-API handlers and template adapters
+
+The optional `registry` argument on `registerEngineThemeDataHandler()`, `unregisterEngineThemeDataHandler()`, and `listEngineThemeDataHandlers()` isolates trusted handler IDs per application. Declarative template rendering uses that same scope through its internal `registry` context; a scoped dispatch never falls back to the process-global handler map.
+
+Template adapters follow the same rule: pass `registry` as the third argument to `registerEngineThemeTemplateAdapter()`, and use the registry-aware unregister/list functions. Markdown's server-first renderer threads this scope into info blocks, code blocks, table headers and table cells. The internal registry is removed before a trusted adapter is rendered, so it is not exposed as adapter props or serialized into the client tree.
+
+Optional highlighter providers can also be registered with `registerEngineHighlighterProvider(provider, registry)`. Provider listing, language/theme discovery, and `highlightEngineCode(..., { registry })` then use only that app registry plus the built-in `engine-lite` provider. A scoped lookup never borrows a same-ID global provider or provider from another application. Two apps can use the same provider ID with different initialized Shiki/TextMate instances without sharing registration state. Calls without a registry retain the process-global compatibility behavior.
+
+## Registered custom component theme bindings
+
+Generation 3 also supports theme styling for trusted, locally authored schema-node components. Define the implementation with `createComponent({ mode: "custom", ... })`, declare its prop and named-slot contract, register it under an application-owned node type, and bind that node to a component namespace such as `site.link.quiet`.
+
+The live fixture at [`/engine-custom-link-test`](../../app/engine-custom-link-test/page.tsx) demonstrates the full path: `createTheme()`, a typed `createComponent()` adapter, `registerComponent()`, base/variant style resolution, a named `leading` slot, internal navigation, external `target="_blank"` rel protections, and fail-closed handling for unsafe schemes. Its browser regression lives in `tests/browser/engine-custom-link.spec.ts`.
+
+Theme data controls appearance only; trusted application code owns navigation and behavior. The resolver validates the bounded CSS property/value vocabulary and applies explicit node styles after theme defaults/variants. A remote `.etr` file cannot provide React code or replace the registered component implementation.
+
+CSS safety checks decode CSS escapes before scanning style values, theme tokens, remote `.etr` strings, and overlay defaults. Literal and escaped spellings of `url(...)`, `expression(...)`, executable schemes, and similar network/execution primitives are rejected before those values are applied.
+
 ## Migration and compatibility
 
-The public import remains `nextjs-engine`; applications should not import the internal `src/engine/component/engineTheme/` files directly. Moving those implementation files does not change the public API.
+The public import remains `nextjs-engine`; applications should not import the internal `src/engine/component/engineTheme/` files directly. The public package entry remains the supported application import.
 
 Existing inline theme objects remain valid:
 

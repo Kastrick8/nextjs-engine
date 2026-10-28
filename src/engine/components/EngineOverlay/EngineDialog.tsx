@@ -19,10 +19,12 @@ import type { EngineDialogProps } from "./types";
 
 export const EngineDialog = memo(function EngineDialog({
 	children,
+	engineOverlayTheme,
 	open,
 	defaultOpen = false,
 	onOpenChange,
 	trigger,
+	triggerAsChild,
 	triggerLabel,
 	triggerClassName,
 	triggerStyle,
@@ -57,21 +59,24 @@ export const EngineDialog = memo(function EngineDialog({
 	const titleId = `${panelId}-title`;
 	const descriptionId = `${panelId}-description`;
 	const [isOpen, setOpen] = useOverlayState(open, defaultOpen, onOpenChange);
-	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration);
+	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration ?? engineOverlayTheme?.defaults?.duration);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
+	const overlayRootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const target = usePortalTarget(portalTargetId);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
-		open: isOpen, overlayId: panelId, panelRef, triggerRef, close,
+		open: isOpen, present: present && target !== null, overlayId: panelId, panelRef, triggerRef, close, modal: true,
+		baseZIndex: zIndex, layers: [{ ref: overlayRootRef, offset: 0 }],
 		closeOnEscape, trapFocus, autoFocus: true, lockScroll, restoreFocus, initialFocus,
-	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, restoreFocus, trapFocus]);
+	}), [close, closeOnEscape, initialFocus, isOpen, lockScroll, panelId, present, restoreFocus, target, trapFocus, zIndex]);
 	useOverlayBehavior(behavior);
 
 	const panelStyle = usePrimitiveStyles(props as any, {
 		defaults: {
 			...SURFACE_BASE,
+			...engineOverlayTheme?.styles?.panel,
 			position: "relative",
 			width: "min(32rem, calc(100vw - 2rem))",
 			maxHeight: "min(85vh, 52rem)",
@@ -82,7 +87,7 @@ export const EngineDialog = memo(function EngineDialog({
 		runtime: {
 			opacity: active ? 1 : 0,
 			transform: active ? "translateY(0) scale(1)" : "translateY(10px) scale(.985)",
-			transition: `opacity ${transitionMs}ms ease, transform ${transitionMs}ms ease`,
+			transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease, transform ${transitionMs}ms ease`,
 		},
 	});
 	const panelClass = [className, useCpropClass(cprop)].filter(Boolean).join(" ") || undefined;
@@ -92,8 +97,9 @@ export const EngineDialog = memo(function EngineDialog({
 			<OverlayTrigger
 				label={triggerLabel}
 				children={trigger}
+				asChild={triggerAsChild}
 				className={triggerClassName}
-				style={triggerStyle}
+				style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }}
 				disabled={triggerDisabled}
 				expanded={isOpen}
 				controls={panelId}
@@ -104,19 +110,22 @@ export const EngineDialog = memo(function EngineDialog({
 			/>
 			{target && present && createPortal(
 				<div
+					ref={overlayRootRef}
 					style={{
 						position: "fixed",
 						inset: 0,
-						zIndex,
 						display: "grid",
 						placeItems: "center",
 						padding: "1rem",
 						background: "rgba(2,6,23,.58)",
 						backdropFilter: "blur(6px)",
 						opacity: active ? 1 : 0,
-						transition: `opacity ${transitionMs}ms ease`,
+						transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
+						...engineOverlayTheme?.styles?.backdrop,
 						...overlayStyle,
-					}}
+						...(transitionMs === 0 ? { transition: "none" } : {}),
+						zIndex: `var(--e-overlay-stack-z, ${zIndex})`,
+					} as React.CSSProperties}
 					onPointerDown={(event) => {
 						if (closeOnBackdrop && event.target === event.currentTarget && isTopOverlay(panelId)) close();
 					}}
@@ -134,7 +143,7 @@ export const EngineDialog = memo(function EngineDialog({
 						style={panelStyle}
 						data-state={active ? "open" : "closed"}
 					>
-						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+						<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} theme={engineOverlayTheme}>{children}</OverlayContent>
 					</div>
 				</div>,
 				target,

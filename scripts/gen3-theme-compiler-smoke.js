@@ -56,6 +56,7 @@ async function testPublicThemeApi() {
 		const resolverPath = path.resolve(__dirname, "../src/engine/component/engineTheme/resolveTheme.ts");
 		const { createTheme, parseEngineThemeId } = require(themePath);
 		const { resolveEngineThemeSchema } = require(resolverPath);
+		const { createEngineComponentRegistry } = require(path.resolve(__dirname, "../src/engine/core/registry.ts"));
 		const { compileEngineThemeFonts } = require(path.resolve(__dirname, "../src/engine/compiler/font/3/compiler.ts"));
 		const { loadRemoteEngineTheme, clearRemoteEngineThemeCache, getRemoteEngineThemeCacheSize, unregisterRemoteEngineTheme } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/remoteTheme.ts"));
 		const {
@@ -77,6 +78,8 @@ async function testPublicThemeApi() {
 			unregisterEngineThemeDataHandler,
 		} = require(path.resolve(__dirname, "../src/engine/component/engineTheme/dataApi.ts"));
 		const React = require("react");
+		const ReactDOMServer = require("react-dom/server");
+		const { EngineMarkdownRenderer } = require(path.resolve(__dirname, "../src/engine/components/EngineMarkdownRenderer.tsx"));
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
 		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/fontUrls.ts"));
 		const { flattenEngineThemeTokens, normalizeEngineThemeVariables } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/tokens.ts"));
@@ -119,6 +122,8 @@ async function testPublicThemeApi() {
 		assert.ok(nestedFenceInfo.includes("> Body"), "text after a nested code fence stays inside the info block");
 		assert.deepEqual(flattenEngineThemeTokens({ colors: { accent: "#826f9b", surface: "color(srgb 0.1 0.2 0.3)" }, typography: { bodyFontFamily: "Inter, system-ui, sans-serif", scale: 1.25, unsafe: "red; --escape: true", tracked: "url(https://evil.invalid/x)" }, ignored: true }), { "--e-theme-colors-accent": "#826f9b", "--e-theme-colors-surface": "color(srgb 0.1 0.2 0.3)", "--e-theme-typography-body-font-family": "Inter, system-ui, sans-serif", "--e-theme-typography-scale": "1.25" }, "safe semantic tokens are flattened to bounded CSS variables");
 		assert.deepEqual(normalizeEngineThemeVariables({ accent: "#fff", "--legacy-gap": "1rem", unsafe: "red; color: black", tracked: "url(https://evil.invalid/x)" }), { "--accent": "#fff", "--legacy-gap": "1rem" }, "legacy CSS vars preserve safe values and discard injection vectors");
+    assert.deepEqual(flattenEngineThemeTokens({ typography: { escapedNetwork: "\\75 rl(https://evil.invalid/x)" } }), {}, "CSS escapes cannot bypass semantic token URL checks");
+    assert.deepEqual(normalizeEngineThemeVariables({ "--escaped-network": "\\75 rl(https://evil.invalid/x)" }), {}, "CSS escapes cannot bypass legacy variable URL checks");
 		const normalizedInfo = normalizeEngineMarkdownSource(":::warning Build note\nRead this carefully.\n:::");
 		assert.ok(normalizedInfo.includes("> [!ENGINE-INFO warning] Build note"), "info blocks normalize to a safe blockquote marker");
 		assert.ok(normalizedInfo.includes("> Read this carefully."), "info block body remains Markdown text");
@@ -212,6 +217,54 @@ async function testPublicThemeApi() {
 		]);
 		assert.equal(unregisterEngineHighlighterProvider("smoke-provider"), true);
 
+		const highlighterRegistryA = createEngineComponentRegistry();
+		const highlighterRegistryB = createEngineComponentRegistry();
+		const highlighterRegistryEmpty = createEngineComponentRegistry();
+		const scopedHighlighterGlobal = {
+			id: "scope-shared-highlighter",
+			name: "Global Highlighter",
+			languages: ["typescript"],
+			themes: [{ id: "global-theme", name: "Global Theme" }],
+			highlight: (code) => [{ kind: "plain", text: code }],
+		};
+		const scopedHighlighterA = {
+			id: "scope-shared-highlighter",
+			name: "Tenant A Highlighter",
+			languages: ["typescript"],
+			themes: [{ id: "tenant-a-theme", name: "Tenant A Theme" }],
+			highlight: (code) => [{ kind: "keyword", text: code }],
+		};
+		const scopedHighlighterB = {
+			id: "scope-shared-highlighter",
+			name: "Tenant B Highlighter",
+			languages: ["typescript"],
+			themes: [{ id: "tenant-b-theme", name: "Tenant B Theme" }],
+			highlight: (code) => [{ kind: "string", text: code }],
+		};
+		registerEngineHighlighterProvider(scopedHighlighterGlobal);
+		registerEngineHighlighterProvider(scopedHighlighterA, highlighterRegistryA);
+		registerEngineHighlighterProvider(scopedHighlighterB, highlighterRegistryB);
+		assert.equal(listEngineHighlighterProviders(highlighterRegistryA).find((entry) => entry.id === "scope-shared-highlighter").name, "Tenant A Highlighter");
+		assert.equal(listEngineHighlighterProviders(highlighterRegistryB).find((entry) => entry.id === "scope-shared-highlighter").name, "Tenant B Highlighter");
+		assert.equal(listEngineHighlighterProviders(highlighterRegistryEmpty).some((entry) => entry.id === "scope-shared-highlighter"), false,
+			"a registry enumerates only its own highlighters plus built-in Engine Lite");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter" })[0].kind, "plain");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryA })[0].kind, "keyword");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryB })[0].kind, "string");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryEmpty }), null,
+			"a scoped provider lookup never falls back to a process-global provider");
+		assert.ok(listEngineHighlighterThemes("scope-shared-highlighter", highlighterRegistryA).some((theme) => theme.id === "tenant-a-theme"));
+		assert.equal(listEngineHighlighterThemes("scope-shared-highlighter", highlighterRegistryA).some((theme) => theme.id === "global-theme"), false);
+		assert.ok(listEngineHighlighterLanguages("scope-shared-highlighter", highlighterRegistryB).includes("typescript"));
+		assert.equal(unregisterEngineHighlighterProvider("scope-shared-highlighter", highlighterRegistryA), true);
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryA }), null);
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter", registry: highlighterRegistryB })[0].kind, "string",
+			"unregistering one scoped provider leaves another provider with the same ID intact");
+		assert.equal(highlightEngineCode("value", "typescript", { provider: "scope-shared-highlighter" })[0].kind, "plain",
+			"scoped unregister leaves the process-global provider untouched");
+		assert.equal(unregisterEngineHighlighterProvider("scope-shared-highlighter", highlighterRegistryB), true);
+		assert.equal(unregisterEngineHighlighterProvider("scope-shared-highlighter"), true);
+
 		const shikiProvider = createShikiEngineHighlighterProvider({
 			getLoadedLanguages: () => ["typescript"],
 			getLoadedThemes: () => ["github-dark", "github-light"],
@@ -301,6 +354,39 @@ async function testPublicThemeApi() {
 		}), /must be JSON data/);
 		assert.equal(unregisterEngineThemeDataHandler("smoke-theme.table-join"), true);
 
+		const dataRegistryA = createEngineComponentRegistry();
+		const dataRegistryB = createEngineComponentRegistry();
+		const scopedDataHandlerA = (event) => ({ operation: "replace", value: "tenant-a:" + (event.context.incoming?.label ?? "none") });
+		const scopedDataHandlerB = (event) => ({ operation: "replace", value: "tenant-b:" + (event.context.incoming?.label ?? "none") });
+		registerEngineThemeDataHandler("scoped.shared-handler", scopedDataHandlerA, dataRegistryA);
+		registerEngineThemeDataHandler("scoped.shared-handler", scopedDataHandlerB, dataRegistryB);
+		const scopedDataContext = {
+			themeId: "scope-smoke-theme.markdown",
+			componentId: "markdown",
+			slotId: "table.header",
+			incoming: { label: "Sort" },
+		};
+		assert.deepEqual(listEngineThemeDataHandlers(dataRegistryA), ["scoped.shared-handler"]);
+		assert.deepEqual(listEngineThemeDataHandlers(dataRegistryB), ["scoped.shared-handler"]);
+		assert.deepEqual(dispatchEngineThemeDataEvent("join:left", "scoped.shared-handler", scopedDataContext, dataRegistryA),
+			{ operation: "replace", value: "tenant-a:Sort" });
+		assert.deepEqual(dispatchEngineThemeDataEvent("join:left", "scoped.shared-handler", scopedDataContext, dataRegistryB),
+			{ operation: "replace", value: "tenant-b:Sort" },
+			"the same handler ID resolves to each application's own trusted implementation");
+		registerEngineThemeDataHandler("scoped.global-only-handler", scopedDataHandlerA);
+		assert.throws(() => dispatchEngineThemeDataEvent("join:left", "scoped.global-only-handler", scopedDataContext, dataRegistryA),
+			/not registered in the supplied EngineComponentRegistry/,
+			"a scoped dispatch must not fall back to an existing process-global handler");
+		assert.equal(unregisterEngineThemeDataHandler("scoped.global-only-handler"), true);
+		assert.throws(() => dispatchEngineThemeDataEvent("join:left", "smoke-theme.table-join", scopedDataContext, dataRegistryA),
+			/not registered in the supplied EngineComponentRegistry/,
+			"a scoped dispatch must not fall back to another global handler ID");
+		assert.equal(unregisterEngineThemeDataHandler("scoped.shared-handler", dataRegistryA), true);
+		assert.deepEqual(dispatchEngineThemeDataEvent("join:left", "scoped.shared-handler", scopedDataContext, dataRegistryB),
+			{ operation: "replace", value: "tenant-b:Sort" },
+			"unregistering a handler in one registry leaves the other registry intact");
+
+
 		const schemaTemplate = {
 			schema: {
 				type: "stack",
@@ -351,6 +437,54 @@ async function testPublicThemeApi() {
 		const adapterElement = renderEngineThemeTemplate({ adapterId: "smoke.markdown.header" }, { label: "custom" });
 		assert.equal(adapterElement.type, localAdapter, "only the explicitly registered local adapter is returned");
 		assert.equal(unregisterEngineThemeTemplateAdapter("smoke.markdown.header"), true);
+
+		const templateRegistryA = createEngineComponentRegistry();
+		const templateRegistryB = createEngineComponentRegistry();
+		const scopedAdapterA = (props) => React.createElement("aside", { "data-owner": "tenant-a" }, props.label);
+		const scopedAdapterB = (props) => React.createElement("aside", { "data-owner": "tenant-b" }, props.label);
+		const globalScopedAdapter = (props) => React.createElement("aside", { "data-owner": "global" }, props.label);
+		registerEngineThemeTemplateAdapter("scoped.shared-adapter", globalScopedAdapter);
+		registerEngineThemeTemplateAdapter("scoped.shared-adapter", scopedAdapterA, templateRegistryA);
+		registerEngineThemeTemplateAdapter("scoped.shared-adapter", scopedAdapterB, templateRegistryB);
+		assert.deepEqual(listEngineThemeTemplateAdapters(templateRegistryA), ["scoped.shared-adapter"]);
+		assert.deepEqual(listEngineThemeTemplateAdapters(templateRegistryB), ["scoped.shared-adapter"]);
+		const scopedTemplateA = renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, {
+			label: "Tenant A", registry: templateRegistryA,
+		});
+		const scopedTemplateB = renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, {
+			label: "Tenant B", registry: templateRegistryB,
+		});
+		assert.equal(scopedTemplateA.type, scopedAdapterA);
+		assert.equal(scopedTemplateA.props.label, "Tenant A");
+		assert.equal(scopedTemplateA.props.registry, undefined,
+			"the internal registry object is never passed to trusted adapter props");
+		assert.equal(scopedTemplateB.type, scopedAdapterB);
+		assert.equal(scopedTemplateB.props.label, "Tenant B");
+		const markdownWithScopedAdapterA = ReactDOMServer.renderToStaticMarkup(React.createElement(EngineMarkdownRenderer, {
+			content: "~~~typescript\nconst scoped = true;\n~~~",
+			registry: templateRegistryA,
+			themeTemplates: { codeBlock: { adapterId: "scoped.shared-adapter" } },
+		}));
+		const markdownWithScopedAdapterB = ReactDOMServer.renderToStaticMarkup(React.createElement(EngineMarkdownRenderer, {
+			content: "~~~typescript\nconst scoped = true;\n~~~",
+			registry: templateRegistryB,
+			themeTemplates: { codeBlock: { adapterId: "scoped.shared-adapter" } },
+		}));
+		assert.match(markdownWithScopedAdapterA, /data-owner="tenant-a"/,
+			"server-rendered Markdown passes its application registry to the code-block template");
+		assert.match(markdownWithScopedAdapterB, /data-owner="tenant-b"/,
+			"two Markdown renders with the same adapter ID use independent trusted implementations");
+		assert.doesNotMatch(markdownWithScopedAdapterA, /data-owner="global"/);
+		assert.doesNotMatch(markdownWithScopedAdapterB, /data-owner="global"/);
+		assert.equal(renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, { label: "Global" }).type, globalScopedAdapter,
+			"the no-registry compatibility API retains its process-global adapter");
+		assert.equal(unregisterEngineThemeTemplateAdapter("scoped.shared-adapter", templateRegistryA), true);
+		assert.equal(renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, { registry: templateRegistryA }), undefined,
+			"a missing scoped adapter must not silently fall back to a global adapter with the same ID");
+		assert.equal(renderEngineThemeTemplate({ adapterId: "scoped.shared-adapter" }, { registry: templateRegistryB }).type, scopedAdapterB,
+			"removing one scoped adapter leaves the other registry intact");
+		assert.equal(unregisterEngineThemeTemplateAdapter("scoped.shared-adapter"), true);
+
 
 		registerEngineThemeDataHandler("smoke.template.composition", (event) => ({
 			operation: "append",
@@ -499,6 +633,144 @@ async function testPublicThemeApi() {
 		});
 		assert.equal(localPage.root.props.codeColor, "#abcdef", "a local theme definition can be applied directly");
 
+		const overlayTheme = createTheme({
+			id: "overlay-runtime-smoke",
+			scope: "global",
+			overlay: {
+				defaults: { duration: 75 },
+				styles: {
+					panel: { borderColor: "#123456", borderRadius: "12px" },
+					backdrop: { background: "rgba(0,0,0,.4)" },
+				},
+			},
+			dialog: {
+				defaults: { duration: 180 },
+				styles: {
+					panel: { background: "#222222", color: "#f8fafc" },
+					title: { fontSize: "1.5rem" },
+				},
+				variants: {
+					danger: {
+						defaults: { duration: 260 },
+						styles: { panel: { background: "#7f1d1d" } },
+					},
+				},
+			},
+			drawer: {
+				defaults: { side: "left", size: "28rem" },
+				styles: { panel: { borderRadius: "0" } },
+			},
+			popover: {
+				defaults: { placement: "top", align: "start", offset: 12, viewportPadding: 10, matchTriggerWidth: true },
+				styles: { panel: { background: "#111827" } },
+			},
+		});
+		const themedOverlayPage = resolveEngineThemeSchema({
+			theme: { id: "overlay-runtime-smoke" },
+			root: {
+				type: "section",
+				children: [
+					{
+						type: "dialog",
+						theme: "overlay-runtime-smoke.dialog.danger",
+						props: { duration: 440, style: { color: "#ffffff" } },
+					},
+					{ type: "drawer", props: { size: "400px" } },
+					{ type: "popover", props: { offset: 24 } },
+				],
+			},
+		});
+		const [themedDialog, themedDrawer, themedPopover] = themedOverlayPage.root.children;
+		assert.equal(themedDialog.theme, undefined, "node theme IDs are consumed during schema resolution");
+		assert.equal(themedDialog.props.engineOverlayTheme.defaults.duration, 260,
+			"component variant defaults override shared overlay defaults");
+		assert.deepEqual(themedDialog.props.engineOverlayTheme.styles.panel, {
+			borderColor: "#123456",
+			borderRadius: "12px",
+			background: "#7f1d1d",
+			color: "#f8fafc",
+		}, "shared overlay slots and component-variant slots merge with component values taking precedence");
+		assert.equal(themedDialog.props.style.color, "#ffffff", "explicit local style remains untouched and wins at render time");
+		assert.equal(themedDrawer.props.engineOverlayTheme.defaults.side, "left");
+		assert.equal(themedDrawer.props.engineOverlayTheme.defaults.size, "28rem");
+		assert.equal(themedDrawer.props.size, "400px", "local drawer size overrides themed defaults");
+		assert.equal(themedPopover.props.engineOverlayTheme.defaults.placement, "top");
+		assert.equal(themedPopover.props.engineOverlayTheme.defaults.matchTriggerWidth, true);
+		assert.equal(themedPopover.props.offset, 24, "local popover offset overrides themed defaults");
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: overlayTheme,
+			root: { type: "popover", theme: "overlay-runtime-smoke.drawer" },
+		}), /must use an EngineTheme ID qualified for 'overlay' or 'popover'/,
+		"component namespace bindings cannot be applied to the wrong overlay type");
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: overlayTheme,
+			root: { type: "dialog", theme: "overlay-runtime-smoke.dialog.missing" },
+		}), /missing subtheme 'missing'/, "unknown theme variants fail with a focused diagnostic");
+		assert.throws(() => resolveEngineThemeSchema({
+			root: { type: "dialog", theme: "overlay-runtime-smoke.dialog" },
+		}), /requires PageSchema.theme/, "node-level theme references cannot bypass the page theme context");
+		const unsafeOverlayTheme = createTheme({
+			id: "unsafe-overlay-runtime-smoke",
+			scope: "local",
+			dialog: { styles: { panel: { background: "url(https://evil.invalid/pixel)", borderRadius: "8px" } } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+      theme: unsafeOverlayTheme,
+      root: { type: "dialog" },
+    }), /Unsafe or invalid CSS value/, "unsafe CSS/network values in theme slots fail closed");
+    const escapedUnsafeOverlayTheme = createTheme({
+      id: "escaped-unsafe-overlay-runtime-smoke",
+      scope: "local",
+      dialog: { styles: { panel: { background: "\\75 rl(https://evil.invalid/pixel)" } } },
+    });
+    assert.throws(() => resolveEngineThemeSchema({
+      theme: escapedUnsafeOverlayTheme,
+      root: { type: "dialog" },
+    }), /Unsafe or invalid CSS value/, "CSS escapes cannot bypass overlay style URL checks");
+		const unsupportedOverlayStyle = createTheme({
+			id: "unsupported-overlay-style-smoke",
+			scope: "local",
+			dialog: { styles: { panel: { position: "fixed" } } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: unsupportedOverlayStyle,
+			root: { type: "dialog" },
+		}), /Unsupported CSS property 'position'/, "overlay styles reject properties outside the allowlisted CSS vocabulary");
+		const invalidOverlayDefaults = createTheme({
+			id: "invalid-overlay-defaults-smoke",
+			scope: "local",
+			dialog: { defaults: { side: "left" } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: invalidOverlayDefaults,
+			root: { type: "dialog" },
+		}), /Unsupported EngineTheme default 'side'/, "component namespaces reject defaults that could change the wrong component");
+
+		const localVarsOnlyTheme = createTheme({
+			id: "local-vars-only-theme-smoke",
+			scope: "local",
+			vars: { "--local-only": "#010203" },
+		});
+		const localVarsOnlyPage = resolveEngineThemeSchema({
+			theme: localVarsOnlyTheme,
+			root: { type: "dialog" },
+		});
+		assert.equal(localVarsOnlyPage.theme.vars["--local-only"], "#010203",
+			"local groups with page-level vars are treated as definitions, not registry lookups");
+
+		const localOverlayTheme = createTheme({
+			id: "local-overlay-runtime-smoke",
+			scope: "local",
+			drawer: { defaults: { side: "bottom" }, styles: { panel: { color: "#abcdef" } } },
+		});
+		const localOverlayPage = resolveEngineThemeSchema({
+			theme: localOverlayTheme,
+			root: { type: "drawer", theme: "local-overlay-runtime-smoke.drawer" },
+		});
+		assert.equal(localOverlayPage.root.props.engineOverlayTheme.defaults.side, "bottom",
+			"local definitions resolve through the same component namespace contract");
+		assert.equal(localOverlayPage.root.props.engineOverlayTheme.styles.panel.color, "#abcdef");
+
 		assert.throws(() => resolveEngineThemeSchema({
 			theme: { id: "missing-theme.markdown.dark" },
 			root: { type: "markdown", props: { content: "missing" } },
@@ -517,6 +789,14 @@ async function testPublicThemeApi() {
 			markdown: {
 				defaults: { codeColor: "#ffeeaa" },
 				variants: { dark: { defaults: { codeBackground: "#121212" } } },
+			},
+			overlay: {
+				defaults: { duration: 125 },
+				styles: { panel: { borderRadius: "16px" } },
+			},
+			popover: {
+				defaults: { placement: "top" },
+				styles: { panel: { background: "#123456" } },
 			},
 		};
 		const remotePayload = {
@@ -566,9 +846,42 @@ async function testPublicThemeApi() {
 		assert.equal(Object.isFrozen(loadedRemote), true, "loaded remote theme definitions are frozen");
 		assert.equal(loadedRemote.vars["--remote-accent"], "#aabbcc");
 		assert.deepEqual(loadedRemote.fonts, ["https://themes.example.com/engine-theme-fonts.css"], "remote font URLs are normalized to an allowlisted HTTPS origin");
+		const resolvedRemoteOverlayPage = resolveEngineThemeSchema({
+			theme: { id: "remote-smoke", scope: "remote" },
+			root: { type: "popover" },
+		});
+		assert.equal(resolvedRemoteOverlayPage.root.props.engineOverlayTheme.defaults.placement, "top",
+			"verified remote .etr artifacts resolve component namespaces without executing code");
+		assert.equal(resolvedRemoteOverlayPage.root.props.engineOverlayTheme.styles.panel.background, "#123456");
 		const cacheHit = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", remoteOptions);
 		assert.equal(cacheHit, loadedRemote, "repeated loads reuse the in-process cache entry");
 		assert.equal(remoteFetchCalls, 1, "cache hits do not issue another request");
+		const scopedRemoteRegistryA = createEngineComponentRegistry();
+		const scopedRemoteRegistryB = createEngineComponentRegistry();
+		const scopedRemote = await loadRemoteEngineTheme("https://themes.example.com/dark.etr", {
+			...remoteOptions,
+			registry: scopedRemoteRegistryA,
+		});
+		assert.equal(scopedRemote.id, "remote-smoke");
+		const remoteSchemaReference = {
+			theme: { id: "remote-smoke", scope: "remote" },
+			root: { type: "popover" },
+		};
+		assert.doesNotThrow(() => resolveEngineThemeSchema(remoteSchemaReference, scopedRemoteRegistryA),
+			"verified remote themes loaded from cache register into the requesting app scope");
+		assert.throws(() => resolveEngineThemeSchema(remoteSchemaReference, scopedRemoteRegistryB),
+			/Remote EngineTheme references are resolved only after an explicit loadRemoteEngineTheme/,
+			"a globally loaded remote theme does not leak into another scoped registry");
+		await loadRemoteEngineTheme("https://themes.example.com/dark.etr", {
+			...remoteOptions,
+			registry: scopedRemoteRegistryB,
+		});
+		assert.doesNotThrow(() => resolveEngineThemeSchema(remoteSchemaReference, scopedRemoteRegistryB),
+			"one verified transport-cache entry can be registered independently in multiple app scopes");
+		assert.equal(unregisterRemoteEngineTheme("remote-smoke", scopedRemoteRegistryA), true,
+			"remote theme unregister is scoped to the selected registry");
+		assert.doesNotThrow(() => resolveEngineThemeSchema(remoteSchemaReference, scopedRemoteRegistryB),
+			"unregistering a remote theme from one registry leaves another registry intact");
 		const resolvedRemotePage = resolveEngineThemeSchema({
 			theme: { id: "remote-smoke.markdown.dark", scope: "remote" },
 			root: { type: "markdown", props: { content: "remote" } },
@@ -608,6 +921,25 @@ async function testPublicThemeApi() {
 			(error) => error.code === "NESEC2001" && Boolean(error.reason && error.action) && /local\/private hosts are not permitted/.test(error.message),
 		);
 
+		const nonRemoteScopeContent = { ...remoteContent, id: "remote-invalid-scope", scope: "global" };
+		await assert.rejects(
+			loadRemoteEngineTheme("https://themes.example.com/invalid-scope.etr", {
+				...remoteOptions,
+				expectedId: "remote-invalid-scope",
+				fetchImpl: async () => new Response(remoteTextFor("remote-invalid-scope", nonRemoteScopeContent), {
+					status: 200, headers: { "content-type": "application/json" },
+				}),
+			}),
+			(error) => (error.code === "NETH8001"
+				&& error.message.includes("content ID/scope does not match its envelope"))
+				|| error.message.includes("must declare scope remote"),
+		);
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: { id: "remote-invalid-scope", scope: "global" },
+			root: { type: "box" },
+		}), /not globally registered/,
+		"rejected remote artifacts must never populate the process-global theme map");
+
 		const corruptRemoteOptions = {
 			...remoteOptions,
 			expectedId: "remote-corrupt",
@@ -637,7 +969,15 @@ async function testPublicThemeApi() {
 			}),
 			(error) => error.code === "NESEC4001" && Boolean(error.reason && error.action) && /unsafe CSS\/network primitive|unsafe CSS value/.test(error.message),
 		);
-		const unsafeFontContent = { ...remoteContent, id: "remote-unsafe-font", fonts: ["https://evil.invalid/fonts.css"] };
+		const escapedUnsafeCssContent = { ...remoteContent, id: "remote-escaped-unsafe-css", vars: { "--remote-value": "\\75 rl(https://evil.invalid/x)" } };
+    await assert.rejects(
+      loadRemoteEngineTheme("https://themes.example.com/remote-escaped-unsafe-css.etr", {
+        ...remoteOptions, expectedId: "remote-escaped-unsafe-css",
+        fetchImpl: async () => new Response(remoteTextFor("remote-escaped-unsafe-css", escapedUnsafeCssContent), { status: 200, headers: { "content-type": "application/json" } }),
+      }),
+      /unsafe CSS\/network primitive|unsafe CSS value/,
+    );
+    const unsafeFontContent = { ...remoteContent, id: "remote-unsafe-font", fonts: ["https://evil.invalid/fonts.css"] };
 		await assert.rejects(
 			loadRemoteEngineTheme("https://themes.example.com/unsafe-font.etr", {
 				...remoteOptions, expectedId: "remote-unsafe-font",
@@ -660,7 +1000,19 @@ async function testPublicThemeApi() {
 			}),
 			(error) => error.code === "NESEC4001" && Boolean(error.reason && error.action) && /unsafe CSS\/network primitive/.test(error.message),
 		);
-		const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
+		const commentObfuscatedCssContent = {
+            ...remoteContent,
+            id: "remote-comment-obfuscated-css",
+            markdown: { defaults: { codeBackground: "u/**/rl(https://evil.invalid/pixel)" } },
+        };
+        await assert.rejects(
+            loadRemoteEngineTheme("https://themes.example.com/remote-comment-obfuscated-css.etr", {
+                ...remoteOptions, expectedId: "remote-comment-obfuscated-css",
+                fetchImpl: async () => new Response(remoteTextFor("remote-comment-obfuscated-css", commentObfuscatedCssContent), { status: 200, headers: { "content-type": "application/json" } }),
+            }),
+            (error) => error.message.includes("unsafe CSS/network primitive") || error.message.includes("unsafe CSS value"),
+        );
+        const unsafeGlobalStylesContent = { ...remoteContent, id: "remote-unsafe-css-text", globalStyles: "body { display:none }" };
 		await assert.rejects(
 			loadRemoteEngineTheme("https://themes.example.com/unsafe-global-styles.etr", {
 				...remoteOptions, expectedId: "remote-unsafe-css-text",
@@ -935,11 +1287,12 @@ async function run() {
 			'import { createTheme } from "nextjs-engine";',
 			'const markdown = { prettyPlease: { mode: "auto" }, table: { header: { placement: "left" } } };',
 			'export const theme = createTheme({ id: "dark-fantasy", scope: "remote", name: "Dark Fantasy", markdown });',
+			'export const scopedTheme = createTheme({ id: "scoped-global", scope: "global", components: { link: { defaults: { color: "#123456" } } } }, { registry: themeRegistry });',
 			"",
 		].join("\n"));
 		const options = { nextjsVersion: "16.4.2", engineVersion: "3.0.0-alpha.1" };
 		const first = compileEngineThemeArtifacts(root, [input], options);
-		assert.equal(first.createdCount, 1);
+		assert.equal(first.createdCount, 2, "NENC extracts both definitions even when createTheme receives runtime registry options");
 		assert.equal(first.updatedCount, 0);
 		assert.equal(first.unchangedCount, 0);
 		assert.equal(first.artifacts[0].id, "dark-fantasy");
@@ -958,11 +1311,17 @@ async function run() {
 		assert.equal(artifact.content.scope, "remote");
 		assert.deepEqual(artifact.content.markdown.table.header, { placement: "left" });
 		verifyDigest(artifact);
+		const scopedArtifact = readArtifact(path.join(root, ".nextjs-engine", "gen3", "theme", "scoped-global.etr"));
+		assert.equal(scopedArtifact.content.id, "scoped-global");
+		assert.equal(scopedArtifact.content.scope, "global");
+		assert.equal(Object.prototype.hasOwnProperty.call(scopedArtifact.content, "registry"), false,
+			"runtime registry options are never serialized into .etr artifacts");
+		verifyDigest(scopedArtifact);
 
 		const warm = compileEngineThemeArtifacts(root, [input], options);
 		assert.equal(warm.createdCount, 0);
 		assert.equal(warm.updatedCount, 0);
-		assert.equal(warm.unchangedCount, 1, "identical artifacts are recognized without rewriting the output");
+		assert.equal(warm.unchangedCount, 2, "both identical artifacts are recognized without rewriting the output");
 		assert.equal(fs.readFileSync(artifactPath, "utf8"), artifactText);
 
 		const changed = source(themeSource, [
@@ -997,6 +1356,14 @@ async function run() {
 			source(path.join(root, "app", "dynamic-coded.tsx"),
 				'import { createTheme } from "nextjs-engine"; const makeTheme = () => ({ id: "dynamic-coded" }); createTheme(makeTheme());'),
 		], options), "NETH1001", /function calls are not allowed/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "empty-runtime-options.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "empty-runtime-options", scope: "global" }, {});'),
+		], options), "NETH1001", /runtime options must include a registry property/);
+		assertCodedThemeFailure(() => compileEngineThemeArtifacts(root, [
+			source(path.join(root, "app", "unknown-runtime-options.tsx"),
+				'import { createTheme } from "nextjs-engine"; createTheme({ id: "unknown-runtime-options", scope: "global" }, { registry: themeRegistry, extra: true });'),
+		], options), "NETH1001", /runtime options only support a single registry property/);
 
 		assert.throws(() => compileEngineThemeArtifacts(root, [
 			source(path.join(root, "app", "bad-id.tsx"),

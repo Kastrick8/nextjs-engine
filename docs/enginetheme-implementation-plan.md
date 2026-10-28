@@ -1,6 +1,6 @@
 # EngineTheme / createTheme / Pretty-please — Implementation Plan
 
-**Status:** Implementation complete on `feat/enginetheme-foundation`; runtime, compiler, integration, docs, and regression coverage are in place.  
+**Status:** Core EngineTheme runtime/compiler/highlighting/templates/Data-API/font work was implemented by PR #45. Gen 3 built-in component bindings and the remaining overlay runtime/accessibility criteria are still being completed through PR #48 and the master `plan.md`.  
 **Repository:** Kate-alt-69/nextjs-engine  
 **Baseline inspected:** main-3, 2026-10-24
 
@@ -212,7 +212,7 @@ The font compiler cache is `.nextjs-engine/.cache/gen3/fonts/`; manifest metadat
 | `app/engine-markdown-test/page.tsx`, `tests/browser/engine-markdown.spec.ts`, and EngineTheme docs | Theme/highlighting examples, browser regressions, and public behavior documentation. |
 | `.gitignore` | Ignores generated ETRs, schema/font caches, and emitted local font assets; publishing remains explicit. |
 
-Runtime modules stay in `src/engine/component/engineTheme/`, with static compile logic under `src/engine/compiler/theme/3/compiler.ts` and font compilation under `src/engine/compiler/font/3/compiler.ts`. Next.js hooks and compatibility links remain in `src/engine/plugins/`.
+Runtime modules stay in `src/engine/component/engineTheme/`, with static compile logic under `src/engine/compiler/theme/3/compiler.ts` and font compilation under `src/engine/compiler/font/3/compiler.ts`. Next.js hooks and compatibility links remain in `src/engine/plugins/`. The plural `src/engine/components/engineTheme/` files are compatibility re-exports only; all new internal imports target the canonical singular directory.
 
 ## 9. Implementation record — complete
 
@@ -322,9 +322,9 @@ This section proposes a future custom-component authoring path on top of the alr
 
 The current API already exports `createComponent()`, `registerComponent()`, `unregisterComponent()`, `getComponent()`, `hasComponent()`, and `registeredTypes()`.
 
-- `createComponent(options)` accepts a `PageSchema` (or direct schema options) and returns a React component that renders that schema. It is currently a schema-backed composition helper, not a factory for defining a new component type.
+- `createComponent(options)` preserves `PageSchema`/direct-schema composition and adds a discriminated `mode: "custom"` overload for trusted local React implementations. The custom adapter validates a bounded props/slot contract and carries a stable registry ID.
 - `registerComponent(type, component)` puts a trusted React component into the runtime schema-node registry. Schema nodes can then refer to that registered node type.
-- EngineTheme now supports reusable groups, `components` namespaces, named variants/qualified IDs, local/global/remote scopes, Markdown theme resolution, deterministic `.etr` artifacts, and explicit verified remote loading. What remains open is the general contract binding EngineTheme IDs/values to arbitrary registered schema-node components, props and slots.
+- EngineTheme supports reusable groups, `components` namespaces, named variants/qualified IDs, local/global/explicitly preloaded remote scopes, Markdown and overlay resolution, deterministic `.etr` artifacts, and validated visual styles for registered custom schema-node components. The explicit EngineComponentRegistry now scopes components, theme groups, Data-API handlers and template adapters; current-head server-first/Markdown SSR, cross-request and browser verification remains open.
 - The registry is currently a module-level mutable map. That is simple, but custom registrations need clear ownership and isolation rules for multi-app builds, tests, server rendering, and development hot reload.
 
 These facts mean the pieces are adjacent, but a stable custom-component contract and a request-safe, general EngineTheme-to-custom-component binding path still need to be designed. The existing Markdown resolver and EngineTheme Data-API contracts should remain compatible.
@@ -346,7 +346,7 @@ The goal is one public authoring path with basic and advanced modes—not a seco
 
 ### Illustrative API shape
 
-The following is a design sketch for the future custom-component API, not code that should be copied as an implemented contract. `createTheme()` and its Markdown theme/variant resolution already exist; the advanced `createComponent()` mode, custom-component theme bindings and the sample prop/slot schema are still proposals.
+The following example illustrates the implemented advanced custom-component and theme-binding contract. Component/theme/handler/adapter scope is explicit through EngineComponentRegistry; request-lifecycle ownership and the remaining final acceptance criteria later in this section are still open.
 
 ~~~tsx
 import {
@@ -405,14 +405,13 @@ This sketch intentionally leaves the exact prop/slot representation open: curren
 
 ### Theme resolution and precedence
 
-Use one shared resolver for built-in and custom components. The EngineTheme group/variant mechanism and Markdown-specific precedence are already implemented; the following precedence is proposed only for the future generic custom-component binding path, and must not silently change current Markdown behavior:
+The custom-node resolver applies a bounded visual-style precedence using validated EngineTheme group/variant data. Markdown-specific precedence remains unchanged. The custom-component precedence is:
 
-1. Engine/built-in component defaults.
-2. Theme-group shared tokens and the component's base theme.
-3. Inherited named variants.
-4. Component-definition default theme reference.
-5. Schema-node theme ID/variant.
-6. Explicit, validated per-node style overrides.
+1. Trusted component implementation and its built-in defaults.
+2. The selected EngineTheme namespace base styles.
+3. The selected named variant, merged through the existing theme resolver.
+4. Explicit per-node `style` values, which override theme-generated root styles.
+5. Declared named-slot styles delivered through the validated `engineThemeStyles` prop.
 
 Integrate this proposed precedence with the implemented group tokens, variant inheritance, `vars`, `fonts`, and `globalStyles` behavior without changing their existing contract. Do not allow a custom component to bypass schema validation or override reserved engine/runtime attributes. Unknown theme IDs, incompatible component IDs, inheritance cycles, and invalid values should produce actionable development diagnostics and deterministic production fallbacks.
 
@@ -434,7 +433,7 @@ Do not require users to fork or edit Engine's built-in `EngineLink` just to crea
 ### Registry and framework boundaries
 
 - Custom React/Next.js implementations are trusted local code and must be imported/registered through a documented project-local entry point. Remote `.etr` files can name an already registered adapter ID; they cannot provide JSX, imports, JavaScript, or a module URL to execute.
-- Review whether registrations should be explicit per-app/per-renderer registry instances rather than global mutation. Server rendering must not allow one request or tenant's registration/theme to leak into another.
+- [x, partial] Explicit per-app/per-renderer registries now isolate custom component registrations, per-component slot/theme metadata, scoped global theme groups, verified remote theme registrations, Data-API handlers, template adapters, and optional highlighter providers. The process-global maps remain the default for compatibility when no registry is passed. Remote transport cache content is shared only as immutable verified ETR data; it is registered into the requested scope on each cache/in-flight hit. Full isolation acceptance still depends on final server-first, Markdown, type-check, build and browser regression results.
 - Preserve lazy-loading for optional/heavy components. A custom component should not force every route to eagerly import all registered components.
 - Keep schema registration compatible with Gen 3's server-first rendering. Make client-only requirements explicit; do not silently force an entire page onto the legacy client renderer because a component uses one event handler.
 - Keep browser behavior generic across Chromium, Firefox, and WebKit, and provide graceful fallback when optional capabilities are unavailable.
@@ -445,19 +444,19 @@ Do not require users to fork or edit Engine's built-in `EngineLink` just to crea
 The implemented EngineTheme Data-API already provides typed `join:left`, `join:right`, `join:top`, and `join:bottom` events and is wired to declarative Markdown-template composition through `dataApi` and `dataResult`. Preserve that contract. Any future custom-component/link activation events must be added as an explicit extension; the Data-API must remain a narrow declared behavior contract, not a general-purpose callback that evaluates arbitrary strings from schema/theme data.
 
 - For any new custom-component events, define names, payloads, cancellation/error behavior, and whether each event is server-only, client-only, or serializable. Do not redesign the already implemented `join:*` event contract implicitly.
-- Resolve handler names only against trusted local registrations supplied by the application; never evaluate a handler body from schema or remote theme data.
+- Resolve handler names only against trusted local registrations supplied by the application, optionally within an explicit `EngineComponentRegistry`; never evaluate a handler body from schema or remote theme data.
 - Keep styling/template composition independent from event dispatch so users can change a link's appearance without changing its navigation or security behavior.
 - Add bounds for recursion/template nesting and validate slot/placement rules before rendering.
 - Document the trust boundary clearly: app code implements behavior; schema and themes select among declared capabilities.
 
 ### Suggested implementation order and acceptance criteria
 
-1. Finalize a typed, discriminated `createComponent()` contract that preserves existing schema-composition calls and supports advanced custom component authoring; add backward-compatibility tests plus direct `registerComponent(type, component)` tests.
-2. Implement the advanced `createComponent()` path and safe registry integration, including app/request isolation decisions.
-3. Add component theme IDs and variant resolution to schema validation and the shared theme resolver.
-4. Implement the custom link example as the first registered custom component, with keyboard/accessibility and URL-safety tests.
-5. Connect the declarative Data-API contract only for explicitly supported events and slots.
-6. Add server-first, browser-compatibility, cache invalidation, malformed theme, missing component, unknown theme, and cross-request isolation tests.
+1. [x] Finalize the typed, discriminated `createComponent()` contract while preserving schema-composition calls; smoke coverage exercises both the custom props/slots contract and direct registry protection.
+2. [x, partial] Implement the advanced local-component factory and safe registration. `createEngineComponentRegistry()` now scopes custom registrations, slot/theme metadata, global/verified-remote theme groups, Data-API handlers, template adapters, and optional highlighter providers. No-registry calls retain process-global compatibility behavior. Scoped registries require Gen 3 server-first rendering; current-head server-first, Markdown, remote-cache, type-check, build and browser regressions remain required before full acceptance.
+3. [x] Add qualified theme IDs and variant resolution for registered custom nodes through the shared theme resolver, with a bounded style allowlist and local-style precedence.
+4. [x, partial] Added `app/engine-custom-link-test/page.tsx` and `tests/browser/engine-custom-link.spec.ts` for a registered custom link with base/variant styles, named slots, internal navigation, external `target="_blank"` rel protections, and fail-closed handling of JavaScript and backslash protocol-relative URLs. Current-head Chromium/Firefox/WebKit execution is not yet verified, so final browser accessibility/security acceptance remains open.
+5. [x, partial] The declared `join:*` Data-API handler contract and trusted template adapters now accept an application-scoped registry. Server-first Markdown threads that scope to info/code/table templates; scoped lookups never fall back to global handlers/adapters and the internal registry is stripped before a trusted adapter receives props. The new isolation smoke cases still need to pass on the final CI head.
+6. [x, partial] Server-first, browser, remote-cache, malformed/missing/unknown theme and two-registry isolation regression cases are now present. Mark complete only after the final CI head passes type-check, build and Chromium/Firefox/WebKit checks.
 7. Update the simple and detailed documentation only after the API shape is stable and verified.
 
 Acceptance criteria:
@@ -472,15 +471,21 @@ Acceptance criteria:
 - Gen 3 server-first rendering and optional-component code splitting remain intact.
 - Type-check, targeted component/theme tests, build smoke tests, and Chromium/Firefox/WebKit regressions pass before this feature is marked complete.
 
-### Decisions still open
+### Decisions resolved and remaining
 
-- The exact `createComponent()` option discriminator and whether advanced custom definitions return a React component directly or a typed descriptor that is explicitly registered.
-- Whether custom definitions register immediately or return a descriptor that is explicitly registered.
-- Whether `createComponent()` accepts an optional theme reference for schema composition, and the exact placement of that option.
-- The final typed prop-schema format and how named slots/children serialize through `SchemaNode`.
-- Whether component registries are explicit objects passed through schema/render context or safely scoped registries created by a project bootstrap.
-- Exact custom-link props and whether theme IDs live in a reserved schema field or validated component props.
-- Any additional custom-component event list and how those events interact with the existing local-handler/slot contract.
+The main API shape is now established by the implementation and smoke coverage:
+
+- [x] Advanced custom components use the discriminated `createComponent({ mode: "custom", ... })` path. It returns a typed, trusted React wrapper and **does not register automatically**; registration is explicit through `registry.registerComponent(id, component)` or the backwards-compatible process-global `registerComponent(id, component)`.
+- [x] Existing `createComponent({ schema })` schema-composition calls remain the same public entry point.
+- [x] Custom theme binding uses the reserved `SchemaNode.theme` field; the custom-component `theme` option names only the base namespace, while node data selects variants.
+- [x] The custom prop-schema and named-slot contracts are represented by `EngineCustomPropSchema` and `slots`; unsupported props/unsafe values fail at the trusted wrapper boundary.
+- [x] Applications can explicitly create and pass an `EngineComponentRegistry` to scope components, global/verified-remote themes, Data-API handlers and template adapters. Calls without one retain process-global compatibility behavior.
+
+Still open:
+
+- Whether schema-composition calls need an additional convenience-level theme option beyond the theme already supported on `PageSchema`.
+- Whether EngineTheme should add custom-component activation/navigation events beyond the existing, narrow `join:*` Data-API contract. No new events are introduced by this work.
+- Final acceptance of server-first concurrency/isolation and cross-browser behavior depends on current-head smoke, type-check, build and Chromium/Firefox/WebKit runs passing.
 
 ## 15. EnginePlugin system (General API through `createComponent()`)
 
@@ -670,7 +675,7 @@ A third-party package should integrate through a small public adapter rather tha
 - Keep browser work independent from build-time plugin initialization. Prefer server/build processing for metadata, theme normalization, and compilation when the result can be safely serialized.
 - Use predictable failure/fallback behavior on constrained environments. Avoid making a plugin system mandatory for ordinary Engine apps; a project with zero plugins should have effectively no recurring plugin overhead.
 
-### Suggested implementation phases
+### Suggested implementation order
 
 1. **Inventory and contract map:** inspect package/export boundaries, all existing registries, compiler phase entry points, theme/schema/Markdown/Data-API integrations, current config conventions, and server/client separation. Classify every candidate extension point as stable, experimental, or internal. Do not decide on names from assumptions alone.
 2. **`createComponent()` contract design:** agree on the basic/advanced mode discriminator, custom-component type/props/slot contract, theme binding, capability vocabulary, context ownership, and backward-compatibility rules. Keep the General API on the existing public entry point rather than introducing a second facade.
@@ -731,26 +736,24 @@ The connector could not resolve v2.6.2 as a Git ref, so this section does not cl
 
 The audit also found branch changes in EngineLink, EngineNav, EngineCanvas, EngineVideo, EngineImage, EngineMarkdown, EngineScroll, usePropStyles, EngineProvider, and StyleCollector. These should not be put into a blanket “rewrite Gen 2” bucket; review them against their existing Gen 3 implementation and tests instead.
 
-### P0 — Finish generic EngineTheme integration through createComponent()
+### P0 — Generic EngineTheme integration through createComponent()
 
-PR #45 implements EngineTheme group definitions, variants, token handling, Markdown resolution, the .etr pipeline and remote loading. Do not redo any of that. The current resolveEngineThemeSchema() resolves the markdown namespace and applies the resulting props/styles specifically to Markdown nodes; non-Markdown nodes are recursively visited but their component theme namespaces are not applied. This leaves the declared generic components namespace underused for built-in components such as dialog, drawer, and popover.
+PR #45 supplies the EngineTheme group/variant model, token handling, Markdown resolver, .etr pipeline and remote loader. PR #48 extends the existing resolver into EngineOverlay without duplicating that machinery.
 
-Plan a bounded generalization of the existing resolver:
-
-- Add component-theme resolution for EngineOverlay using its existing components/variant data shape and the existing EngineTheme ID parser/inheritance rules.
-- Keep createComponent() as the public entry point for selecting/declaring component theme bindings; do not add a standalone General API facade.
-- Resolve the theme reference through schema/compiler context rather than passing an unvalidated theme string down as an ordinary style prop. Local per-node overrides should win over resolved defaults; theme variants should not alter behavior such as URL handling, Escape dismissal, navigation or focus restoration.
-- Use shared tokens plus component namespaces. The proposed namespaces are overlay for shared surface/backdrop/motion/stack defaults and dialog, drawer, and popover for component-specific defaults, variants and style slots.
-- Keep existing vars, fonts, globalStyles, Markdown props, and Markdown template precedence backward-compatible. If .etr data can already carry the new JSON-only namespaces, no format bump is needed; only increment the theme schema version if a real schema-contract change requires it.
-- Fail with a clear diagnostic for unknown component theme/variant IDs, invalid values, and a variant bound to the wrong component. Remote themes remain data-only and cannot provide component code.
+- `SchemaNode.theme` is a reserved component/variant binding resolved by `resolveEngineThemeSchema()` before rendering. `createPage()` and `createComponent()` share this path.
+- Shared `overlay` and per-component `dialog`, `drawer`, and `popover` namespaces resolve from global definitions, explicit node-level variants, local theme objects, and already-verified remote .etr groups. IDs are consumed before rendering; raw IDs are not forwarded as React props.
+- Shared style slots merge first, then component styles/variants; explicit node style/behavior props remain the local override. Theme defaults are bounded to behavior-neutral keys: shared duration; dialog duration; drawer duration/side/size; popover duration/placement/alignment/offset/viewport padding/trigger-width matching.
+- Style slots use an allowlisted CSS vocabulary. Unsafe URL/network CSS, unknown style slots/properties, unsupported defaults, missing variants, missing group context, and wrong-component IDs produce clear errors. Remote themes remain JSON-only; no .etr format bump is required.
+- Regression coverage exercises group/variant resolution, shared/component style merging, local overrides, local/global/remote group handling, unsafe CSS rejection and invalid binding diagnostics.
+- PR #48 does not complete the other P0 overlay runtime/accessibility work. Track those separately and do not claim the whole overlay integration is complete until their tests pass.
 
 Suggested overlay theme slots include trigger, backdrop, panel, header, title, description, content, actions, actionPrimary, actionSecondary, actionDanger, closeButton, and popoverArrow. Prefer a validated style/token vocabulary or safe declarative Engine Schema templates over allowing arbitrary remote CSS/code. Existing CSS-variable hooks (--e-overlay-bg, --e-overlay-color, --e-overlay-border, --e-overlay-shadow, --e-overlay-radius, --e-overlay-trigger-*, --e-overlay-action-bg, --e-overlay-muted) provide a compatibility bridge for the first pass.
 
 ### P0 — Shared overlay runtime and low-end performance
 
-The current implementation already shares overlay helpers but still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. EnginePopover owns a per-instance effect that registers window resize/scroll and visualViewport listeners plus a ResizeObserver; its update path measures trigger/panel boxes and writes a new position state after each scheduled frame. useReducedMotion() also creates a separate media-query subscription for each mounted overlay component instance. These are sensible first implementations, but they can do unnecessary listener and React render work on pages with several overlays.
+The current implementation still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. Overlay stack and scroll-lock ownership are scoped in a WeakMap keyed by the owning Document. Reduced-motion preference uses one shared external store/subscription, popover viewport resize/scroll/visualViewport listeners are shared per Document, and unchanged computed position retains the previous state object. ResizeObserver targets are tracked by one observer per owning Document, and registrations are removed as Popovers leave the rendered lifecycle. Popover position callbacks are now coalesced into one animation-frame pass per Document; explicit batched read-then-write layout scheduling still needs verification and refinement.
 
-Plan a targeted shared-runtime improvement rather than rewriting the components into a large new abstraction:
+Continue with a targeted shared-runtime improvement rather than rewriting the components into a large new abstraction:
 
 1. Maintain per-document overlay state using a bounded document-scoped manager (or equivalent isolation) for stack order, top-overlay checks, scroll-lock reference counting, focus restoration and z-index ordering. Do not let request/app state leak through a server-global singleton.
 2. Share the prefers-reduced-motion subscription so mounted dialogs/popovers do not each add their own change listener. Preserve the reduced-motion fallback when matchMedia or modern listener APIs are missing.
@@ -765,10 +768,10 @@ Use measurements from a page with zero overlays, one open popover, many mounted-
 
 Some explicit gaps are visible in the current component contracts:
 
-- EnginePopoverProps allows role="menu" and role="listbox", but the shared overlay behavior currently provides Tab trapping/Escape handling rather than menu/listbox-specific arrow-key navigation and active-item semantics. Either implement the correct interaction contract for those roles, or constrain the supported roles to those the component actually implements.
-- OverlayTrigger always creates a native button around the supplied trigger React node. If the caller supplies a button, link, or other interactive element, the output can create nested interactive controls. Design a typed trigger contract such as a render-prop/slot or explicit asChild behavior with safe ref/event/ARIA composition; do not blindly clone arbitrary elements.
-- getFocusableElements() filters focusable descendants by visibility, disabled, and the element's own aria-hidden, but does not explicitly model hidden/inert ancestors or every native focusability edge case. Review this against real browser/assistive-tech tests before replacing the current focused helper.
-- The dialog advertises aria-modal="true"; verify background inertness/interaction, focus trapping and focus restoration across nested overlays and portals. Cover removal of the trigger while an overlay is open, changing initialFocus, and close/reopen during an exit transition.
+- EnginePopover now restricts its role type to `dialog` until menu/listbox-specific arrow-key navigation and active-item semantics are implemented and tested. Visual menu compositions remain possible, but they do not claim composite-widget ARIA behavior.
+- `OverlayTrigger` now supports an explicit `triggerAsChild` path for exactly one native button, merging refs, click behavior, disabled state and ARIA props. Interactive children without opt-in are rejected, and non-button elements are rejected in asChild mode; a broader typed contract for links/custom components remains deferred.
+- `getFocusableElements()` now excludes native disabled controls, hidden/inert/aria-hidden ancestors, elements without a layout box, and computed hidden/collapsed visibility. Browser/assistive-tech coverage is still required for remaining native focusability edge cases.
+- Dialog and Drawer now register modal portal roots with the document-scoped overlay manager. Background sibling branches become inert while a modal is active; overlays stacked above that modal remain interactive, and previous inert values are restored when modal layers close. Runtime smoke coverage exercises nested modal/popover registration. The Playwright overlay spec exercises background inertness, a nested popover, Escape cleanup, and trigger focus restoration across Chromium, Firefox, and WebKit. Manual assistive-technology validation, trigger removal, changing initialFocus, and close/reopen during an exit transition remain release checks.
 - Provide deterministic behavior for Escape, outside pointer, backdrop clicks, controlled open, named/function onOpenChange, reduced motion, and scroll-lock cleanup. Invalid role combinations should fail validation or generate development diagnostics.
 
 ### P1 — Useful new EngineOverlay components

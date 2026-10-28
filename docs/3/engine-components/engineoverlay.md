@@ -149,7 +149,7 @@ export function OverlayExamples() {
 
 All three also accept normal Engine styling props through `BaseNodeProps`.
 
-**Trigger contract:** EngineOverlay renders its own native button around trigger / triggerLabel. Supply non-interactive trigger content; do not pass an existing button, link or other interactive element as trigger, because that can produce nested interactive HTML. If the application must own the interactive trigger element, use the controlled-open API and keep the actual trigger outside EngineOverlay until a dedicated trigger-composition API is available.
+**Trigger contract:** by default EngineOverlay renders its own native button around `trigger` / `triggerLabel`; pass non-interactive content. For an application-owned native button, set `triggerAsChild` and pass exactly one `<button>` as `trigger`. EngineOverlay merges the ref, click handler, disabled state, accessible label, popup state, class and style without nesting buttons. It intentionally rejects interactive children without `triggerAsChild`, and `triggerAsChild` rejects links or custom components until a broader typed contract can safely merge their semantics.
 
 ---
 
@@ -162,7 +162,8 @@ These props are shared by Dialog, Drawer and Popover unless noted otherwise.
 | `open` | `boolean` | controlled open state |
 | `defaultOpen` | `boolean` | `false` |
 | `onOpenChange` | handler name or function | called with the new boolean state |
-| `trigger` | `ReactNode` | custom trigger content |
+| `trigger` | `ReactNode` | custom trigger content; non-interactive by default, or one native button with `triggerAsChild` |
+| `triggerAsChild` | `boolean` | `false`; use a single native button as the trigger instead of generating a wrapper button |
 | `triggerLabel` | `string` | generated trigger text |
 | `triggerClassName` | `string` | class for generated trigger button |
 | `triggerStyle` | `CSSProperties` | style for generated trigger button |
@@ -324,7 +325,7 @@ There is intentionally no separate `sheet` primitive because it would duplicate 
 
 Popover is anchored to its generated trigger and is non-modal by default.
 
-**Keyboard-role limitation:** the current type permits role: menu and role: listbox, but EnginePopover does not implement the complete menu/listbox composite-widget keyboard contract (for example, arrow-key item movement and active-item semantics). Do not interpret those role values as a complete menu/listbox implementation. Use the default dialog semantics unless the application supplies and tests the required role-specific keyboard/ARIA behavior.
+**Keyboard-role contract:** EnginePopover currently supports only `role="dialog"`. It does not advertise `menu` or `listbox` roles until the corresponding arrow-key navigation, active-item semantics and assistive-technology behavior are implemented and tested. Compose visual menus with the Popover, but keep dialog semantics until that contract is available.
 
 | Prop | Default | Meaning |
 |---|---|---|
@@ -336,7 +337,7 @@ Popover is anchored to its generated trigger and is non-modal by default.
 | `matchTriggerWidth` | `false` | panel min-width follows trigger width |
 | `autoFocus` | `false` | focuses the first panel control |
 | `trapFocus` | `false` | keeps Tab inside the popover |
-| `role` | `dialog` | `dialog`, `menu`, `listbox` |
+| `role` | `dialog` | `dialog` only until composite-widget keyboard behavior is supported |
 | `duration` | `140` | animation duration in ms |
 
 The open Popover repositions when:
@@ -346,7 +347,7 @@ The open Popover repositions when:
 - the trigger changes size;
 - the panel changes size.
 
-Resize/scroll updates are coalesced through `requestAnimationFrame`, and `ResizeObserver` exists only while the Popover is present.
+Viewport listeners and ResizeObserver instances are shared per Document, and all popover reposition callbacks are coalesced into one scheduled animation-frame pass per Document. Trigger/panel targets are observed only while the Popover is present; the shared observer disconnects when its final target is released.
 
 ---
 
@@ -363,6 +364,8 @@ Resize/scroll updates are coalesced through `requestAnimationFrame`, and `Resize
 	<input id="project-name" />
 </EngineDialog>
 ```
+
+Focusable discovery excludes disabled controls and controls hidden by a `hidden`, `inert`, or `aria-hidden="true"` ancestor, as well as elements with no layout box or hidden/collapsed visibility.
 
 Focus selection order is:
 
@@ -382,7 +385,9 @@ Dialog and Drawer trap Tab by default. Popover does not, because a normal contex
 
 ## Overlay stacking
 
-EngineOverlay maintains one shared stack. The latest registered overlay is considered the top overlay for keyboard and contextual outside-click handling.
+EngineOverlay maintains one per-document stack. The latest registered overlay is considered the top overlay for keyboard and contextual outside-click handling. Each overlay registers its rendered layer roots with the manager: a Dialog registers its backdrop/panel wrapper, a Drawer registers its backdrop and panel separately, and a Popover registers its panel. While a Dialog or Drawer is active, the shared manager recursively walks body/portal-container branches: it keeps the modal roots and overlays registered above them interactive, and marks unrelated sibling branches inert. This avoids inerting a body-level Drawer panel by mistake. Original inert values are restored as modal layers close.
+
+The manager also assigns a CSS variable, `--e-overlay-stack-z`, to each registered layer. A component's `zIndex` is the requested base; if overlays are nested, later layers are raised above the previous top layer. Drawer keeps its backdrop one layer below its panel. Removing an overlay restores the previous inline custom-property values and recomputes the remaining stack.
 
 This allows combinations such as:
 
@@ -410,9 +415,68 @@ The portal runtime is client-side only; the trigger can still participate in nor
 
 ---
 
-## EngineTheme integration status
+## EngineTheme integration
 
-The current EngineTheme runtime resolves Markdown component defaults/styles and page-level theme fields. It does not yet apply component-specific theme namespaces directly to EngineDialog, EngineDrawer or EnginePopover. For overlays, use the documented styling props and CSS variables below; do not assume a components.overlay, components.dialog, components.drawer or components.popover theme namespace is wired in this alpha. The planned integration is tracked in [plan.md](../../../plan.md#16-gen-3-first-release-gap-assessment-engineoverlay-and-reused-gen-2-surfaces).
+Generation 3 resolves overlay themes before rendering, through the same `createPage()` and `createComponent()` schema pipeline used by Markdown themes. A theme can define shared `overlay` styles and focused `dialog`, `drawer`, and `popover` defaults/variants. No event handlers or component code are loaded from a theme.
+
+```tsx
+import { createComponent, createTheme } from "nextjs-engine";
+
+createTheme({
+  id: "app-overlays",
+  scope: "global",
+  overlay: {
+    defaults: { duration: 180 },
+    styles: {
+      backdrop: { background: "rgba(2, 6, 23, .42)" },
+      panel: { borderRadius: "16px" },
+    },
+  },
+  dialog: {
+    defaults: { duration: 240 },
+    styles: {
+      panel: { background: "#0b1220", color: "#e2e8f0" },
+      title: { color: "#f8fafc" },
+    },
+    variants: {
+      danger: { styles: { panel: { borderColor: "#b91c1c" } } },
+    },
+  },
+  drawer: { defaults: { side: "left", size: "28rem" } },
+  popover: {
+    defaults: {
+      placement: "bottom",
+      align: "start",
+      offset: 10,
+      viewportPadding: 10,
+      matchTriggerWidth: true,
+    },
+  },
+});
+
+export const ConfirmDialog = createComponent({
+  schema: {
+    theme: { id: "app-overlays" },
+    root: {
+      type: "dialog",
+      theme: "app-overlays.dialog.danger",
+      props: {
+        triggerLabel: "Delete item",
+        title: "Delete item?",
+        description: "This action cannot be undone.",
+      },
+    },
+  },
+});
+```
+
+The page-level `theme.id` selects a group that was registered by `createTheme({ scope: "global" })`. A node-level `theme` selects a qualified component/variant ID of the same group; the ID is consumed by the schema resolver and is never forwarded as a normal React prop. A local theme can instead be passed as the actual `schema.theme` object, with node-level IDs qualified by that local group's ID.
+
+The `overlay` namespace provides shared `duration` and named style slots. `dialog` may set `duration`; `drawer` may set `duration`, `side`, and `size`; `popover` may set `duration`, `placement`, `align`, `offset`, `viewportPadding`, and `matchTriggerWidth`. Component-specific values override shared defaults. Explicit node props (for example `side`, `size`, or `offset`) override theme defaults, and local panel `style` props override theme panel styles.
+
+Supported style slots are `trigger`, `backdrop`, `panel`, `header`, `title`, `description`, `content`, `actions`, `actionPrimary`, `actionSecondary`, `actionDanger`, and `closeButton`. Theme styles use a bounded CSS-property vocabulary. Unknown slots/properties, unsafe URL/network CSS values, invalid defaults, missing variants, and bindings to the wrong overlay component fail with a diagnostic. Use shared `tokens` or `vars` for CSS custom properties; a theme slot cannot inject arbitrary CSS text. The `popoverArrow` slot remains deferred until EnginePopover renders an arrow element.
+
+The .etr artifact schema version remains unchanged: the added namespaces are ordinary validated JSON data and remote artifacts remain code-free. The focused theme compiler smoke test covers local/global/remote namespace resolution, style merging, variant and wrong-component diagnostics, unsafe styles, and local-prop precedence.
 
 ---
 
@@ -467,7 +531,7 @@ Do not create a new core primitive merely because a product pattern has a famili
 
 ```text
 Command Palette = Dialog + Input + result list
-Context Menu    = Popover(role="menu") + menu actions
+Context Menu    = Popover + menu actions (dialog semantics until menu keyboard support exists)
 Dropdown Menu   = Popover + Stack + Buttons
 Account Menu    = Popover + links/actions
 Mobile Sheet    = Drawer(side="bottom")
@@ -505,6 +569,7 @@ import {
 	isTopOverlay,
 	lockBodyScroll,
 	registerOverlay,
+	subscribeOverlayViewport,
 } from "nextjs-engine";
 ```
 

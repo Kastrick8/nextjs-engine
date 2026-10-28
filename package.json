@@ -16,7 +16,8 @@
     "test:error-handling": "node scripts/gen3-global-error-handling-smoke.js",
     "test:error-book": "node scripts/gen3-error-book-smoke.js",
     "ne": "node ./bin/ne.js",
-    "test:cli": "node scripts/gen3-ne-cli-smoke.js"
+    "test:cli": "node scripts/gen3-ne-cli-smoke.js",
+    "test:custom-component": "node scripts/engine-custom-component-smoke.js"
   },
   "dependencies": {
     "next": "^16.3.3",

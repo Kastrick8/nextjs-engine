@@ -1,4 +1,6 @@
 import type { EngineHighlighterTokenKind, EngineMarkdownPrettyPleaseConfig, EngineMarkdownTokenPalette } from "../../schema/types";
+import type { EngineComponentRegistry } from "../../core/registry";
+import { getScopedEngineThemeContribution, listScopedEngineThemeContributions, registerScopedEngineThemeContribution, unregisterScopedEngineThemeContribution } from "./themeRegistry";
 export type { EngineHighlighterTokenKind } from "../../schema/types";
 
 export interface EngineHighlighterToken {
@@ -464,30 +466,64 @@ const builtinProvider: EngineHighlighterProvider = Object.freeze({
 });
 providers.set(builtinProvider.id, builtinProvider);
 
-export function registerEngineHighlighterProvider(provider: EngineHighlighterProvider): void {
-	if (!isValidProvider(provider)) {
-		throw new TypeError("Highlighter provider requires a safe ID, name, supported languages, and a highlight() function.");
-	}
-	if (providers.has(provider.id)) {
-		if (providers.get(provider.id) === provider) return;
-		throw new Error("Engine highlighter provider '" + provider.id + "' is already registered.");
-	}
-	providers.set(provider.id, Object.freeze({
+function freezeProvider(provider: EngineHighlighterProvider): EngineHighlighterProvider {
+	return Object.freeze({
 		id: provider.id,
 		name: provider.name,
 		languages: Object.freeze([...provider.languages]),
 		themes: provider.themes ? Object.freeze(provider.themes.map((theme) => Object.freeze({ ...theme }))) : undefined,
 		highlight: provider.highlight,
-	}));
+	});
 }
 
-export function unregisterEngineHighlighterProvider(id: string): boolean {
+function getProvider(id: string, registry?: EngineComponentRegistry): EngineHighlighterProvider | undefined {
+	if (registry) {
+		if (id === builtinProvider.id) return builtinProvider;
+		return getScopedEngineThemeContribution<EngineHighlighterProvider>(registry, "highlighter", id);
+	}
+	return providers.get(id);
+}
+
+function getProviders(registry?: EngineComponentRegistry): EngineHighlighterProvider[] {
+	if (!registry) return [...providers.values()];
+	return [
+		builtinProvider,
+		...listScopedEngineThemeContributions(registry, "highlighter")
+			.map((id) => getScopedEngineThemeContribution<EngineHighlighterProvider>(registry, "highlighter", id))
+			.filter((provider): provider is EngineHighlighterProvider => provider !== undefined),
+	];
+}
+
+export function registerEngineHighlighterProvider(provider: EngineHighlighterProvider, registry?: EngineComponentRegistry): void {
+	if (!isValidProvider(provider)) {
+		throw new TypeError("Highlighter provider requires a safe ID, name, supported languages, and a highlight() function.");
+	}
+	if (registry) {
+		if (provider.id === builtinProvider.id) {
+			throw new Error("The built-in Engine Lite highlighter cannot be replaced in an EngineComponentRegistry.");
+		}
+		if (getScopedEngineThemeContribution<EngineHighlighterProvider>(registry, "highlighter", provider.id)) {
+			throw new Error("Engine highlighter provider '" + provider.id + "' is already registered in this EngineComponentRegistry.");
+		}
+		registerScopedEngineThemeContribution(registry, "highlighter", provider.id, freezeProvider(provider));
+		return;
+	}
+	if (providers.has(provider.id)) {
+		if (providers.get(provider.id) === provider) return;
+		throw new Error("Engine highlighter provider '" + provider.id + "' is already registered.");
+	}
+	providers.set(provider.id, freezeProvider(provider));
+}
+
+export function unregisterEngineHighlighterProvider(id: string, registry?: EngineComponentRegistry): boolean {
 	if (id === builtinProvider.id) return false;
-	return providers.delete(id);
+	return registry
+		? unregisterScopedEngineThemeContribution(registry, "highlighter", id)
+		: providers.delete(id);
 }
 
-export function listEngineHighlighterProviders(): EngineHighlighterProviderInfo[] {
-	return [...providers.values()]
+export function listEngineHighlighterProviders(registry?: EngineComponentRegistry): EngineHighlighterProviderInfo[] {
+	return getProviders(registry)
 		.map((provider) => ({
 			id: provider.id,
 			name: provider.name,
@@ -501,16 +537,16 @@ const BUILTIN_THEME_INFO: readonly EngineHighlighterThemeInfo[] = Object.freeze(
 	Object.freeze({ id: "vscode-light", name: "VS Code Light (lightweight palette)" }),
 ]);
 
-export function listEngineHighlighterThemes(providerId?: string): EngineHighlighterThemeInfo[] {
+export function listEngineHighlighterThemes(providerId?: string, registry?: EngineComponentRegistry): EngineHighlighterThemeInfo[] {
 	if (providerId) {
-		const provider = providers.get(providerId);
+		const provider = getProvider(providerId, registry);
 		if (!provider) return [];
 		if (provider.id === builtinProvider.id) return BUILTIN_THEME_INFO.map((theme) => ({ ...theme }));
 		return (provider.themes ?? []).map((theme) => ({ ...theme }));
 	}
 	const themes = [
 		...BUILTIN_THEME_INFO.map((theme) => ({ ...theme })),
-		...[...providers.values()].filter((provider) => provider.id !== builtinProvider.id)
+		...getProviders(registry).filter((provider) => provider.id !== builtinProvider.id)
 			.flatMap((provider) => (provider.themes ?? []).map((theme) => ({ ...theme }))),
 	];
 	const seen = new Set<string>();
@@ -521,19 +557,19 @@ export function listEngineHighlighterThemes(providerId?: string): EngineHighligh
 		return true;
 	});
 }
-export function listEngineHighlighterLanguages(providerId?: string): string[] {
-	const selected = providerId ? providers.get(providerId) : undefined;
+export function listEngineHighlighterLanguages(providerId?: string, registry?: EngineComponentRegistry): string[] {
+	const selected = providerId ? getProvider(providerId, registry) : undefined;
 	if (providerId && !selected) return [];
 	const languages = selected
 		? selected.languages
-		: [...providers.values()].flatMap((provider) => [...provider.languages]);
+		: getProviders(registry).flatMap((provider) => [...provider.languages]);
 	return [...new Set(languages.map(normalizeEngineHighlightLanguage).filter(Boolean))].sort();
 }
 
 export function highlightEngineCode(
 	code: string,
 	language: string,
-	options: { provider?: string; theme?: string; palette?: EngineMarkdownTokenPalette } = {},
+	options: { provider?: string; theme?: string; palette?: EngineMarkdownTokenPalette; registry?: EngineComponentRegistry } = {},
 ): EngineHighlighterToken[] | null {
 	if (typeof code !== "string" || code.length > MAX_CODE_LENGTH) return null;
 	const normalizedLanguage = normalizeEngineHighlightLanguage(language);
@@ -541,7 +577,7 @@ export function highlightEngineCode(
 		return null;
 	}
 	const providerId = !options.provider || options.provider === "auto" ? builtinProvider.id : options.provider;
-	const provider = providers.get(providerId);
+	const provider = getProvider(providerId, options.registry);
 	if (!provider) return null;
 	const normalizedLanguages = new Set(provider.languages.map(normalizeEngineHighlightLanguage));
 	if (!normalizedLanguages.has(normalizedLanguage)) return null;
@@ -569,3 +605,4 @@ export function highlightEngineCode(
 		return null;
 	}
 }
+

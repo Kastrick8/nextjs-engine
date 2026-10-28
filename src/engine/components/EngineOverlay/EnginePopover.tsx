@@ -4,7 +4,8 @@ import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState }
 import { createPortal } from "react-dom";
 import { useCpropClass } from "../../hooks/usePropStyles";
 import { usePrimitiveStyles } from "../../hooks/usePrimitiveStyles";
-import { computePopoverPosition, isTopOverlay, type EnginePopoverPlacement } from "../../core/engineoverlay";
+import { computePopoverPosition, isTopOverlay, scheduleOverlayFrame, subscribeOverlayViewport,
+	subscribeOverlayResize, type EnginePopoverPlacement } from "../../core/engineoverlay";
 import {
 	SURFACE_BASE,
 	clampDuration,
@@ -18,20 +19,25 @@ import { OverlayContent, OverlayTrigger } from "./OverlayParts";
 import type { EnginePopoverProps } from "./types";
 
 export const EnginePopover = memo(function EnginePopover({
-	children, open, defaultOpen = false, onOpenChange,
-	trigger, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
+	children, engineOverlayTheme, open, defaultOpen = false, onOpenChange,
+	trigger, triggerAsChild, triggerLabel, triggerClassName, triggerStyle, triggerDisabled, triggerAriaLabel,
 	title, description, actions, showCloseButton = false, closeLabel = "Close popover",
 	closeOnEscape = true, restoreFocus = true, initialFocus, duration, portalTargetId, ariaLabel,
-	placement = "bottom", align = "center", offset = 8, viewportPadding = 8,
-	closeOnOutsideClick = true, matchTriggerWidth = false, autoFocus = false, trapFocus = false,
+	placement, align, offset, viewportPadding,
+	closeOnOutsideClick = true, matchTriggerWidth, autoFocus = false, trapFocus = false,
 	role = "dialog", style, className, cprop, id, point, zIndex = 1100, ...props
 }: EnginePopoverProps) {
 	const uid = useId();
 	const panelId = id ?? point ?? `e-popover-${uid.replace(/:/g, "")}`;
+	const resolvedPlacement = placement ?? engineOverlayTheme?.defaults?.placement ?? "bottom";
+	const resolvedAlign = align ?? engineOverlayTheme?.defaults?.align ?? "center";
+	const resolvedOffset = offset ?? engineOverlayTheme?.defaults?.offset ?? 8;
+	const resolvedViewportPadding = viewportPadding ?? engineOverlayTheme?.defaults?.viewportPadding ?? 8;
+	const resolvedMatchTriggerWidth = matchTriggerWidth ?? engineOverlayTheme?.defaults?.matchTriggerWidth ?? false;
 	const titleId = `${panelId}-title`;
 	const descriptionId = `${panelId}-description`;
 	const [isOpen, setOpen] = useOverlayState(open, defaultOpen, onOpenChange);
-	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration, 140);
+	const transitionMs = useReducedMotion() ? 0 : clampDuration(duration ?? engineOverlayTheme?.defaults?.duration, 140);
 	const { present, active } = useOverlayPresence(isOpen, transitionMs);
 	const panelRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -39,17 +45,19 @@ export const EnginePopover = memo(function EnginePopover({
 	const [position, setPosition] = useState<{ top: number; left: number; placement: EnginePopoverPlacement } | null>(null);
 	const close = useCallback(() => setOpen(false), [setOpen]);
 	const behavior = useMemo(() => ({
-		open: isOpen, overlayId: panelId, panelRef, triggerRef, close,
+		open: isOpen, present: present && target !== null, overlayId: panelId, panelRef, triggerRef, close, modal: false,
+		baseZIndex: zIndex, layers: [{ ref: panelRef, offset: 0 }],
 		closeOnEscape, trapFocus, autoFocus, lockScroll: false, restoreFocus, initialFocus,
-	}), [autoFocus, close, closeOnEscape, initialFocus, isOpen, panelId, restoreFocus, trapFocus]);
+	}), [autoFocus, close, closeOnEscape, initialFocus, isOpen, panelId, panelRef, present, restoreFocus, target, trapFocus, zIndex]);
 	useOverlayBehavior(behavior);
 
 	useEffect(() => {
 		if (!present || !target) return;
-		let frame = 0;
+		let cancelScheduled: (() => void) | null = null;
 		const update = () => {
-			cancelAnimationFrame(frame);
-			frame = requestAnimationFrame(() => {
+			cancelScheduled?.();
+			cancelScheduled = scheduleOverlayFrame(() => {
+				cancelScheduled = null;
 				const triggerElement = triggerRef.current;
 				const panelElement = panelRef.current;
 				if (!triggerElement || !panelElement) return;
@@ -59,8 +67,8 @@ export const EnginePopover = memo(function EnginePopover({
 				const viewportHeight = visualViewport?.height ?? window.innerHeight;
 				const viewportLeft = visualViewport?.offsetLeft ?? 0;
 				const viewportTop = visualViewport?.offsetTop ?? 0;
-				if (matchTriggerWidth) {
-					const usableViewportWidth = Math.max(0, viewportWidth - viewportPadding * 2);
+				if (resolvedMatchTriggerWidth) {
+					const usableViewportWidth = Math.max(0, viewportWidth - resolvedViewportPadding * 2);
 					panelElement.style.setProperty(
 						"--e-popover-trigger-width",
 						`${Math.min(triggerRect.width, usableViewportWidth)}px`,
@@ -69,35 +77,39 @@ export const EnginePopover = memo(function EnginePopover({
 					panelElement.style.removeProperty("--e-popover-trigger-width");
 				}
 				const panelRect = panelElement.getBoundingClientRect();
-				setPosition(computePopoverPosition(triggerRect, panelRect, {
-					placement,
-					align,
-					offset,
+				const nextPosition = computePopoverPosition(triggerRect, panelRect, {
+					placement: resolvedPlacement,
+					align: resolvedAlign,
+					offset: resolvedOffset,
 					viewportWidth,
 					viewportHeight,
 					viewportLeft,
 					viewportTop,
-					viewportPadding,
-				}));
-			});
+					viewportPadding: resolvedViewportPadding,
+				});
+				setPosition((previous) => previous
+					&& previous.top === nextPosition.top
+					&& previous.left === nextPosition.left
+					&& previous.placement === nextPosition.placement
+					? previous
+					: nextPosition);
+			}, document);
 		};
 		update();
-		window.addEventListener("resize", update, { passive: true });
-		window.addEventListener("scroll", update, { passive: true, capture: true });
-		window.visualViewport?.addEventListener("resize", update, { passive: true });
-		window.visualViewport?.addEventListener("scroll", update, { passive: true });
-		const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
-		if (observer && triggerRef.current) observer.observe(triggerRef.current);
-		if (observer && panelRef.current) observer.observe(panelRef.current);
+		const unsubscribeViewport = subscribeOverlayViewport(update, document);
+		const unsubscribeTriggerResize = triggerRef.current
+			? subscribeOverlayResize(triggerRef.current, update, document)
+			: () => undefined;
+		const unsubscribePanelResize = panelRef.current
+			? subscribeOverlayResize(panelRef.current, update, document)
+			: () => undefined;
 		return () => {
-			cancelAnimationFrame(frame);
-			window.removeEventListener("resize", update);
-			window.removeEventListener("scroll", update, true);
-			window.visualViewport?.removeEventListener("resize", update);
-			window.visualViewport?.removeEventListener("scroll", update);
-			observer?.disconnect();
+			cancelScheduled?.();
+			unsubscribeViewport();
+			unsubscribeTriggerResize();
+			unsubscribePanelResize();
 		};
-	}, [align, matchTriggerWidth, offset, placement, present, target, viewportPadding]);
+	}, [resolvedAlign, resolvedMatchTriggerWidth, resolvedOffset, resolvedPlacement, present, target, resolvedViewportPadding]);
 
 	useEffect(() => {
 		if (!isOpen || !closeOnOutsideClick) return;
@@ -111,7 +123,7 @@ export const EnginePopover = memo(function EnginePopover({
 		return () => document.removeEventListener("pointerdown", onPointerDown, true);
 	}, [close, closeOnOutsideClick, isOpen, panelId]);
 
-	const actualPlacement = position?.placement ?? placement;
+	const actualPlacement = position?.placement ?? resolvedPlacement;
 	const hiddenTransform = actualPlacement === "top" ? "translateY(6px)"
 		: actualPlacement === "bottom" ? "translateY(-6px)"
 			: actualPlacement === "left" ? "translateX(6px)" : "translateX(-6px)";
@@ -119,11 +131,12 @@ export const EnginePopover = memo(function EnginePopover({
 		defaults: {
 			...SURFACE_BASE,
 			position: "fixed",
-			minWidth: matchTriggerWidth ? "var(--e-popover-trigger-width, 12rem)" : "12rem",
+			minWidth: resolvedMatchTriggerWidth ? "var(--e-popover-trigger-width, 12rem)" : "12rem",
 			maxWidth: "min(24rem, calc(100vw - 1rem))",
 			maxHeight: "min(70vh, 36rem)",
 			overflow: "auto",
 			padding: "1rem",
+			...engineOverlayTheme?.styles?.panel,
 		},
 		style,
 		runtime: {
@@ -133,15 +146,15 @@ export const EnginePopover = memo(function EnginePopover({
 			opacity: active ? 1 : 0,
 			transform: active ? "translate(0,0) scale(1)" : `${hiddenTransform} scale(.985)`,
 			transformOrigin: actualPlacement === "top" ? "bottom center" : actualPlacement === "bottom" ? "top center" : actualPlacement === "left" ? "center right" : "center left",
-			transition: `opacity ${transitionMs}ms ease, transform ${transitionMs}ms ease`,
+			transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease, transform ${transitionMs}ms ease`,
 		},
 	});
 	const panelClass = [className, useCpropClass(cprop)].filter(Boolean).join(" ") || undefined;
-	const hasPopup: React.AriaAttributes["aria-haspopup"] = role === "menu" ? "menu" : role === "listbox" ? "listbox" : "dialog";
+	const hasPopup: React.AriaAttributes["aria-haspopup"] = "dialog";
 
 	return (
 		<>
-			<OverlayTrigger label={triggerLabel} children={trigger} className={triggerClassName} style={triggerStyle} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
+			<OverlayTrigger label={triggerLabel} children={trigger} asChild={triggerAsChild} className={triggerClassName} style={{ ...engineOverlayTheme?.styles?.trigger, ...triggerStyle }} disabled={triggerDisabled} expanded={isOpen} controls={panelId} hasPopup={hasPopup} ariaLabel={triggerAriaLabel} onClick={() => setOpen(!isOpen)} triggerRef={triggerRef} />
 			{target && present && createPortal(
 				<div
 					ref={panelRef}
@@ -152,11 +165,11 @@ export const EnginePopover = memo(function EnginePopover({
 					aria-describedby={description != null ? descriptionId : undefined}
 					tabIndex={-1}
 					className={panelClass}
-					style={{ ...panelStyle, zIndex }}
+					style={{ ...panelStyle, zIndex: `var(--e-overlay-stack-z, ${zIndex})` } as React.CSSProperties}
 					data-state={active ? "open" : "closed"}
 					data-placement={actualPlacement}
 				>
-					<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId}>{children}</OverlayContent>
+					<OverlayContent title={title} description={description} actions={actions} close={close} showCloseButton={showCloseButton} closeLabel={closeLabel} titleId={titleId} descriptionId={descriptionId} theme={engineOverlayTheme}>{children}</OverlayContent>
 				</div>,
 				target,
 			)}
