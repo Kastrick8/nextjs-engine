@@ -383,7 +383,9 @@ Dialog and Drawer trap Tab by default. Popover does not, because a normal contex
 
 ## Overlay stacking
 
-EngineOverlay maintains one shared stack. The latest registered overlay is considered the top overlay for keyboard and contextual outside-click handling.
+EngineOverlay maintains one document-scoped stack. The latest registered overlay is considered the top overlay for keyboard and contextual outside-click handling. Effective z-index is assigned from each component's requested `zIndex` base; later overlays receive a higher layer than the previous top overlay, including nested dialogs and drawers. A Drawer reserves adjacent backdrop/panel layers.
+
+When a modal Dialog or Drawer opens, the runtime temporarily applies `inert` and `aria-hidden` to background siblings outside the active modal/overlay path. Nested overlays remain available, and the runtime restores each element's original attributes/property state as the modal stack changes or closes.
 
 This allows combinations such as:
 
