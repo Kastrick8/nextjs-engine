@@ -41,3 +41,21 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
+
+      - name: Collect SARIF for diagnosis
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p .codeql-debug
+          index=0
+          while IFS= read -r -d '' file; do
+            index=$((index + 1))
+            cp "$file" ".codeql-debug/result-$index.sarif"
+          done < <(find "$RUNNER_TEMP" "$GITHUB_WORKSPACE/.." -maxdepth 7 -type f -name '*.sarif' -print0 2>/dev/null)
+      - name: Upload CodeQL SARIF diagnostic artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif-${{ matrix.language }}
+          path: .codeql-debug/*.sarif
+          if-no-files-found: warn
