@@ -83,6 +83,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 				<>
 					<div
 						ref={backdropRef}
+						data-engine-overlay-backdrop={panelId}
 						aria-hidden="true"
 						style={{
 							position: "fixed",
