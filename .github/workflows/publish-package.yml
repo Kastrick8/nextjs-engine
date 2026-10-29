@@ -198,6 +198,10 @@ jobs:
           manifest.name="@kastrick/nextjs-engine";
           manifest.version=VERSION;
           manifest.private=false;
+          // Normalize new snapshots to the canonical organization-owned repository.
+          // Archived packages already published are never rewritten by this step.
+          manifest.repository={type:"git",url:"git+https://github.com/Kastrick8/nextjs-engine.git"};
+          manifest.homepage="https://github.com/Kastrick8/nextjs-engine#readme";
           manifest.files=(manifest.files||[]).filter(p=>p!=="content.include"&&fs.existsSync(root+"/"+p));
           const includedPaths=JSON.parse(process.env.CONTENT_INCLUDE_PATHS||"[]");
           for(const included of includedPaths){
