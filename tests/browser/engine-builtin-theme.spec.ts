@@ -28,6 +28,8 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	const imageWrapper = page.locator(".e-img-wrap").first();
 	await expect(imageWrapper).toHaveCSS("background-color", "rgb(241, 245, 249)");
 	await expect(imageWrapper).toHaveCSS("border-radius", "4px");
+	await expect(imageWrapper.locator("img")).toHaveCSS("object-fit", "contain");
+	await expect(page.getByText("Themed image caption")).toHaveCSS("color", "rgb(51, 65, 85)");
 	await expect(page.locator(".themed-video")).toHaveCSS("background-color", "rgb(11, 17, 32)");
 	await expect(page.locator(".themed-video")).toHaveCSS("border-radius", "4px");
 });
