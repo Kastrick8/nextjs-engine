@@ -338,15 +338,15 @@ try {
 	const errorCachePath = schemaOutputCachePath(root, "app/error-case/page.tsx", "/error-case");
 	assert.equal(fs.existsSync(errorCachePath), false, "the failed route has no prior schema-cache artifact");
 	const failureLogs = [];
-	const partialManifest = await compileProject(root, { log: (line) => failureLogs.push(line) });
-	assert.equal(partialManifest.summary.failedSchemaCount, 1, "one component-level schema failure is recorded without aborting the compiler pass");
-	assert.equal(partialManifest.errors.length, 1, "the partial manifest retains the failed route's error details");
-	assert.equal(partialManifest.errors[0].pageId, "/error-case");
-	assert.match(partialManifest.errors[0].message, /Security compilation failed/);
-	assert.ok(!partialManifest.pages.some((page) => page.id === "/error-case"),
+	const erroredManifest = await compileProject(root, { log: (line) => failureLogs.push(line) });
+	assert.equal(erroredManifest.summary.failedSchemaCount, 1, "one component-level schema failure is recorded without aborting the compiler pass");
+	assert.equal(erroredManifest.errors.length, 1, "the partial manifest retains the failed route's error details");
+	assert.equal(erroredManifest.errors[0].pageId, "/error-case");
+	assert.match(erroredManifest.errors[0].message, /Security compilation failed/);
+	assert.ok(!erroredManifest.pages.some((page) => page.id === "/error-case"),
 		"the failed route is omitted rather than represented by a corrupt/partial schema plan");
-	assert.ok(partialManifest.pages.some((page) => page.id === "/good-one")
-		&& partialManifest.pages.some((page) => page.id === "/good-two"),
+	assert.ok(erroredManifest.pages.some((page) => page.id === "/good-one")
+		&& erroredManifest.pages.some((page) => page.id === "/good-two"),
 		"other CW jobs finish and their valid schema plans remain in the manifest");
 	assert.ok(failureLogs.some((line) => line.includes("ERROR COMPONENT ERRORED app/error-case/page.tsx -> /error-case")),
 		"the failing component is logged as an explicit error line");
@@ -365,7 +365,7 @@ try {
 			"failed work does not alter an already-valid cached artifact: " + pageId);
 	}
 	const partialInputPath = path.join(root, "partial-worker-manifest.json");
-	fs.writeFileSync(partialInputPath, JSON.stringify(partialManifest));
+	fs.writeFileSync(partialInputPath, JSON.stringify(erroredManifest));
 	const partialOutputFile = emitArtifacts(root, partialInputPath, "dist-partial", nextBuildContext);
 	assert.ok(fs.existsSync(partialOutputFile), "the partial-success manifest is safely emitted after the Next.js build");
 	const emittedPartial = JSON.parse(fs.readFileSync(partialOutputFile, "utf8"));
