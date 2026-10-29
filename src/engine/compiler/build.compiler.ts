@@ -616,7 +616,8 @@ function compileSchemaJobs(jobs, options = {}) {
 					customComponentTypes: job.customComponentTypes,
 				});
 			} catch (error) {
-				fail(error, slot);
+				recordTaskError(job, error, slot, "task");
+				completeTask(slot);
 			}
 		}
 
