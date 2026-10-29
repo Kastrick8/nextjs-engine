@@ -200,24 +200,43 @@ function isOffline(options) {
 	return options.offline === true || process.env.ENGINE_THEME_FONT_OFFLINE === "1";
 }
 
-async function readResponseBytes(response, maxBytes, allowedType, label) {
+async function readResponseBytes(response, maxBytes, allowedType, label, onProgress) {
 	if (!response.ok) throw new Error("[EngineTheme fonts] " + label + " request failed with HTTP " + response.status + ".");
 	if (response.redirected) throw new Error("[EngineTheme fonts] Redirects are disabled for " + label + ".");
 	const contentType = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
 	if (!allowedType(contentType)) throw new Error("[EngineTheme fonts] Unexpected content type for " + label + ": " + (contentType || "(missing)") + ".");
 	const lengthHeader = response.headers.get("content-length");
-	if (lengthHeader !== null) {
-		const length = Number(lengthHeader);
-		if (Number.isFinite(length) && length > maxBytes) throw new Error("[EngineTheme fonts] " + label + " exceeds the size limit.");
+	const declaredLength = lengthHeader === null ? null : Number(lengthHeader);
+	if (declaredLength !== null && Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+		throw new Error("[EngineTheme fonts] " + label + " exceeds the size limit.");
 	}
+	const startedAt = Date.now();
+	let intervalStartedAt = startedAt;
+	let intervalStartedBytes = 0;
+	let total = 0;
+	const reportProgress = (done = false) => {
+		if (typeof onProgress !== "function") return;
+		const now = Date.now();
+		const elapsed = done ? Math.max(1, now - startedAt) : Math.max(1, now - intervalStartedAt);
+		const transferred = done ? total : total - intervalStartedBytes;
+		onProgress({
+			bytesRead: total,
+			totalBytes: declaredLength !== null && Number.isFinite(declaredLength) && declaredLength >= 0 ? declaredLength : null,
+			bytesPerSecond: transferred * 1000 / elapsed,
+			done,
+		});
+		intervalStartedAt = now;
+		intervalStartedBytes = total;
+	};
 	if (!response.body) {
 		const bytes = Buffer.from(await response.arrayBuffer());
-		if (bytes.byteLength > maxBytes) throw new Error("[EngineTheme fonts] " + label + " exceeds the size limit.");
+		total = bytes.byteLength;
+		if (total > maxBytes) throw new Error("[EngineTheme fonts] " + label + " exceeds the size limit.");
+		reportProgress(true);
 		return { bytes, contentType };
 	}
 	const reader = response.body.getReader();
 	const parts = [];
-	let total = 0;
 	try {
 		while (true) {
 			const item = await reader.read();
@@ -228,10 +247,12 @@ async function readResponseBytes(response, maxBytes, allowedType, label) {
 				throw new Error("[EngineTheme fonts] " + label + " exceeds the size limit.");
 			}
 			parts.push(Buffer.from(item.value));
+			if (Date.now() - intervalStartedAt >= 120) reportProgress(false);
 		}
 	} finally {
 		try { reader.releaseLock(); } catch { /* The stream may already be closed. */ }
 	}
+	reportProgress(true);
 	return { bytes: Buffer.concat(parts, total), contentType };
 }
 
@@ -251,7 +272,10 @@ async function fetchBounded(url, options) {
 			headers: options.headers || {},
 			signal: controller.signal,
 		});
-		return await readResponseBytes(response, options.maxBytes, options.allowedType, options.label);
+		return await readResponseBytes(response, options.maxBytes, options.allowedType, options.label,
+			typeof options.onProgress === "function"
+				? (event) => options.onProgress({ ...event, target: options.progressTarget || options.label })
+				: undefined);
 	} catch (error) {
 		if (controller.signal.aborted) throw new Error("[EngineTheme fonts] Timed out fetching " + options.label + ".");
 		throw error;
@@ -295,6 +319,20 @@ function chooseFontUrl(src, baseUrl) {
 	};
 	candidates.sort((a, b) => rank(a) - rank(b));
 	return candidates[0] || null;
+}
+
+function fontFamilyNamesFromUrl(value) {
+	try {
+		const url = value instanceof URL ? value : new URL(String(value));
+		return url.searchParams.getAll("family")
+			.map((family) => family.split(":")[0].replace(/\+/g, " ").trim())
+			.filter(Boolean);
+	} catch { return []; }
+}
+
+function fontFamilyLabel(value, fallback = "theme font") {
+	const first = String(value || "").split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+	return first || fallback;
 }
 
 function parseFontFaces(css) {
@@ -491,11 +529,16 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 		for (const source of sourceUrls) {
 			const stylesheetUrl = normalizeSourceUrl(source, cssOrigins, "font stylesheet URL");
 			await assertPublicHost(stylesheetUrl, trustedBuiltInHosts, options.lookupImpl);
+			const stylesheetFamilies = fontFamilyNamesFromUrl(stylesheetUrl);
+			const stylesheetTarget = "fonts: " + (stylesheetFamilies.length ? stylesheetFamilies.join(", ") : themeId);
+			options.onDownloadProgress?.({ target: stylesheetTarget, bytesPerSecond: 0, bytesRead: 0, totalBytes: null });
 			const fetched = await fetchBounded(stylesheetUrl, {
 				maxBytes: MAX_CSS_BYTES,
 				timeoutMs: options.timeoutMs,
 				fetchImpl: options.fetchImpl,
 				label: "font stylesheet",
+				progressTarget: stylesheetTarget,
+				onProgress: options.onDownloadProgress,
 				allowedType: (type) => type === "text/css" || type === "text/plain",
 				headers: {
 					Accept: "text/css,*/*;q=0.1",
@@ -523,13 +566,18 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 			seenSourceUrls.add(face.sourceUrl);
 			const fontUrl = normalizeSourceUrl(face.sourceUrl, fontOrigins, "font file URL");
 			await assertPublicHost(fontUrl, trustedBuiltInHosts, options.lookupImpl);
+			const familyName = fontFamilyLabel(face.declarations["font-family"], themeId);
+			const downloadTarget = "fonts: " + familyName;
 			let asset = !refresh ? fontAssetFromCache(fontUrl.href, manifest, cacheAssetRoot, now, ttlMs) : undefined;
 			if (!asset) {
+				options.onDownloadProgress?.({ target: downloadTarget, bytesPerSecond: 0, bytesRead: 0, totalBytes: null });
 				const fetched = await fetchBounded(fontUrl, {
 					maxBytes: MAX_FONT_BYTES,
 					timeoutMs: options.timeoutMs,
 					fetchImpl: options.fetchImpl,
 					label: "font file",
+					progressTarget: downloadTarget,
+					onProgress: options.onDownloadProgress,
 					allowedType: (type) => /^(font\/(woff2?|ttf|otf|sfnt)|application\/(font-woff2?|x-font-ttf|vnd\.ms-opentype|octet-stream))$/.test(type),
 					headers: { Accept: "font/woff2,font/woff,font/ttf,font/otf,application/octet-stream;q=0.9,*/*;q=0.1" },
 				});
@@ -682,6 +730,15 @@ async function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 	};
 	const seenThemes = new Set();
 	const themeArtifacts = Array.isArray(artifacts) ? artifacts : [];
+	const fontThemeCount = themeArtifacts.reduce((count, artifact) => {
+		if (!artifact || typeof artifact.content !== "string") return count;
+		try {
+			const content = JSON.parse(artifact.content).content;
+			return content && content.scope !== "remote" && Array.isArray(content.fonts)
+				&& content.fonts.some((value) => typeof value === "string" && value.length > 0) ? count + 1 : count;
+		} catch { return count; }
+	}, 0);
+	let completedFontThemes = 0;
 	for (const artifact of themeArtifacts) {
 		if (!artifact || typeof artifact.id !== "string" || !SAFE_THEME_ID.test(artifact.id)
 			|| typeof artifact.fileName !== "string" || artifact.fileName !== artifact.id + ".etr") continue;
@@ -694,12 +751,25 @@ async function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 			: [];
 		if (fonts.length === 0 || data.content.scope === "remote") continue;
 		stats.themeCount += 1;
+		options.onTaskProgress?.({
+			operation: "Preparing fonts",
+			target: artifact.id,
+			mode: "percent",
+			progress: fontThemeCount > 0 ? (completedFontThemes / fontThemeCount) * 100 : 0,
+		});
 		if (fonts.length > MAX_STYLE_SHEETS) {
 			throw new Error("[EngineTheme fonts] Theme " + artifact.id + " declares more than " + MAX_STYLE_SHEETS + " font stylesheets.");
 		}
 		const entry = await compileOneTheme(root, data.content, [...new Set(fonts)], manifest, options, stats);
 		nextEntries[artifact.id] = entry;
 		manifest.themes[artifact.id] = entry;
+		completedFontThemes += 1;
+		options.onTaskProgress?.({
+			operation: "Preparing fonts",
+			target: artifact.id,
+			mode: "percent",
+			progress: fontThemeCount > 0 ? (completedFontThemes / fontThemeCount) * 100 : 100,
+		});
 		if (entry.warning) stats.warnings.push({ themeId: artifact.id, warning: entry.warning });
 	}
 
