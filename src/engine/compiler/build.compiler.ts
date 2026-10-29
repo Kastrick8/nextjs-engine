@@ -451,7 +451,7 @@ function schemaNodeAtPath(schema, nodePath) {
 	const segments = String(nodePath || "").split(".").slice(1);
 	for (const segment of segments) {
 		if (segment === "fallback") node = node && node.props && node.props.fallback;
-		else if (/^\\d+$/.test(segment)) node = node && Array.isArray(node.children) ? node.children[Number(segment)] : undefined;
+		else if (/^\d+$/.test(segment)) node = node && Array.isArray(node.children) ? node.children[Number(segment)] : undefined;
 		else return undefined;
 		if (!node || typeof node !== "object") return undefined;
 	}
@@ -462,7 +462,7 @@ function failureNodeContext(job, slot, errorMessage) {
 	// Security diagnostics include a schema node path such as root.0.props.href.
 	// Prefer that exact source over the last progress event, which may belong to
 	// a later sibling because security checks run after the complete tree walk.
-	const match = String(errorMessage || "").match(/\\bat (root(?:\\.(?:\\d+|fallback))*)\\.props(?:\\.|:|;|$)/);
+	const match = String(errorMessage || "").match(/\bat (root(?:\.(?:\d+|fallback))*)\.props(?:\.|:|;|$)/);
 	if (match) {
 		const nodePath = match[1];
 		const node = schemaNodeAtPath(job.schema, nodePath);
