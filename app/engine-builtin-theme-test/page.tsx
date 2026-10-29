@@ -43,6 +43,11 @@ const builtInTheme = createTheme({
 	},
 	image: { styles: { root: { borderRadius: "12px", backgroundColor: "#f1f5f9" }, image: { objectFit: "contain" }, placeholder: { backgroundColor: "#e5e7eb" }, caption: { color: "#334155" } } },
 	video: { styles: { root: { borderRadius: "12px", backgroundColor: "#0b1120" }, video: { objectFit: "contain" } } },
+	form: { styles: { root: { backgroundColor: "#fef9c3", borderRadius: "6px", padding: "12px" } } },
+	input: { styles: { root: { backgroundColor: "#dbeafe", borderColor: "#2563eb", borderRadius: "4px", color: "#1e3a8a", padding: "6px" } } },
+	textarea: { styles: { root: { backgroundColor: "#fce7f3", borderColor: "#db2777", color: "#831843", padding: "8px" } } },
+	checkbox: { styles: { root: { width: "20px", height: "20px" } } },
+	label: { styles: { root: { color: "#047857", fontWeight: 600 } } },
 	slot: { styles: { root: { backgroundColor: "#dbeafe", padding: "4px" } } },
 });
 
@@ -108,6 +113,17 @@ export default createPage({
 					type: "scroll",
 					props: { id: "themed-scroll", pageTransition: false },
 					children: [{ type: "text", props: { content: "Themed scroll content" } }],
+				},
+				{
+					type: "form",
+					props: { id: "themed-form", noValidate: true },
+					children: [
+						{ type: "label", props: { id: "themed-form-label", htmlFor: "themed-form-input" }, children: "Themed form label" },
+						{ type: "input", props: { id: "themed-form-input", name: "theme-input", type: "text", placeholder: "Themed input" } },
+						{ type: "input", props: { id: "themed-local-input", name: "local-input", type: "text", style: { color: "#dc2626" } } },
+						{ type: "textarea", props: { id: "themed-textarea", name: "theme-notes", defaultValue: "Themed textarea" } },
+						{ type: "checkbox", props: { id: "themed-checkbox", name: "theme-accept", ariaLabel: "Accept theme terms" } },
+					],
 				},
 			],
 		},

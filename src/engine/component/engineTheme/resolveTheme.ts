@@ -787,11 +787,12 @@ function resolveBuiltinThemeNode(
 	const nextProps: Record<string, unknown> = { ...componentProps };
 	delete nextProps.engineThemeStyles;
 
+	const rootStyleComponents = ["form", "input", "textarea", "checkbox", "label"];
 	if (["image", "video", "canvas", "manim", "manim3d", "slot"].includes(namespace)) {
 		if (Object.keys(rootStyle).length > 0 || originalProps.style !== undefined) {
 			nextProps.style = { ...rootStyle, ...explicitStyle };
 		}
-	} else {
+	} else if (!rootStyleComponents.includes(namespace)) {
 		const rootProps: Record<string, unknown> = {};
 		const rootVariables: Record<string, unknown> = {};
 		for (const [key, value] of Object.entries(rootStyle)) {
@@ -805,6 +806,12 @@ function resolveBuiltinThemeNode(
 	}
 
 	const namedStyles: Record<string, Record<string, unknown>> = {};
+	if (rootStyleComponents.includes(namespace) && Object.keys(rootStyle).length > 0) {
+		// Native form controls consume CSSProperties directly through the internal
+		// root slot. Flattening arbitrary CSS names into Engine props silently drops
+		// properties that are not modeled as Engine aliases, such as padding.
+		namedStyles.root = rootStyle;
+	}
 	for (const [slot, value] of Object.entries(resolvedStyles)) {
 		if (slot !== "root" && Object.keys(value).length > 0) namedStyles[slot] = value;
 	}

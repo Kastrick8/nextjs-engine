@@ -989,19 +989,24 @@ function renderServerNode(
 				</optgroup>
 			);
 
-		case "label":
+		case "label": {
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: {};
+			const labelStyle = { ...(engineThemeStyles.root ?? {}), ...style };
 			return (
 				<label
 					key={compiled.id}
 					{...debug}
 					id={id}
 					className={className}
-					style={style}
+					style={labelStyle}
 					htmlFor={String(props.htmlFor ?? props.forInput ?? "") || undefined}
 				>
 					{children}
 				</label>
 			);
+		}
 
 		case "image":
 			return renderServerImage(compiled, props, collector);
