@@ -194,12 +194,12 @@ current download status stays on the terminal's bottom row; completion is added
 to the normal log stream above it:
 
 ```text
-[NENC] Downloading private asset: favicon = github.com  (live bottom row)
+[NENC] Downloading private asset: favicon = github.com  (live CW dashboard)
 [NENC] DONE private asset: favicon = github.com
 ```
 
 Repeated icons use the server cache and do not emit another download pair until
-that cache entry expires. The live status row is terminal-only; non-TTY output
+that cache entry expires. The live CW dashboard is terminal-only; non-TTY output
 keeps readable DONE/FAILED lines without cursor-control sequences.
 
 The same schema keys work on Engine link nodes and linked schema components.
