@@ -6,7 +6,7 @@ Release documents describe the Engine **as it existed at that release**. For cur
 
 | Version | Status | Release notes | Main theme |
 |---|---|---|---|
-| **v2.6.2** | Prepared bug-fix patch | [`NE-v2-6-2.md`](./NE-v2-6-2.md) | Cross-browser Transitions+, React hydration, Overlay/Nav compatibility, EngineScroll correctness |
+| **v2.7.0** | Prepared; not yet published | [`NE-v2-7-0.md`](./NE-v2-7-0.md) | NE CLI release catalog, CustomSelect accessibility/localization, verified Generation 2 stable package |\n| **v2.6.2** | Prepared bug-fix patch | [`NE-v2-6-2.md`](./NE-v2-6-2.md) | Cross-browser Transitions+, React hydration, Overlay/Nav compatibility, EngineScroll correctness |
 | **v2.6.1** | Prepared stability patch | [`NE-v2-6-1.md`](./NE-v2-6-1.md) | React 19 hydration, Next.js App Router, routing/style stability |
 | **v2.6.0** | Prepared for publication | [`NE-v2-6-0.md`](./NE-v2-6-0.md) | EngineShader, Transitions+, advanced EngineScroll, EngineOverlay |
 | **v2.5.0** | Released 2026-08-27 | [`NE-v2-5-0.md`](./NE-v2-5-0.md) | APIStatic, runtime correctness, performance |
@@ -25,7 +25,7 @@ release-V2-0-0
 Release-v2.5.0
 ```
 
-For the current v2.6 line the recommended tags are:
+For v2.6 historical releases, the recommended tags were:
 
 ```text
 Release-v2.6.0
