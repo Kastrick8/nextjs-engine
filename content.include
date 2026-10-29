@@ -1,0 +1,5 @@
+# Extra files copied from this source commit into a newly created package snapshot.
+# One repository-relative file or directory path per line; blank lines and # comments are ignored.
+# Paths must exist in this commit. Do not list package-generated files or dependency/build folders.
+# The file itself is build-time metadata and is never published to npm.
+bin/
