@@ -21,6 +21,8 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Test NE CLI and complete release catalog
+        run: npm run test:cli
       - name: Test APIStatic compiler
         run: |
           node scripts/api-static-smoke.js
