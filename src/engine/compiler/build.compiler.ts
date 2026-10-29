@@ -446,6 +446,37 @@ function createWorkerTaskPlan(schemaJobs, externalJobs = []) {
 	];
 }
 
+function schemaNodeAtPath(schema, nodePath) {
+	let node = schema && schema.root;
+	const segments = String(nodePath || "").split(".").slice(1);
+	for (const segment of segments) {
+		if (segment === "fallback") node = node && node.props && node.props.fallback;
+		else if (/^\\d+$/.test(segment)) node = node && Array.isArray(node.children) ? node.children[Number(segment)] : undefined;
+		else return undefined;
+		if (!node || typeof node !== "object") return undefined;
+	}
+	return node;
+}
+
+function failureNodeContext(job, slot, errorMessage) {
+	// Security diagnostics include a schema node path such as root.0.props.href.
+	// Prefer that exact source over the last progress event, which may belong to
+	// a later sibling because security checks run after the complete tree walk.
+	const match = String(errorMessage || "").match(/\\bat (root(?:\\.(?:\\d+|fallback))*)\\.props(?:\\.|:|;|$)/);
+	if (match) {
+		const nodePath = match[1];
+		const node = schemaNodeAtPath(job.schema, nodePath);
+		return {
+			nodePath,
+			componentType: node && typeof node.type === "string" ? node.type : (slot && slot.lastNodeType) || undefined,
+		};
+	}
+	return {
+		nodePath: slot && slot.lastNodePath ? slot.lastNodePath : undefined,
+		componentType: slot && slot.lastNodeType ? slot.lastNodeType : undefined,
+	};
+}
+
 function compileSchemaJobs(jobs, options = {}) {
 	const externalJobs = Array.isArray(options.externalJobs) ? options.externalJobs : [];
 	const queue = createWorkerTaskPlan(jobs, externalJobs);
@@ -496,9 +527,10 @@ function compileSchemaJobs(jobs, options = {}) {
 		function recordTaskError(job, error, slot, kind = "task") {
 			const taskType = job.taskType === "external" ? "external" : "schema";
 			const sourcePath = job.sourcePath ? formatSchemaSourcePath(job.sourcePath) : undefined;
-			const nodeType = slot && slot.lastNodeType ? slot.lastNodeType : undefined;
-			const nodePath = slot && slot.lastNodePath ? slot.lastNodePath : undefined;
 			const message = error instanceof Error ? error.message : String(error);
+			const nodeContext = taskType === "schema" ? failureNodeContext(job, slot, message) : {};
+			const nodeType = nodeContext.componentType;
+			const nodePath = nodeContext.nodePath;
 			const failure = {
 				taskId: job.taskId,
 				taskType,
