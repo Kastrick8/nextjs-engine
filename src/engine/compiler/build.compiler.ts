@@ -361,7 +361,7 @@ function formatCount(value, singular, plural = singular + "s") {
 function formatCompiledSchemaLine(job, page, metadata = {}, moduleCount) {
 	const pieces = [];
 	const modules = Number(moduleCount);
-	if (Number.isFinite(modules) && modules > 0) pieces.push(formatCount(modules, "module"));
+	if (Number.isFinite(modules) && modules > 0) pieces.push(formatCount(modules, "Engine module"));
 	if (Number.isFinite(metadata.durationMs) && metadata.durationMs >= 0) pieces.push(metadata.durationMs + "ms");
 	const summary = page && page.summary && typeof page.summary === "object" ? page.summary : {};
 	const islands = formatCount(summary.clientIslands, "client island");
