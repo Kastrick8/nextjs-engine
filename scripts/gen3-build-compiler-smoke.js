@@ -343,6 +343,8 @@ try {
 	assert.equal(erroredManifest.errors.length, 1, "the partial manifest retains the failed route's error details");
 	assert.equal(erroredManifest.errors[0].pageId, "/error-case");
 	assert.match(erroredManifest.errors[0].message, /Security compilation failed/);
+	assert.match(erroredManifest.errors[0].message, /root\.props\.password/,
+		"the error identifies the schema component property that caused the failure without echoing its value");
 	assert.ok(!erroredManifest.pages.some((page) => page.id === "/error-case"),
 		"the failed route is omitted rather than represented by a corrupt/partial schema plan");
 	assert.ok(erroredManifest.pages.some((page) => page.id === "/good-one")
