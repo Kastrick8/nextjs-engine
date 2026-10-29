@@ -761,7 +761,7 @@ function resolveBuiltinThemeNode(
 	const nextProps: Record<string, unknown> = { ...originalProps };
 	delete nextProps.engineThemeStyles;
 
-	if (namespace === "image" || namespace === "video") {
+	if (["image", "video", "canvas", "manim", "manim3d"].includes(namespace)) {
 		nextProps.style = { ...rootStyle, ...explicitStyle };
 	} else {
 		const rootProps: Record<string, unknown> = {};
