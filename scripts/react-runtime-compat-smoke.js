@@ -62,6 +62,13 @@ function main() {
 		assert.match(overlaySource, /usePortalTarget/, "overlay portals should resolve after mount");
 		assert.match(overlaySource, /\[options\.lockScroll, options\.open\]/, "live scroll-lock changes need an independent lifecycle");
 
+		const transitionLinkSource = fs.readFileSync(path.join(repoRoot, "src", "engine", "components", "EngineTransitionLink.tsx"), "utf8");
+		assert.match(transitionLinkSource, /React\.ComponentProps<typeof NextLink>/, "EngineTransitionLink should forward the supported Next.js Link prop surface");
+		assert.match(transitionLinkSource, /\{\.\.\.nextLinkProps\}/, "additional Next.js Link props must reach the underlying Link");
+		assert.match(transitionLinkSource, /download\?: boolean \| string/, "native download links must be represented in the component contract");
+		assert.match(transitionLinkSource, /function isInternalNavigation/, "custom transitions must be limited to same-origin HTTP(S) destinations");
+		assert.match(transitionLinkSource, /const navigate = replace \? transitions\.replace : transitions\.push/, "Next.js replace requests must not be converted into push navigation");
+
 		const { withEngineImageConfig } = require(path.join(repoRoot, "src", "engine", "plugins", "enginePlugin.js"));
 		const originalImageConfig = {
 			reactStrictMode: true,
