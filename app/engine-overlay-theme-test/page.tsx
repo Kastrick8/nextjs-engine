@@ -8,8 +8,6 @@ const overlayRuntimeTheme = createTheme({
 		styles: {
 			backdrop: {
 				backgroundColor: "#123456",
-				opacity: 0.2,
-				transition: "none",
 			},
 		},
 	},
@@ -33,6 +31,7 @@ export default createPage({
 						triggerLabel: "Open themed runtime dialog",
 						title: "Themed runtime dialog",
 						closeOnEscape: true,
+						overlayStyle: { opacity: 0.2, transition: "none" },
 					},
 				},
 				{
@@ -43,6 +42,7 @@ export default createPage({
 						triggerLabel: "Open themed runtime drawer",
 						title: "Themed runtime drawer",
 						closeOnEscape: true,
+						overlayStyle: { opacity: 0.2, transition: "none" },
 					},
 				},
 			],
