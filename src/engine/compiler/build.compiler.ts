@@ -507,6 +507,7 @@ function compileSchemaJobs(jobs, options = {}) {
 		}));
 		let completed = 0;
 		let settled = false;
+		let fatalTaskFailure = null;
 
 		function stopWorkers() {
 			return Promise.all(workers.map((worker) => worker.terminate().catch(() => undefined)));
@@ -526,7 +527,11 @@ function compileSchemaJobs(jobs, options = {}) {
 			if (settled || completed !== totalTasks) return;
 			settled = true;
 			if (showWorkerStatus) nencLogger.clearStatus("workers");
-			stopWorkers().then(() => resolve({ pages: results, errors: taskErrors }));
+			stopWorkers().then(() => {
+				// Explicitly fatal tasks still allow all other active CW jobs to drain.
+				if (fatalTaskFailure) reject(fatalTaskFailure);
+				else resolve({ pages: results, errors: taskErrors });
+			});
 		}
 
 		function recordTaskError(job, error, slot, kind = "task") {
@@ -544,10 +549,15 @@ function compileSchemaJobs(jobs, options = {}) {
 				...(job.target ? { target: job.target } : {}),
 				name: error instanceof Error ? error.name : "Error",
 				message,
+				...(job.fatalOnError ? { fatal: true } : {}),
 				...(nodeType ? { componentType: nodeType } : {}),
 				...(nodePath ? { nodePath } : {}),
 			};
 			taskErrors.push(failure);
+			if (job.fatalOnError && !fatalTaskFailure) {
+				fatalTaskFailure = new Error(message);
+				fatalTaskFailure.name = failure.name;
+			}
 			let detail;
 			if (taskType === "schema") {
 				const component = nodeType ? " · " + nodeType + " at " + (nodePath || "root") : "";
@@ -856,6 +866,7 @@ async function compileProject(projectRoot, options = {}) {
 	if (process.env.NODE_ENV === "production" && fontPlan.themes.length > 0) {
 		externalJobs.push({
 			taskId: "engine-theme-fonts",
+			fatalOnError: process.env.ENGINE_THEME_FONT_FAILURE_POLICY === "error",
 			pageId: fontPlan.label,
 			operation: "Preparing fonts",
 			target: fontPlan.target,
