@@ -2,3 +2,6 @@
 # Add one repository-relative file or directory path per line when needed.
 # Blank lines and lines beginning with # are ignored.
 # Existing archived package versions are not changed by editing this file.
+
+# Ship the NE CLI with newly generated package snapshots.
+bin/
