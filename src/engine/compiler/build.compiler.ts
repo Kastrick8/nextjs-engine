@@ -433,17 +433,22 @@ function formatFontBuildSummary(stats) {
 }
 
 function createWorkerTaskPlan(schemaJobs, externalJobs = []) {
-	// Build the complete queue before a worker starts. External tasks (such as
-	// downloads) use the same available-slot scheduler as schema compilation;
-	// no task type is reserved for CW1, CW2, or CW3.
-	return [
-		...(Array.isArray(externalJobs) ? externalJobs : []).map((job, index) => ({
-			...job,
-			taskType: "external",
-			taskId: job.taskId || "external-" + index,
-		})),
-		...(Array.isArray(schemaJobs) ? schemaJobs : []).map((job) => ({ ...job, taskType: "schema" })),
-	];
+	// Build a deterministic, interleaved queue before any worker starts.
+	// Dynamic dispatch still sends the next task to whichever CW frees up first;
+	// neither schema work nor downloads are reserved for a specific CW number.
+	const schemas = (Array.isArray(schemaJobs) ? schemaJobs : [])
+		.map((job) => ({ ...job, taskType: "schema" }));
+	const external = (Array.isArray(externalJobs) ? externalJobs : []).map((job, index) => ({
+		...job,
+		taskType: "external",
+		taskId: job.taskId || "external-" + index,
+	}));
+	const queue = [];
+	for (let index = 0; index < Math.max(schemas.length, external.length); index += 1) {
+		if (schemas[index]) queue.push(schemas[index]);
+		if (external[index]) queue.push(external[index]);
+	}
+	return queue;
 }
 
 function schemaNodeAtPath(schema, nodePath) {
