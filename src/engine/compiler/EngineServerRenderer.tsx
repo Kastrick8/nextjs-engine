@@ -652,6 +652,9 @@ function renderServerNode(
 					style: userStyle,
 				},
 			);
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: undefined;
 			const inner = compileEngineStyles(
 				{
 					px: props.px ?? (variant === "fullbleed" ? "0" : "1.5rem"),
@@ -670,12 +673,20 @@ function renderServerNode(
 					...(props.centered !== false && variant !== "fullbleed" ? { marginLeft: "auto", marginRight: "auto" } : {}),
 					...(variant === "centered" ? { display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" } : {}),
 					...(variant === "split" ? { display: "grid", alignItems: "center" } : {}),
+					...(engineThemeStyles?.inner ?? {}),
 				},
 			);
 			const hero = (
 				<section key={compiled.id} {...debug} id={id} className={className} style={outer}>
-					{typeof props.overlay === "string" ? (
-						<div aria-hidden="true" style={{ position: "absolute", inset: 0, background: props.overlay, zIndex: 0, pointerEvents: "none" }} />
+					{(typeof props.overlay === "string" || engineThemeStyles?.overlay) ? (
+						<div aria-hidden="true" style={{
+							...(engineThemeStyles?.overlay ?? {}),
+							position: "absolute",
+							inset: 0,
+							...(typeof props.overlay === "string" ? { background: props.overlay } : {}),
+							zIndex: 0,
+							pointerEvents: "none",
+						}} />
 					) : null}
 					<div style={inner}>{children}</div>
 				</section>
