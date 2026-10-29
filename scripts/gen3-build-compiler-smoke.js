@@ -332,7 +332,7 @@ try {
 	assert.equal(recoveryManifest.errors[0].pageId, "/b-broken", "the error identifies the failed route");
 	assert.equal(recoveryManifest.errors[0].componentType, "text", "the error identifies the component type");
 	assert.equal(recoveryManifest.errors[0].nodePath, "root", "the error identifies the component path");
-	assert.ok(recoveryLogs.some((line) => line.includes("ERRORED COMPONENT ERRORED app/b-broken/page.tsx -> /b-broken · text at root")),
+	assert.ok(recoveryLogs.some((line) => line.includes("ERRORED COMPONENT app/b-broken/page.tsx -> /b-broken · text at root")),
 		"the failed component log names its source, route and component path");
 	for (const route of ["/a-good", "/c-good", "/d-good"]) {
 		assert.ok(recoveryLogs.some((line) => line.includes("DONE compiled app/" + route.slice(1) + "/page.tsx -> " + route)),
@@ -413,7 +413,7 @@ try {
 	assert.ok(erroredManifest.pages.some((page) => page.id === "/good-one")
 		&& erroredManifest.pages.some((page) => page.id === "/good-two"),
 		"other CW jobs finish and their valid schema plans remain in the manifest");
-	assert.ok(failureLogs.some((line) => line.includes("ERROR COMPONENT ERRORED app/error-case/page.tsx -> /error-case")),
+	assert.ok(failureLogs.some((line) => line.includes("ERRORED COMPONENT app/error-case/page.tsx -> /error-case")),
 		"the failing component is logged as an explicit error line");
 	assert.ok(failureLogs.some((line) => line.includes("DONE compiled app/good-one/page.tsx -> /good-one"))
 		&& failureLogs.some((line) => line.includes("DONE compiled app/good-two/page.tsx -> /good-two")),
