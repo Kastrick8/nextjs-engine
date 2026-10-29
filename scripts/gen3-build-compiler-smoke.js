@@ -26,6 +26,7 @@ const {
 	formatWorkerStatus,
 	formatBytesPerSecond,
 	formatWorkerPanel,
+	formatWorkerOperation,
 	renderProgressDots,
 	colorizeLogLine,
 } = require("../src/engine/plugins/nencTerminalLogger");
@@ -44,8 +45,10 @@ assert.equal(formatWorkerStatus([
 assert.equal(formatWorkerStatus([
 	{ operation: "Compiling", target: "/guide", mode: "percent", progress: 33.3 },
 	{ operation: "Downloading", target: "ICON:google.com", mode: "rate", bytesPerSecond: 8202 },
-]), "Compiling /guide (33.3%) · Downloading ICON:google.com (8 KB/s)",
+]), "Compiling /guide (33.3%) · Downloading: ICON:google.com (8 KB/s)",
 "mixed compilation and icon-download jobs show the correct metric for each worker");
+assert.equal(formatWorkerOperation("Downloading"), "Downloading:");
+assert.equal(formatWorkerOperation("Downloading: fonts: Inter"), "Downloading:");
 assert.equal(formatBytesPerSecond(8202), "8 KB/s");
 assert.equal(formatBytesPerSecond(239000), "239 KB/s");
 assert.equal(formatCompiledSchemaLine(
@@ -73,7 +76,7 @@ assert.ok(dashboard[0].startsWith("════ NENC"), "the dashboard has a Car
 assert.match(dashboard[1], /^CW1\s+Compiling \/privacy-policy/);
 assert.match(dashboard[1], /34\.2%$/);
 assert.match(dashboard[2], /^CW2\s+Compiling \/.*21\.7%$/);
-assert.match(dashboard[3], /^CW3\s+Downloading fonts: Inter, JetBrains Mono/);
+assert.match(dashboard[3], /^CW3\s+Downloading: fonts: Inter, JetBrains Mono/);
 assert.ok(dashboard[3].endsWith("239 KB/s"), "download row uses the measured KB/s rate");
 assert.ok(renderProgressDots(50, 10, true).includes("\u001b["), "progress dots support ANSI contrast");
 assert.ok(colorizeLogLine("[NENC] DONE compiled /work", true).includes("\u001b["), "completion lines support ANSI colors");
