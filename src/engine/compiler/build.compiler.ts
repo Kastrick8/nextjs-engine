@@ -776,6 +776,7 @@ async function compileProject(projectRoot, options = {}) {
 				return { doneMessage: "" };
 			},
 		});
+	}
 	const workerPages = await compileSchemaJobs(workerJobs, {
 		log,
 		showWorkerStatus: typeof options.log !== "function",
