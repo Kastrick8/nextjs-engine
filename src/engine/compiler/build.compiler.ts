@@ -362,7 +362,7 @@ function formatSchemaSourcePath(sourcePath) {
 	const value = String(sourcePath || "").replace(/\\/g, "/");
 	const segments = value.split("/");
 	// Next.js route groups affect layout/route resolution but are not URL segments.
-	return segments.filter((segment) => !/^\\([^/]+\\)$/.test(segment)).join("/");
+	return segments.filter((segment) => !(segment.length > 1 && segment.startsWith("(") && segment.endsWith(")"))).join("/");
 }
 
 function formatCompiledSchemaLine(job, page, metadata = {}, moduleCount) {
