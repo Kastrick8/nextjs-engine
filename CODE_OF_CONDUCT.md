@@ -57,10 +57,8 @@ posting via an official social media account, or acting as an appointed
 representative at an online or offline event.
 
 ## Enforcement
-
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by opening an issue at https://github.com/Kate-alt-69/nextjs-engine/issues or by contacting the maintainer directly at [Kate-alt-69](x.com/kate_alt_69) Message the maintainer directly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by opening an issue at [github](https://github.com/Kate-alt-69/nextjs-engine/issues/new?template=code-of-conduct-report.md) or by contacting the maintainer directly at [Twitter @Kate_alt_69](x.com/kate_alt_69) Message the maintainer directly.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
