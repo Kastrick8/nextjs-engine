@@ -316,6 +316,64 @@ try {
 	const output = fs.readFileSync(emitted, "utf8");
 	assert.ok(!output.includes("DO_NOT_EMIT_SCHEMA_CONTENT"), "compiler manifest contains summaries, not the source schema or arbitrary prop values");
 
+	// A schema-level component/security error should be isolated to that task.
+	// The other CW jobs must finish, and only successful outputs may be cached/emitted.
+	const errorDirectory = path.join(root, "app", "error-case");
+	const goodOneDirectory = path.join(root, "app", "good-one");
+	const goodTwoDirectory = path.join(root, "app", "good-two");
+	for (const directory of [errorDirectory, goodOneDirectory, goodTwoDirectory]) {
+		fs.mkdirSync(directory, { recursive: true });
+	}
+	fs.writeFileSync(path.join(errorDirectory, "page.tsx"), [
+		'import { createPage, defineSchema } from "nextjs-engine";',
+		'const pageSchema = defineSchema({',
+		'\tmeta: { title: "Errored component fixture" },',
+		'\troot: { type: "text", props: { content: "safe text", password: "literal-secret-for-test" } },',
+		'});',
+		'export default createPage({ schema: pageSchema });',
+		"",
+	].join("\n"));
+	writeSimplePage(goodOneDirectory, "CW success one", "text");
+	writeSimplePage(goodTwoDirectory, "CW success two", "box");
+	const errorCachePath = schemaOutputCachePath(root, "app/error-case/page.tsx", "/error-case");
+	assert.equal(fs.existsSync(errorCachePath), false, "the failed route has no prior schema-cache artifact");
+	const failureLogs = [];
+	const partialManifest = await compileProject(root, { log: (line) => failureLogs.push(line) });
+	assert.equal(partialManifest.summary.failedSchemaCount, 1, "one component-level schema failure is recorded without aborting the compiler pass");
+	assert.equal(partialManifest.errors.length, 1, "the partial manifest retains the failed route's error details");
+	assert.equal(partialManifest.errors[0].pageId, "/error-case");
+	assert.match(partialManifest.errors[0].message, /Security compilation failed/);
+	assert.ok(!partialManifest.pages.some((page) => page.id === "/error-case"),
+		"the failed route is omitted rather than represented by a corrupt/partial schema plan");
+	assert.ok(partialManifest.pages.some((page) => page.id === "/good-one")
+		&& partialManifest.pages.some((page) => page.id === "/good-two"),
+		"other CW jobs finish and their valid schema plans remain in the manifest");
+	assert.ok(failureLogs.some((line) => line.includes("ERROR COMPONENT ERRORED app/error-case/page.tsx -> /error-case")),
+		"the failing component is logged as an explicit error line");
+	assert.ok(failureLogs.some((line) => line.includes("DONE compiled app/good-one/page.tsx -> /good-one"))
+		&& failureLogs.some((line) => line.includes("DONE compiled app/good-two/page.tsx -> /good-two")),
+		"successful concurrent tasks still emit completion lines");
+	assert.equal(fs.existsSync(errorCachePath), false, "a failed task never writes a cache artifact");
+	for (const [sourcePath, pageId] of [
+		["app/(marketing)/about/page.tsx", "/about"],
+		["app/emd/page.tsx", "/emd"],
+		["app/ec/page.tsx", "/ec"],
+	]) {
+		const cachePath = schemaOutputCachePath(root, sourcePath, pageId);
+		const cacheName = path.basename(cachePath);
+		assert.equal(fs.readFileSync(cachePath, "utf8"), finalCacheEntries.get(cacheName),
+			"failed work does not alter an already-valid cached artifact: " + pageId);
+	}
+	const partialInputPath = path.join(root, "partial-worker-manifest.json");
+	fs.writeFileSync(partialInputPath, JSON.stringify(partialManifest));
+	const partialOutputFile = emitArtifacts(root, partialInputPath, "dist-partial", nextBuildContext);
+	assert.ok(fs.existsSync(partialOutputFile), "the partial-success manifest is safely emitted after the Next.js build");
+	const emittedPartial = JSON.parse(fs.readFileSync(partialOutputFile, "utf8"));
+	assert.equal(emittedPartial.errors.length, 1, "the emitted manifest preserves diagnostics for the failed component");
+	assert.ok(emittedPartial.pages.some((page) => page.id === "/good-one")
+		&& emittedPartial.pages.some((page) => page.id === "/good-two"),
+		"valid artifacts survive emission when a different schema component errors");
+
 	const unsafeRoot = path.join(root, "outside");
 	fs.mkdirSync(unsafeRoot);
 	assert.throws(() => emitArtifacts(root, inputPath, "../outside"), /outside the project build directory/,
