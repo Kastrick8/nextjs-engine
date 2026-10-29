@@ -215,3 +215,47 @@ test("older-browser capability gaps use compiled fallbacks", async ({ page, brow
 	await expect(page.getByTestId("count")).toHaveText("1");
 	expect(failures, failures.join("\n")).toEqual([]);
 });
+
+test("EngineTransitionLink keeps Next.js replace, download, and external-link behavior", async ({ page, context, browserName }) => {
+	await context.route("https://example.test/native-destination", async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "text/html",
+			body: "<!doctype html><html><head><title>Native external destination</title></head><body>External navigation stayed native.</body></html>",
+		});
+	});
+
+	await page.goto("/engine-compat-test/replace-seed");
+	await page.getByRole("link", { name: "Open compatibility harness" }).click();
+	await expect(page).toHaveURL(/\/engine-compat-test$/);
+	await closeCompatibilityDialog(page);
+
+	const downloadLink = page.getByTestId("transition-download-link");
+	await expect(downloadLink).toHaveAttribute("download", "engine-compat-download.txt");
+	await expect(downloadLink).toHaveAttribute("href", "/engine-compat-test-download.txt");
+
+	if (browserName === "chromium") {
+		const downloadPromise = page.waitForEvent("download");
+		await downloadLink.click();
+		const download = await downloadPromise;
+		expect(download.suggestedFilename()).toBe("engine-compat-download.txt");
+	}
+
+	const externalLink = page.getByTestId("transition-external-link");
+	await expect(externalLink).toHaveAttribute("target", "_blank");
+	await expect(externalLink).toHaveAttribute("rel", "noopener noreferrer");
+	const popupPromise = page.waitForEvent("popup");
+	await externalLink.click();
+	const popup = await popupPromise;
+	await expect(popup).toHaveURL("https://example.test/native-destination");
+	await expect(popup).toHaveTitle("Native external destination");
+	await popup.close();
+
+	await page.getByTestId("transition-replace-link").click();
+	await expect(page).toHaveURL(/\/engine-compat-test\/target\?via=replace$/);
+	await expect(page.getByTestId("target-title")).toBeVisible();
+	await page.goBack();
+	await expect(page).toHaveURL(/\/engine-compat-test\/replace-seed$/);
+	await expect(page.getByTestId("replace-seed-title")).toBeVisible();
+});
+
