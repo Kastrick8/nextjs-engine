@@ -648,9 +648,14 @@ async function compileProject(projectRoot, options = {}) {
 		sourceFile: sourceByPath.get(file),
 	})));
 	if (themeBuild.artifacts.length > 0 || themeBuild.removedCount > 0) {
-		log("DONE ENGINE THEME ARTIFACTS — " + themeBuild.artifacts.length
-			+ " theme group(s), " + themeBuild.createdCount + " created, " + themeBuild.updatedCount
-			+ " updated, " + themeBuild.unchangedCount + " unchanged, " + themeBuild.removedCount + " stale removed");
+		const details = [];
+		const themeGroups = formatCount(themeBuild.artifacts.length, "theme group");
+		if (themeGroups) details.push(themeGroups);
+		if (themeBuild.createdCount > 0) details.push(themeBuild.createdCount + " created");
+		if (themeBuild.updatedCount > 0) details.push(themeBuild.updatedCount + " updated");
+		if (themeBuild.unchangedCount > 0) details.push(themeBuild.unchangedCount + " unchanged");
+		if (themeBuild.removedCount > 0) details.push(themeBuild.removedCount + " stale removed");
+		if (details.length) log("DONE ENGINE THEME ARTIFACTS — " + details.join(", "));
 	}
 
 	const moduleAnalysis = analyzeProjectModules(resolvedRoot, {
@@ -816,12 +821,26 @@ async function compileProject(projectRoot, options = {}) {
 		customComponentTypeCount: new Set(registered.concat(...pages.map((page) => page.customComponents))).size,
 		compilerPassTimeMs: Date.now() - passStartedAt,
 	};
-	log("DONE SCHEMA CACHE — " + schemaCacheHitCount + " hit(s), " + schemaCacheMissCount
-		+ " compile miss(es), " + schemaCacheWriteCount + " output(s) persisted at "
-		+ path.relative(resolvedRoot, schemaOutputCache.cacheDirectory).split(path.sep).join("/"));
-	log("DONE COMPILER PASS — " + summary.analyzedRouteCount + " route entries analyzed, "
-		+ summary.compiledSchemaPageCount + " Engine schema plans, " + summary.engineModuleCount + " Engine modules in "
-		+ summary.compilerPassTimeMs + "ms");
+	const cacheDetails = [];
+	if (schemaCacheHitCount > 0) cacheDetails.push(formatCount(schemaCacheHitCount, "cache hit"));
+	if (schemaCacheMissCount > 0) cacheDetails.push(formatCount(schemaCacheMissCount, "schema compile miss"));
+	if (schemaCacheWriteCount > 0) {
+		cacheDetails.push(formatCount(schemaCacheWriteCount, "output persisted") + " at "
+			+ path.relative(resolvedRoot, schemaOutputCache.cacheDirectory).split(path.sep).join("/"));
+	}
+	if (cacheDetails.length) log("DONE SCHEMA CACHE — " + cacheDetails.join(", "));
+	const passDetails = [];
+	const sourceFilesScanned = formatCount(summary.scannedSourceFileCount, "source file scanned");
+	const routeEntries = formatCount(summary.analyzedRouteCount, "route entry analyzed");
+	const schemaPlans = formatCount(summary.compiledSchemaPageCount, "Engine schema plan");
+	const engineModules = formatCount(summary.engineModuleCount, "Engine module");
+	if (sourceFilesScanned) passDetails.push(sourceFilesScanned);
+	if (routeEntries) passDetails.push(routeEntries);
+	if (schemaPlans) passDetails.push(schemaPlans);
+	if (engineModules) passDetails.push(engineModules);
+	if (passDetails.length) {
+		log("DONE COMPILER PASS — " + passDetails.join(", ") + " in " + summary.compilerPassTimeMs + "ms");
+	}
 
 	return {
 		schemaVersion: 2,
@@ -930,10 +949,14 @@ function emitArtifacts(projectRoot, inputPath, distDir, buildContext = {}) {
 			["staticFiles", "static files"],
 		];
 		const parts = labels
-			.filter(([key]) => Number.isInteger(nextBuild.counts[key]))
+			.filter(([key]) => Number.isInteger(nextBuild.counts[key]) && nextBuild.counts[key] > 0)
 			.map(([key, label]) => nextBuild.counts[key] + " " + label);
-		if (parts.length) nencLogger.done("INDEXED NEXT.JS BUILD OUTPUTS — "
-			+ nextBuild.routeOutputCount + " unique route paths; " + parts.join(", "));
+		if (nextBuild.routeOutputCount > 0 || parts.length) {
+			const summaryParts = [];
+			if (nextBuild.routeOutputCount > 0) summaryParts.push(nextBuild.routeOutputCount + " unique route paths");
+			summaryParts.push(...parts);
+			nencLogger.done("INDEXED NEXT.JS BUILD OUTPUTS — " + summaryParts.join("; "));
+		}
 	}
 	return outputFile;
 }
@@ -968,8 +991,12 @@ async function runCLI(argv = process.argv.slice(2)) {
 			const manifest = await compileProject(root);
 			nencLogger.setStatus("WRITING COMPILER MANIFEST");
 			atomicWriteJson(path.resolve(args.output), manifest);
-			nencLogger.done("COMPILER MANIFEST WRITTEN — " + manifest.summary.compiledPageCount
-				+ " pages, " + manifest.summary.customComponentTypeCount + " custom component types");
+			const manifestDetails = [];
+			const compiledPages = formatCount(manifest.summary.compiledPageCount, "page");
+			const customTypes = formatCount(manifest.summary.customComponentTypeCount, "custom component type");
+			if (compiledPages) manifestDetails.push(compiledPages);
+			if (customTypes) manifestDetails.push(customTypes);
+			nencLogger.done("COMPILER MANIFEST WRITTEN" + (manifestDetails.length ? " — " + manifestDetails.join(", ") : ""));
 		} else {
 			if (!args.input) throw new Error("--emit requires --input <compiler-manifest>");
 			emitArtifacts(root, path.resolve(args.input), args.distDir);
