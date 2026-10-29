@@ -9,12 +9,16 @@ import React, {
 	forwardRef,
 	memo,
 	type ChangeEvent,
+	type CSSProperties,
 	type FormEvent,
 	type ReactNode,
 } from "react";
-import { useCpropClass, usePropStyles } from "../hooks/usePropStyles";
+import { useCpropClass } from "../hooks/usePropStyles";
+import { usePrimitiveStyles } from "../hooks/usePrimitiveStyles";
 import { useHandler } from "../providers/EngineProvider";
 import type { BaseNodeProps } from "../schema/types";
+
+type EngineFormThemeStyles = Partial<Record<"root", CSSProperties>>;
 
 function assignBoundValue(
 	values: Record<string, unknown>,
@@ -84,6 +88,7 @@ function collectBoundFormValues(form: HTMLFormElement): Record<string, unknown> 
 // ── EngineForm ────────────────────────────────────────────────────────────────
 
 export interface EngineFormProps extends BaseNodeProps {
+	engineThemeStyles?: EngineFormThemeStyles;
 	children?: ReactNode;
 	onSubmit?: string;
 	onReset?: string;
@@ -106,6 +111,7 @@ export const EngineForm = memo(
 			method,
 			encType,
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -114,7 +120,7 @@ export const EngineForm = memo(
 		},
 		ref,
 	) {
-		const resolvedStyle = usePropStyles(props as any, style);
+		const resolvedStyle = usePrimitiveStyles(props as any, { defaults: engineThemeStyles?.root, style });
 		const stateClass = useCpropClass(cprop);
 		const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
 		const resolvedId = id ?? point;
@@ -161,6 +167,7 @@ export type InputType =
 	| "checkbox" | "radio" | "submit" | "reset" | "button";
 
 export interface EngineInputProps extends BaseNodeProps {
+	engineThemeStyles?: EngineFormThemeStyles;
 	type?: InputType;
 	name?: string;
 	placeholder?: string;
@@ -211,6 +218,7 @@ export const EngineInput = memo(
 			autoFocus,
 			tabIndex,
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -219,7 +227,7 @@ export const EngineInput = memo(
 		},
 		ref,
 	) {
-		const resolvedStyle = usePropStyles(props as any, style);
+		const resolvedStyle = usePrimitiveStyles(props as any, { defaults: engineThemeStyles?.root, style });
 		const stateClass = useCpropClass(cprop);
 		const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
 		const resolvedId = id ?? point ?? name;
@@ -273,6 +281,7 @@ export const EngineInput = memo(
 // ── EngineTextarea ────────────────────────────────────────────────────────────
 
 export interface EngineTextareaProps extends BaseNodeProps {
+	engineThemeStyles?: EngineFormThemeStyles;
 	name?: string;
 	placeholder?: string;
 	defaultValue?: string;
@@ -315,6 +324,7 @@ export const EngineTextarea = memo(
 			onChange,
 			resizable,
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -323,7 +333,7 @@ export const EngineTextarea = memo(
 		},
 		ref,
 	) {
-		const resolvedStyle = usePropStyles(props as any, { resize: resizable, ...style });
+		const resolvedStyle = usePrimitiveStyles(props as any, { defaults: engineThemeStyles?.root, style: { resize: resizable, ...style } });
 		const stateClass = useCpropClass(cprop);
 		const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
 		const resolvedId = id ?? point ?? name;
@@ -367,6 +377,7 @@ export const EngineTextarea = memo(
 // ── EngineCheckbox ────────────────────────────────────────────────────────────
 
 export interface EngineCheckboxProps extends BaseNodeProps {
+	engineThemeStyles?: EngineFormThemeStyles;
 	name?: string;
 	value?: string;
 	checked?: boolean;
@@ -395,6 +406,7 @@ export const EngineCheckbox = memo(
 			tabIndex,
 			autoFocus,
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -403,7 +415,7 @@ export const EngineCheckbox = memo(
 		},
 		ref,
 	) {
-		const resolvedStyle = usePropStyles(props as any, style);
+		const resolvedStyle = usePrimitiveStyles(props as any, { defaults: engineThemeStyles?.root, style });
 		const stateClass = useCpropClass(cprop);
 		const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
 		const resolvedId = id ?? point ?? name;
@@ -448,6 +460,7 @@ export const EngineCheckbox = memo(
 // ── EngineLabel ───────────────────────────────────────────────────────────────
 
 export interface EngineLabelProps extends BaseNodeProps {
+	engineThemeStyles?: EngineFormThemeStyles;
 	children?: ReactNode;
 	htmlFor?: string;
 	forInput?: string;
@@ -460,6 +473,7 @@ export const EngineLabel = memo(
 			htmlFor,
 			forInput,
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -468,7 +482,7 @@ export const EngineLabel = memo(
 		},
 		ref,
 	) {
-		const resolvedStyle = usePropStyles(props as any, style);
+		const resolvedStyle = usePrimitiveStyles(props as any, { defaults: engineThemeStyles?.root, style });
 		const stateClass = useCpropClass(cprop);
 		const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
 		const resolvedId = id ?? point;

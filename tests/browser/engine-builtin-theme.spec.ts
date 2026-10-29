@@ -73,4 +73,29 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	await expect(divider).toHaveCSS("background-color", "rgb(254, 243, 199)");
 
 	await expect(page.locator("#themed-scroll")).toHaveCSS("background-color", "rgb(252, 231, 243)");
+
+	const form = page.locator("#themed-form");
+	await expect(form).toHaveCSS("background-color", "rgb(254, 249, 195)");
+	await expect(form).toHaveCSS("padding-top", "12px");
+	await expect(form).toHaveCSS("border-radius", "6px");
+
+	const input = page.locator("#themed-form-input");
+	await expect(input).toHaveCSS("background-color", "rgb(219, 234, 254)");
+	await expect(input).toHaveCSS("color", "rgb(30, 58, 138)");
+	await expect(input).toHaveCSS("border-top-color", "rgb(37, 99, 235)");
+	await expect(input).toHaveCSS("border-radius", "4px");
+	await expect(page.locator("#themed-local-input")).toHaveCSS("color", "rgb(220, 38, 38)");
+
+	const textarea = page.locator("#themed-textarea");
+	await expect(textarea).toHaveCSS("background-color", "rgb(252, 231, 243)");
+	await expect(textarea).toHaveCSS("color", "rgb(131, 24, 67)");
+	await expect(textarea).toHaveCSS("padding-top", "8px");
+
+	const checkbox = page.locator("#themed-checkbox");
+	await expect(checkbox).toHaveCSS("width", "20px");
+	await expect(checkbox).toHaveCSS("height", "20px");
+
+	const formLabel = page.locator("#themed-form-label");
+	await expect(formLabel).toHaveCSS("color", "rgb(4, 120, 87)");
+	await expect(formLabel).toHaveCSS("font-weight", "600");
 });
