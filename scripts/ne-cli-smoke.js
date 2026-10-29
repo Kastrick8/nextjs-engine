@@ -238,13 +238,17 @@ async function main() {
 	const windowsNpmInvocation = cli.resolveChainedCommand("npm", ["test", "--", "--runInBand"], {
 		platform: "win32",
 		execPath: windowsNode,
-		env: { APPDATA: "C:\\Users\\fixture\\AppData\\Roaming" },
 		existsSync: (candidate) => candidate === windowsNpmScript,
 	});
 	assert.deepEqual(windowsNpmInvocation, {
 		executable: windowsNode,
 		args: [windowsNpmScript, "test", "--", "--runInBand"],
 	});
+	assert.throws(() => cli.resolveChainedCommand("npm", ["test"], {
+		platform: "win32",
+		execPath: windowsNode,
+		existsSync: () => false,
+	}), /beside the active Node\.js installation/);
 	assert.deepEqual(cli.resolveChainedCommand("C:\\tools\\helper.exe", ["--version"], {
 		platform: "win32",
 	}), {
