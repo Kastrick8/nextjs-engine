@@ -532,7 +532,7 @@ jobs:
           if(p.name!=="@kastrick/nextjs-engine"||p.version!==version) throw new Error("Manifest name/version mismatch: "+p.name+"@"+p.version);
           if(p.repository?.url!=="git+https://github.com/Kastrick8/nextjs-engine.git"||p.homepage!=="https://github.com/Kastrick8/nextjs-engine#readme") throw new Error("Snapshot repository metadata is not canonical.");
           for(const f of ["index.ts","engine/index.ts","tsconfig.json"]) if(!fs.existsSync(path.join("archive",target,f))) throw new Error("Missing "+f);
-          if(/^2\\.7\\.\\d+$/.test(version)){
+          if(version.startsWith("2.7.")){
             if(p.bin?.ne!=="./bin/ne.js"||!p.files?.includes("bin")||!fs.existsSync(path.join("archive",target,"bin","ne.js"))) throw new Error("The v2.7 stable snapshot must ship the ne executable.");
           }
           const expected=(version.includes("-alpha.")||version.includes("-beta."))?version:(version.endsWith(".0")?version.split(".").slice(0,2).join("."):version);
