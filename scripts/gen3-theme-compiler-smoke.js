@@ -832,6 +832,43 @@ async function testPublicThemeApi() {
 		assert.equal(themedVideo.props.engineThemeStyles.poster.objectFit, "contain");
 		assert.equal(themedButton.props.backgroundColor, "#0e7490");
 
+		const builtinNodeTypes = [
+			"box", "stack", "grid", "text", "heading", "section", "card", "button", "link",
+			"nav", "hero", "image", "video", "manim", "manim3d", "spacer", "divider", "canvas",
+			"scroll", "custom-select", "suspense", "option", "optgroup", "form", "input",
+			"textarea", "checkbox", "label", "slot",
+		];
+		const completeBuiltinTheme = createTheme({
+			id: "complete-builtin-theme-smoke",
+			scope: "local",
+			...Object.fromEntries(builtinNodeTypes.map((type) => [
+				type,
+				{ styles: { root: { outlineColor: "#123456" } } },
+			])),
+		});
+		const completeBuiltinPage = resolveEngineThemeSchema({
+			theme: completeBuiltinTheme,
+			root: {
+				type: "section",
+				children: builtinNodeTypes.map((type) => ({
+					type,
+					props: { style: { borderRadius: "4px" } },
+				})),
+			},
+		});
+		assert.equal(completeBuiltinPage.root.children.length, builtinNodeTypes.length,
+			"every built-in UI namespace is retained during theme resolution");
+		for (let index = 0; index < builtinNodeTypes.length; index += 1) {
+			const type = builtinNodeTypes[index];
+			const props = completeBuiltinPage.root.children[index].props;
+			assert.equal(props.style.borderRadius, "4px", type + " keeps explicit local styles");
+			if (["image", "video", "canvas", "manim", "manim3d", "slot"].includes(type)) {
+				assert.equal(props.style.outlineColor, "#123456", type + " routes theme root styles into its style prop");
+			} else {
+				assert.equal(props.outlineColor, "#123456", type + " resolves theme root styles");
+			}
+		}
+
 		const unsafeBuiltinTheme = createTheme({
 			id: "unsafe-builtin-theme-smoke",
 			scope: "local",
