@@ -13,7 +13,7 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	await expect(nav).toHaveCSS("background-color", "rgb(254, 243, 199)");
 	await expect(nav.getByRole("link", { name: "Overview" })).toHaveCSS("color", "rgb(120, 53, 15)");
 
-	const link = page.getByRole("link", { name: "Themed link" });
+	const link = page.getByRole("link", { name: "Themed link", exact: true });
 	await expect(link).toHaveCSS("color", "rgb(14, 116, 144)");
 	await expect(link).toHaveCSS("text-decoration-line", "none");
 	const aliasLink = page.locator("#themed-alias-link");
