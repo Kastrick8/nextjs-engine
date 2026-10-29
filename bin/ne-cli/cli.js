@@ -340,17 +340,11 @@ function tokenizeCommand(command) {
 				tokenStarted = true;
 				continue;
 			}
-			if (character === "\\" && quote === "\"\"" && ["\\"", "\\"].includes(command[index + 1])) {
-				token += command[index + 1];
-				index += 1;
-				tokenStarted = true;
-				continue;
-			}
 			token += character;
 			tokenStarted = true;
 			continue;
 		}
-		if (character === "'" || character === "\"\"") {
+		if (character === "'" || character === '"') {
 			quote = character;
 			tokenStarted = true;
 			continue;
@@ -365,13 +359,6 @@ function tokenizeCommand(command) {
 		}
 		if (/[;&|<>\x60]/.test(character)) {
 			throw new Error("--and runs one executable at a time without a shell; shell operators are not supported. Use repeated --and options for sequential commands.");
-		}
-		if (character === "\\" && index + 1 < command.length &&
-			(/\s/.test(command[index + 1]) || ["'", "\"\"", "\\"].includes(command[index + 1]))) {
-			token += command[index + 1];
-			index += 1;
-			tokenStarted = true;
-			continue;
 		}
 		token += character;
 		tokenStarted = true;
