@@ -630,7 +630,7 @@ const BUILTIN_THEME_COMPONENT_STYLE_SLOTS: Readonly<Record<string, readonly stri
 	image: ["root", "image", "placeholder", "caption"],
 	video: ["root", "video", "poster"],
 	manim: ["root"], manim3d: ["root"], spacer: ["root"], divider: ["root"],
-	canvas: ["root"], scroll: ["root"],
+	canvas: ["root"], scroll: ["root"], slot: ["root"],
 	"custom-select": ["root", "label", "trigger", "clearButton", "dropdown", "list", "searchInput", "option", "emptyMessage"],
 	suspense: ["root"], option: ["root"], optgroup: ["root"], form: ["root"], input: ["root"],
 	textarea: ["root"], checkbox: ["root"], label: ["root"],
@@ -761,8 +761,10 @@ function resolveBuiltinThemeNode(
 	const nextProps: Record<string, unknown> = { ...originalProps };
 	delete nextProps.engineThemeStyles;
 
-	if (["image", "video", "canvas", "manim", "manim3d"].includes(namespace)) {
-		nextProps.style = { ...rootStyle, ...explicitStyle };
+	if (["image", "video", "canvas", "manim", "manim3d", "slot"].includes(namespace)) {
+		if (Object.keys(rootStyle).length > 0 || originalProps.style !== undefined) {
+			nextProps.style = { ...rootStyle, ...explicitStyle };
+		}
 	} else {
 		const rootProps: Record<string, unknown> = {};
 		const rootVariables: Record<string, unknown> = {};
