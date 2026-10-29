@@ -87,16 +87,26 @@ function SlotNode({
 	fallback,
 	depth,
 	path,
+	id,
+	className,
+	style,
 }: {
 	name: string;
 	fallback?: SchemaNode;
 	depth: number;
 	path: string;
+	id?: string;
+	className?: string;
+	style?: CSSProperties;
 }) {
 	const slotContent = useSlot(name);
-	if (slotContent != null) return <>{slotContent}</>;
-	if (fallback) return <NodeRenderer node={fallback} depth={depth} path={`${path}.fallback`} />;
-	return null;
+	const content = slotContent != null
+		? slotContent
+		: fallback
+			? <NodeRenderer node={fallback} depth={depth} path={`${path}.fallback`} />
+			: null;
+	if (!id && !className && (!style || Object.keys(style).length === 0)) return <>{content}</>;
+	return <div id={id} className={className} style={style}>{content}</div>;
 }
 
 function PointRegistration({
@@ -358,13 +368,19 @@ function NodeRendererContent({ node, depth, path }: NodeRendererProps) {
 	const componentRegistry = useEngineComponentRegistry();
 
 	if (node.type === "slot") {
-		const props = (node.props ?? {}) as { name?: string; fallback?: SchemaNode };
+		const props = (node.props ?? {}) as Record<string, unknown>;
+		const style = props.style && typeof props.style === "object" && !Array.isArray(props.style)
+			? props.style as CSSProperties
+			: undefined;
 		return (
 			<SlotNode
-				name={props.name ?? ""}
-				fallback={props.fallback}
+				name={typeof props.name === "string" ? props.name : ""}
+				fallback={props.fallback as SchemaNode | undefined}
 				depth={depth}
 				path={path}
+				id={typeof props.id === "string" ? props.id : typeof props.point === "string" ? props.point : undefined}
+				className={typeof props.className === "string" ? props.className : undefined}
+				style={style}
 			/>
 		);
 	}
