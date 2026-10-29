@@ -79,11 +79,15 @@ function colorizeLogLine(value, enabled = supportsColor()) {
 	const match = line.match(/^(\[NENC\])\s+(DONE|FAILED|WARN|ERROR)?\s*(.*)$/i);
 	if (!match) return line;
 	const prefix = ansi(match[1], ANSI.cyan + ANSI.bold, enabled);
-	const level = match[2] ? " " + ansi(match[2].toUpperCase(),
-		match[2].toUpperCase() === "DONE" ? ANSI.green + ANSI.bold
-			: match[2].toUpperCase() === "WARN" ? ANSI.yellow + ANSI.bold
+	const normalizedLevel = String(match[2] || "").toUpperCase();
+	const level = match[2] ? " " + ansi(normalizedLevel,
+		normalizedLevel === "DONE" ? ANSI.green + ANSI.bold
+			: normalizedLevel === "WARN" ? ANSI.yellow + ANSI.bold
 			: ANSI.red + ANSI.bold, enabled) : "";
-	return prefix + level + (match[3] ? " " + match[3] : "");
+	const message = match[3]
+		? " " + ansi(match[3], normalizedLevel === "FAILED" || normalizedLevel === "ERROR" ? ANSI.red : "", enabled)
+		: "";
+	return prefix + level + message;
 }
 
 function clip(message, maxLength) {
