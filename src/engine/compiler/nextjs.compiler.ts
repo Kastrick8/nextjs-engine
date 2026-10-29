@@ -54,7 +54,8 @@ function removeState(state) {
 }
 function forwardWorkerLog(event) {
 	if (!event || event.type !== "nenc-log") return;
-	if (event.level === "status") nencLogger.setStatus(event.message, event.source || "engine");
+	if (event.level === "workers" && Array.isArray(event.workers)) nencLogger.setWorkerSnapshot(event.workers);
+	else if (event.level === "status") nencLogger.setStatus(event.message, event.source || "engine");
 	else if (event.level === "done") nencLogger.done(event.message);
 	else if (event.level === "failed") nencLogger.failed(event.message);
 	else if (event.level === "clear") nencLogger.clearStatus(event.source || "engine");
