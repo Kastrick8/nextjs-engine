@@ -508,6 +508,8 @@ function compileSchemaJobs(jobs, options = {}) {
 					if (doneMessage) {
 						if (showWorkerStatus) nencLogger.finishWorkerTask(slot.index, doneMessage);
 						if (typeof options.log === "function") log("DONE " + doneMessage);
+					} else if (showWorkerStatus) {
+						nencLogger.clearWorkerTask(slot.index);
 					}
 					if (typeof job.onComplete === "function") job.onComplete(result);
 					completeTask(slot);
