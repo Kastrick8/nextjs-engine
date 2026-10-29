@@ -514,10 +514,10 @@ function compileSchemaJobs(jobs, options = {}) {
 			let detail;
 			if (taskType === "schema") {
 				const component = nodeType ? " · " + nodeType + " at " + (nodePath || "root") : "";
-				const prefix = kind === "worker" ? "WORKER ERRORED " : "COMPONENT ERRORED ";
+				const prefix = kind === "worker" ? "WORKER " : "COMPONENT ";
 				detail = prefix + (sourcePath || job.pageId) + " -> " + job.pageId + component + " — " + message;
 			} else {
-				detail = (kind === "worker" ? "WORKER ERRORED " : "TASK ERRORED ")
+				detail = (kind === "worker" ? "WORKER " : "TASK ")
 					+ (job.operation || "work") + " " + (job.target || job.pageId || job.taskId) + " — " + message;
 			}
 			if (showWorkerStatus && slot && slot.job) nencLogger.failWorkerTask(slot.index, detail);
