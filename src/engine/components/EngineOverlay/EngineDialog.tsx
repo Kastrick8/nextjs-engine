@@ -119,11 +119,12 @@ export const EngineDialog = memo(function EngineDialog({
 						padding: "1rem",
 						background: "rgba(2,6,23,.58)",
 						backdropFilter: "blur(6px)",
-						opacity: active ? 1 : 0,
-						transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
 						...engineOverlayTheme?.styles?.backdrop,
 						...overlayStyle,
-						...(transitionMs === 0 ? { transition: "none" } : {}),
+						// Animation state is runtime-owned; theme styles may change the
+						// backdrop appearance, but must not pin opacity or transition.
+						opacity: active ? 1 : 0,
+						transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
 						zIndex: `var(--e-overlay-stack-z, ${zIndex})`,
 					} as React.CSSProperties}
 					onPointerDown={(event) => {
