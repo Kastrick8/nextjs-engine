@@ -175,18 +175,28 @@ function renderTextContent(
 	children: ReactNode,
 ): ReactNode {
 	const parts = Array.isArray(props.parts) ? props.parts as Array<Record<string, unknown>> : [];
+	const themeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+		? props.engineThemeStyles as { part?: CSSProperties; partLink?: CSSProperties }
+		: undefined;
 	if (parts.length > 0) {
 		return parts.map((part, index) => {
 			const text = String(part.text ?? "");
+			const partStyle = part.style && typeof part.style === "object" && !Array.isArray(part.style)
+				? part.style as CSSProperties
+				: undefined;
+			const resolvedStyle = {
+				...(themeStyles?.part ?? {}),
+				...(typeof part.href === "string" ? themeStyles?.partLink ?? {} : {}),
+				...(partStyle ?? {}),
+			};
+			const style = Object.keys(resolvedStyle).length > 0 ? resolvedStyle : undefined;
 			if (typeof part.href === "string") {
 				const external = /^https?:\/\//i.test(part.href);
 				const target = (part.target as string | undefined) ?? (external ? "_blank" : "_self");
 				const rel = (part.rel as string | undefined) ?? (target === "_blank" || external ? "noopener noreferrer" : undefined);
-				return <a key={index} href={part.href} target={target} rel={rel} style={part.style as CSSProperties | undefined}>{text}</a>;
+				return <a key={index} href={part.href} target={target} rel={rel} style={style}>{text}</a>;
 			}
-			return part.style
-				? <span key={index} style={part.style as CSSProperties}>{text}</span>
-				: text;
+			return style ? <span key={index} style={style}>{text}</span> : text;
 		});
 	}
 	return props.content !== undefined ? String(props.content) : children;

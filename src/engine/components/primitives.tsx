@@ -311,9 +311,23 @@ const VARIANT_STYLE: Record<TextVariant, CSSProperties> = {
 
 export interface EngineTextProps extends TextProps {
 	children?: ReactNode;
+	/** Theme-only styling for inline parts and links rendered from the parts array. */
+	engineThemeStyles?: Partial<Record<"part" | "partLink", CSSProperties>>;
 }
 
-function renderPart(part: TextPart, index: number): ReactNode {
+function renderPart(
+	part: TextPart,
+	index: number,
+	themeStyles?: EngineTextProps["engineThemeStyles"],
+): ReactNode {
+	// Local per-part styles are intentionally last so an individual run can opt out
+	// of or override the shared typography and link treatment from its theme.
+	const style = {
+		...(themeStyles?.part ?? {}),
+		...(part.href ? themeStyles?.partLink ?? {} : {}),
+		...(part.style ?? {}),
+	};
+	const resolvedStyle = Object.keys(style).length > 0 ? style : undefined;
 	if (part.href) {
 		const isExternal = part.href.startsWith("http://") || part.href.startsWith("https://");
 		const target = part.target ?? (isExternal ? "_blank" : "_self");
@@ -321,13 +335,13 @@ function renderPart(part: TextPart, index: number): ReactNode {
 			? (part.rel ?? "noopener noreferrer")
 			: part.rel;
 		return (
-			<a key={index} href={part.href} target={target} rel={rel} style={part.style}>
+			<a key={index} href={part.href} target={target} rel={rel} style={resolvedStyle}>
 				{part.text}
 			</a>
 		);
 	}
-	return part.style
-		? <span key={index} style={part.style}>{part.text}</span>
+	return resolvedStyle
+		? <span key={index} style={resolvedStyle}>{part.text}</span>
 		: part.text;
 }
 
@@ -348,6 +362,7 @@ export const EngineText = memo(
 			italic,
 			underline,
 			gradient,
+			engineThemeStyles,
 			style,
 			className,
 			id,
@@ -404,7 +419,7 @@ export const EngineText = memo(
 		const resolvedId = id ?? point;
 		const clickHandler = useNodeClickHandler(onClick);
 		const renderedContent: ReactNode = parts && parts.length > 0
-			? parts.map(renderPart)
+			? parts.map((part, index) => renderPart(part, index, engineThemeStyles))
 			: (content ?? children);
 
 		const element = (

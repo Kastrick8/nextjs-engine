@@ -623,7 +623,7 @@ function resolveCustomComponentThemeNode(
 	return { ...themedNode, props: nextProps as SchemaNode["props"] };
 }
 const BUILTIN_THEME_COMPONENT_STYLE_SLOTS: Readonly<Record<string, readonly string[]>> = {
-	box: ["root"], stack: ["root"], grid: ["root"], text: ["root"],
+	box: ["root"], stack: ["root"], grid: ["root"], text: ["root", "part", "partLink"],
 	heading: ["root", "subheading"],
 	section: ["root", "inner"],
 	card: ["root", "cover", "coverImage", "content"],

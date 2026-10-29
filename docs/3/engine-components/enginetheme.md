@@ -74,6 +74,12 @@ const siteTheme = createTheme({
       activeItem: { color: "#be123c" }
     }
   },
+  text: {
+    styles: {
+      part: { fontWeight: 500 },
+      partLink: { color: "#0e7490", textDecoration: "underline" }
+    }
+  },
   "custom-select": {
     styles: {
       trigger: { backgroundColor: "#ecfccb" },
@@ -94,7 +100,8 @@ export default createPage({
           theme: "site.hero.accent",
           props: { title: "Build something" }
         },
-        { type: "nav", props: { items: [{ label: "Home", href: "/" }] } }
+        { type: "nav", props: { items: [{ label: "Home", href: "/" }] } },
+        { type: "text", props: { parts: [{ text: "Read the guide", href: "/guide" }] } }
       ]
     }
   }
@@ -103,6 +110,7 @@ export default createPage({
 
 ### Named slots
 
+- **Text:** `root`, `part`, `partLink`
 - **Section:** `root`, `inner`
 - **Card:** `root`, `cover`, `coverImage`, `content`
 - **Heading:** `root`, `subheading`
@@ -112,7 +120,7 @@ export default createPage({
 - **Video:** `root`, `video`, `poster`
 - **CustomSelect:** `root`, `label`, `trigger`, `clearButton`, `dropdown`, `list`, `searchInput`, `option`, `emptyMessage`
 
-Other listed built-ins expose `root`. The `root` slot can also be written as a flat `styles` object, while named slots use `styles: { slotName: { ... } }`. For most built-ins, root CSS declarations are resolved as style props, preserving explicit local props and responsive styling. Image and Video merge root declarations into their explicit inline `style` object. Theme values are validated against a bounded CSS property/value vocabulary; named slots cannot override structural visibility, positioning, or display behavior.
+Other listed built-ins expose `root`. For `text`, `part` styles target non-link runs in the `parts` array, while `partLink` styles overlay those values for linked runs. An individual `TextPart.style` is applied last in both server-first and client rendering. The `root` slot can also be written as a flat `styles` object, while named slots use `styles: { slotName: { ... } }`. For most built-ins, root CSS declarations are resolved as style props, preserving explicit local props and responsive styling. Image and Video merge root declarations into their explicit inline `style` object. Theme values are validated against a bounded CSS property/value vocabulary; named slots cannot override structural visibility, positioning, or display behavior.
 
 ## Define a theme group
 
