@@ -57,7 +57,7 @@ assert.equal(formatCompiledSchemaLine(
 	{ summary: { clientIslands: 1, assetCount: 2 } },
 	{ durationMs: 19 },
 	58,
-), "compiled app/work/page.tsx -> /work · 58 modules · 19ms · 1 client island · 2 assets",
+), "compiled app/work/page.tsx -> /work · 58 Engine modules · 19ms · 1 client island · 2 assets",
 "schema completion combines real module count, elapsed time, client islands, and assets");
 assert.equal(formatCompiledSchemaLine(
 	{ sourcePath: "app/about/page.tsx", pageId: "/about" },
