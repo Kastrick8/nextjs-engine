@@ -233,6 +233,27 @@ async function main() {
 	assert.deepEqual(args.options.andCommands, ["git status", "npm test"]);
 	assert.equal(args.options.andTerminal, 10);
 	assert.deepEqual(cli.tokenizeCommand("git status --short"), ["git", "status", "--short"]);
+	const windowsNode = "C:\\Program Files\\nodejs\\node.exe";
+	const windowsNpmScript = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
+	const windowsNpmInvocation = cli.resolveChainedCommand("npm", ["test", "--", "--runInBand"], {
+		platform: "win32",
+		execPath: windowsNode,
+		env: { APPDATA: "C:\\Users\\fixture\\AppData\\Roaming" },
+		existsSync: (candidate) => candidate === windowsNpmScript,
+	});
+	assert.deepEqual(windowsNpmInvocation, {
+		executable: windowsNode,
+		args: [windowsNpmScript, "test", "--", "--runInBand"],
+	});
+	assert.deepEqual(cli.resolveChainedCommand("C:\\tools\\helper.exe", ["--version"], {
+		platform: "win32",
+	}), {
+		executable: "C:\\tools\\helper.exe",
+		args: ["--version"],
+	});
+	assert.throws(() => cli.resolveChainedCommand("npm.cmd", ["test"], {
+		platform: "win32",
+	}), /does not execute \\.cmd\\/\\.bat wrappers through a shell/);
 	assert.deepEqual(cli.tokenizeCommand('npm run "with space"'), ["npm", "run", "with space"]);
 	assert.throws(() => cli.tokenizeCommand("git status && npm test"), /shell operators are not supported/);
 	assert.throws(() => cli.tokenizeCommand("node -e 'unterminated"), /unterminated quoted argument/);
