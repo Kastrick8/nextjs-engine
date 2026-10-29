@@ -1,5 +1,13 @@
 # Next.js Engine
 
+<p align="center">
+  <a href="https://github.com/Kate-alt-69/nextjs-engine/actions/workflows/engine-ci.yml"><img alt="Engine runtime CI" src="https://img.shields.io/github/actions/workflow/status/Kate-alt-69/nextjs-engine/engine-ci.yml?branch=main-3&label=Engine%20CI&style=for-the-badge" /></a>
+  <a href="https://github.com/Kate-alt-69/nextjs-engine/actions/workflows/browser-compat-ci.yml"><img alt="Browser compatibility" src="https://img.shields.io/github/actions/workflow/status/Kate-alt-69/nextjs-engine/browser-compat-ci.yml?branch=main-3&label=Browser%20compatibility&style=for-the-badge" /></a>
+  <img alt="Generation 3 Alpha" src="https://img.shields.io/badge/Generation-3%20Alpha-7C3AED?style=for-the-badge" />
+  <img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?style=for-the-badge&logo=react&logoColor=white" />
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white" />
+</p>
+
 **Next.js Engine (NE)** is a schema-driven rendering/runtime layer for React 19 and Next.js 16.
 
 Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, graphics, API, motion, and browser plumbing in every app, NE lets you describe UI as typed schema objects and routes that schema through shared Engine systems.
@@ -13,7 +21,27 @@ Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, 
 **Latest prepared v2 patch notes:** [`docs/release/NE-v2-6-2.md`](./docs/release/NE-v2-6-2.md)  
 **Gen 3 source of truth:** [`main-3`](https://github.com/Kate-alt-69/nextjs-engine/tree/main-3)
 
-> Generation 3 is a substantial, compiler-first and server-first architectural update from Generation 2. It is still an alpha track, not the stable 2.x contract. Keep existing production apps on their validated release line until their Gen 3 migration has been tested.
+> [!WARNING]
+> **Generation 3 is alpha software.** It is a substantial, compiler-first and server-first architectural update—not the stable 2.x contract. Keep production apps on their validated release line until schemas, custom components, plugins, and build integration have been tested against Gen 3.
+
+
+<details>
+<summary><strong>README navigation</strong></summary>
+
+- [Engine systems](#what-is-in-the-current-engine)
+- [Generation 3 architecture](#generation-3-the-current-architecture)
+- [Release tracks and package snapshots](#release-tracks-and-repository-layout)
+- [Package entrypoints](#package-entrypoints)
+- [Quick start](#quick-start)
+- [Responsive styling](#responsive-styling)
+- [APIStatic](#apistatic)
+- [Performance model](#performance-model)
+- [Validation and diagnostics](#validation-and-diagnostics)
+- [Development and CI](#development-and-ci)
+- [Documentation](#documentation)
+- [Support me](#support-me)
+
+</details>
 
 ---
 
@@ -51,6 +79,18 @@ The public API is exported from [`src/engine/index.ts`](./src/engine/index.ts).
 ---
 
 ## Generation 3: the current architecture
+
+```mermaid
+flowchart TD
+    A["Typed page schema"] --> B["Generation 3 compiler"]
+    B --> C["Execution plan + used-feature manifest"]
+    C --> D["Static / server-owned rendering"]
+    C --> E["Targeted client islands"]
+    C --> F["Capability checks + fallbacks"]
+    D --> G["Next.js App Router"]
+    E --> G
+    F --> E
+```
 
 Generation 3 is a compiler-first, server-first redesign of the Engine rather than a routine 2.x feature patch. Typed schemas are compiled into an explicit plan so build tooling can reason about rendering ownership, required browser features, compatibility fallbacks, and scheduled work.
 
@@ -336,6 +376,31 @@ The unversioned [`docs/styling.md`](./docs/styling.md) path is retained for old 
 `DOCUMENT.md` is the large technical/history reference. For recently changed behavior, prefer the current TypeScript types and focused docs when an old historical section disagrees.
 
 ---
-> **Disclaimer:** Nextjs Engine (`nextjs-engine`) is an independent open-source framework created by Kastrick and Developer Kate-alt-69. It is not affiliated with, endorsed by, or sponsored by Vercel Inc. or Meta Platforms, Inc.<br>
 
-<br>Built by **Kate-alt-69** for the Kastrick platform (C) 2026, See [license](./license)
+> **Disclaimer:** Nextjs Engine (`nextjs-engine`) is an independent open-source framework created by Kastrick and Developer Kate-alt-69. It is not affiliated with, endorsed by, or sponsored by Vercel Inc. or Meta Platforms, Inc.
+
+Built by **Kate-alt-69** for the Kastrick platform © 2026. See the [LICENSE](./LICENSE).
+
+---
+
+<div align="center">
+
+## ☕ Support me!
+
+Enjoying Next.js Engine or using it in a project? Supporting the work helps me spend more time improving the Engine and its open-source tooling. Thank you for being here!
+
+<a href="https://www.buymeacoffee.com/Kastrick">
+  <img alt="Buy Kastrick a coffee" src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Kastrick-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" />
+</a>
+
+<p><strong>Scan the QR code to support me!</strong></p>
+
+<hr width="62%" />
+
+<a href="https://www.buymeacoffee.com/Kastrick">
+  <img src="./assets/buymeacoffee-kastrick-qr.png" alt="QR code linking to Kastrick's Buy Me a Coffee page" width="320" />
+</a>
+
+<p><a href="https://www.buymeacoffee.com/Kastrick">buymeacoffee.com/Kastrick</a></p>
+
+</div>
