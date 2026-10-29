@@ -32,4 +32,8 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	await expect(page.getByText("Themed image caption")).toHaveCSS("color", "rgb(51, 65, 85)");
 	await expect(page.locator(".themed-video")).toHaveCSS("background-color", "rgb(11, 17, 32)");
 	await expect(page.locator(".themed-video")).toHaveCSS("border-radius", "4px");
+	const themedSlot = page.locator("#themed-slot");
+	await expect(themedSlot).toHaveCSS("background-color", "rgb(219, 234, 254)");
+	await expect(themedSlot).toHaveCSS("padding-top", "4px");
+	await expect(themedSlot).toContainText("Themed slot fallback");
 });
