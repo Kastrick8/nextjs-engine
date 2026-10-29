@@ -233,7 +233,7 @@ async function readResponseBytes(response, maxBytes, allowedType, label, onProgr
 		total = bytes.byteLength;
 		if (total > maxBytes) throw new Error("[EngineTheme fonts] " + label + " exceeds the size limit.");
 		reportProgress(true);
-		return { bytes, contentType };
+		return { bytes, contentType, elapsedMs: Math.max(0, Date.now() - startedAt) };
 	}
 	const reader = response.body.getReader();
 	const parts = [];
@@ -253,7 +253,7 @@ async function readResponseBytes(response, maxBytes, allowedType, label, onProgr
 		try { reader.releaseLock(); } catch { /* The stream may already be closed. */ }
 	}
 	reportProgress(true);
-	return { bytes: Buffer.concat(parts, total), contentType };
+	return { bytes: Buffer.concat(parts, total), contentType, elapsedMs: Math.max(0, Date.now() - startedAt) };
 }
 
 async function fetchBounded(url, options) {
@@ -598,6 +598,13 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				asset = { sourceUrl: fontUrl.href, sha256: digest, fileName: filename, cacheFileName, extension, bytes: fetched.bytes.byteLength, updatedAt: Date.now() };
 				stats.downloadedFonts += 1;
 				stats.downloadedBytes += fetched.bytes.byteLength;
+				options.onDownloadDone?.({
+					family: familyName,
+					extension,
+					bytes: fetched.bytes.byteLength,
+					elapsedMs: fetched.elapsedMs,
+					bytesPerSecond: fetched.bytes.byteLength * 1000 / Math.max(1, fetched.elapsedMs),
+				});
 			} else {
 				asset = { ...asset };
 				stats.fontAssetsReused += 1;
