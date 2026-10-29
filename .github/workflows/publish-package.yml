@@ -750,6 +750,8 @@ jobs:
         working-directory: archive/${{ steps.prepare.outputs.target }}
         env:
           DIST_TAG: ${{ steps.dist-tag.outputs.value }}
+          # Use npm trusted-publishing OIDC instead of a legacy environment token.
+          NODE_AUTH_TOKEN: ""
         run: npm publish --access public --tag "$DIST_TAG"
 
       - name: Apply npm dist-tags
@@ -758,6 +760,7 @@ jobs:
           VERSION: ${{ steps.release-meta.outputs.version }}
           VERSION_TAG: ${{ steps.dist-tag.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
+          NODE_AUTH_TOKEN: ""
         shell: bash
         run: |
           set -euo pipefail
