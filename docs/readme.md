@@ -284,7 +284,7 @@ const schema = defineSchema({
 
 The current EngineTheme guide documents group IDs, inheritance, .etr generation/loading, templates, font compilation and the Data-API: [EngineTheme reference](./3/engine-components/enginetheme.md).
 
-**Current limitation:** the EngineTheme pipeline is implemented, but the runtime applies component-specific defaults/styles to Markdown today. Do not assume a components.dialog, components.drawer, components.popover, or arbitrary custom-component namespace automatically styles those components yet. In particular, EngineOverlay theme bindings remain planned work. Page-level vars, supported fonts, and globalStyles remain separate compatibility features.
+Generation 3 EngineTheme resolves component-specific styling across built-in UI schema types—including Markdown, overlays, layout/text primitives, media, navigation, and form controls—as well as registered custom schema-node types. The data-only `.etr` contract remains in force, and page-level `vars`, fonts, and `globalStyles` remain supported. See the [maintained Gen 3 EngineTheme reference](./3/engine-components/enginetheme.md) for the exact namespace and named-slot contract.
 
 Legacy inline theme values remain supported:
 

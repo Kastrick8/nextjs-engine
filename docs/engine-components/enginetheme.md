@@ -4,11 +4,11 @@
 
 **Implementation layout:** EngineTheme runtime modules live in `src/engine/component/engineTheme/`. The Generation 3 theme artifact compiler lives in `src/engine/compiler/theme/3/compiler.ts`, the font compiler in `src/engine/compiler/font/3/compiler.ts`, and build orchestration in `src/engine/compiler/build.compiler.ts`. Next.js integration links and hooks remain in `src/engine/plugins/`.
 
-EngineTheme is the data-only theming layer for Next.js Engine. The current foundation provides a validated createTheme() API, qualified theme IDs, local/global/explicitly preloaded remote theme resolution for Markdown, static NENC .etr generation, lightweight Pretty-please highlighting, safe declarative UI templates, and a typed event-driven Data-API.
+EngineTheme is the data-only theming layer for Next.js Engine. The validated `createTheme()` API supports qualified theme IDs, local/global/explicitly preloaded remote theme resolution, static NENC `.etr` generation, lightweight Pretty-please highlighting, safe declarative UI templates, and a typed event-driven Data-API. Generation 3 applies component themes across built-in UI schema types and registered custom schema-node types; consult the [maintained Gen 3 reference](../3/engine-components/enginetheme.md) for current namespace and slot behavior.
 
 ## Current runtime scope
 
-The public createTheme() API, versioned .etr compiler/loader, templates, Data-API, highlighting adapters and font pipeline are implemented. The current schema resolver applies component-specific theme props/styles to EngineMarkdown. Although the JSON definition supports component namespaces, generic component-specific styling is not automatically applied to every registered component yet; dialog/drawer/popover and arbitrary custom-node theme bindings are separate future work.
+The public `createTheme()` API, versioned `.etr` compiler/loader, templates, Data-API, highlighting adapters, and font pipeline are implemented. The schema resolver applies component-specific styles to EngineMarkdown, built-in UI schema types (including dialog/drawer/popover and visual/form primitives), and registered custom nodes. Theme data never supplies component code or event handlers. This file is retained as a compatibility guide; the maintained [Gen 3 EngineTheme reference](../3/engine-components/enginetheme.md) lists current built-in namespaces, slots, and precedence.
 
 This distinction matters: EngineTheme is implemented, while the component-binding coverage is still being expanded. Use page-level vars and other documented supported theme fields where appropriate, or ordinary Engine styling props for components without a theme resolver.
 
