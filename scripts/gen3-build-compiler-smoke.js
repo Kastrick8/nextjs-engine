@@ -9,6 +9,7 @@ const {
 	ASCII_WORDMARK,
 	BOTTOM_TEXT,
 	compileProject,
+	createWorkerTaskPlan,
 	emitArtifacts,
 	printBanner,
 	printBannerOnce,
@@ -97,6 +98,13 @@ assert.equal(formatFontBuildSummary({
 	themeCount: 1, downloadedFonts: 1, fontAssetsReused: 0, fontAssetsWritten: 1,
 	fallbackThemes: 0, downloadedBytes: 184 * 1024,
 }), "1 theme, 1 font downloaded, 184 KB transferred", "font summaries omit zero-valued details");
+const workerTaskPlan = createWorkerTaskPlan(
+	[{ taskId: "schema-work", pageId: "/work" }, { taskId: "schema-about", pageId: "/about" }],
+	[{ taskId: "font-download", operation: "Downloading", target: "Inter.woff2" }],
+);
+assert.deepEqual(workerTaskPlan.map((task) => task.taskType + ":" + task.taskId), [
+	"external:font-download", "schema:schema-work", "schema:schema-about",
+], "one static queue schedules downloads and schemas through the same available CW slots");
 
 async function main() {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
