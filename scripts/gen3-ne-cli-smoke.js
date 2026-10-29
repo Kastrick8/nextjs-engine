@@ -55,6 +55,22 @@ async function main() {
 	assert.equal(parsedTags[3], null);
 	assert.equal(parsedTags[4], null);
 
+	const freeformGitHubRelease = channels.catalogOnlyGitHubRelease({
+		tag_name: "historical-engine-prerelease",
+		name: "Historical NE prerelease",
+		body: "Release notes from before the manifest format",
+		published_at: "2025-01-02T00:00:00.000Z",
+		assets: [],
+	});
+	assert.equal(freeformGitHubRelease.version, "historical-engine-prerelease");
+	assert.equal(freeformGitHubRelease.track, "release");
+	assert.equal(freeformGitHubRelease.installable, false);
+	const freeformCatalog = channels.normaliseCatalog([freeformGitHubRelease]);
+	assert.equal(freeformCatalog.releases.length, 1, "non-SemVer GitHub release tags remain visible in the catalog");
+	assert.equal(channels.channelLabel(freeformCatalog.releases[0]), "CATALOG ONLY");
+	assert.equal(channels.resolveRelease(freeformCatalog, { version: "historical-engine-prerelease" }), null,
+		"free-form GitHub release tags are not accepted as installation targets");
+
 	const mergedCatalog = channels.normaliseCatalog([
 		...npmCatalog,
 		parsedTags[0],
