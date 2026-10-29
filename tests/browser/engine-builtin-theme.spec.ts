@@ -16,6 +16,17 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	const link = page.getByRole("link", { name: "Themed link" });
 	await expect(link).toHaveCSS("color", "rgb(14, 116, 144)");
 	await expect(link).toHaveCSS("text-decoration-line", "none");
+	const aliasLink = page.locator("#themed-alias-link");
+	await expect(aliasLink).toHaveCSS("color", "rgb(14, 116, 144)");
+	await expect(aliasLink).toHaveCSS("text-decoration-line", "none");
+
+	const textParts = page.locator("#themed-text-parts");
+	await expect(textParts.locator("span").filter({ hasText: "Themed part" })).toHaveCSS("color", "rgb(15, 118, 110)");
+	await expect(textParts.locator("span").filter({ hasText: "Themed part" })).toHaveCSS("font-weight", "600");
+	await expect(textParts.getByRole("link", { name: "Themed link part" })).toHaveCSS("color", "rgb(124, 58, 237)");
+	await expect(textParts.getByRole("link", { name: "Themed link part" })).toHaveCSS("text-decoration-line", "none");
+	await expect(textParts.getByRole("link", { name: "Local override link" })).toHaveCSS("color", "rgb(220, 38, 38)");
+	await expect(textParts.getByRole("link", { name: "Local override link" })).toHaveCSS("font-weight", "600");
 
 	const select = page.locator("#themed-select");
 	const trigger = select.getByRole("combobox", { name: "Choose plan" });
@@ -51,4 +62,15 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	const subheading = page.locator("#themed-heading + p");
 	await expect(subheading).toHaveCSS("color", "rgb(124, 58, 237)");
 	await expect(subheading).toHaveCSS("font-size", "14px");
+
+	const spacer = page.locator("#themed-spacer");
+	await expect(spacer).toHaveCSS("width", "12px");
+	await expect(spacer).toHaveCSS("background-color", "rgb(224, 242, 254)");
+
+	const divider = page.locator("#themed-divider");
+	await expect(divider).toHaveCSS("border-top-style", "dashed");
+	await expect(divider).toHaveCSS("border-top-width", "2px");
+	await expect(divider).toHaveCSS("background-color", "rgb(254, 243, 199)");
+
+	await expect(page.locator("#themed-scroll")).toHaveCSS("background-color", "rgb(252, 231, 243)");
 });
