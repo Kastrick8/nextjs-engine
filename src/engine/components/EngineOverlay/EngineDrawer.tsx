@@ -92,7 +92,7 @@ export const EngineDrawer = memo(function EngineDrawer({
 						backdropFilter: "blur(4px)",
 						...engineOverlayTheme?.styles?.backdrop,
 						...overlayStyle,
-						// Keep the animated open/close state authoritative over theme CSS.
+						// Keep animated open/close state authoritative over backdrop styles.
 						opacity: active ? 1 : 0,
 						transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
 						zIndex: `var(--e-overlay-stack-z, ${zIndex})`,
