@@ -158,10 +158,14 @@ function listChannels(catalog, state) {
 	];
 	for (const release of catalog.releases) {
 		const active = release.version === state.installedVersion ? "  [installed]" : "";
+		const sources = Array.isArray(release.sourceLabels) && release.sourceLabels.length
+			? release.sourceLabels.join(" + ")
+			: release.sourceLabel || release.source || "unknown";
+		const installability = release.installable === false ? "  [catalog only]" : "";
 		lines.push(
 			release.version.padEnd(26, " ") + " " +
 			channelLabel(release).padEnd(20, " ") + " " +
-			release.sourceLabel + active
+			sources + active + installability
 		);
 	}
 	lines.push("", "Use: ne update --channel stable|alpha|latest-green");
@@ -227,7 +231,7 @@ async function commandUpdate(root, options) {
 	let release = resolveRelease(catalog, { channel: options.channel, version: options.version });
 	if (!release && options.version) release = await loadExactStableVersion(root, options.version);
 	if (!release) {
-		throw new Error("No verified release was found for " + (options.version || options.channel) + ". Alpha/Beta releases must have a valid GitHub channel manifest and a matching tarball asset.");
+		throw new Error("No verified installable release was found for " + (options.version || options.channel) + ". The catalog may list npm prereleases or Git tags without a verified installation artifact.");
 	}
 	if (options.check || options.dryRun) {
 		process.stdout.write("[NE] Selected " + release.version + " [" + channelLabel(release) + "] from " + release.sourceLabel + ".\n");

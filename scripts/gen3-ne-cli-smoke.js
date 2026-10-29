@@ -19,8 +19,92 @@ async function main() {
 	assert.equal(channels.compareVersions("2.7.0", "2.7.0"), 0);
 	assert.equal(channels.parseVersion("3.0.0.alpha.1"), null);
 
+	// The storefront catalog must enumerate every npm version, not just the latest tag.
+	const npmCatalog = channels.npmReleasesFromPackument({
+		name: "@kastrick/nextjs-engine",
+		"dist-tags": { latest: "2.7.0", alpha: "3.0.0-alpha.2", beta: "3.0.0-beta.1" },
+		time: {
+			"2.7.0": "2026-01-01T00:00:00.000Z",
+			"2.6.2": "2025-12-01T00:00:00.000Z",
+			"3.0.0-alpha.2": "2026-10-01T00:00:00.000Z",
+			"3.0.0-beta.1": "2026-10-02T00:00:00.000Z",
+		},
+		versions: {
+			"2.7.0": { name: "@kastrick/nextjs-engine", version: "2.7.0" },
+			"2.6.2": { name: "@kastrick/nextjs-engine", version: "2.6.2" },
+			"3.0.0-alpha.2": { name: "@kastrick/nextjs-engine", version: "3.0.0-alpha.2" },
+			"3.0.0-beta.1": { name: "@kastrick/nextjs-engine", version: "3.0.0-beta.1" },
+			"not-semver": { name: "@kastrick/nextjs-engine", version: "not-semver" },
+		},
+	});
+	assert.deepEqual(npmCatalog.map((item) => item.version).sort(), ["2.6.2", "2.7.0", "3.0.0-alpha.2", "3.0.0-beta.1"].sort());
+	assert.deepEqual(npmCatalog.find((item) => item.version === "2.7.0").npmDistTags, ["latest"]);
+	assert.equal(npmCatalog.find((item) => item.version === "3.0.0-alpha.2").installable, false);
+	assert.throws(() => channels.npmReleasesFromPackument({ name: "wrong-package", versions: {} }), /full package version catalog/);
+
+	const tagFixtures = [
+		{ ref: "refs/tags/package.2.7.0" },
+		{ ref: "refs/tags/package-alpha.3.0.0-alpha.2" },
+		{ ref: "refs/tags/package-beta.3.0.0-beta.1" },
+		{ ref: "refs/tags/package.latest" },
+		{ ref: "refs/tags/package-alpha.invalid" },
+	];
+	const parsedTags = tagFixtures.map(channels.packageTagToRelease);
+	assert.deepEqual(parsedTags.slice(0, 3).map((item) => item.version), ["2.7.0", "3.0.0-alpha.2", "3.0.0-beta.1"]);
+	assert.equal(parsedTags[0].installable, false);
+	assert.equal(parsedTags[3], null);
+	assert.equal(parsedTags[4], null);
+
+	const freeformGitHubRelease = channels.catalogOnlyGitHubRelease({
+		tag_name: "historical-engine-prerelease",
+		name: "Historical NE prerelease",
+		body: "Release notes from before the manifest format",
+		published_at: "2025-01-02T00:00:00.000Z",
+		assets: [],
+	});
+	assert.equal(freeformGitHubRelease.version, "historical-engine-prerelease");
+	assert.equal(freeformGitHubRelease.track, "release");
+	assert.equal(freeformGitHubRelease.installable, false);
+	const freeformCatalog = channels.normaliseCatalog([freeformGitHubRelease]);
+	assert.equal(freeformCatalog.releases.length, 1, "non-SemVer GitHub release tags remain visible in the catalog");
+	assert.equal(channels.channelLabel(freeformCatalog.releases[0]), "CATALOG ONLY");
+	assert.equal(channels.resolveRelease(freeformCatalog, { version: "historical-engine-prerelease" }), null,
+		"free-form GitHub release tags are not accepted as installation targets");
+
+	const mergedCatalog = channels.normaliseCatalog([
+		...npmCatalog,
+		parsedTags[0],
+		{
+			version: "3.0.0-alpha.2",
+			track: "alpha",
+			channel: "alpha",
+			source: "github",
+			sourceLabel: "GitHub Release",
+			sourceBranch: "main-3",
+			sourceCommit: "a".repeat(40),
+			sha256: "b".repeat(64),
+			artifactUrl: "https://example.invalid/verified.tgz",
+			installSpec: "https://example.invalid/verified.tgz",
+			publishedAt: "2026-10-03T00:00:00.000Z",
+			installable: true,
+			floating: false,
+			gitTags: [],
+			npmDistTags: [],
+		},
+	]);
+	assert.equal(mergedCatalog.releases.filter((item) => item.version === "2.7.0").length, 1);
+	assert.equal(mergedCatalog.releases.find((item) => item.version === "2.7.0").isNpmPublished, true);
+	assert.equal(mergedCatalog.releases.find((item) => item.version === "2.7.0").isGitTagged, true);
+	const mergedAlpha = mergedCatalog.releases.find((item) => item.version === "3.0.0-alpha.2");
+	assert.equal(mergedAlpha.source, "github");
+	assert.equal(mergedAlpha.installable, true);
+	assert.deepEqual(mergedAlpha.sources.sort(), ["github", "npm"]);
+	assert.equal(channels.resolveRelease(mergedCatalog, { version: "3.0.0-alpha.2" }).source, "github");
+	assert.equal(channels.resolveRelease({ releases: [parsedTags[0]] }, { version: "2.7.0" }), null);
+	assert.equal(channels.channelLabel(parsedTags[0]), "TAG ONLY");
+
 	const greenContext = {
-		repo: "Kate-alt-69/nextjs-engine",
+		repo: "Kastrick8/nextjs-engine",
 		branch: "main-3",
 		sha: "d".repeat(40),
 	};
@@ -69,12 +153,12 @@ async function main() {
 		tag_name: manifest.tag,
 		body: "<!-- NE-CHANNEL-MANIFEST-START -->\n" + JSON.stringify(manifest, null, 2) + "\n<!-- NE-CHANNEL-MANIFEST-END -->",
 		published_at: "2026-10-28T00:00:00Z",
-		html_url: "https://github.com/Kate-alt-69/nextjs-engine/releases/tag/package-alpha.3.0.0-alpha.2",
+		html_url: "https://github.com/Kastrick8/nextjs-engine/releases/tag/package-alpha.3.0.0-alpha.2",
 		assets: [{
 			name: manifest.assetName,
 			size: 4096,
 			state: "uploaded",
-			browser_download_url: "https://github.com/Kate-alt-69/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/" + manifest.assetName,
+			browser_download_url: "https://github.com/Kastrick8/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/" + manifest.assetName,
 		}],
 	};
 	const parsedManifest = channels.parseManifestFromBody(release.body);
@@ -83,6 +167,20 @@ async function main() {
 	assert.equal(parsedRelease.version, "3.0.0-alpha.2");
 	assert.equal(parsedRelease.sourceCommit, "a".repeat(40));
 	assert.equal(parsedRelease.sha256, "b".repeat(64));
+
+	const unverifiedRelease = channels.catalogOnlyGitHubRelease({
+		...release,
+		body: "Release notes without a verified NE manifest",
+		assets: [],
+	});
+	assert.equal(unverifiedRelease.version, "3.0.0-alpha.2");
+	assert.equal(unverifiedRelease.source, "github");
+	assert.equal(unverifiedRelease.installable, false, "unverified GitHub release artifacts remain non-installable");
+	const catalogOnlyMerge = channels.normaliseCatalog([parsedTags[1], unverifiedRelease]).releases[0];
+	assert.equal(catalogOnlyMerge.source, "github", "the GitHub release remains visible when merged with its matching version tag");
+	assert.equal(catalogOnlyMerge.installable, false);
+	assert.deepEqual(catalogOnlyMerge.sources.sort(), ["git-tag", "github"]);
+	assert.equal(channels.channelLabel(catalogOnlyMerge), "CATALOG ONLY");
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sha256: "not-a-hash" }, release), null);
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sourceBranch: "unknown" }, release), null);
 	const malformedAlpha = {
@@ -120,7 +218,7 @@ async function main() {
 			name: rollingManifest.assetName,
 			size: 4096,
 			state: "uploaded",
-			browser_download_url: "https://github.com/Kate-alt-69/nextjs-engine/releases/download/channel-alpha-latest/" + rollingManifest.assetName,
+			browser_download_url: "https://github.com/Kastrick8/nextjs-engine/releases/download/channel-alpha-latest/" + rollingManifest.assetName,
 		}],
 	};
 	const rollingRelease = channels.validateReleaseManifest(
@@ -148,10 +246,10 @@ async function main() {
 
 	const fixtureCatalog = {
 		releases: [
-			{ version: "2.7.0", track: "stable", source: "npm" },
-			{ version: "3.0.0-alpha.1", track: "alpha", source: "github" },
-			{ version: "3.0.0-alpha.2", track: "alpha", source: "github", floating: true, sourceCommit: "a".repeat(40) },
-			{ version: "3.0.0-beta.1", track: "beta", source: "github" },
+			{ version: "2.7.0", track: "stable", source: "npm", installable: true, installSpec: "@kastrick/nextjs-engine@2.7.0" },
+			{ version: "3.0.0-alpha.1", track: "alpha", source: "github", installable: true, installSpec: "https://downloads.example.test/alpha.1.tgz" },
+			{ version: "3.0.0-alpha.2", track: "alpha", source: "github", installable: true, installSpec: "https://downloads.example.test/alpha-latest.tgz", floating: true, sourceCommit: "a".repeat(40) },
+			{ version: "3.0.0-beta.1", track: "beta", source: "github", installable: true, installSpec: "https://downloads.example.test/beta.1.tgz" },
 		],
 	};
 	assert.equal(channels.resolveRelease(fixtureCatalog, { channel: "alpha" }).floating, true);
@@ -183,6 +281,19 @@ async function main() {
 	assert.match(dashboard, /Channel Updater/);
 	assert.doesNotMatch(dashboard, /[\u{1F300}-\u{1FAFF}]/u);
 	assert.match(terminal.renderReleaseList(0, { releases: [rollingRelease], cached: false }, {}), /ALPHA/);
+	const manyReleases = Array.from({ length: 40 }, (_, index) => ({
+		...rollingRelease,
+		version: "3.0.0-alpha." + String(index + 1),
+		publishedAt: new Date(2026, 0, index + 1).toISOString(),
+	}));
+	const laterPage = terminal.renderReleaseList(35, { releases: manyReleases, cached: false }, {
+		projectName: "fixture",
+		installedVersion: "not installed",
+	});
+	const pageIndicator = laterPage.match(/Page (\d+)\/(\d+)/);
+	assert.ok(pageIndicator, "release list reports page position for a large inventory");
+	assert.ok(Number(pageIndicator[1]) >= 4, "release list can navigate past the first 24 entries");
+	assert.match(laterPage, /of 40/, "release list reports the full release inventory size");
 
 	const temp = fs.mkdtempSync(path.join(os.tmpdir(), "ne-cli-smoke-"));
 	try {
@@ -236,7 +347,7 @@ async function main() {
 			);
 
 			const artifactPath = path.join(temp, ".nextjs-engine", "cache", "ne-downloads", "nextjs-engine-3.0.0-alpha.2-" + "c".repeat(12) + ".tgz");
-			const remoteUrl = "https://github.com/Kate-alt-69/nextjs-engine/releases/download/channel-alpha-latest/" + path.basename(artifactPath);
+			const remoteUrl = "https://github.com/Kastrick8/nextjs-engine/releases/download/channel-alpha-latest/" + path.basename(artifactPath);
 			const artifactBytes = Buffer.from("verified fixture bytes");
 			const artifact = {
 				file: artifactPath,

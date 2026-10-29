@@ -92,22 +92,32 @@ function renderDashboard(selected, context) {
 function renderReleaseList(selected, catalog, context) {
 	const rows = [
 		"Project   " + (context.projectName || "current directory"),
-		"Feed      " + (catalog.cached ? "cached fallback" : "live GitHub + npm metadata"),
+		"Feed      " + (catalog.cached ? "cached fallback" : "live npm + GitHub releases + package tags"),
+		"Inventory " + String((catalog.releases || []).length) + " version entries",
 		"",
 		"AVAILABLE RELEASES  (select a version to inspect)",
 	];
 	const releases = catalog.releases || [];
 	if (!releases.length) {
-		rows.push("No installable channel artifacts were found.");
-		rows.push("Alpha/Beta require a passing package artifact attached to a GitHub Release.");
+		rows.push("No releases were found from the available sources.");
+		rows.push("The catalog retains a cached inventory when sources are temporarily unavailable.");
 	} else {
-		releases.slice(0, 24).forEach((release, index) => {
+		const pageSize = Math.max(1, Math.floor((widthForTerminal() > 90 ? 20 : 14) / 2));
+		const pageStart = Math.floor(selected / pageSize) * pageSize;
+		const pageEnd = Math.min(releases.length, pageStart + pageSize);
+		for (let index = pageStart; index < pageEnd; index += 1) {
+			const release = releases[index];
 			const marker = selectedMarker(selected, index);
 			const active = release.version === context.installedVersion ? "  INSTALLED" : "";
-			const source = release.source === "github" ? "GitHub" : "npm";
-			rows.push(marker + " " + release.version.padEnd(24, " ") + " [" + channelLabel(release) + "] " + source + active);
+			const sources = Array.isArray(release.sourceLabels) && release.sourceLabels.length
+				? release.sourceLabels.join(" + ")
+				: release.sourceLabel || release.source || "unknown";
+			const installability = release.installable === false ? "  [LISTED ONLY]" : "";
+			rows.push(marker + " " + release.version.padEnd(23, " ") + " [" + channelLabel(release) + "] " + sources + active + installability);
 			rows.push("    " + clip(release.description || "", Math.max(20, widthForTerminal() - 10)));
-		});
+		}
+		rows.push("");
+		rows.push("Entries " + (pageStart + 1) + "-" + pageEnd + " of " + releases.length + "  |  Page " + (Math.floor(selected / pageSize) + 1) + "/" + Math.max(1, Math.ceil(releases.length / pageSize)));
 	}
 	rows.push("");
 	rows.push("Move: arrows / W S    Inspect: Enter / E    Back/Quit: Esc / Q");
@@ -115,23 +125,33 @@ function renderReleaseList(selected, catalog, context) {
 }
 
 function renderReleaseDetails(release, context) {
+	const installable = release && release.installable !== false && (release.source === "github" || release.source === "npm");
+	const sources = release && Array.isArray(release.sourceLabels) && release.sourceLabels.length
+		? release.sourceLabels.join(" + ")
+		: (release && release.sourceLabel) || "Unknown";
 	const rows = [
 		"Package   @kastrick/nextjs-engine",
-		"Version   " + release.version,
-		"Channel   " + channelLabel(release),
-		"Source    " + release.sourceLabel,
-		"Branch    " + (release.sourceBranch || "registry"),
-		"Commit    " + (release.sourceCommit || "published npm version"),
-		"SHA-256   " + (release.sha256 || "provided by the npm registry"),
+		"Version   " + (release && release.version || "unknown"),
+		"Channel   " + (release ? channelLabel(release) : "unknown"),
+		"Sources   " + sources,
+		"Branch    " + (release && release.sourceBranch || "not recorded"),
+		"Commit    " + (release && release.sourceCommit || "not recorded"),
+		"SHA-256   " + (release && release.sha256 || "not available for this source"),
+		"npm tags  " + ((release && release.npmDistTags || []).join(", ") || "none"),
+		"Git tags  " + ((release && release.gitTags || []).join(", ") || "none"),
 		"",
 		"INSTALLATION",
-		"Install Now will back up package.json and lockfiles before modifying the project.",
-		"On failure, the updater restores those files and attempts to restore dependencies.",
+		installable
+			? "Install backs up package.json and lockfiles before modifying the project."
+			: "This entry is catalog-only. No verified installation artifact is available.",
+		installable
+			? "On failure, the updater restores those files and attempts to restore dependencies."
+			: "Open the source link to inspect the version or wait for its verified artifact.",
 		"",
-		"Selected action: " + paint("INSTALL NOW", "32;1") + "    Back: Esc / Q",
-		"Press Enter or Space to install. Press Esc to return to the release list.",
+		installable ? "Selected action: " + paint("INSTALL NOW", "32;1") : "Selected action: " + paint("VIEW SOURCE ONLY", "33;1"),
+		installable ? "Press Enter or Space to install. Press Esc to return." : "Press Esc to return to the release list.",
 	];
-	return frame("ne › updater › " + release.version, rows);
+	return frame("ne › updater › " + (release && release.version || "release"), rows);
 }
 
 function parseMouseSequence(sequence) {
@@ -212,7 +232,7 @@ function runTui(options) {
 				if (delta === "down") selected = column * 4 + ((row + 1) % 4);
 				if (delta === "left" || delta === "right") selected = (1 - column) * 4 + row;
 			} else if (screen === "releases") {
-				const count = Math.min(24, catalog.releases.length);
+				const count = catalog.releases.length;
 				if (count) {
 					if (delta === "up") selected = (selected + count - 1) % count;
 					if (delta === "down") selected = (selected + 1) % count;
@@ -240,6 +260,9 @@ function runTui(options) {
 				return;
 			}
 			if (screen === "details" && selectedRelease) {
+				if (selectedRelease.installable === false || !["github", "npm"].includes(selectedRelease.source)) {
+					return;
+				}
 				finish({ action: "install", release: selectedRelease });
 			}
 		}
@@ -269,8 +292,12 @@ function runTui(options) {
 					activate();
 				}
 			} else if (screen === "releases") {
-				const index = Math.floor((mouse.y - 6) / 2);
-				if (index >= 0 && index < Math.min(24, catalog.releases.length) && (mouse.y - 6) % 2 === 0) {
+				const catalogCount = catalog.releases.length;
+				const pageSize = Math.max(1, Math.floor((widthForTerminal() > 90 ? 20 : 14) / 2));
+				const pageStart = Math.floor(selected / pageSize) * pageSize;
+				const rowIndex = Math.floor((mouse.y - 7) / 2);
+				const index = pageStart + rowIndex;
+				if (index >= pageStart && index < Math.min(catalogCount, pageStart + pageSize) && rowIndex >= 0 && (mouse.y - 7) % 2 === 0) {
 					selected = index;
 					draw();
 					activate();
