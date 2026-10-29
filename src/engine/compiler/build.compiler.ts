@@ -823,15 +823,17 @@ async function compileProject(projectRoot, options = {}) {
 	};
 	const cacheDetails = [];
 	if (schemaCacheHitCount > 0) cacheDetails.push(formatCount(schemaCacheHitCount, "cache hit"));
-	if (schemaCacheMissCount > 0) cacheDetails.push(formatCount(schemaCacheMissCount, "schema compile miss"));
+	if (schemaCacheMissCount > 0) cacheDetails.push(formatCount(schemaCacheMissCount, "compile miss", "compile misses"));
 	if (schemaCacheWriteCount > 0) {
-		cacheDetails.push(formatCount(schemaCacheWriteCount, "output persisted") + " at "
+		cacheDetails.push(formatCount(schemaCacheWriteCount, "output", "outputs") + " persisted at "
 			+ path.relative(resolvedRoot, schemaOutputCache.cacheDirectory).split(path.sep).join("/"));
 	}
 	if (cacheDetails.length) log("DONE SCHEMA CACHE — " + cacheDetails.join(", "));
 	const passDetails = [];
-	const sourceFilesScanned = formatCount(summary.scannedSourceFileCount, "source file scanned");
-	const routeEntries = formatCount(summary.analyzedRouteCount, "route entry analyzed");
+	const sourceFilesScanned = summary.scannedSourceFileCount > 0
+		? formatCount(summary.scannedSourceFileCount, "source file", "source files") + " scanned" : "";
+	const routeEntries = summary.analyzedRouteCount > 0
+		? formatCount(summary.analyzedRouteCount, "route entry", "route entries") + " analyzed" : "";
 	const schemaPlans = formatCount(summary.compiledSchemaPageCount, "Engine schema plan");
 	const engineModules = formatCount(summary.engineModuleCount, "Engine module");
 	if (sourceFilesScanned) passDetails.push(sourceFilesScanned);
