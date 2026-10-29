@@ -917,6 +917,37 @@ async function testPublicThemeApi() {
 			root: { type: "hero", theme: "builtin-theme-runtime-smoke.link" },
 		}), /must use an EngineTheme namespace with the same ID/, "built-in namespaces cannot be applied to a different component");
 
+
+
+		const aliasTheme = createTheme({
+			id: "builtin-alias-theme-smoke",
+			scope: "local",
+			link: { styles: { root: { color: "#123456" } } },
+			nav: { styles: { root: { backgroundColor: "#abcdef" } } },
+			manim: { styles: { root: { outlineColor: "#234567" } } },
+			manim3d: { styles: { root: { outlineColor: "#345678" } } },
+		});
+		const aliasPage = resolveEngineThemeSchema({
+			theme: aliasTheme,
+			root: {
+				type: "section",
+				children: [
+					{ type: "EngineLink", props: {} },
+					{ type: "EngineNav", props: {} },
+					{ type: "EngineManim", props: {} },
+					{ type: "EngineManim3D", props: {} },
+				],
+			},
+		});
+		assert.equal(aliasPage.root.children[0].props.color, "#123456",
+			"EngineLink uses the canonical link theme namespace");
+		assert.equal(aliasPage.root.children[1].props.backgroundColor, "#abcdef",
+			"EngineNav uses the canonical nav theme namespace");
+		assert.equal(aliasPage.root.children[2].props.style.outlineColor, "#234567",
+			"EngineManim uses the canonical manim theme namespace");
+		assert.equal(aliasPage.root.children[3].props.style.outlineColor, "#345678",
+			"EngineManim3D uses the canonical manim3d theme namespace");
+
 		const localVarsOnlyTheme = createTheme({
 			id: "local-vars-only-theme-smoke",
 			scope: "local",
