@@ -229,9 +229,15 @@ function logEvent(event, logger = dispatchTerminalLog) {
 	} else if (event.phase === "page-cache-hit") {
 		logger("DONE REUSING CACHED ENGINE SCHEMA : " + (event.sourcePath || event.pageId));
 	} else if (event.phase === "page-complete" && event.summary) {
-		const s = event.summary;
-		logger("DONE COMPILED " + (event.pageId || event.sourcePath) + " — " + s.totalNodes
-			+ " nodes, " + s.clientIslands + " client islands, " + s.assetCount + " assets");
+		const summary = event.summary;
+		const details = [];
+		if (summary.totalNodes > 0) details.push(formatCount(summary.totalNodes, "node"));
+		const clientIslands = formatCount(summary.clientIslands, "client island");
+		const assets = formatCount(summary.assetCount, "asset");
+		if (clientIslands) details.push(clientIslands);
+		if (assets) details.push(assets);
+		logger("DONE COMPILED " + (event.pageId || event.sourcePath)
+			+ (details.length ? " — " + details.join(" · ") : ""));
 	}
 }
 function readBannerAsset(fileName) {
