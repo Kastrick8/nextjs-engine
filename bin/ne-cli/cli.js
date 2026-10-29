@@ -376,7 +376,6 @@ function resolveChainedCommand(executable, args, options = {}) {
 
 	const pathApi = path.win32;
 	const runtimePath = options.execPath ?? process.execPath;
-	const env = options.env ?? process.env;
 	const existsSync = options.existsSync ?? fs.existsSync;
 	if (/\.(?:cmd|bat)$/i.test(executable)) {
 		throw new Error("NE --and does not execute .cmd/.bat wrappers through a shell. Use a direct executable or the wrapper's JavaScript entry point.");
@@ -385,30 +384,15 @@ function resolveChainedCommand(executable, args, options = {}) {
 	const hasExplicitPath = /[\\/]/.test(executable);
 	if (!hasExplicitPath && ["npm", "npx", "pnpm", "yarn"].includes(basename)) {
 		const runtimeDirectory = pathApi.dirname(runtimePath);
-		const appData = typeof env.APPDATA === "string" ? env.APPDATA : "";
-		const localAppData = typeof env.LOCALAPPDATA === "string" ? env.LOCALAPPDATA : "";
 		const candidates = {
-			npm: [
-				pathApi.join(runtimeDirectory, "node_modules", "npm", "bin", "npm-cli.js"),
-				appData ? pathApi.join(appData, "npm", "node_modules", "npm", "bin", "npm-cli.js") : null,
-			],
-			npx: [
-				pathApi.join(runtimeDirectory, "node_modules", "npm", "bin", "npx-cli.js"),
-				appData ? pathApi.join(appData, "npm", "node_modules", "npm", "bin", "npx-cli.js") : null,
-			],
-			pnpm: [
-				appData ? pathApi.join(appData, "npm", "node_modules", "pnpm", "bin", "pnpm.cjs") : null,
-				localAppData ? pathApi.join(localAppData, "pnpm", "pnpm.cjs") : null,
-				localAppData ? pathApi.join(localAppData, "pnpm", "node_modules", "pnpm", "bin", "pnpm.cjs") : null,
-			],
-			yarn: [
-				appData ? pathApi.join(appData, "npm", "node_modules", "yarn", "bin", "yarn.js") : null,
-				pathApi.join(runtimeDirectory, "node_modules", "corepack", "dist", "yarn.js"),
-			],
-		}[basename].filter(Boolean);
+			npm: [pathApi.join(runtimeDirectory, "node_modules", "npm", "bin", "npm-cli.js")],
+			npx: [pathApi.join(runtimeDirectory, "node_modules", "npm", "bin", "npx-cli.js")],
+			pnpm: [pathApi.join(runtimeDirectory, "node_modules", "corepack", "dist", "pnpm.js")],
+			yarn: [pathApi.join(runtimeDirectory, "node_modules", "corepack", "dist", "yarn.js")],
+		}[basename];
 		const scriptPath = candidates.find((candidate) => existsSync(candidate));
 		if (!scriptPath) {
-			throw new Error("NE cannot safely locate the JavaScript entry point for '" + basename + "' on Windows. Invoke a direct .exe or use 'node path/to/script.js'.");
+			throw new Error("NE cannot safely locate the JavaScript entry point for '" + basename + "' beside the active Node.js installation on Windows. Use an installed Corepack shim or invoke 'node path/to/cli.js' directly.");
 		}
 		return { executable: runtimePath, args: [scriptPath, ...args] };
 	}
