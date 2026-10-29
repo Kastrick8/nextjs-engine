@@ -383,24 +383,20 @@ Built by **Kate-alt-69** for the Kastrick platform © 2026. See the [LICENSE](./
 
 ---
 
-<div align="center">
-
 ## ☕ Support me!
 
-Enjoying Next.js Engine or using it in a project? Supporting the work helps me spend more time improving the Engine and its open-source tooling. Thank you for being here!
+<p align="center">Enjoying Next.js Engine or using it in a project? Supporting the work helps me spend more time improving the Engine and its open-source tooling. Thank you for being here!</p>
 
-<a href="https://www.buymeacoffee.com/Kastrick">
-  <img alt="Buy Kastrick a coffee" src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Kastrick-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" />
-</a>
+<p align="center">
+  <a href="https://www.buymeacoffee.com/Kastrick"><img alt="Buy Kastrick a coffee" src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Kastrick-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" /></a>
+</p>
 
-<p><strong>Scan the QR code to support me!</strong></p>
+<p align="center"><strong>Scan the QR code to support me!</strong></p>
 
 <hr width="62%" />
 
-<a href="https://www.buymeacoffee.com/Kastrick">
-  <img src="./assets/buymeacoffee-kastrick-qr.png" alt="QR code linking to Kastrick's Buy Me a Coffee page" width="320" />
-</a>
+<p align="center"><a href="https://www.buymeacoffee.com/Kastrick">buymeacoffee.com/Kastrick</a></p>
 
-<p><a href="https://www.buymeacoffee.com/Kastrick">buymeacoffee.com/Kastrick</a></p>
-
-</div>
+<p align="center">
+  <a href="https://www.buymeacoffee.com/Kastrick"><img src="./assets/buymeacoffee-kastrick-qr.png" alt="QR code linking to Kastrick's Buy Me a Coffee page" width="320" /></a>
+</p>
