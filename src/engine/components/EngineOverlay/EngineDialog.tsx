@@ -111,6 +111,7 @@ export const EngineDialog = memo(function EngineDialog({
 			{target && present && createPortal(
 				<div
 					ref={overlayRootRef}
+					data-engine-overlay-backdrop={panelId}
 					style={{
 						position: "fixed",
 						inset: 0,
