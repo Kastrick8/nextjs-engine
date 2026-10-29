@@ -912,14 +912,18 @@ function renderServerNode(
 		case "spacer": {
 			const horizontal = props.axis === "x";
 			const spacerProps = { ...props };
+			const size = props.size ?? "2rem";
+			const width = props.width;
+			const height = props.height;
 			delete spacerProps.size;
 			delete spacerProps.axis;
 			delete spacerProps.style;
+			delete spacerProps.width;
+			delete spacerProps.height;
+			if (horizontal) spacerProps.width = width ?? size;
+			else spacerProps.height = height ?? size;
 			const spacerStyle = compilePrimitiveStyles(spacerProps, collector, {
-				defaults: {
-					display: horizontal ? "inline-block" : "block",
-					...(horizontal ? { width: props.size ?? "2rem" } : { height: props.size ?? "2rem" }),
-				},
+				defaults: { display: horizontal ? "inline-block" : "block" },
 				style: explicitStyle(props),
 			});
 			return <span key={compiled.id} {...debug} id={id} className={className} aria-hidden="true" style={spacerStyle} />;
