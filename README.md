@@ -4,13 +4,13 @@
 
 Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, graphics, API, motion, and browser plumbing in every app, NE lets you describe UI as typed schema objects and routes that schema through shared Engine systems.
 
-**Current development / release target:** **NE v2.6.2 (prepared patch)**  
-**Latest prepared stability notes:** [`docs/release/NE-v2-6-2.md`](./docs/release/NE-v2-6-2.md)  
-**Previous stability notes:** [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md)  
-**Latest major feature notes:** [`docs/release/NE-v2-6-0.md`](./docs/release/NE-v2-6-0.md)  
-**Latest published GitHub release:** [NE v2.5.0](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.5.0)
+**Current development / release target:** **NE v2.7.0 (prepared; not yet published)**  
+**Release notes:** [`docs/release/NE-v2-7-0.md`](./docs/release/NE-v2-7-0.md)  
+**Previous stability notes:** [`docs/release/NE-v2-6-2.md`](./docs/release/NE-v2-6-2.md)  
+**Earlier stability notes:** [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md)  
+**Latest published GitHub release:** [NE v2.5.0](https://github.com/Kastrick8/nextjs-engine/releases/tag/Release-v2.5.0)
 
-> The v2.6.2 notes are marked prepared/ready for release in the release archive; they are not evidence of a published GitHub Release.
+> v2.7.0 is a release candidate in the source branch. It will be marked released only after the package workflow confirms the npm publication and GitHub release.
 
 > v2.6.x is the Shader + Motion + Scroll + Overlay generation of NE. v2.6.1 focuses on React 19 hydration, App Router stability, primitive style correctness, routing consistency, and regression coverage.
 
@@ -142,27 +142,15 @@ Full breakdown: [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md).
 
 ---
 
-## Repository layout — read this first
+## Repository and release workflow
 
-This repository uses **four permanent branches across two release streams**.
+The source workspace and distributable snapshots now use one package branch:
 
-### `main-2` and `main-3` — workspace / source branches
+- `main-2`: stable Generation 2 runtime and its 2.x release candidate source.
+- `main-3`: Generation 3 compiler/runtime and alpha release source.
+- `package/main`: immutable versioned package snapshots and publishing metadata for both streams.
 
-`main-2` owns the stable NE 2.6.x source and integration workspace. `main-3` owns the Generation 3 compiler/runtime source and integration workspace.
-
-```text
-main-2                         main-2-package
-main-3                         main-3-package
-source/src/engine/  ───────▶   package/engine/
-source/docs/        ───────▶   package/docs/
-source/DOCUMENT.md  ───────▶   package/DOCUMENT.md
-```
-
-### `main-2-package` and `main-3-package` — distributable package branches
-
-Each source branch has an isolated package-sync workflow. Package branches contain the publishable Engine layout rather than the full Next.js development workspace. Package-only metadata remains owned by its matching package branch.
-
----
+The release workflow reads a pinned source commit, copies the maintained source/docs, applies `content.include` for additional package files such as `bin/`, validates the package snapshot, then publishes only after the configured gates pass. Archived snapshots are not rewritten when source changes.
 
 ## Package entrypoints
 
@@ -203,6 +191,21 @@ Specialized plugin entrypoints remain available for advanced setups:
 const withEngineAPI = require("nextjs-engine/api-plugin")
 const withEngineShader = require("nextjs-engine/shader-plugin")
 ```
+
+---
+
+## NE CLI
+
+The NE command-line tool ships in new package snapshots:
+
+```bash
+ne --help
+ne check
+ne build
+ne update --channel stable
+```
+
+The updater shows the npm/GitHub release inventory with its source and verification status. A catalog-only entry is available for inspection but cannot be installed until NE can verify an installable package or artifact. The interactive terminal is experimental; the headless commands are the reliable scripting interface.
 
 ---
 
@@ -383,8 +386,8 @@ Hydration-specific SSR → client regression coverage is part of the v2.6.1 stab
 
 Start at [`docs/index.md`](./docs/index.md), then choose the generation that matches your application:
 
-- **Generation 2 — stable 2.x:** [documentation index](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/index.md) — [simple styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling.md) and [detailed styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-2/docs/2/styling-detailed.md).
-- **Generation 3 — alpha:** [documentation index](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/index.md) — [simple styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/styling.md) and [detailed styling](https://github.com/Kate-alt-69/nextjs-engine/blob/main-3/docs/3/styling-detailed.md).
+- **Generation 2 — stable 2.x:** [documentation index](https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/index.md) — [simple styling](https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/styling.md) and [detailed styling](https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/styling-detailed.md).
+- **Generation 3 — alpha:** [documentation index](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/index.md) — [simple styling](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/styling.md) and [detailed styling](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/styling-detailed.md).
 
 Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture and should not be treated as the stable 2.x API contract.
 
