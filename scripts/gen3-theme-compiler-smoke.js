@@ -889,6 +889,8 @@ async function testPublicThemeApi() {
 			assert.equal(props.style.borderRadius, "4px", type + " keeps explicit local styles");
 			if (["image", "video", "canvas", "manim", "manim3d", "slot"].includes(type)) {
 				assert.equal(props.style.outlineColor, "#123456", type + " routes theme root styles into its style prop");
+			} else if (["form", "input", "textarea", "checkbox", "label"].includes(type)) {
+				assert.equal(props.engineThemeStyles.root.outlineColor, "#123456", type + " routes CSS root styles through its native form style slot");
 			} else {
 				assert.equal(props.outlineColor, "#123456", type + " resolves theme root styles");
 			}
