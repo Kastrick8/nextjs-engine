@@ -203,7 +203,7 @@ values from the actual transfer.
 
 Repeated icons use the server cache and do not emit another download pair until
 that cache entry expires. The live CW dashboard is terminal-only; non-TTY output
-keeps readable DONE/FAILED lines without cursor-control sequences.
+keeps readable DONE/FAILED/ERRORED lines without cursor-control sequences.
 
 The same schema keys work on Engine link nodes and linked schema components.
 For a regular React/HTML anchor, use the exported icon component explicitly:
