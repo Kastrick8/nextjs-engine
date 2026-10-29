@@ -1,0 +1,69 @@
+{
+	"name": "@kastrick/nextjs-engine",
+	"version": "2.7.0",
+	"description": "A schema-driven rendering layer for Next.js and React with responsive UI primitives, EngineCanvas graphics, APIStatic endpoints, and Manim animation support.",
+	"private": false,
+	"sideEffects": false,
+	"files": [
+		"engine",
+		"docs",
+		"DOCUMENT.md",
+		"README.md",
+		"index.ts",
+		"bin"
+	],
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"import": "./index.ts",
+			"default": "./index.ts"
+		},
+		"./server": {
+			"types": "./engine/server.ts",
+			"import": "./engine/server.ts",
+			"default": "./engine/server.ts"
+		},
+		"./plugin": {
+			"require": "./engine/plugins/enginePlugin.js",
+			"default": "./engine/plugins/enginePlugin.js"
+		},
+		"./api-plugin": {
+			"require": "./engine/plugins/engineApiPlugin.js",
+			"default": "./engine/plugins/engineApiPlugin.js"
+		},
+		"./shader-plugin": {
+			"require": "./engine/plugins/engineShaderPlugin.js",
+			"default": "./engine/plugins/engineShaderPlugin.js"
+		}
+	},
+	"types": "./index.ts",
+	"scripts": {
+		"type-check": "tsc --noEmit",
+		"pack:check": "npm pack --dry-run"
+	},
+	"peerDependencies": {
+		"next": "^16.2.9",
+		"next-view-transitions": "^0.3.5",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"three": "^0.184.0"
+	},
+	"devDependencies": {
+		"@types/node": "^20.10.0",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"@types/three": "^0.185.0",
+		"typescript": "^5.9.3"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Kastrick8/nextjs-engine.git"
+	},
+	"homepage": "https://github.com/Kastrick8/nextjs-engine#readme",
+	"dependencies": {
+		"typescript": "^5.9.3"
+	},
+	"bin": {
+		"ne": "./bin/ne.js"
+	}
+}

@@ -1,0 +1,195 @@
+# Schema Validation & Diagnostics
+
+Next.js Engine exposes two related schema-checking APIs. They intentionally have
+different scopes.
+
+## `validateSchema()` / `validatePageSchema()`
+
+The validator is the lightweight structural check used by the renderer in
+development (and optionally with `NEXT_PUBLIC_ENGINE_VALIDATE=1`). It returns:
+
+```ts
+interface ValidationResult {
+	valid: boolean;
+	errors: Array<{
+		path: string;
+		message: string;
+		level: "error" | "warn";
+	}>;
+}
+```
+
+It checks things such as:
+
+- node type shape and registry presence;
+- `props` shape;
+- required props for built-ins such as image/custom-select/slot;
+- Markdown having `content` or `filePath`;
+- Canvas having a render source;
+- `children` structural shape;
+- circular ancestor references in the schema tree.
+
+For Canvas, **either** callback mode (`onDraw` / `onSetup`) **or** a `graphics`
+configuration is a valid render source. A graphics-only Canvas must not receive
+a "blank canvas" warning.
+
+Circular references are structural errors. The validator tracks only the current
+ancestor chain, so a cycle is reported instead of overflowing the JavaScript call
+stack. Reusing the same node object in a separate non-ancestor branch is still
+left to the deeper analyzer's E004 diagnostic.
+
+The validator appends diagnostics into one shared result buffer while walking the
+tree instead of allocating and spreading a separate error array for every node.
+Warnings do not make `valid` false; structural errors do.
+
+## `analyzeSchema()` / `analyzeNode()`
+
+The analyzer is the deeper static-diagnostics pass. In addition to unknown/missing
+schema data it checks duplicate navigation targets, ambiguous mobile patch names,
+shared node objects, malformed runtime node values, accessibility hints, large
+child lists, excessive tree depth, leaf-node misuse, and orphaned EngineScroll
+point metadata.
+
+Current codes:
+
+| Code | Level | Meaning |
+|---|---|---|
+| `E001` | error | Unknown/unregistered node type |
+| `E002` | error | Missing type-specific required prop |
+| `E003` | error | Duplicate navigation target across `id` / `point` |
+| `E004` | error | Same schema node object reused in multiple tree positions |
+| `E005` | error | Page schema has no root node |
+| `E006` | error | Malformed node value or missing/non-string node type |
+| `W001` | warn | Image has no `alt` |
+| `W002` | warn | Button/link has no accessible label/content/children |
+| `W003` | warn | Input/checkbox has no explicit `id` or `point` for label association |
+| `W004` | warn | More than 100 direct children |
+| `W005` | warn | Tree deeper than 15 levels |
+| `W006` | warn | Schema child nodes attached to a runtime type that does not support them |
+| `W007` | warn | Duplicate `SchemaNode.name` makes a MobilePatcher selector ambiguous |
+| `W008` | warn | EngineScroll point metadata exists without a non-empty `point` name |
+
+### Malformed runtime data
+
+The public TypeScript types prevent most malformed schema values at authoring
+time, but analyzers also run on generated, parsed, or otherwise untyped data.
+They therefore fail diagnostically instead of becoming the crash themselves.
+
+For example, an array child containing `null`, a number, another array, or an
+object without a non-empty string `type` produces E006 at that exact schema path.
+The analyzer does not pass primitive values into `WeakSet` or attempt typo
+matching against a non-string type.
+
+### Navigation target identity
+
+`id` and `point` share one navigation namespace. EngineScroll can resolve a
+registered `point` first and then fall back to a literal DOM `id`, so two
+different nodes must not claim the same string through either property.
+
+These therefore conflict:
+
+```ts
+{
+	type: "section",
+	props: { id: "pricing" },
+}
+
+{
+	type: "section",
+	props: { point: "pricing" },
+}
+```
+
+A single node may use the same value for both `id` and `point`; that represents
+one anchor and is not reported as a duplicate.
+
+### EngineScroll point metadata
+
+`pointGroup`, `pointAlign`, and `pointOffset` modify a registered EngineScroll
+point. They do not create a point by themselves.
+
+This therefore emits W008:
+
+```ts
+{
+	type: "section",
+	props: {
+		pointGroup: "chapters",
+		pointAlign: "center",
+	},
+}
+```
+
+Add a non-empty `point` name:
+
+```ts
+{
+	type: "section",
+	props: {
+		point: "features",
+		pointGroup: "chapters",
+		pointAlign: "center",
+	},
+}
+```
+
+W008 is advisory because dead point metadata does not make the schema
+structurally invalid; `SchemaRenderer` simply has no point to register.
+
+### Mobile patch names
+
+`SchemaNode.name` is the selector identity used by EngineMobilePatcher. Duplicate
+names are legal, but a selector for that name patches every matching node. W007
+therefore remains advisory instead of making the schema invalid.
+
+Use unique names when a mobile patch should target one specific node.
+
+### Accessible content
+
+W002 understands actual schema content, not only React-style `props.children`.
+Any of these satisfy the text-content check:
+
+- `props.label`;
+- `props.content`;
+- a non-empty string in `node.children`;
+- a non-empty schema child array.
+
+### Runtime leaves and child traversal
+
+W006 is limited to runtime types that do not accept **schema child-node arrays**.
+Textual/interactive wrapper primitives are not treated as leaves merely because
+they can also receive direct content props.
+
+In particular, `text`, `heading`, `button`, `link`, and `label` all accept
+rendered schema children. The analyzer continues through those children instead
+of warning and returning early, so diagnostics inside valid nested content are
+not hidden.
+
+`optgroup` is also **not** a leaf. It is expected to contain `option` children, so
+the analyzer continues through its children and does not emit W006 for a normal
+option group.
+
+Native/media/control nodes such as image, input, textarea, checkbox, option,
+spacer, divider, Markdown, Canvas, and video remain leaf-style schema nodes for
+this diagnostic. Attaching schema child-node arrays to them produces W006.
+
+## Analyzer allocation behavior
+
+Unknown-type suggestions still use Levenshtein distance, but the analyzer keeps
+only two distance rows instead of allocating a complete matrix for every
+candidate. Diagnostic behavior stays the same while temporary memory scales
+with the shorter compared name rather than the product of both lengths.
+
+Registered-type membership checks use a `Set` during the tree walk rather than
+rescanning the registered type array for every node. The ordered array is kept
+only for typo suggestions.
+
+## Why both APIs exist
+
+Use the validator for cheap runtime/development structural checks. Use the
+analyzer for tooling, CI, editors, or a more opinionated audit. The analyzer can
+produce advisory accessibility/performance warnings that should not become a
+runtime rendering dependency.
+
+Both APIs query the live component registry, so custom node types registered with
+`registerComponent()` are recognized instead of being hard-coded as unknown.
