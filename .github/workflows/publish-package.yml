@@ -16,18 +16,29 @@ on:
         options: [main-2, main-3]
         default: main-3
       source_commit:
-        description: "Exact 40-character commit SHA to package, not a moving branch name (source mode only)"
+        description: "Exact 40-character source commit SHA to pin (required for source mode); recorded in UPSTREAM.md"
         required: false
         type: string
       version:
-        description: "Source mode reads the version from the pinned package.json; archive mode requires this value"
+        description: "Source mode reads this from the pinned source package.json; archive mode requires this value"
         required: false
         type: string
+      snapshot_action:
+        description: "Source mode only: create a snapshot or refresh an existing unpublished alpha snapshot"
+        type: choice
+        options: [create, refresh]
+        default: create
       track:
-        description: "Stable or alpha release"
+        description: "Stable releases auto-run on main-2; alpha/beta releases are manual"
         required: true
         type: choice
         options: [stable, alpha, beta]
+  # Automatic npm publishing is stable-only. Generation 3 prereleases are dispatched manually.
+  workflow_run:
+    workflows:
+      - "Engine runtime CI"
+    types: [completed]
+    branches: [main-2]
   push:
     tags:
       - "package.[0-9]*"
@@ -42,12 +53,144 @@ permissions:
   id-token: write
 
 concurrency:
-  group: npm-release-${{ inputs.version || github.event.client_payload.tag_name || github.ref_name }}
+  group: npm-release-${{ inputs.version || github.event.workflow_run.head_branch || inputs.source_branch || github.event.client_payload.tag_name || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  gate-auto-release:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_branch == 'main-2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+    steps:
+      - name: Checkout the exact CI-tested source commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check package changes and wait for browser CI
+        id: gate
+        shell: bash
+        env:
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Only publish commits that can change the package snapshot.
+          if git -C source rev-parse "$SOURCE_SHA^1" >/dev/null 2>&1; then
+            git -C source diff --name-only "$SOURCE_SHA^1" "$SOURCE_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          else
+            git -C source ls-tree -r --name-only "$SOURCE_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          fi
+
+          node - "$RUNNER_TEMP/changed-files.txt" <<'NODE'
+          const fs = require("node:fs");
+          const files = fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/).filter(Boolean);
+          const isPackageFile = (file) =>
+            /^(src\/engine\/|engine\/|docs\/)/.test(file) ||
+            file === "package.json" || file === "README.md" || file === "DOCUMENT.md";
+          const relevant = files.filter(isPackageFile);
+          if (!relevant.length) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "publish=false\n");
+            console.log("No distributable engine or documentation files changed; skipping npm release.");
+            process.exit(0);
+          }
+          console.log("Package-relevant changes:");
+          for (const file of relevant) console.log(" - " + file);
+          NODE
+
+          if grep -Fqx 'publish=false' "$GITHUB_OUTPUT"; then exit 0; fi
+
+          if [[ "$SOURCE_BRANCH" != "main-2" ]]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Only main-2 stable releases are automatic; alpha releases must be dispatched manually."
+            exit 0
+          fi
+          BROWSER_WORKFLOW="Engine browser compatibility"
+
+          echo "Waiting for '$BROWSER_WORKFLOW' to pass for $SOURCE_BRANCH@$SOURCE_SHA."
+          for attempt in $(seq 1 60); do
+            curl --fail --silent --show-error \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100" \
+              > "$RUNNER_TEMP/actions-runs.json"
+
+            RESULT="$(node - "$SOURCE_BRANCH" "$SOURCE_SHA" "$BROWSER_WORKFLOW" "$RUNNER_TEMP/actions-runs.json" <<'NODE'
+          const fs = require("node:fs");
+          const [branch, sha, workflow, file] = process.argv.slice(2);
+          const payload = JSON.parse(fs.readFileSync(file, "utf8"));
+          const matches = (payload.workflow_runs || [])
+            .filter((run) => run.name === workflow && run.head_branch === branch && run.head_sha === sha && run.event === "push")
+            .sort((a, b) => Date.parse(b.run_started_at || b.created_at || 0) - Date.parse(a.run_started_at || a.created_at || 0));
+          if (!matches.length || matches[0].status !== "completed") {
+            console.log("pending");
+          } else if (matches[0].conclusion === "success") {
+            console.log("success");
+          } else {
+            console.log("failure:" + String(matches[0].conclusion || "unknown"));
+          }
+          NODE
+            )"
+
+            case "$RESULT" in
+              success)
+                # The source manifest is authoritative. Never mint a second tarball for a published version.
+                SOURCE_VERSION="$(node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync("source/package.json","utf8"));if(typeof p.version!=="string"||!p.version)process.exit(1);process.stdout.write(p.version)')"
+                if [[ ! "$SOURCE_VERSION" =~ ^2\.[0-9]+\.[0-9]+$ ]]; then
+                  echo "publish=false" >> "$GITHUB_OUTPUT"
+                  echo "::warning::main-2 package.json must contain a stable 2.x.y version; found '$SOURCE_VERSION'."
+                  exit 0
+                fi
+                if ! npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"; then
+                  echo "publish=false" >> "$GITHUB_OUTPUT"
+                  echo "::warning::Could not verify npm registry versions; failing closed and skipping release."
+                  exit 0
+                fi
+                if node - "$SOURCE_VERSION" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
+          const fs = require("node:fs");
+          const [version, file] = process.argv.slice(2);
+          const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+          const versions = Array.isArray(raw) ? raw : [raw];
+          process.exit(versions.map(String).includes(version) ? 0 : 1);
+          NODE
+                then
+                  echo "publish=false" >> "$GITHUB_OUTPUT"
+                  echo "::notice::@kastrick/nextjs-engine@$SOURCE_VERSION already exists on npm; bump main-2 package.json before the next stable publication."
+                  exit 0
+                fi
+                echo "publish=true" >> "$GITHUB_OUTPUT"
+                echo "Engine runtime CI and same-commit browser CI passed; package.json version $SOURCE_VERSION is not yet published."
+                exit 0
+                ;;
+              failure:*)
+                echo "publish=false" >> "$GITHUB_OUTPUT"
+                echo "::warning::Browser compatibility did not pass ($RESULT); npm release skipped."
+                exit 0
+                ;;
+              pending)
+                echo "Browser compatibility is queued or running (attempt $attempt/60)."
+                sleep 20
+                ;;
+            esac
+          done
+
+          echo "publish=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Browser compatibility did not finish within 20 minutes; npm release skipped."
+
   release-from-source:
-    if: github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source'
+    needs: gate-auto-release
+    if: ${{ !cancelled() && ((github.event_name == 'workflow_dispatch' && inputs.release_mode == 'source') || (github.event_name == 'workflow_run' && needs.gate-auto-release.outputs.publish == 'true')) }}
     runs-on: ubuntu-latest
     environment: npm-publish
     timeout-minutes: 45
@@ -63,7 +206,7 @@ jobs:
       - name: Checkout exact pinned source commit
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_commit }}
+          ref: ${{ inputs.source_commit || github.event.workflow_run.head_sha }}
           path: source
           fetch-depth: 0
           persist-credentials: false
@@ -95,14 +238,85 @@ jobs:
       - name: Install npm CLI with OIDC support
         run: npm install --global npm@^11.21.0
 
+      - name: Resolve release settings
+        id: release-meta
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_TRACK: ${{ inputs.track }}
+          INPUT_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          INPUT_SNAPSHOT_ACTION: ${{ inputs.snapshot_action }}
+          EVENT_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          EVENT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          SNAPSHOT_ACTION="$INPUT_SNAPSHOT_ACTION"
+          if [[ -z "$SNAPSHOT_ACTION" ]]; then SNAPSHOT_ACTION="create"; fi
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            SOURCE_BRANCH="$EVENT_BRANCH"
+            SOURCE_COMMIT="$EVENT_SHA"
+            TRACK="stable"
+            SNAPSHOT_ACTION="create"
+          else
+            SOURCE_BRANCH="$INPUT_SOURCE_BRANCH"
+            SOURCE_COMMIT="$INPUT_SOURCE_COMMIT"
+            TRACK="$INPUT_TRACK"
+          fi
+
+          # Source-mode releases always take their version from the exact checked-out commit.
+          VERSION="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("source/package.json","utf8")); if(typeof p.version!=="string"||!p.version) process.exit(1); process.stdout.write(p.version)')"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$INPUT_VERSION" && "$INPUT_VERSION" != "$VERSION" ]]; then
+            echo "The requested version $INPUT_VERSION does not match source/package.json ($VERSION). Update the source manifest or leave the optional version field empty." >&2
+            exit 1
+          fi
+
+          case "$TRACK" in
+            stable)
+              [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Stable source package.json must contain a stable SemVer version, got: $VERSION" >&2; exit 1; }
+              ;;
+            alpha)
+              [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]] || { echo "Alpha source package.json must contain a version like 3.0.0-alpha.1, got: $VERSION" >&2; exit 1; }
+              ;;
+            beta)
+              [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] || { echo "Beta source package.json must contain a version like 3.0.0-beta.1, got: $VERSION" >&2; exit 1; }
+              ;;
+            *)
+              echo "track must be stable, alpha, or beta." >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ "$SNAPSHOT_ACTION" == "refresh" ]]; then
+            [[ "$EVENT_NAME" == "workflow_dispatch" && "$TRACK" == "alpha" ]] || {
+              echo "Refresh mode is restricted to manual alpha releases." >&2
+              exit 1
+            }
+          elif [[ "$SNAPSHOT_ACTION" != "create" ]]; then
+            echo "snapshot_action must be create or refresh." >&2
+            exit 1
+          fi
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "source_commit must be a lowercase 40-character SHA." >&2; exit 1; }
+          [[ -n "$VERSION" && -n "$TRACK" && -n "$SOURCE_BRANCH" ]] || { echo "Release version, track, and source branch are required." >&2; exit 1; }
+
+          echo "source_branch=$SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "track=$TRACK" >> "$GITHUB_OUTPUT"
+          echo "snapshot_action=$SNAPSHOT_ACTION" >> "$GITHUB_OUTPUT"
+          echo "Release selected: $VERSION ($TRACK, snapshot action: $SNAPSHOT_ACTION) from $SOURCE_BRANCH@$SOURCE_COMMIT"
+
       - name: Validate source pin and prepare immutable snapshot
         id: prepare
         shell: bash
         env:
-          SOURCE_BRANCH: ${{ inputs.source_branch }}
-          SOURCE_COMMIT: ${{ inputs.source_commit }}
-          INPUT_VERSION: ${{ inputs.version }}
-          TRACK: ${{ inputs.track }}
+          SOURCE_BRANCH: ${{ steps.release-meta.outputs.source_branch }}
+          SOURCE_COMMIT: ${{ steps.release-meta.outputs.source_commit }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
+          SNAPSHOT_ACTION: ${{ steps.release-meta.outputs.snapshot_action }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           VERSION="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("source/package.json","utf8")); if(typeof p.version!=="string"||!p.version) process.exit(1); process.stdout.write(p.version)')"
@@ -168,14 +382,67 @@ jobs:
 
           [[ -f "$TEMPLATE_DIR/package.json" && -f "$TEMPLATE_DIR/tsconfig.json" ]] || { echo "Manifest template missing at $TEMPLATE_DIR." >&2; exit 1; }
           REUSE_EXISTING=false
+          REFRESHED=false
+          TEMPLATE_PROVENANCE="$TEMPLATE_DIR"
           if [[ -e "archive/$TARGET" ]]; then
-            [[ -f "archive/$TARGET/UPSTREAM.md" ]] || { echo "Snapshot exists without provenance; refusing to overwrite." >&2; exit 1; }
-            grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "archive/$TARGET/UPSTREAM.md" || {
-              echo "Snapshot already exists with different or unknown provenance; refusing to overwrite." >&2
-              exit 1
-            }
-            REUSE_EXISTING=true
-          else
+            if [[ "$SNAPSHOT_ACTION" == "refresh" || "$EVENT_NAME" == "workflow_run" ]]; then
+              if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+                [[ "$TRACK" == "stable" ]] || { echo "Automatic refresh is restricted to stable releases." >&2; exit 1; }
+              else
+                [[ "$TRACK" == "alpha" ]] || { echo "Manual refresh is restricted to alpha snapshots." >&2; exit 1; }
+              fi
+              [[ -f "archive/$TARGET/package.json" && -f "archive/$TARGET/UPSTREAM.md" ]] || {
+                echo "Refresh requires an existing snapshot with package.json and UPSTREAM.md." >&2
+                exit 1
+              }
+
+              # Fail closed if npm metadata cannot be checked. A published version is immutable.
+              npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"
+              node - "$VERSION" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
+          const fs = require("node:fs");
+          const [version, versionsPath] = process.argv.slice(2);
+          const raw = JSON.parse(fs.readFileSync(versionsPath, "utf8"));
+          const versions = Array.isArray(raw) ? raw : [raw];
+          if (versions.map(String).includes(version)) {
+            throw new Error("@kastrick/nextjs-engine@" + version + " is already published to npm and cannot be replaced. Bump source/package.json before publishing new code.");
+          }
+          NODE
+
+              mkdir -p "$RUNNER_TEMP/package-template"
+              cp -a "$TEMPLATE_DIR/." "$RUNNER_TEMP/package-template/"
+              TEMPLATE_DIR="$RUNNER_TEMP/package-template"
+              rm -rf "archive/$TARGET"
+              REFRESHED=true
+              echo "Refreshing unpublished $TRACK snapshot $VERSION from source commit $PINNED_SHA."
+            else
+              [[ -f "archive/$TARGET/UPSTREAM.md" ]] || { echo "Snapshot exists without provenance; refusing to overwrite." >&2; exit 1; }
+              grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "archive/$TARGET/UPSTREAM.md" || {
+                echo "Snapshot already exists with different or unknown provenance; use snapshot_action=refresh only if the npm version has not been published." >&2
+                exit 1
+              }
+              REUSE_EXISTING=true
+            fi
+          elif [[ "$SNAPSHOT_ACTION" == "refresh" ]]; then
+            echo "No existing snapshot exists at archive/$TARGET; use snapshot_action=create instead." >&2
+            exit 1
+          fi
+
+          # A missing archive must not be reconstructed from a version that already exists on npm.
+          # Refresh paths have already performed this check above, before deleting the old snapshot.
+          if [[ "$REUSE_EXISTING" != "true" && "$SNAPSHOT_ACTION" != "refresh" && ! -e "archive/$TARGET" ]]; then
+            npm view @kastrick/nextjs-engine versions --json > "$RUNNER_TEMP/npm-versions.json"
+            node - "$VERSION" "$RUNNER_TEMP/npm-versions.json" <<'NODE'
+          const fs = require("node:fs");
+          const [version, versionsPath] = process.argv.slice(2);
+          const raw = JSON.parse(fs.readFileSync(versionsPath, "utf8"));
+          const versions = Array.isArray(raw) ? raw : [raw];
+          if (versions.map(String).includes(version)) {
+            throw new Error("@kastrick/nextjs-engine@" + version + " is already published; refusing to create a different archive for the same version.");
+          }
+          NODE
+          fi
+
+          if [[ "$REUSE_EXISTING" != "true" ]]; then
             if [[ -d source/src/engine ]]; then ENGINE_DIR="source/src/engine"
             elif [[ -d source/engine ]]; then ENGINE_DIR="source/engine"
             else echo "Pinned source has neither src/engine/ nor engine/; refusing to guess." >&2; exit 1
@@ -206,10 +473,10 @@ jobs:
             if [[ "$TRACK" == "alpha" || "$TRACK" == "beta" || "$VERSION" =~ ^2\.7\.[0-9]+$ ]]; then
               test -f "$DEST/bin/ne.js" || { echo "This release requires the NE CLI; add bin/ to source/content.include." >&2; exit 1; }
             fi
-            export TARGET VERSION TRACK PINNED_SHA SOURCE_BRANCH ENGINE_DIR TEMPLATE_DIR
+            export TARGET VERSION TRACK PINNED_SHA SOURCE_BRANCH ENGINE_DIR TEMPLATE_DIR TEMPLATE_PROVENANCE
             node --input-type=module <<'NODE'
           import fs from "node:fs";
-          const {TARGET,VERSION,TRACK,PINNED_SHA,SOURCE_BRANCH,ENGINE_DIR,TEMPLATE_DIR}=process.env;
+          const {TARGET,VERSION,TRACK,PINNED_SHA,SOURCE_BRANCH,ENGINE_DIR,TEMPLATE_DIR,TEMPLATE_PROVENANCE}=process.env;
           const root="archive/"+TARGET;
           const manifest=JSON.parse(fs.readFileSync(root+"/package.json","utf8"));
           manifest.name="@kastrick/nextjs-engine";
@@ -246,9 +513,9 @@ jobs:
             "- Source branch: "+SOURCE_BRANCH,
             "- Requested and resolved source commit: "+PINNED_SHA,
             "- Engine source path: "+ENGINE_DIR,
-            "- Manifest/docs template: "+TEMPLATE_DIR,
+            "- Manifest/docs template: "+(TEMPLATE_PROVENANCE||TEMPLATE_DIR),
             "",
-            "The engine source was copied from the exact pinned commit above. The manifest name and version were normalized for the Kastrick npm package. Missing optional export targets were removed. This is an immutable source snapshot, not a live link.",
+            "The engine source was copied from the exact pinned commit above. The source manifest supplied the version; the package name was normalized for the Kastrick npm package. Missing optional export targets were removed. Published npm versions are immutable; unpublished snapshots may be refreshed only through the guarded workflow path.",
             ""
           ].join("\n");
           fs.writeFileSync(root+"/UPSTREAM.md",provenance);
@@ -269,6 +536,7 @@ jobs:
           echo "pinned_sha=$PINNED_SHA" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "reuse_existing=$REUSE_EXISTING" >> "$GITHUB_OUTPUT"
+          echo "refreshed=$REFRESHED" >> "$GITHUB_OUTPUT"
 
       - name: Require green runtime and browser CI for prereleases
         if: ${{ inputs.track == 'alpha' || inputs.track == 'beta' }}
@@ -294,7 +562,7 @@ jobs:
         working-directory: archive
         env:
           TARGET: ${{ steps.prepare.outputs.target }}
-          VERSION: ${{ steps.prepare.outputs.version }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
           PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
         shell: bash
         run: |
@@ -311,10 +579,11 @@ jobs:
         id: create-tag
         working-directory: archive
         env:
-          VERSION: ${{ steps.prepare.outputs.version }}
-          TRACK: ${{ inputs.track }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
           PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
+          REFRESHED: ${{ steps.prepare.outputs.refreshed }}
         shell: bash
         run: |
           set -euo pipefail
@@ -326,20 +595,26 @@ jobs:
           esac
           git fetch --tags origin
           if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
-            git cat-file -e "$TAG:$TARGET/package.json"
-            git show "$TAG:$TARGET/package.json" > "$RUNNER_TEMP/tag-package.json"
-            git show "$TAG:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
-            node - "$RUNNER_TEMP/tag-package.json" "$VERSION" <<'NODE'
+            if [[ "$REFRESHED" == "true" ]]; then
+              # The unpublished snapshot was deliberately refreshed after the registry check.
+              git tag -f -a "$TAG" -m "@kastrick/nextjs-engine $VERSION refreshed from $PINNED_SHA"
+              git push --force origin "refs/tags/$TAG"
+            else
+              git cat-file -e "$TAG:$TARGET/package.json"
+              git show "$TAG:$TARGET/package.json" > "$RUNNER_TEMP/tag-package.json"
+              git show "$TAG:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
+              node - "$RUNNER_TEMP/tag-package.json" "$VERSION" <<'NODE'
           const fs=require("node:fs");
           const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           if(p.name!=="@kastrick/nextjs-engine"||p.version!==process.argv[3]) throw new Error("Existing tag points to a different package version.");
           NODE
-            grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/tag-upstream.md" || {
-              echo "Tag $TAG exists but does not match source pin $PINNED_SHA." >&2; exit 1;
-            }
-            git merge-base --is-ancestor "$TAG^{commit}" refs/remotes/origin/package/main || {
-              echo "Tag $TAG exists but is not reachable from package/main." >&2; exit 1;
-            }
+              grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/tag-upstream.md" || {
+                echo "Tag $TAG exists but does not match source pin $PINNED_SHA." >&2; exit 1;
+              }
+              git merge-base --is-ancestor "$TAG^{commit}" refs/remotes/origin/package/main || {
+                echo "Tag $TAG exists but is not reachable from package/main." >&2; exit 1;
+              }
+            fi
           else
             git tag -a "$TAG" -m "@kastrick/nextjs-engine $VERSION from $PINNED_SHA"
             git push origin "refs/tags/$TAG"
@@ -399,8 +674,8 @@ jobs:
         id: dist-tag
         working-directory: archive
         env:
-          VERSION: ${{ steps.prepare.outputs.version }}
-          TRACK: ${{ inputs.track }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
         shell: bash
         run: |
           set -euo pipefail
@@ -445,11 +720,16 @@ jobs:
       - name: Skip an already-published immutable npm version
         id: registry-version
         env:
-          VERSION: ${{ steps.prepare.outputs.version }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          REFRESHED: ${{ steps.prepare.outputs.refreshed }}
         shell: bash
         run: |
           set -euo pipefail
           if npm view "@kastrick/nextjs-engine@$VERSION" version >/dev/null 2>&1; then
+            if [[ "$REFRESHED" == "true" ]]; then
+              echo "::error::Version $VERSION appeared on npm after the refresh preflight. The workflow will not alter dist-tags or attempt a replacement publish."
+              exit 1
+            fi
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             echo "@kastrick/nextjs-engine@$VERSION already exists; preserving the immutable version."
           else
@@ -466,7 +746,7 @@ jobs:
       - name: Apply npm dist-tags
         working-directory: archive
         env:
-          VERSION: ${{ steps.prepare.outputs.version }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
           VERSION_TAG: ${{ steps.dist-tag.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
         shell: bash
@@ -481,8 +761,10 @@ jobs:
       - name: Release summary
         if: always()
         env:
-          VERSION: ${{ steps.prepare.outputs.version }}
-          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          SOURCE_BRANCH: ${{ steps.release-meta.outputs.source_branch }}
+          SNAPSHOT_ACTION: ${{ steps.release-meta.outputs.snapshot_action }}
+          REFRESHED: ${{ steps.prepare.outputs.refreshed }}
           SOURCE_SHA: ${{ steps.prepare.outputs.pinned_sha }}
           TARGET: ${{ steps.prepare.outputs.target }}
           DIST_TAG: ${{ steps.dist-tag.outputs.value }}
@@ -493,6 +775,9 @@ jobs:
             echo "## @kastrick/nextjs-engine release pin"
             echo "- Version: $VERSION"
             echo "- Source: $SOURCE_BRANCH@$SOURCE_SHA"
+            echo "- Version source: pinned commit package.json"
+            echo "- Snapshot action: $SNAPSHOT_ACTION"
+            echo "- Existing snapshot refreshed: $REFRESHED"
             echo "- Archive snapshot: $TARGET"
             echo "- Git tag: ${{ steps.create-tag.outputs.tag }}"
             echo "- npm dist-tag: $DIST_TAG"
@@ -543,6 +828,7 @@ jobs:
           TRACK: ${{ inputs.track }}
         run: |
           set -euo pipefail
+          [[ -n "$VERSION" ]] || { echo "Archive mode requires an explicit version; source mode reads version from package.json." >&2; exit 1; }
           if [[ "$TRACK" == "stable" ]]; then
             [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || { echo "Stable versions must look like 2.6.2." >&2; exit 1; }
             MAJOR="${BASH_REMATCH[1]}"
@@ -822,7 +1108,7 @@ jobs:
 
 
   publish-tagged-snapshot:
-    if: ${{ github.event_name == 'push' || github.event_name == 'repository_dispatch' }}
+    if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/package')) || github.event_name == 'repository_dispatch' }}
     runs-on: ubuntu-latest
     environment: npm-publish
     timeout-minutes: 45
