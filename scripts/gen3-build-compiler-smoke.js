@@ -15,6 +15,9 @@ const {
 	releaseBanner,
 	renderBannerLines,
 	summarizeNextOutputs,
+	formatCompiledSchemaLine,
+	formatFontBuildSummary,
+	planThemeFontWork,
 } = require("../src/engine/compiler/gen3-build-compiler");
 
 const {
@@ -22,6 +25,9 @@ const {
 	formatStatusLine,
 	formatWorkerStatus,
 	formatBytesPerSecond,
+	formatWorkerPanel,
+	renderProgressDots,
+	colorizeLogLine,
 } = require("../src/engine/plugins/nencTerminalLogger");
 const { schemaOutputCachePath } = require("../src/engine/plugins/gen3SchemaCache");
 
@@ -38,9 +44,56 @@ assert.equal(formatWorkerStatus([
 assert.equal(formatWorkerStatus([
 	{ operation: "Compiling", target: "/guide", mode: "percent", progress: 33.3 },
 	{ operation: "Downloading", target: "ICON:google.com", mode: "rate", bytesPerSecond: 8202 },
-]), "Compiling /guide (33.3%) · Downloading ICON:google.com (8202 B/s)",
+]), "Compiling /guide (33.3%) · Downloading ICON:google.com (8 KB/s)",
 "mixed compilation and icon-download jobs show the correct metric for each worker");
-assert.equal(formatBytesPerSecond(8202), "8202 B/s");
+assert.equal(formatBytesPerSecond(8202), "8 KB/s");
+assert.equal(formatBytesPerSecond(239000), "239 KB/s");
+assert.equal(formatCompiledSchemaLine(
+	{ sourcePath: "app/work/page.tsx", pageId: "/work" },
+	{ summary: { clientIslands: 1, assetCount: 2 } },
+	{ durationMs: 19 },
+	58,
+), "compiled app/work/page.tsx -> /work · 58 modules · 19ms · 1 client island · 2 assets",
+"schema completion combines real module count, elapsed time, client islands, and assets");
+assert.equal(formatCompiledSchemaLine(
+	{ sourcePath: "app/about/page.tsx", pageId: "/about" },
+	{ summary: { clientIslands: 0, assetCount: 0 } },
+	{ durationMs: 22 },
+	0,
+), "compiled app/about/page.tsx -> /about · 22ms",
+"zero modules, client islands, and assets are omitted rather than printed as noise");
+
+const dashboard = formatWorkerPanel([
+	{ operation: "Compiling", target: "/privacy-policy", mode: "percent", progress: 34.2 },
+	{ operation: "Compiling", target: "/", mode: "percent", progress: 21.7 },
+	{ operation: "Downloading", target: "fonts: Inter, JetBrains Mono", mode: "rate", bytesPerSecond: 239000 },
+], 100, false);
+assert.equal(dashboard.length, 4, "the status panel has one header and exactly three CW rows");
+assert.ok(dashboard[0].startsWith("════ NENC"), "the dashboard has a Cargo-style NENC header");
+assert.match(dashboard[1], /^CW1\s+Compiling \/privacy-policy/);
+assert.match(dashboard[1], /34\.2%$/);
+assert.match(dashboard[2], /^CW2\s+Compiling \/.*21\.7%$/);
+assert.match(dashboard[3], /^CW3\s+Downloading fonts: Inter, JetBrains Mono/);
+assert.ok(dashboard[3].endsWith("239 KB/s"), "download row uses the measured KB/s rate");
+assert.ok(renderProgressDots(50, 10, true).includes("\u001b["), "progress dots support ANSI contrast");
+assert.ok(colorizeLogLine("[NENC] DONE compiled /work", true).includes("\u001b["), "completion lines support ANSI colors");
+assert.equal(colorizeLogLine("[NENC] DONE compiled /work", false), "[NENC] DONE compiled /work");
+
+const fontPlan = planThemeFontWork([{
+	id: "studio",
+	content: JSON.stringify({
+		format: "nextjs-engine-theme",
+		content: {
+			scope: "global",
+			fonts: ["https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@400"],
+		},
+	}),
+}]);
+assert.equal(fontPlan.label, "fonts: Inter, JetBrains Mono", "font work is listed before it is dispatched to a CW");
+assert.equal(formatFontBuildSummary({
+	themeCount: 1, downloadedFonts: 1, fontAssetsReused: 0, fontAssetsWritten: 1,
+	fallbackThemes: 0, downloadedBytes: 184 * 1024,
+}), "1 theme, 1 font downloaded, 184 KB transferred", "font summaries omit zero-valued details");
 
 async function main() {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
@@ -170,8 +223,8 @@ try {
 	assert.ok(manifest.pages[0].compiledNodes.some((node) => node.type === "notice" && node.customComponent), "the emitted compiler graph includes custom-component classification");
 	assert.ok(logs.some((line) => line.includes("COMPILING PAGE : app/(marketing)/about/page.tsx")),
 		"route analysis reports the source path in Next.js-style progress output");
-	assert.ok(logs.some((line) => line.includes("DONE COMPILED /about —")),
-		"schema completion reports the URL route id");
+	assert.ok(logs.some((line) => line.includes("DONE compiled app/about/page.tsx -> /about")),
+		"schema completion reports the source path and URL route id");
 	assert.ok(logs.some((line) => /NENC ROUTES 0\/3 complete \(0%\)/.test(line)),
 		"route analysis starts at an actual 0 of 3 routes completed");
 	assert.ok(logs.some((line) => /NENC ROUTES 3\/3 complete \(100%\)/.test(line)),
@@ -196,7 +249,7 @@ try {
 	assert.equal(cachedManifest.summary.schemaCompilerWorkerCount, 0, "a full cache hit does not start idle worker threads");
 	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /about")),
 		"cache hits are visible as reuse, not mislabeled as new compilation");
-	assert.ok(!logs.some((line) => line.startsWith("DONE COMPILED /about —")),
+	assert.ok(!logs.some((line) => line.includes("DONE compiled app/about/page.tsx -> /about")),
 		"an unchanged page is not recompiled on a warm pass");
 
 	const aboutSource = path.join(pageDirectory, "page.tsx");
@@ -209,7 +262,7 @@ try {
 	assert.equal(partialManifest.summary.schemaCompilerWorkerCount, 1, "only one worker is started for one invalidated schema job");
 	assert.ok(partialManifest.pages.find((page) => page.id === "/about").compiledNodes.some((node) => node.type === "text"),
 		"the changed page output reflects its new schema");
-	assert.ok(logs.some((line) => line.startsWith("DONE COMPILED /about —")),
+	assert.ok(logs.some((line) => line.includes("DONE compiled app/about/page.tsx -> /about")),
 		"the changed page is compiled again");
 	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /emd")),
 		"the unchanged EMD schema is reused");
