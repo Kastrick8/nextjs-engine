@@ -103,6 +103,9 @@ export default createPage({
 
 ### Named slots
 
+- **Section:** `root`, `inner`
+- **Card:** `root`, `cover`, `coverImage`, `content`
+- **Heading:** `root`, `subheading`
 - **Hero:** `root`, `inner`, `overlay`
 - **Nav:** `root`, `inner`, `items`, `item`, `activeItem`, `dropdown`, `logo`, `mobileToggle`, `mobileMenu`
 - **Image:** `root`, `image`, `placeholder`, `caption`

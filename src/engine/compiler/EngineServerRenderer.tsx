@@ -573,8 +573,13 @@ function renderServerNode(
 			const level = Math.min(6, Math.max(1, Number(props.level ?? 2))) as 1 | 2 | 3 | 4 | 5 | 6;
 			const variant = `h${level}` as TextVariant;
 			const Tag = `h${level}` as ElementType;
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: undefined;
+			const headingStyleProps = { ...props };
+			delete headingStyleProps.engineThemeStyles;
 			const headingStyle = compilePrimitiveStyles(
-				props as any,
+				headingStyleProps as any,
 				collector,
 				{
 					defaults: TEXT_STYLES[variant],
@@ -597,6 +602,7 @@ function renderServerNode(
 			const subheadingInput: Record<string, unknown> = {
 				color: "var(--e-muted, #64748b)",
 				mt: "0.5rem",
+				...(engineThemeStyles?.subheading ?? {}),
 				...subheadingProps,
 			};
 			const subheadingVariant = (subheadingInput.variant ?? "lead") as TextVariant;
@@ -637,6 +643,7 @@ function renderServerNode(
 			delete sectionProps.px;
 			delete sectionProps.py;
 			delete sectionProps.style;
+			delete sectionProps.engineThemeStyles;
 			const outer = compilePrimitiveStyles(
 				sectionProps,
 				collector,
@@ -649,6 +656,9 @@ function renderServerNode(
 					style: userStyle,
 				},
 			);
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: undefined;
 			const inner = compileEngineStyles(
 				{
 					maxW: props.contentMaxWidth ?? "1200px",
@@ -659,6 +669,7 @@ function renderServerNode(
 				{
 					width: "100%",
 					...(props.centered !== false ? { marginLeft: "auto", marginRight: "auto" } : {}),
+					...(engineThemeStyles?.inner ?? {}),
 				},
 			);
 			return wrapHref(
@@ -747,7 +758,11 @@ function renderServerNode(
 					: variant === "filled"
 						? { background: "var(--e-card-filled, #f8fafc)" }
 						: { background: "var(--e-card-bg, #fff)" };
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: undefined;
 			const cardProps = { ...props };
+			delete cardProps.engineThemeStyles;
 			for (const key of [
 				"variant", "interactive", "cover", "coverAlt", "coverRatio", "coverFit",
 				"coverClassName", "direction", "innerPadding", "coverWidth", "style",
@@ -770,6 +785,7 @@ function renderServerNode(
 			const cover = typeof props.cover === "string" ? (
 				<div
 					style={{
+						...(engineThemeStyles?.cover ?? {}),
 						flexShrink: 0,
 						width: horizontal ? String(props.coverWidth ?? "40%") : "100%",
 						aspectRatio: horizontal ? undefined : String(props.coverRatio ?? "16/9"),
@@ -783,9 +799,10 @@ function renderServerNode(
 						alt={String(props.coverAlt ?? "")}
 						className={typeof props.coverClassName === "string" ? props.coverClassName : undefined}
 						style={{
+							...(engineThemeStyles?.coverImage ?? {}),
 							width: "100%",
 							height: "100%",
-							objectFit: (props.coverFit as CSSProperties["objectFit"] | undefined) ?? "cover",
+							objectFit: (props.coverFit as CSSProperties["objectFit"] | undefined) ?? engineThemeStyles?.coverImage?.objectFit ?? "cover",
 							display: "block",
 							position: horizontal ? "absolute" : "static",
 							top: horizontal ? 0 : undefined,
@@ -795,7 +812,14 @@ function renderServerNode(
 				</div>
 			) : null;
 			const content = (
-				<div style={{ flex: 1, padding: String(props.innerPadding ?? "1.25rem"), display: "flex", flexDirection: "column", minWidth: 0 }}>
+				<div style={{
+					...(engineThemeStyles?.content ?? {}),
+					flex: 1,
+					padding: String(props.innerPadding ?? engineThemeStyles?.content?.padding ?? "1.25rem"),
+					display: "flex",
+					flexDirection: "column",
+					minWidth: 0,
+				}}>
 					{children}
 				</div>
 			);

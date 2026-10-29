@@ -789,6 +789,19 @@ async function testPublicThemeApi() {
 					poster: { objectFit: "contain" },
 				},
 			},
+			section: {
+				variants: {
+					contentArea: { styles: { inner: { gap: "14px", backgroundColor: "#fef9c3" } } },
+				},
+			},
+			card: {
+				styles: {
+					cover: { borderRadius: "8px" },
+					coverImage: { objectFit: "contain" },
+					content: { backgroundColor: "#f0fdf4", padding: "20px" },
+				},
+			},
+			heading: { styles: { subheading: { color: "#7c3aed", fontSize: "14px", marginTop: "10px" } } },
 			button: { styles: { root: { backgroundColor: "#0e7490", color: "#ffffff" } } },
 		});
 		const builtinThemedPage = resolveEngineThemeSchema({
@@ -803,6 +816,9 @@ async function testPublicThemeApi() {
 					{ type: "image", props: { src: "/next.svg", alt: "Fixture image", style: { borderRadius: "4px" } } },
 					{ type: "video", props: { src: "/fixture.mp4", style: { borderRadius: "4px" } } },
 					{ type: "button", props: { content: "Themed button" } },
+					{ type: "section", theme: "builtin-theme-runtime-smoke.section.contentArea", props: { id: "themed-section" } },
+					{ type: "card", props: { cover: "/next.svg", innerPadding: "6px" } },
+					{ type: "heading", props: { content: "Themed heading", subheading: "A themed subheading" } },
 				],
 			},
 		});
@@ -831,6 +847,15 @@ async function testPublicThemeApi() {
 		assert.equal(themedVideo.props.engineThemeStyles.video.objectFit, "contain");
 		assert.equal(themedVideo.props.engineThemeStyles.poster.objectFit, "contain");
 		assert.equal(themedButton.props.backgroundColor, "#0e7490");
+		const [themedSection, themedCard, themedHeading] = builtinThemedPage.root.children.slice(7);
+		assert.deepEqual(themedSection.props.engineThemeStyles.inner, { gap: "14px", backgroundColor: "#fef9c3" },
+			"Section inner slots support component-specific styles and variants");
+		assert.equal(themedCard.props.engineThemeStyles.cover.borderRadius, "8px");
+		assert.equal(themedCard.props.engineThemeStyles.coverImage.objectFit, "contain");
+		assert.equal(themedCard.props.engineThemeStyles.content.backgroundColor, "#f0fdf4");
+		assert.equal(themedCard.props.engineThemeStyles.content.padding, "20px");
+		assert.equal(themedHeading.props.engineThemeStyles.subheading.color, "#7c3aed");
+		assert.equal(themedHeading.props.engineThemeStyles.subheading.fontSize, "14px");
 
 		const builtinNodeTypes = [
 			"box", "stack", "grid", "text", "heading", "section", "card", "button", "link",

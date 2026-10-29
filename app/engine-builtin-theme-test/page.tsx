@@ -8,6 +8,19 @@ const builtInTheme = createTheme({
 		styles: { inner: { gap: "12px" }, overlay: { backgroundColor: "rgba(0,0,0,.2)" } },
 		variants: { accent: { styles: { root: { backgroundColor: "#581c87" } } } },
 	},
+	section: {
+		variants: {
+			contentArea: { styles: { inner: { gap: "14px", backgroundColor: "#fef9c3" } } },
+		},
+	},
+	card: {
+		styles: {
+			cover: { borderRadius: "8px" },
+			coverImage: { objectFit: "contain" },
+			content: { backgroundColor: "#f0fdf4", padding: "20px" },
+		},
+	},
+	heading: { styles: { subheading: { color: "#7c3aed", fontSize: "14px", marginTop: "10px" } } },
 	nav: {
 		styles: {
 			root: { backgroundColor: "#fef3c7" },
@@ -60,6 +73,18 @@ export default createPage({
 				},
 				{ type: "image", props: { src: "/next.svg", alt: "Themed fixture image", caption: "Themed image caption", style: { borderRadius: "4px" } } },
 				{ type: "video", props: { src: "/fixture.mp4", className: "themed-video", style: { borderRadius: "4px" } } },
+				{
+					type: "section",
+					theme: "engine-builtin-theme-browser.section.contentArea",
+					props: { id: "themed-section" },
+					children: [{ type: "text", props: { content: "Section inner slot" } }],
+				},
+				{
+					type: "card",
+					props: { id: "themed-card", cover: "/next.svg", coverAlt: "Card cover", innerPadding: "6px" },
+					children: [{ type: "text", props: { content: "Card content slot" } }],
+				},
+				{ type: "heading", props: { id: "themed-heading", content: "Themed heading", subheading: "A themed subheading" } },
 				{ type: "slot", props: { id: "themed-slot", name: "missing-themed-slot", fallback: { type: "text", props: { content: "Themed slot fallback" } } } },
 			],
 		},

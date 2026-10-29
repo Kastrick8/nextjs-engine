@@ -427,6 +427,7 @@ export const EngineText = memo(
 
 export interface EngineHeadingProps extends HeadingProps {
 	children?: ReactNode;
+	engineThemeStyles?: Partial<Record<"subheading", CSSProperties>>;
 }
 
 export const EngineHeading = memo(function EngineHeading({
@@ -435,6 +436,7 @@ export const EngineHeading = memo(function EngineHeading({
 	subheadingProps,
 	children,
 	content,
+	engineThemeStyles,
 	...props
 }: EngineHeadingProps) {
 	const variant = `h${level}` as TextVariant;
@@ -444,7 +446,13 @@ export const EngineHeading = memo(function EngineHeading({
 				{children}
 			</EngineText>
 			{subheading && (
-				<EngineText variant="lead" color="var(--e-muted, #64748b)" mt="0.5rem" {...subheadingProps}>
+				<EngineText
+					variant="lead"
+					color="var(--e-muted, #64748b)"
+					mt="0.5rem"
+					{...engineThemeStyles?.subheading}
+					{...subheadingProps}
+				>
 					{subheading}
 				</EngineText>
 			)}
@@ -456,6 +464,7 @@ export const EngineHeading = memo(function EngineHeading({
 
 export interface EngineSectionProps extends SectionProps {
 	children?: ReactNode;
+	engineThemeStyles?: Partial<Record<"inner", CSSProperties>>;
 }
 
 export const EngineSection = memo(
@@ -467,6 +476,7 @@ export const EngineSection = memo(
 			fullViewport = false,
 			snapAlign,
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -510,7 +520,7 @@ export const EngineSection = memo(
 				style={resolvedOuter}
 				onClick={clickHandler}
 			>
-				<div className={innerLayoutClass} style={resolvedInner}>{children}</div>
+				<div className={innerLayoutClass} style={{ ...resolvedInner, ...engineThemeStyles?.inner }}>{children}</div>
 			</section>
 		);
 
@@ -625,6 +635,7 @@ export const EngineButton = memo(function EngineButton({
 export interface EngineCardProps extends CardProps {
 	children?: ReactNode;
 	coverClassName?: string;
+	engineThemeStyles?: Partial<Record<"cover" | "coverImage" | "content", CSSProperties>>;
 }
 
 export const EngineCard = memo(
@@ -636,12 +647,13 @@ export const EngineCard = memo(
 			cover,
 			coverAlt = "",
 			coverRatio = "16/9",
-			coverFit = "cover",
+			coverFit,
 			coverClassName,
 			direction = "vertical",
-			innerPadding = "1.25rem",
+			innerPadding,
 			coverWidth = "40%",
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -713,6 +725,7 @@ export const EngineCard = memo(
 							overflow: "hidden",
 							position: "relative",
 						}, styleCollector)}
+					style={engineThemeStyles?.cover}
 					>
 						<img
 							src={cover}
@@ -722,24 +735,32 @@ export const EngineCard = memo(
 								staticClass({
 									width: "100%",
 									height: "100%",
-									objectFit: coverFit as any,
+									objectFit: (coverFit ?? engineThemeStyles?.coverImage?.objectFit ?? "cover") as any,
 									display: "block",
 									position: isHorizontal ? "absolute" : "static",
 									top: isHorizontal ? 0 : undefined,
 									left: isHorizontal ? 0 : undefined,
 								}, styleCollector),
 							].filter(Boolean).join(" ") || undefined}
+							style={{
+								...(engineThemeStyles?.coverImage ?? {}),
+								...(coverFit !== undefined ? { objectFit: coverFit as CSSProperties["objectFit"] } : {}),
+							}}
 						/>
 					</div>
 				)}
 				<div
 					className={staticClass({
 						flex: 1,
-						padding: innerPadding,
+						padding: innerPadding ?? "1.25rem",
 						display: "flex",
 						flexDirection: "column",
 						minWidth: 0,
 					}, styleCollector)}
+					style={{
+						...(engineThemeStyles?.content ?? {}),
+						...(innerPadding !== undefined ? { padding: innerPadding } : {}),
+					}}
 				>
 					{children}
 				</div>

@@ -36,4 +36,19 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	await expect(themedSlot).toHaveCSS("background-color", "rgb(219, 234, 254)");
 	await expect(themedSlot).toHaveCSS("padding-top", "4px");
 	await expect(themedSlot).toContainText("Themed slot fallback");
+
+	const section = page.locator("#themed-section > div").first();
+	await expect(section).toHaveCSS("gap", "14px");
+	await expect(section).toHaveCSS("background-color", "rgb(254, 249, 195)");
+
+	const card = page.locator("#themed-card");
+	await expect(card.locator(":scope > div").first()).toHaveCSS("border-radius", "8px");
+	await expect(card.locator("img")).toHaveCSS("object-fit", "contain");
+	const cardContent = card.locator(":scope > div").nth(1);
+	await expect(cardContent).toHaveCSS("background-color", "rgb(240, 253, 244)");
+	await expect(cardContent).toHaveCSS("padding-top", "6px");
+
+	const subheading = page.locator("#themed-heading + p");
+	await expect(subheading).toHaveCSS("color", "rgb(124, 58, 237)");
+	await expect(subheading).toHaveCSS("font-size", "14px");
 });

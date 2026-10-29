@@ -623,8 +623,11 @@ function resolveCustomComponentThemeNode(
 	return { ...themedNode, props: nextProps as SchemaNode["props"] };
 }
 const BUILTIN_THEME_COMPONENT_STYLE_SLOTS: Readonly<Record<string, readonly string[]>> = {
-	box: ["root"], stack: ["root"], grid: ["root"], text: ["root"], heading: ["root"],
-	section: ["root"], card: ["root"], button: ["root"], link: ["root"],
+	box: ["root"], stack: ["root"], grid: ["root"], text: ["root"],
+	heading: ["root", "subheading"],
+	section: ["root", "inner"],
+	card: ["root", "cover", "coverImage", "content"],
+	button: ["root"], link: ["root"],
 	nav: ["root", "inner", "items", "item", "activeItem", "dropdown", "logo", "mobileToggle", "mobileMenu"],
 	hero: ["root", "inner", "overlay"],
 	image: ["root", "image", "placeholder", "caption"],
