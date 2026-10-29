@@ -315,7 +315,7 @@ try {
 			'import { createPage, defineSchema } from "nextjs-engine";',
 			'const pageSchema = defineSchema({',
 			'\tmeta: { title: "Broken component" },',
-			'\troot: { type: "text", props: { content: "broken", apiKey: "literal-secret-must-not-compile" } },',
+			'\troot: { type: "box", props: { apiKey: "literal-secret-must-not-compile" }, children: [{ type: "text", props: { content: "child compiles first" } }] },',
 			'});',
 			'export default createPage({ schema: pageSchema });',
 			"",
@@ -330,9 +330,9 @@ try {
 		"the failed schema is excluded while unrelated schema results remain available");
 	assert.equal(recoveryManifest.errors.length, 1, "the failed component remains as structured manifest diagnostics");
 	assert.equal(recoveryManifest.errors[0].pageId, "/b-broken", "the error identifies the failed route");
-	assert.equal(recoveryManifest.errors[0].componentType, "text", "the error identifies the component type");
+	assert.equal(recoveryManifest.errors[0].componentType, "box", "the error identifies the actual component with the invalid property, not the last processed sibling");
 	assert.equal(recoveryManifest.errors[0].nodePath, "root", "the error identifies the component path");
-	assert.ok(recoveryLogs.some((line) => line.includes("ERRORED COMPONENT app/b-broken/page.tsx -> /b-broken · text at root")),
+	assert.ok(recoveryLogs.some((line) => line.includes("ERRORED COMPONENT app/b-broken/page.tsx -> /b-broken · box at root")),
 		"the failed component log names its source, route and component path");
 	for (const route of ["/a-good", "/c-good", "/d-good"]) {
 		assert.ok(recoveryLogs.some((line) => line.includes("DONE compiled app/" + route.slice(1) + "/page.tsx -> " + route)),
