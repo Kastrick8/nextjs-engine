@@ -771,11 +771,20 @@ function resolveBuiltinThemeNode(
 
 	const resolvedStyles = resolveBuiltinThemeStyles(selection, namespace);
 	const rootStyle = resolvedStyles.root ?? {};
-	if (originalProps.style !== undefined && !isThemeRecord(originalProps.style)) {
+	const isDividerLineStyle = namespace === "divider"
+		&& (originalProps.style === "solid" || originalProps.style === "dashed" || originalProps.style === "dotted");
+	if (originalProps.style !== undefined && !isThemeRecord(originalProps.style) && !isDividerLineStyle) {
 		throw new TypeError("Explicit style on built-in node <" + namespace + "> must be an object so it can override EngineTheme defaults.");
 	}
 	const explicitStyle = isThemeRecord(originalProps.style) ? originalProps.style : {};
-	const nextProps: Record<string, unknown> = { ...originalProps };
+	const componentProps: Record<string, unknown> = { ...originalProps };
+	if (isDividerLineStyle) {
+		// Divider historically used `style` for the line pattern. Normalize it to
+		// a dedicated prop before assigning theme CSS so that the old API survives.
+		componentProps.lineStyle = originalProps.style;
+		delete componentProps.style;
+	}
+	const nextProps: Record<string, unknown> = { ...componentProps };
 	delete nextProps.engineThemeStyles;
 
 	if (["image", "video", "canvas", "manim", "manim3d", "slot"].includes(namespace)) {
@@ -789,7 +798,7 @@ function resolveBuiltinThemeNode(
 			if (key.startsWith("--")) rootVariables[key] = value;
 			else rootProps[key] = value;
 		}
-		Object.assign(nextProps, { ...rootProps, ...originalProps });
+		Object.assign(nextProps, { ...rootProps, ...componentProps });
 		if (Object.keys(rootVariables).length > 0 || originalProps.style !== undefined) {
 			nextProps.style = { ...rootVariables, ...explicitStyle };
 		}

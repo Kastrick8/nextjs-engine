@@ -791,13 +791,29 @@ export const EngineCard = memo(
 export const EngineSpacer = memo(function EngineSpacer({
 	size = "2rem",
 	axis = "y",
+	width,
+	height,
+	style,
+	className,
+	id,
+	point,
+	cprop,
+	...props
 }: SpacerProps) {
 	const isHorizontal = axis === "x";
-	const resolvedStyle = usePropStyles(
-		isHorizontal ? { width: size } as any : { height: size } as any,
-		{ display: isHorizontal ? "inline-block" : "block" },
+	const resolvedStyle = usePrimitiveStyles(
+		{
+			...props,
+			...(isHorizontal ? { width: width ?? size } : { height: height ?? size }),
+		} as any,
+		{
+			defaults: { display: isHorizontal ? "inline-block" : "block" },
+			style,
+		},
 	);
-	return <span aria-hidden="true" style={resolvedStyle} />;
+	const stateClass = useCpropClass(cprop);
+	const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
+	return <span aria-hidden="true" id={id ?? point} className={mergedClass} style={resolvedStyle} />;
 });
 
 // ── Divider ───────────────────────────────────────────────────────────────────
@@ -806,26 +822,35 @@ export const EngineDivider = memo(function EngineDivider({
 	orientation = "horizontal",
 	color = "var(--e-divider, rgba(0,0,0,.1))",
 	thickness = "1px",
-	style: styleVariant = "solid",
+	style: styleInput = "solid",
+	lineStyle,
 	my,
+	className,
+	id,
+	point,
+	cprop,
+	...props
 }: DividerProps) {
 	const isHorizontal = orientation === "horizontal";
-	const resolvedStyle = usePropStyles(
-		isHorizontal ? { my: my ?? "1rem" } as any : { mx: my ?? "1rem" } as any,
-		isHorizontal
-			? {
-				border: "none",
-				borderTop: `${thickness} ${styleVariant} ${color}`,
-				width: "100%",
-			}
-			: {
-				border: "none",
-				borderLeft: `${thickness} ${styleVariant} ${color}`,
-				height: "auto",
-				alignSelf: "stretch",
-			},
+	const styleVariant = lineStyle ?? (typeof styleInput === "string" ? styleInput : "solid");
+	const explicitStyle = styleInput && typeof styleInput === "object" && !Array.isArray(styleInput)
+		? styleInput as CSSProperties
+		: undefined;
+	const resolvedStyle = usePrimitiveStyles(
+		{
+			...props,
+			...(isHorizontal ? { my: my ?? "1rem" } : { mx: my ?? "1rem" }),
+		} as any,
+		{
+			defaults: isHorizontal
+				? { border: "none", borderTop: `${thickness} ${styleVariant} ${color}`, width: "100%" }
+				: { border: "none", borderLeft: `${thickness} ${styleVariant} ${color}`, height: "auto", alignSelf: "stretch" },
+			style: explicitStyle,
+		},
 	);
-	return <hr style={resolvedStyle} />;
+	const stateClass = useCpropClass(cprop);
+	const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
+	return <hr id={id ?? point} className={mergedClass} style={resolvedStyle} />;
 });
 
 // ── Option ────────────────────────────────────────────────────────────────────
