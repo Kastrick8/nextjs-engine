@@ -6,7 +6,6 @@ const readline = require("node:readline/promises");
 const {
 	PACKAGE_NAME,
 	parseVersion,
-	compareVersions,
 	loadChannelCatalog,
 	resolveRelease,
 	channelLabel,
@@ -105,7 +104,6 @@ function experimentalWarning() {
 	const ascii = process.env.NE_ASCII === "1" || process.env.TERM === "dumb";
 	const top = ascii ? "+--------------------------------------------------------------------------+" : "  ╭──────────────────────────────────────────────────────────────────────────╮";
 	const bottom = ascii ? "+--------------------------------------------------------------------------+" : "  ╰──────────────────────────────────────────────────────────────────────────╯";
-	const edge = ascii ? "|" : "  │";
 	const tail = ascii ? "|" : "│";
 	process.stdout.write(top + "\n");
 	process.stdout.write((ascii ? "|" : "  │") + " !! WARNING : NE is experimental and may change or be removed in a future !! " + tail + "\n");
