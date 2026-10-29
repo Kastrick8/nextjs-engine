@@ -545,8 +545,14 @@ function compileSchemaJobs(jobs, options = {}) {
 			if (activeJob && activeJob.taskType === "schema") {
 				recordTaskError(activeJob, error, slot, "worker");
 				completeTask(slot);
-			} else if (!activeJob) {
-				drainUnserviceableQueue();
+			} else {
+				const message = error instanceof Error ? error.message : String(error);
+				const context = activeJob
+					? " while " + (activeJob.operation || "working on") + " " + (activeJob.target || activeJob.pageId || activeJob.taskId)
+					: " while idle";
+				const detail = "WORKER CW" + (slot.index + 1) + context + " — " + message;
+				if (showWorkerStatus) nencLogger.errored(detail);
+				else log("ERRORED " + detail);
 			}
 			// Do not terminate the other CWs. They keep their current tasks and
 			// continue pulling the shared queue; successful results remain valid.
@@ -678,9 +684,7 @@ function compileSchemaJobs(jobs, options = {}) {
 				else if (slot.job && slot.job.taskType === "schema") {
 					workerFailed(new Error("NENC schema worker exited before completing " + slot.job.pageId), slot);
 				} else {
-					slot.failed = true;
-					slot.online = false;
-					drainUnserviceableQueue();
+					workerFailed(new Error("NENC schema worker exited unexpectedly with code 0"), slot);
 				}
 			});
 		}
