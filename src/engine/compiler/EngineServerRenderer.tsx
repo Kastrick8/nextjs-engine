@@ -448,13 +448,27 @@ function renderServerNode(
 	if (node.type === "slot") {
 		const name = typeof props.name === "string" ? props.name : "";
 		const slotContent = slots?.[name];
-		if (slotContent != null) return <React.Fragment key={compiled.id}>{slotContent}</React.Fragment>;
 		const fallback = compiled.children[0];
-		return (
-			<React.Fragment key={compiled.id}>
-				{fallback ? renderServerNode(fallback, collector, config, slots, registry) : null}
-			</React.Fragment>
-		);
+		const content = slotContent != null
+			? slotContent
+			: fallback
+				? renderServerNode(fallback, collector, config, slots, registry)
+				: null;
+		const id = typeof props.id === "string"
+			? props.id
+			: typeof props.point === "string"
+				? props.point
+				: undefined;
+		const className = mergeClassName(node, collector);
+		const style = compileEngineStyles(props as any, collector, explicitStyle(props));
+		if (id || className || Object.keys(style).length > 0) {
+			return (
+				<div key={compiled.id} {...debug} id={id} className={className} style={style}>
+					{content}
+				</div>
+			);
+		}
+		return <React.Fragment key={compiled.id}>{content}</React.Fragment>;
 	}
 
 	const children = renderChildren();
