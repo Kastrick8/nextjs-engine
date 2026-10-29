@@ -450,7 +450,7 @@ function compileSchemaJobs(jobs, options = {}) {
 	const externalJobs = Array.isArray(options.externalJobs) ? options.externalJobs : [];
 	const queue = createWorkerTaskPlan(jobs, externalJobs);
 	const totalTasks = queue.length;
-	if (!totalTasks) return Promise.resolve([]);
+	if (!totalTasks) return Promise.resolve({ pages: [], errors: [] });
 	const workerCount = Math.min(3, totalTasks);
 	const log = typeof options.log === "function" ? options.log : dispatchTerminalLog;
 	const showWorkerStatus = options.showWorkerStatus !== false;
@@ -458,6 +458,7 @@ function compileSchemaJobs(jobs, options = {}) {
 	return new Promise((resolve, reject) => {
 		// Dispatch the fixed plan to whichever worker slot becomes available next.
 		const results = new Array(jobs.length);
+		const taskErrors = [];
 		const workers = Array.from({ length: workerCount }, () => new Worker(path.join(__dirname, "schema-worker.compiler.js")));
 		const slots = workers.map((worker, index) => ({ worker, index, job: null, online: false }));
 		let completed = 0;
@@ -478,7 +479,7 @@ function compileSchemaJobs(jobs, options = {}) {
 			if (settled || completed !== totalTasks) return;
 			settled = true;
 			if (showWorkerStatus) nencLogger.clearStatus("workers");
-			stopWorkers().then(() => resolve(results));
+			stopWorkers().then(() => resolve({ pages: results, errors: taskErrors }));
 		}
 
 		function fail(error, failedSlot) {
@@ -580,7 +581,21 @@ function compileSchemaJobs(jobs, options = {}) {
 					const error = new Error(message.error && message.error.message || "NENC schema worker failed");
 					error.name = message.error && message.error.name || "Error";
 					if (message.error && message.error.stack) error.stack = message.error.stack;
-					fail(error, slot);
+					const failure = {
+						taskId: job.taskId,
+						pageId: job.pageId,
+						sourcePath: job.sourcePath,
+						name: error.name,
+						message: error.message,
+					};
+					taskErrors.push(failure);
+					const sourcePath = formatSchemaSourcePath(job.sourcePath || job.pageId);
+					const detail = "COMPONENT ERRORED " + sourcePath + " -> " + job.pageId + " — " + error.message;
+					// A schema/component error belongs to this task, not to the worker
+					// pool. Keep other CWs running and reuse this worker for queued jobs.
+					if (showWorkerStatus) nencLogger.failWorkerTask(slot.index, detail);
+					else log("ERROR " + detail);
+					completeTask(slot);
 					return;
 				}
 				if (message.type !== "result") return;
@@ -784,7 +799,7 @@ async function compileProject(projectRoot, options = {}) {
 			},
 		});
 	}
-	const workerPages = await compileSchemaJobs(workerJobs, {
+	const workerResult = await compileSchemaJobs(workerJobs, {
 		log,
 		showWorkerStatus: typeof options.log !== "function",
 		externalJobs,
@@ -798,8 +813,12 @@ async function compileProject(projectRoot, options = {}) {
 		},
 	});
 	for (let index = 0; index < workerJobs.length; index++) {
-		pages[workerJobs[index].outputOrder] = workerPages[index];
+		pages[workerJobs[index].outputOrder] = workerResult.pages[index];
 	}
+	const schemaErrors = workerResult.errors;
+	// Only successful compiler records enter the manifest. A failed job never
+	// overwrites its cache entry; existing valid cache artifacts stay untouched.
+	const compiledPages = pages.filter((page) => page && typeof page === "object");
 
 	const candidateCount = schemaJobs.length;
 	const schemaCacheMissCount = workerJobs.length;
@@ -822,10 +841,11 @@ async function compileProject(projectRoot, options = {}) {
 		themeArtifactCreatedCount: themeBuild.createdCount,
 		themeArtifactUpdatedCount: themeBuild.updatedCount,
 		themeArtifactUnchangedCount: themeBuild.unchangedCount,
-		compiledPageCount: pages.length,
-		compiledSchemaPageCount: pages.length,
+		compiledPageCount: compiledPages.length,
+		compiledSchemaPageCount: compiledPages.length,
+		failedSchemaCount: schemaErrors.length,
 		skippedPageCount: skipped.length,
-		customComponentTypeCount: new Set(registered.concat(...pages.map((page) => page.customComponents))).size,
+		customComponentTypeCount: new Set(registered.concat(...compiledPages.map((page) => page.customComponents))).size,
 		compilerPassTimeMs: Date.now() - passStartedAt,
 	};
 	const cacheDetails = [];
@@ -862,8 +882,9 @@ async function compileProject(projectRoot, options = {}) {
 		themes: themeBuild.artifacts,
 		modules: moduleAnalysis.modules,
 		registeredCustomComponents: registered,
-		pages,
+		pages: compiledPages,
 		skipped,
+		errors: schemaErrors,
 		summary,
 	};
 }
