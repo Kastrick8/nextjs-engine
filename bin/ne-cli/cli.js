@@ -1,5 +1,6 @@
 "use strict";
 
+const fs = require("node:fs");
 const path = require("node:path");
 const readline = require("node:readline/promises");
 const {
@@ -369,15 +370,61 @@ function tokenizeCommand(command) {
 	return tokens;
 }
 
+function resolveChainedCommand(executable, args, options = {}) {
+	const platform = options.platform ?? process.platform;
+	if (platform !== "win32") return { executable, args };
+
+	const pathApi = path.win32;
+	const runtimePath = options.execPath ?? process.execPath;
+	const env = options.env ?? process.env;
+	const existsSync = options.existsSync ?? fs.existsSync;
+	const basename = pathApi.basename(executable).replace(/\.(?:cmd|bat|exe)$/i, "").toLowerCase();
+	const hasExplicitPath = /[\\/]/.test(executable);
+	if (!hasExplicitPath && ["npm", "npx", "pnpm", "yarn"].includes(basename)) {
+		const runtimeDirectory = pathApi.dirname(runtimePath);
+		const appData = typeof env.APPDATA === "string" ? env.APPDATA : "";
+		const localAppData = typeof env.LOCALAPPDATA === "string" ? env.LOCALAPPDATA : "";
+		const candidates = {
+			npm: [
+				pathApi.join(runtimeDirectory, "node_modules", "npm", "bin", "npm-cli.js"),
+				appData ? pathApi.join(appData, "npm", "node_modules", "npm", "bin", "npm-cli.js") : null,
+			],
+			npx: [
+				pathApi.join(runtimeDirectory, "node_modules", "npm", "bin", "npx-cli.js"),
+				appData ? pathApi.join(appData, "npm", "node_modules", "npm", "bin", "npx-cli.js") : null,
+			],
+			pnpm: [
+				appData ? pathApi.join(appData, "npm", "node_modules", "pnpm", "bin", "pnpm.cjs") : null,
+				localAppData ? pathApi.join(localAppData, "pnpm", "pnpm.cjs") : null,
+				localAppData ? pathApi.join(localAppData, "pnpm", "node_modules", "pnpm", "bin", "pnpm.cjs") : null,
+			],
+			yarn: [
+				appData ? pathApi.join(appData, "npm", "node_modules", "yarn", "bin", "yarn.js") : null,
+				pathApi.join(runtimeDirectory, "node_modules", "corepack", "dist", "yarn.js"),
+			],
+		}[basename].filter(Boolean);
+		const scriptPath = candidates.find((candidate) => existsSync(candidate));
+		if (!scriptPath) {
+			throw new Error("NE cannot safely locate the JavaScript entry point for '" + basename + "' on Windows. Invoke a direct .exe or use 'node path/to/script.js'.");
+		}
+		return { executable: runtimePath, args: [scriptPath, ...args] };
+	}
+	if (/\.(?:cmd|bat)$/i.test(executable)) {
+		throw new Error("NE --and does not execute .cmd/.bat wrappers through a shell. Use a direct executable or the wrapper's JavaScript entry point.");
+	}
+	return { executable, args };
+}
+
 async function runChainedCommands(root, options) {
 	const commands = options.andCommands || [];
 	const height = options.andTerminal || 5;
 	for (let index = 0; index < commands.length; index += 1) {
 		const command = commands[index];
-		const [executable, ...args] = tokenizeCommand(command);
+		const [requestedExecutable, ...requestedArgs] = tokenizeCommand(command);
+		const invocation = resolveChainedCommand(requestedExecutable, requestedArgs);
 		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + command + " [viewport: " + height + " rows]\n");
 		await new Promise((resolve, reject) => {
-			const child = require("node:child_process").spawn(executable, args, {
+			const child = require("node:child_process").spawn(invocation.executable, invocation.args, {
 				cwd: root,
 				env: process.env,
 				windowsHide: true,
@@ -450,4 +497,5 @@ module.exports = {
 	main,
 	runChainedCommands,
 	tokenizeCommand,
+	resolveChainedCommand,
 };
