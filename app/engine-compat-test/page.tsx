@@ -109,8 +109,33 @@ export default function EngineCompatibilityPage() {
 				</button>
 				<p data-testid="same-url-status">{sameUrlStatus}</p>
 
-				<EngineTransitionLink href="/engine-compat-test/target" transition="portal">
+				<EngineTransitionLink href="/engine-compat-test/target" transition="portal" data-testid="transition-target-link">
 					Target page
+				</EngineTransitionLink>
+				<EngineTransitionLink
+					href="/engine-compat-test/target?via=replace"
+					transition="portal"
+					replace
+					data-testid="transition-replace-link"
+				>
+					Replace navigation
+				</EngineTransitionLink>
+				<EngineTransitionLink
+					href="/engine-compat-test-download.txt"
+					transition="portal"
+					download="engine-compat-download.txt"
+					data-testid="transition-download-link"
+				>
+					Download target document
+				</EngineTransitionLink>
+				<EngineTransitionLink
+					href="https://example.test/native-destination"
+					transition="portal"
+					target="_blank"
+					rel="noopener noreferrer"
+					data-testid="transition-external-link"
+				>
+					External native link
 				</EngineTransitionLink>
 
 				<EngineCompatibilityDialog
