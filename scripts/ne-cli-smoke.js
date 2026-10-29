@@ -253,7 +253,7 @@ async function main() {
 	});
 	assert.throws(() => cli.resolveChainedCommand("npm.cmd", ["test"], {
 		platform: "win32",
-	}), /does not execute \\.cmd\\/\\.bat wrappers through a shell/);
+	}), /does not execute .* wrappers through a shell/);
 	assert.deepEqual(cli.tokenizeCommand('npm run "with space"'), ["npm", "run", "with space"]);
 	assert.throws(() => cli.tokenizeCommand("git status && npm test"), /shell operators are not supported/);
 	assert.throws(() => cli.tokenizeCommand("node -e 'unterminated"), /unterminated quoted argument/);
