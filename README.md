@@ -96,9 +96,17 @@ The repository separates the Generation 2 and Generation 3 source lines from the
 | `main-3` | Generation 3 compiler/runtime source; currently declares `3.0.0-alpha.1` in its root `package.json` |
 | `channel-alpha-latest` | Moving GitHub prerelease channel; its release title currently identifies `3.0.0-alpha.1` |
 | `package/main` | Distributable package archive, including versioned snapshots; it is not a direct mirror of `main-3` |
-| `alpha/version/3.alpha/version/3.0.0-alpha.1` | The numbered Generation 3 alpha.1 snapshot path in the package archive |
+| `alpha/version/3.alpha/version/3.0.0-alpha.1` | The existing, versioned Generation 3 alpha.1 snapshot in the package archive |
 
-A numbered source release is prepared from an exact, pinned source commit. The publishing workflow checks the requested version against that commit's `package.json`, validates the commit against its source branch, prepares the package snapshot, and gates publication on the relevant checks. Versioned snapshots are intended to be immutable: updating `main-3` does not rewrite an already-created alpha.1 package into alpha.2.
+### Numbered alpha lineup
+
+| Version / channel | Status and expectations |
+|---|---|
+| `3.0.0-alpha.1` | The version currently declared by `main-3/package.json` and the existing archive snapshot. The archived manifest lists `engine`, `docs`, `DOCUMENT.md`, `README.md`, and `index.ts`; it does **not** declare the `ne` CLI binary. |
+| `channel-alpha-latest` | The moving GitHub prerelease channel currently titled **Nextjs Engine Latest Alpha (3.0.0-alpha.1)**. It is not a permanent version pin and can point at a newer validated alpha commit later. |
+| `3.0.0-alpha.2` | The next numbered alpha target, **not yet created or published as a numbered snapshot**. A new source commit must declare this version and pass the release gates before a new immutable snapshot is created. Because `main-3/content.include` now lists `bin/`, that new snapshot can package the NE CLI and its `bin` metadata; the existing alpha.1 snapshot will not be rewritten to add it. |
+
+A numbered source release is prepared from an exact, pinned source commit. The publishing workflow checks the requested version against that commit's `package.json`, validates the commit against its source branch, prepares the package snapshot, and gates publication on the relevant checks. Versioned snapshots are intended to be immutable: advancing `main-3` does not rewrite an already-created alpha.1 package into alpha.2.
 
 ### How `content.include` works
 
