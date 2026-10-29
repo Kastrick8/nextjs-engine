@@ -760,11 +760,11 @@ async function compileProject(projectRoot, options = {}) {
 					},
 					onDownloadDone(event) {
 						const parts = [formatFontBytes(event.bytes), event.elapsedMs + "ms"];
-					if (event.bytesPerSecond > 0) parts.push(nencLogger.formatBytesPerSecond(event.bytesPerSecond));
-					const fileLabel = event.family + (event.extension ? "." + event.extension : "");
-					const message = "Downloaded font: " + fileLabel + " " + parts.join(" · ");
-					if (typeof options.log === "function") log("DONE " + message);
-					else nencLogger.done(message);
+						if (event.bytesPerSecond > 0) parts.push(nencLogger.formatBytesPerSecond(event.bytesPerSecond));
+						const fileLabel = event.family + (event.extension ? "." + event.extension : "");
+						const message = "Downloaded font: " + fileLabel + " " + parts.join(" · ");
+						if (typeof options.log === "function") log("DONE " + message);
+						else nencLogger.done(message);
 					},
 				});
 				if (!themeFontBuild.skipped && themeFontBuild.themeCount > 0) {
@@ -775,8 +775,7 @@ async function compileProject(projectRoot, options = {}) {
 				}
 				return { doneMessage: "" };
 			},
-		},
-	);
+		});
 	const workerPages = await compileSchemaJobs(workerJobs, {
 		log,
 		showWorkerStatus: typeof options.log !== "function",
