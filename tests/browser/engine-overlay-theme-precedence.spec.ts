@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-async function expectRuntimeOwnedBackdrop(page, dialogName: string, overlayId: string) {
+async function expectRuntimeOwnedBackdrop(page: Page, dialogName: string, overlayId: string) {
 	const dialog = page.getByRole("dialog", { name: dialogName });
 	await expect(dialog).toBeVisible();
 
