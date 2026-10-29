@@ -561,6 +561,9 @@ jobs:
           set -euo pipefail
           npm install --ignore-scripts --no-package-lock --no-audit --no-fund
           npm run type-check
+          if [[ -f bin/ne.js ]]; then
+            node bin/ne.js --help >/dev/null
+          fi
           npm run pack:check
           rm -rf node_modules
 
