@@ -122,8 +122,8 @@ export const EngineDialog = memo(function EngineDialog({
 						backdropFilter: "blur(6px)",
 						...engineOverlayTheme?.styles?.backdrop,
 						...overlayStyle,
-						// Animation state is runtime-owned; theme styles may change the
-						// backdrop appearance, but must not pin opacity or transition.
+						// Animation state is runtime-owned; theme and caller styles may
+						// change backdrop appearance but must not pin opacity or transition.
 						opacity: active ? 1 : 0,
 						transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
 						zIndex: `var(--e-overlay-stack-z, ${zIndex})`,
