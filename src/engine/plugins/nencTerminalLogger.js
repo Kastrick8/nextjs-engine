@@ -529,6 +529,10 @@ function dispatchCompilerLine(line) {
 		done(message.replace(/^DONE\s*/i, ""));
 		return;
 	}
+	if (/^ERRORED\b/i.test(message)) {
+		errored(message.replace(/^ERRORED\s*/i, ""));
+		return;
+	}
 	if (/^(?:FAILED|ERROR)\b/i.test(message)) {
 		failed(message.replace(/^(?:FAILED|ERROR)\s*/i, ""));
 		return;
