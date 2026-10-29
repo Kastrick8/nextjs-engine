@@ -4,11 +4,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const PACKAGE_NAME = "@kastrick/nextjs-engine";
-const GITHUB_RELEASES_URL = "https://api.github.com/repos/Kate-alt-69/nextjs-engine/releases?per_page=100";
-const GITHUB_LATEST_ALPHA_URL = "https://api.github.com/repos/Kate-alt-69/nextjs-engine/releases/tags/channel-alpha-latest";
+const GITHUB_RELEASES_URL = "https://api.github.com/repos/Kastrick8/nextjs-engine/releases?per_page=100";
+const GITHUB_LATEST_ALPHA_URL = "https://api.github.com/repos/Kastrick8/nextjs-engine/releases/tags/channel-alpha-latest";
 const NPM_LATEST_URL = "https://registry.npmjs.org/@kastrick%2fnextjs-engine/latest";
 const NPM_PACKUMENT_URL = "https://registry.npmjs.org/@kastrick%2fnextjs-engine";
-const GITHUB_PACKAGE_TAGS_URL = "https://api.github.com/repos/Kate-alt-69/nextjs-engine/git/matching-refs/tags/package?per_page=100";
+const GITHUB_PACKAGE_TAGS_URL = "https://api.github.com/repos/Kastrick8/nextjs-engine/git/matching-refs/tags/package?per_page=100";
 const CACHE_RELATIVE_PATH = path.join(".nextjs-engine", "cache", "ne-channels-cache.json");
 const CACHE_TTL_MS = 2 * 60 * 1000;
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -196,7 +196,7 @@ function packageTagToRelease(value) {
 		}
 	}
 	if (!version || trackForVersion(version) !== track) return null;
-	const tagUrl = "https://github.com/Kate-alt-69/nextjs-engine/tree/" + encodeURIComponent(rawName);
+	const tagUrl = "https://github.com/Kastrick8/nextjs-engine/tree/" + encodeURIComponent(rawName);
 	return {
 		version,
 		track,
@@ -237,6 +237,7 @@ function sourcePriority(release) {
 	if (release.source === "github" && release.artifactUrl && release.sha256) return 4;
 	if (release.source === "npm" && release.track === "stable" && release.installSpec) return 3;
 	if (release.source === "npm" && release.installSpec) return 2;
+	if (release.source === "github") return 1.5;
 	if (release.source === "git-tag") return 1;
 	return 0;
 }
@@ -330,6 +331,47 @@ function validateReleaseManifest(manifest, release) {
 		releaseUrl: release.html_url || "",
 		installSpec: asset.browser_download_url,
 		description: manifest.summary || ("Generation 3 " + manifest.track + " package."),
+	};
+}
+
+function catalogOnlyGitHubRelease(release) {
+	if (!release || typeof release !== "object" || typeof release.tag_name !== "string") return null;
+
+	const tagName = release.tag_name;
+	let tag = packageTagToRelease(tagName);
+	let version = tag && tag.version;
+	let track = tag && tag.track;
+	if (!version) {
+		const match = tagName.match(/^v?(\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?)$/);
+		if (!match) return null;
+		version = match[1];
+		track = trackForVersion(version);
+	}
+	if (!track || !parseVersion(version)) return null;
+
+	const releaseUrl = typeof release.html_url === "string"
+		? release.html_url
+		: "https://github.com/Kastrick8/nextjs-engine/releases/tag/" + encodeURIComponent(tagName);
+	return {
+		version,
+		track,
+		channel: track,
+		source: "github",
+		sourceLabel: SOURCE_LABELS.github,
+		sourceBranch: null,
+		sourceCommit: null,
+		sha256: null,
+		artifactName: null,
+		artifactUrl: null,
+		publishedAt: release.published_at || release.created_at || "",
+		releaseUrl,
+		tagName,
+		tagUrl: "https://github.com/Kastrick8/nextjs-engine/releases/tag/" + encodeURIComponent(tagName),
+		installSpec: null,
+		npmDistTags: [],
+		gitTags: [],
+		installable: false,
+		description: "GitHub release " + tagName + " is listed for discovery, but its manifest and downloadable artifact did not pass NE verification.",
 	};
 }
 
@@ -443,7 +485,8 @@ async function loadChannelCatalog(rootDir, options) {
 	if (results[1].status === "fulfilled" && Array.isArray(results[1].value)) {
 		githubSucceeded = true;
 		github = results[1].value
-			.map((release) => validateReleaseManifest(parseManifestFromBody(release.body), release))
+			.map((release) => validateReleaseManifest(parseManifestFromBody(release.body), release)
+				|| catalogOnlyGitHubRelease(release))
 			.filter(Boolean);
 	}
 	if (results[2].status === "fulfilled") {
@@ -537,6 +580,7 @@ module.exports = {
 	packageTagToRelease,
 	parseManifestFromBody,
 	validateReleaseManifest,
+	catalogOnlyGitHubRelease,
 	normaliseCatalog,
 	isInstallableRelease,
 	loadChannelCatalog,
