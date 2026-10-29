@@ -444,5 +444,6 @@ The unversioned [`docs/styling.md`](./docs/styling.md) path is retained for old 
 `DOCUMENT.md` is the large technical/history reference. For recently changed behavior, prefer the current TypeScript types and focused docs when an old historical section disagrees.
 
 ---
+> **Disclaimer:** Nextjs Engine (`nextjs-engine`) is an independent open-source framework created by Kastrick Industries. It is not affiliated with, endorsed by, or sponsored by Vercel Inc. or Meta Platforms, Inc.<br>
 
-Built by **Kate-alt-69** for the Kastrick platform.
+<br>Built by **Kate-alt-69** for the Kastrick platform (C) 2026, See [license](./license)
