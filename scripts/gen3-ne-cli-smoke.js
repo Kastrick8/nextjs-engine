@@ -179,7 +179,7 @@ async function main() {
 	const catalogOnlyMerge = channels.normaliseCatalog([parsedTags[1], unverifiedRelease]).releases[0];
 	assert.equal(catalogOnlyMerge.source, "github", "the GitHub release remains visible when merged with its matching version tag");
 	assert.equal(catalogOnlyMerge.installable, false);
-	assert.deepEqual(catalogOnlyMerge.sources.sort(), ["github", "git-tag"]);
+	assert.deepEqual(catalogOnlyMerge.sources.sort(), ["git-tag", "github"]);
 	assert.equal(channels.channelLabel(catalogOnlyMerge), "CATALOG ONLY");
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sha256: "not-a-hash" }, release), null);
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sourceBranch: "unknown" }, release), null);
