@@ -302,6 +302,12 @@ function renderServerImage(
 		: typeof props.rounded === "string"
 			? props.rounded
 			: undefined;
+	const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+		? props.engineThemeStyles as Record<string, CSSProperties>
+		: undefined;
+	const imageThemeStyle = engineThemeStyles?.image ?? {};
+	const placeholderThemeStyle = engineThemeStyles?.placeholder;
+	const captionThemeStyle = engineThemeStyles?.caption ?? {};
 	const wrapperUserStyle = compileEngineStyles({}, collector, explicitStyle(props));
 	const wrapperStyle: CSSProperties = {
 		position: "relative",
@@ -317,8 +323,12 @@ function renderServerImage(
 			width: "100%",
 			height: aspectRatio ? "100%" : "auto",
 		} : {}),
-		objectFit: (props.objectFit as CSSProperties["objectFit"] | undefined) ?? "cover",
+		objectFit: (props.objectFit as CSSProperties["objectFit"] | undefined) ?? imageThemeStyle.objectFit ?? "cover",
 		display: "block",
+		...imageThemeStyle,
+		...(props.objectFit !== undefined ? { objectFit: props.objectFit as CSSProperties["objectFit"] } : {}),
+		position: "relative",
+		zIndex: 1,
 	};
 	const blurDataURL = typeof props.blurDataURL === "string" ? props.blurDataURL : undefined;
 	const sizing = fill
@@ -349,8 +359,21 @@ function renderServerImage(
 		image = <NextImage {...commonProps} quality={quality} style={imageStyle} />;
 	}
 
+	const hasPlaceholderTheme = placeholderThemeStyle && Object.keys(placeholderThemeStyle).length > 0;
 	const wrapper = (
-		<div key={compiled.id} {...debug} className={className} style={wrapperStyle}>
+		<div key={compiled.id} {...debug} className={["e-img-wrap", className].filter(Boolean).join(" ")} style={wrapperStyle}>
+			{hasPlaceholderTheme ? (
+				<div
+					aria-hidden="true"
+					className="e-img-placeholder"
+					style={{
+						...placeholderThemeStyle,
+						position: "absolute",
+						inset: 0,
+						zIndex: 0,
+					}}
+				/>
+			) : null}
 			{image}
 		</div>
 	);
@@ -358,7 +381,13 @@ function renderServerImage(
 	return (
 		<figure key={compiled.id} style={{ margin: 0, padding: 0 }}>
 			{wrapper}
-			<figcaption style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--e-caption-color, #64748b)", marginTop: "0.5rem" }}>
+			<figcaption style={{
+				textAlign: "center",
+				fontSize: "0.85rem",
+				color: "var(--e-caption-color, #64748b)",
+				marginTop: "0.5rem",
+				...captionThemeStyle,
+			}}>
 				{props.caption}
 			</figcaption>
 		</figure>
