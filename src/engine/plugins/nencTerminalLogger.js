@@ -76,7 +76,7 @@ function ansi(value, style, enabled = supportsColor()) {
 function colorizeLogLine(value, enabled = supportsColor()) {
 	const line = String(value ?? "");
 	if (!enabled) return line;
-	const match = line.match(/^(\[NENC\])\s+(DONE|FAILED|WARN|ERROR)?\s*(.*)$/i);
+	const match = line.match(/^(\[NENC\])\s+(DONE|FAILED|ERRORED|WARN|ERROR)?\s*(.*)$/i);
 	if (!match) return line;
 	const prefix = ansi(match[1], ANSI.cyan + ANSI.bold, enabled);
 	const normalizedLevel = String(match[2] || "").toUpperCase();
@@ -85,7 +85,7 @@ function colorizeLogLine(value, enabled = supportsColor()) {
 			: normalizedLevel === "WARN" ? ANSI.yellow + ANSI.bold
 			: ANSI.red + ANSI.bold, enabled) : "";
 	const message = match[3]
-		? " " + ansi(match[3], normalizedLevel === "FAILED" || normalizedLevel === "ERROR" ? ANSI.red : "", enabled)
+		? " " + ansi(match[3], normalizedLevel === "FAILED" || normalizedLevel === "ERRORED" || normalizedLevel === "ERROR" ? ANSI.red : "", enabled)
 		: "";
 	return prefix + level + message;
 }
@@ -429,7 +429,7 @@ function failWorkerTask(workerIndex, message) {
 	const state = getState();
 	const index = Number(workerIndex);
 	if (!Number.isInteger(index) || index < 0 || index >= 3 || !state.workerSlots[index]) return false;
-	failed(message);
+	errored(message);
 	state.workerSlots[index] = null;
 	publishWorkerStatus();
 	return true;
@@ -456,6 +456,15 @@ function done(message) {
 function failed(message) {
 	if (sendIPCEvent("failed", message, "engine")) return;
 	writeLine(formatFailedLine(message));
+}
+
+function formatErroredLine(message) {
+	return "[NENC] ERRORED " + cleanMessage(message);
+}
+
+function errored(message) {
+	if (sendIPCEvent("errored", message, "engine")) return;
+	writeLine(formatErroredLine(message));
 }
 
 function clearStatus(source) {
@@ -882,7 +891,9 @@ module.exports = {
 	dispatchCompilerLine,
 	done,
 	failed,
+	errored,
 	formatDoneLine,
+	formatErroredLine,
 	formatFailedLine,
 	formatStatusLine,
 	installNextBuildOutputBridge,
