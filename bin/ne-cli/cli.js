@@ -378,6 +378,9 @@ function resolveChainedCommand(executable, args, options = {}) {
 	const runtimePath = options.execPath ?? process.execPath;
 	const env = options.env ?? process.env;
 	const existsSync = options.existsSync ?? fs.existsSync;
+	if (/\.(?:cmd|bat)$/i.test(executable)) {
+		throw new Error("NE --and does not execute .cmd/.bat wrappers through a shell. Use a direct executable or the wrapper's JavaScript entry point.");
+	}
 	const basename = pathApi.basename(executable).replace(/\.(?:cmd|bat|exe)$/i, "").toLowerCase();
 	const hasExplicitPath = /[\\/]/.test(executable);
 	if (!hasExplicitPath && ["npm", "npx", "pnpm", "yarn"].includes(basename)) {
@@ -408,9 +411,6 @@ function resolveChainedCommand(executable, args, options = {}) {
 			throw new Error("NE cannot safely locate the JavaScript entry point for '" + basename + "' on Windows. Invoke a direct .exe or use 'node path/to/script.js'.");
 		}
 		return { executable: runtimePath, args: [scriptPath, ...args] };
-	}
-	if (/\.(?:cmd|bat)$/i.test(executable)) {
-		throw new Error("NE --and does not execute .cmd/.bat wrappers through a shell. Use a direct executable or the wrapper's JavaScript entry point.");
 	}
 	return { executable, args };
 }
