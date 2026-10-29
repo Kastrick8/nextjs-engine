@@ -17,6 +17,7 @@ const {
 	renderBannerLines,
 	summarizeNextOutputs,
 	formatCompiledSchemaLine,
+	formatSchemaSourcePath,
 	formatFontBuildSummary,
 	planThemeFontWork,
 } = require("../src/engine/compiler/gen3-build-compiler");
@@ -52,6 +53,8 @@ assert.equal(formatWorkerOperation("Downloading"), "Downloading:");
 assert.equal(formatWorkerOperation("Downloading: fonts: Inter"), "Downloading:");
 assert.equal(formatBytesPerSecond(8202), "8 KB/s");
 assert.equal(formatBytesPerSecond(239000), "239 KB/s");
+assert.equal(formatSchemaSourcePath("app/(marketing)/about/page.tsx"), "app/about/page.tsx",
+	"route group folders are omitted from human-facing completion paths");
 assert.equal(formatCompiledSchemaLine(
 	{ sourcePath: "app/work/page.tsx", pageId: "/work" },
 	{ summary: { clientIslands: 1, assetCount: 2 } },
