@@ -19,6 +19,74 @@ async function main() {
 	assert.equal(channels.compareVersions("2.7.0", "2.7.0"), 0);
 	assert.equal(channels.parseVersion("3.0.0.alpha.1"), null);
 
+	// The storefront catalog must enumerate every npm version, not just the latest tag.
+	const npmCatalog = channels.npmReleasesFromPackument({
+		name: "@kastrick/nextjs-engine",
+		"dist-tags": { latest: "2.7.0", alpha: "3.0.0-alpha.2", beta: "3.0.0-beta.1" },
+		time: {
+			"2.7.0": "2026-01-01T00:00:00.000Z",
+			"2.6.2": "2025-12-01T00:00:00.000Z",
+			"3.0.0-alpha.2": "2026-10-01T00:00:00.000Z",
+			"3.0.0-beta.1": "2026-10-02T00:00:00.000Z",
+		},
+		versions: {
+			"2.7.0": { name: "@kastrick/nextjs-engine", version: "2.7.0" },
+			"2.6.2": { name: "@kastrick/nextjs-engine", version: "2.6.2" },
+			"3.0.0-alpha.2": { name: "@kastrick/nextjs-engine", version: "3.0.0-alpha.2" },
+			"3.0.0-beta.1": { name: "@kastrick/nextjs-engine", version: "3.0.0-beta.1" },
+			"not-semver": { name: "@kastrick/nextjs-engine", version: "not-semver" },
+		},
+	});
+	assert.deepEqual(npmCatalog.map((item) => item.version).sort(), ["2.6.2", "2.7.0", "3.0.0-alpha.2", "3.0.0-beta.1"].sort());
+	assert.deepEqual(npmCatalog.find((item) => item.version === "2.7.0").npmDistTags, ["latest"]);
+	assert.equal(npmCatalog.find((item) => item.version === "3.0.0-alpha.2").installable, false);
+	assert.throws(() => channels.npmReleasesFromPackument({ name: "wrong-package", versions: {} }), /full package version catalog/);
+
+	const tagFixtures = [
+		{ ref: "refs/tags/package.2.7.0" },
+		{ ref: "refs/tags/package-alpha.3.0.0-alpha.2" },
+		{ ref: "refs/tags/package-beta.3.0.0-beta.1" },
+		{ ref: "refs/tags/package.latest" },
+		{ ref: "refs/tags/package-alpha.invalid" },
+	];
+	const parsedTags = tagFixtures.map(channels.packageTagToRelease);
+	assert.deepEqual(parsedTags.slice(0, 3).map((item) => item.version), ["2.7.0", "3.0.0-alpha.2", "3.0.0-beta.1"]);
+	assert.equal(parsedTags[0].installable, false);
+	assert.equal(parsedTags[3], null);
+	assert.equal(parsedTags[4], null);
+
+	const mergedCatalog = channels.normaliseCatalog([
+		...npmCatalog,
+		parsedTags[0],
+		{
+			version: "3.0.0-alpha.2",
+			track: "alpha",
+			channel: "alpha",
+			source: "github",
+			sourceLabel: "GitHub Release",
+			sourceBranch: "main-3",
+			sourceCommit: "a".repeat(40),
+			sha256: "b".repeat(64),
+			artifactUrl: "https://example.invalid/verified.tgz",
+			installSpec: "https://example.invalid/verified.tgz",
+			publishedAt: "2026-10-03T00:00:00.000Z",
+			installable: true,
+			floating: false,
+			gitTags: [],
+			npmDistTags: [],
+		},
+	]);
+	assert.equal(mergedCatalog.releases.filter((item) => item.version === "2.7.0").length, 1);
+	assert.equal(mergedCatalog.releases.find((item) => item.version === "2.7.0").isNpmPublished, true);
+	assert.equal(mergedCatalog.releases.find((item) => item.version === "2.7.0").isGitTagged, true);
+	const mergedAlpha = mergedCatalog.releases.find((item) => item.version === "3.0.0-alpha.2");
+	assert.equal(mergedAlpha.source, "github");
+	assert.equal(mergedAlpha.installable, true);
+	assert.deepEqual(mergedAlpha.sources.sort(), ["github", "npm"]);
+	assert.equal(channels.resolveRelease(mergedCatalog, { version: "3.0.0-alpha.2" }).source, "github");
+	assert.equal(channels.resolveRelease({ releases: [parsedTags[0]] }, { version: "2.7.0" }), null);
+	assert.equal(channels.channelLabel(parsedTags[0]), "TAG ONLY");
+
 	const greenContext = {
 		repo: "Kate-alt-69/nextjs-engine",
 		branch: "main-3",
