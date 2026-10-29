@@ -295,6 +295,66 @@ try {
 		path.basename(schemaOutputCachePath(root, "app/(marketing)/about/page.tsx", "/about")),
 	], "only the edited /about cache entry changes; /emd and /ec cache files remain byte-for-byte unchanged");
 
+	// A component error should fail only its own schema task. The CWs doing
+	// valid work finish, and a freed CW takes the next task from the shared queue.
+	const recoveryRoot = path.join(root, "worker-error-isolation");
+	const recoveryRoutes = [
+		["a-good", "Good A", false],
+		["b-broken", "Broken", true],
+		["c-good", "Good C", false],
+		["d-good", "Good D", false],
+	];
+	for (const [route, title, broken] of recoveryRoutes) {
+		const directory = path.join(recoveryRoot, "app", route);
+		fs.mkdirSync(directory, { recursive: true });
+		if (!broken) {
+			writeSimplePage(directory, title, "text");
+			continue;
+		}
+		fs.writeFileSync(path.join(directory, "page.tsx"), [
+			'import { createPage, defineSchema } from "nextjs-engine";',
+			'const pageSchema = defineSchema({',
+			'\tmeta: { title: "Broken component" },',
+			'\troot: { type: "text", props: { content: "broken", apiKey: "literal-secret-must-not-compile" } },',
+			'});',
+			'export default createPage({ schema: pageSchema });',
+			"",
+		].join("\n"));
+	}
+	const recoveryLogs = [];
+	const recoveryManifest = await compileProject(recoveryRoot, { log: (line) => recoveryLogs.push(line) });
+	assert.equal(recoveryManifest.summary.failedSchemaCount, 1, "one schema failure is isolated instead of aborting the compiler pass");
+	assert.equal(recoveryManifest.summary.failedTaskCount, 1, "the compiler pass reports the failed task");
+	assert.equal(recoveryManifest.summary.compiledPageCount, 3, "all successful pages remain in the output manifest");
+	assert.deepEqual(recoveryManifest.pages.map((page) => page.id).sort(), ["/a-good", "/c-good", "/d-good"],
+		"the failed schema is excluded while unrelated schema results remain available");
+	assert.equal(recoveryManifest.errors.length, 1, "the failed component remains as structured manifest diagnostics");
+	assert.equal(recoveryManifest.errors[0].pageId, "/b-broken", "the error identifies the failed route");
+	assert.equal(recoveryManifest.errors[0].componentType, "text", "the error identifies the component type");
+	assert.equal(recoveryManifest.errors[0].nodePath, "root", "the error identifies the component path");
+	assert.ok(recoveryLogs.some((line) => line.includes("ERRORED COMPONENT ERRORED app/b-broken/page.tsx -> /b-broken · text at root")),
+		"the failed component log names its source, route and component path");
+	for (const route of ["/a-good", "/c-good", "/d-good"]) {
+		assert.ok(recoveryLogs.some((line) => line.includes("DONE compiled app/" + route.slice(1) + "/page.tsx -> " + route)),
+			"successful CW work is logged for " + route);
+	}
+	const failedCacheFile = schemaOutputCachePath(recoveryRoot, "app/b-broken/page.tsx", "/b-broken");
+	assert.ok(!fs.existsSync(failedCacheFile), "a failed schema never writes a partial cache entry");
+	for (const route of ["a-good", "c-good", "d-good"]) {
+		assert.ok(fs.existsSync(schemaOutputCachePath(recoveryRoot, "app/" + route + "/page.tsx", "/" + route)),
+			"successful route cache survives adjacent component failure: " + route);
+	}
+	const recoveryInput = path.join(recoveryRoot, "worker-manifest.json");
+	fs.writeFileSync(recoveryInput, JSON.stringify(recoveryManifest));
+	const recoveryOutput = emitArtifacts(recoveryRoot, recoveryInput, "dist", {
+		nextVersion: "16.4.2",
+		buildId: "worker-error-recovery",
+		outputs: { appPages: [{ pathname: "/a-good" }, { pathname: "/c-good" }, { pathname: "/d-good" }], prerenders: [], staticFiles: [] },
+	});
+	const parsedRecovery = JSON.parse(fs.readFileSync(recoveryOutput, "utf8"));
+	assert.equal(parsedRecovery.pages.length, 3, "the post-build artifact remains valid and excludes only the failed schema");
+	assert.equal(parsedRecovery.errors.length, 1, "the valid artifact retains the error diagnostic for inspection");
+
 	const inputPath = path.join(root, "worker-manifest.json");
 	fs.writeFileSync(inputPath, JSON.stringify(manifest));
 	const nextBuildContext = {
