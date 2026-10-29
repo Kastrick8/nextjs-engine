@@ -412,12 +412,10 @@ function formatFontBuildSummary(stats) {
 	if (stats.downloadedFonts > 0) pieces.push(downloaded);
 	const reused = formatCount(stats.fontAssetsReused, "font asset") + " reused";
 	if (stats.fontAssetsReused > 0) pieces.push(reused);
-	const written = formatCount(stats.fontAssetsWritten, "font asset") + " written";
-	if (stats.fontAssetsWritten > 0) pieces.push(written);
 	const fallbacks = formatCount(stats.fallbackThemes, "stylesheet fallback");
 	if (fallbacks) pieces.push(fallbacks);
 	const bytes = Number(stats.downloadedBytes) || 0;
-	if (bytes > 0) pieces.push(formatFontBytes(bytes) + " downloaded");
+	if (bytes > 0) pieces.push(formatFontBytes(bytes) + " transferred");
 	return pieces.join(", ");
 }
 
@@ -750,16 +748,12 @@ async function compileProject(projectRoot, options = {}) {
 					},
 				});
 				if (!themeFontBuild.skipped && themeFontBuild.themeCount > 0) {
-					const summaryText = formatFontBuildSummary(themeFontBuild);
-					log("DONE ENGINE THEME FONTS — " + summaryText);
 					for (const warning of themeFontBuild.warnings) {
 						log("WARN ENGINE THEME FONT " + warning.themeId + " — " + warning.warning);
 					}
+					return { doneMessage: "EngineTheme fonts — " + formatFontBuildSummary(themeFontBuild) };
 				}
-				return {
-					doneMessage: themeFontBuild && !themeFontBuild.skipped && themeFontBuild.themeCount > 0
-						? "EngineTheme font work complete" : "EngineTheme font cache checked",
-				};
+				return { doneMessage: "" };
 			},
 		},
 	);
