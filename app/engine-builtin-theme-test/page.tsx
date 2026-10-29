@@ -24,7 +24,7 @@ const builtInTheme = createTheme({
 			option: { color: "#166534" },
 		},
 	},
-	image: { styles: { root: { borderRadius: "12px", backgroundColor: "#f1f5f9" }, image: { objectFit: "contain" } } },
+	image: { styles: { root: { borderRadius: "12px", backgroundColor: "#f1f5f9" }, image: { objectFit: "contain" }, placeholder: { backgroundColor: "#e5e7eb" }, caption: { color: "#334155" } } },
 	video: { styles: { root: { borderRadius: "12px", backgroundColor: "#0b1120" }, video: { objectFit: "contain" } } },
 });
 
@@ -57,7 +57,7 @@ export default createPage({
 						style: { borderRadius: "4px" },
 					},
 				},
-				{ type: "image", props: { src: "/next.svg", alt: "Themed fixture image", style: { borderRadius: "4px" } } },
+				{ type: "image", props: { src: "/next.svg", alt: "Themed fixture image", caption: "Themed image caption", style: { borderRadius: "4px" } } },
 				{ type: "video", props: { src: "/fixture.mp4", className: "themed-video", style: { borderRadius: "4px" } } },
 			],
 		},
