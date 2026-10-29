@@ -171,13 +171,14 @@ function renderProgressDots(progress, count = 14, useColor = supportsColor()) {
 	return dots.join("");
 }
 
-function formatWorkerPanel(slots, columns = process.stdout.columns || 100, useColor = supportsColor()) {
+function formatWorkerPanel(slots, columns = process.stdout.columns || 100, useColor = supportsColor(), fallbackStatus = "") {
 	const width = Math.max(36, Math.min(240, Math.floor(Number(columns) || 100)));
-	const line = "═".repeat(Math.max(0, width - 10));
-	const title = "════ NENC ";
-	const header = ansi(title, ANSI.cyan + ANSI.bold, useColor)
-		+ ansi(line.slice(0, Math.max(0, width - title.length)), ANSI.gray, useColor);
 	const current = Array.isArray(slots) ? slots : [];
+	const anyActive = current.some((slot) => slot && slot.target);
+	const statusLabel = !anyActive && fallbackStatus ? " · " + clip(cleanMessage(fallbackStatus), Math.max(0, width - 14)) : "";
+	const title = "════ NENC" + statusLabel + " ";
+	const header = ansi(title, ANSI.cyan + ANSI.bold, useColor)
+		+ ansi("═".repeat(Math.max(0, width - title.length)), ANSI.gray, useColor);
 	const rows = [header];
 	for (let index = 0; index < 3; index += 1) {
 		const slot = current[index];
@@ -203,34 +204,6 @@ function formatWorkerPanel(slots, columns = process.stdout.columns || 100, useCo
 			+ ansi(task, ANSI.brightGreen, useColor) + ansi(metric, slot.mode === "rate" ? ANSI.yellow + ANSI.bold : "", useColor));
 	}
 	return rows;
-}
-
-function planFontTask(artifacts) {
-	const families = new Set();
-	const themes = [];
-	for (const artifact of Array.isArray(artifacts) ? artifacts : []) {
-		if (!artifact || typeof artifact.content !== "string") continue;
-		let document;
-		try { document = JSON.parse(artifact.content); } catch { continue; }
-		const content = document && document.content;
-		if (!content || content.scope === "remote" || !Array.isArray(content.fonts)) continue;
-		const urls = content.fonts.filter((value) => typeof value === "string" && value.length > 0);
-		if (!urls.length) continue;
-		themes.push(artifact.id);
-		for (const value of urls) {
-			try {
-				const url = new URL(value);
-				for (const family of url.searchParams.getAll("family")) {
-					const name = family.split(":")[0].replace(/\+/g, " ").trim();
-					if (name) families.add(name);
-				}
-			} catch { /* A font URL is validated by the font compiler before any request. */ }
-		}
-	}
-	const familyNames = [...families];
-	const label = familyNames.length ? "fonts: " + familyNames.join(", ")
-		: "theme fonts: " + themes.join(", ");
-	return { themes, families: familyNames, label };
 }
 
 function formatWorkerMetric(slot) {
@@ -268,7 +241,7 @@ function paintStatus() {
 	if (!state.status || !supportsPinnedStatus()) return;
 	const rows = terminalRows();
 	const panelRows = Math.min(4, Math.max(1, rows - 1));
-	const rendered = formatWorkerPanel(state.workerSlots, process.stdout.columns || 100, supportsColor());
+	const rendered = formatWorkerPanel(state.workerSlots, process.stdout.columns || 100, supportsColor(), liveStatusText(state));
 	const lines = panelRows === rendered.length ? rendered : rendered.slice(rendered.length - panelRows);
 	const firstRow = rows - panelRows + 1;
 	state.painting = true;
@@ -318,8 +291,61 @@ function setStatus(message, source = "engine") {
 function publishWorkerStatus() {
 	const state = getState();
 	const status = formatWorkerStatus(state.workerSlots);
+	if (process.env.NENC_LOG_TRANSPORT === "ipc" && typeof process.send === "function") {
+		try {
+			process.send({
+				type: "nenc-log",
+				level: "workers",
+				message: status,
+				source: "workers",
+				workers: state.workerSlots.map((slot) => slot ? { ...slot } : null),
+			});
+			return;
+		} catch { /* Fall back to local status if IPC is unavailable. */ }
+	}
 	if (status) setStatus(status, "workers");
 	else clearStatus("workers");
+}
+
+function setWorkerSnapshot(slots) {
+	const state = getState();
+	state.workerSlots = new Array(3).fill(null);
+	if (Array.isArray(slots)) {
+		for (let index = 0; index < Math.min(3, slots.length); index += 1) {
+			const slot = slots[index];
+			if (!slot || typeof slot.target !== "string" || !slot.target) continue;
+			state.workerSlots[index] = {
+				operation: cleanMessage(slot.operation || "Working"),
+				target: cleanMessage(slot.target),
+				mode: slot.mode === "rate" ? "rate" : "percent",
+				progress: Number.isFinite(slot.progress) ? Math.max(0, Math.min(100, slot.progress)) : 0,
+				bytesPerSecond: Number.isFinite(slot.bytesPerSecond) ? Math.max(0, slot.bytesPerSecond) : 0,
+			};
+		}
+	}
+	const status = formatWorkerStatus(state.workerSlots);
+	if (!status) {
+		clearStatus("workers");
+		return;
+	}
+	state.statuses.workers = { message: status, sequence: ++state.statusSequence };
+	state.status = status;
+	state.source = "workers";
+	if (!supportsPinnedStatus()) return;
+	paintStatus();
+	if (!state.timer) {
+		state.timer = setInterval(paintStatus, STATUS_REFRESH_MS);
+		state.timer.unref?.();
+	}
+}
+
+function clearWorkerTask(workerIndex) {
+	const state = getState();
+	const index = Number(workerIndex);
+	if (!Number.isInteger(index) || index < 0 || index >= 3 || !state.workerSlots[index]) return false;
+	state.workerSlots[index] = null;
+	publishWorkerStatus();
+	return true;
 }
 
 function startWorkerTask(workerIndex, task = {}) {
@@ -424,6 +450,7 @@ function failed(message) {
 
 function clearStatus(source) {
 	const state = getState();
+	if (source === "workers") state.workerSlots.fill(null);
 	if (source === "nextjs") {
 		state.activeRoutes.clear();
 		state.routeBatchStartedAt = 0;
@@ -832,7 +859,8 @@ module.exports = {
 	renderProgressDots,
 	supportsColor,
 	colorizeLogLine,
-	planFontTask,
+	setWorkerSnapshot,
+	clearWorkerTask,
 	startWorkerTask,
 	allocateWorkerTask,
 	updateWorkerTask,
