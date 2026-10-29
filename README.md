@@ -398,5 +398,5 @@ Built by **Kate-alt-69** for the Kastrick platform © 2026. See the [LICENSE](./
 <p align="center"><a href="https://www.buymeacoffee.com/Kastrick">buymeacoffee.com/Kastrick</a></p>
 
 <p align="center">
-  <a href="https://www.buymeacoffee.com/Kastrick"><img src="./assets/buymeacoffee-kastrick-qr.png" alt="QR code linking to Kastrick's Buy Me a Coffee page" width="320" /></a>
+  <a href="https://www.buymeacoffee.com/Kastrick"><img src="./assets/qr-code.png" alt="QR code linking to Kastrick's Buy Me a Coffee page" width="320" /></a>
 </p>
