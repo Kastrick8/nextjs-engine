@@ -6,7 +6,8 @@ Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, 
 
 **Current Gen 3 source version:** `3.0.0-alpha.1` (`main-3/package.json`)  
 **Rolling Alpha channel:** [Nextjs Engine Latest Alpha](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/channel-alpha-latest) — currently labelled `3.0.0-alpha.1`; this channel can advance after a newer `main-3` commit passes the release gates.  
-**Next numbered alpha target:** `3.0.0-alpha.2` — the next version in the numbered alpha sequence; it is not yet the version declared by `main-3/package.json`, and no alpha.2 release-note file is present on that branch.  
+**Numbered alpha archive:** `3.0.0-alpha.2` now exists under `package/main`; the current `main-3/package.json` and moving GitHub Alpha channel still identify `3.0.0-alpha.1`.  
+**Alpha.2 archive snapshot:** [package manifest](https://github.com/Kate-alt-69/nextjs-engine/blob/package/main/alpha/version/3.alpha/version/3.0.0-alpha.2/package.json) · [snapshot provenance](https://github.com/Kate-alt-69/nextjs-engine/blob/package/main/alpha/version/3.alpha/version/3.0.0-alpha.2/UPSTREAM.md)  
 **Alpha.1 release notes:** [`docs/release/NE-v3-0-0-alpha-1.md`](./docs/release/NE-v3-0-0-alpha-1.md)  
 **Latest published stable release:** [NE v2.6.2](https://github.com/Kate-alt-69/nextjs-engine/releases/tag/Release-v2.6.2)  
 **Latest prepared v2 patch notes:** [`docs/release/NE-v2-6-2.md`](./docs/release/NE-v2-6-2.md)  
@@ -104,9 +105,9 @@ The repository separates the Generation 2 and Generation 3 source lines from the
 |---|---|
 | `3.0.0-alpha.1` | The version currently declared by `main-3/package.json` and the existing archive snapshot. The archived manifest lists `engine`, `docs`, `DOCUMENT.md`, `README.md`, and `index.ts`; it does **not** declare the `ne` CLI binary. |
 | `channel-alpha-latest` | The moving GitHub prerelease channel currently titled **Nextjs Engine Latest Alpha (3.0.0-alpha.1)**. It is not a permanent version pin and can point at a newer validated alpha commit later. |
-| `3.0.0-alpha.2` | The next numbered alpha target, **not yet created or published as a numbered snapshot**. A new source commit must declare this version and pass the release gates before a new immutable snapshot is created. Because `main-3/content.include` now lists `bin/`, that new snapshot can package the NE CLI and its `bin` metadata; the existing alpha.1 snapshot will not be rewritten to add it. |
+| `3.0.0-alpha.2` | An immutable snapshot **exists in `package/main`** and includes `bin/` plus the `ne` executable mapping. However, the current `main-3/package.json` and `channel-alpha-latest` still identify `3.0.0-alpha.1`. Treat alpha.2 as an archived snapshot, not the current rolling channel; verify npm publication before relying on registry availability. No alpha.2 release-note file is present on `main-3`. |
 
-A numbered source release is prepared from an exact, pinned source commit. The publishing workflow checks the requested version against that commit's `package.json`, validates the commit against its source branch, prepares the package snapshot, and gates publication on the relevant checks. Versioned snapshots are intended to be immutable: advancing `main-3` does not rewrite an already-created alpha.1 package into alpha.2.
+A numbered source release is prepared from an exact, pinned source commit. The publishing workflow checks the requested version against that commit's `package.json`, validates the commit against its source branch, prepares the package snapshot, and gates publication on the relevant checks. Versioned snapshots are intended to be immutable: advancing `main-3` does not rewrite alpha.1 into alpha.2. The current branch manifest, archived alpha.2 snapshot and rolling release channel are not yet aligned; use the source manifest and release metadata together when determining which version is ready for a new installation.
 
 ### How `content.include` works
 
