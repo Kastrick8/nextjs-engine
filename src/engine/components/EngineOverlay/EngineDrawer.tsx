@@ -83,8 +83,20 @@ export const EngineDrawer = memo(function EngineDrawer({
 				<>
 					<div
 						ref={backdropRef}
+						data-engine-overlay-backdrop={panelId}
 						aria-hidden="true"
-						style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`, ...engineOverlayTheme?.styles?.backdrop, ...overlayStyle, ...(transitionMs === 0 ? { transition: "none" } : {}), zIndex: `var(--e-overlay-stack-z, ${zIndex})` } as React.CSSProperties}
+						style={{
+							position: "fixed",
+							inset: 0,
+						background: "rgba(2,6,23,.5)",
+						backdropFilter: "blur(4px)",
+						...engineOverlayTheme?.styles?.backdrop,
+						...overlayStyle,
+						// Keep animated open/close state authoritative over backdrop styles.
+						opacity: active ? 1 : 0,
+						transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
+						zIndex: `var(--e-overlay-stack-z, ${zIndex})`,
+					} as React.CSSProperties}
 						onPointerDown={() => {
 							if (closeOnBackdrop && isTopOverlay(panelId)) close();
 						}}
