@@ -346,14 +346,101 @@ function serializeWorkerValue(value) {
 	return value;
 }
 
+function formatCount(value, singular, plural = singular + "s") {
+	const count = Number(value);
+	if (!Number.isFinite(count) || count <= 0) return "";
+	return String(count) + " " + (count === 1 ? singular : plural);
+}
+
+function formatCompiledSchemaLine(job, page, metadata = {}, moduleCount) {
+	const pieces = [];
+	const modules = Number(moduleCount);
+	if (Number.isFinite(modules) && modules > 0) pieces.push(formatCount(modules, "module"));
+	if (Number.isFinite(metadata.durationMs) && metadata.durationMs >= 0) pieces.push(metadata.durationMs + "ms");
+	const summary = page && page.summary && typeof page.summary === "object" ? page.summary : {};
+	const islands = formatCount(summary.clientIslands, "client island");
+	const assets = formatCount(summary.assetCount, "asset");
+	if (islands) pieces.push(islands);
+	if (assets) pieces.push(assets);
+	const sourcePath = typeof job.sourcePath === "string" && job.sourcePath ? job.sourcePath : job.pageId;
+	return "compiled " + sourcePath + " -> " + job.pageId + (pieces.length ? " · " + pieces.join(" · ") : "");
+}
+
+function planThemeFontWork(artifacts) {
+	const families = new Set();
+	const themes = [];
+	for (const artifact of Array.isArray(artifacts) ? artifacts : []) {
+		if (!artifact || typeof artifact.content !== "string") continue;
+		let document;
+		try { document = JSON.parse(artifact.content); } catch { continue; }
+		const content = document && document.content;
+		if (!content || content.scope === "remote" || !Array.isArray(content.fonts)) continue;
+		const urls = content.fonts.filter((value) => typeof value === "string" && value.length > 0);
+		if (!urls.length) continue;
+		themes.push(artifact.id);
+		for (const value of urls) {
+			try {
+				const url = new URL(value);
+				for (const family of url.searchParams.getAll("family")) {
+					const name = family.split(":")[0].replace(/\+/g, " ").trim();
+					if (name) families.add(name);
+				}
+			} catch { /* The font compiler validates the URL before requesting it. */ }
+		}
+	}
+	const names = [...families];
+	return {
+		themes,
+		families: names,
+		target: names.length ? names.join(", ") : themes.join(", "),
+		label: names.length ? "fonts: " + names.join(", ") : "theme fonts: " + themes.join(", "),
+	};
+}
+
+function formatFontBytes(value) {
+	const bytes = Number.isFinite(value) ? Math.max(0, value) : 0;
+	if (bytes >= 1024 * 1024) return (Math.round((bytes / (1024 * 1024)) * 10) / 10) + " MB";
+	if (bytes >= 1024) return Math.round(bytes / 1024) + " KB";
+	return Math.round(bytes) + " B";
+}
+
+function formatFontBuildSummary(stats) {
+	const pieces = [];
+	const themes = formatCount(stats.themeCount, "theme");
+	if (themes) pieces.push(themes);
+	const downloaded = formatCount(stats.downloadedFonts, "font") + " downloaded";
+	if (stats.downloadedFonts > 0) pieces.push(downloaded);
+	const reused = formatCount(stats.fontAssetsReused, "font asset") + " reused";
+	if (stats.fontAssetsReused > 0) pieces.push(reused);
+	const written = formatCount(stats.fontAssetsWritten, "font asset") + " written";
+	if (stats.fontAssetsWritten > 0) pieces.push(written);
+	const fallbacks = formatCount(stats.fallbackThemes, "stylesheet fallback");
+	if (fallbacks) pieces.push(fallbacks);
+	const bytes = Number(stats.downloadedBytes) || 0;
+	if (bytes > 0) pieces.push(formatFontBytes(bytes) + " downloaded");
+	return pieces.join(", ");
+}
+
 function compileSchemaJobs(jobs, options = {}) {
-	if (!jobs.length) return Promise.resolve([]);
-	const workerCount = Math.min(3, jobs.length);
+	const externalJobs = Array.isArray(options.externalJobs) ? options.externalJobs : [];
+	const totalTasks = jobs.length + externalJobs.length;
+	if (!totalTasks) return Promise.resolve([]);
+	const workerCount = Math.min(3, totalTasks);
 	const log = typeof options.log === "function" ? options.log : dispatchTerminalLog;
 	const showWorkerStatus = options.showWorkerStatus !== false;
 
 	return new Promise((resolve, reject) => {
-		const queue = [...jobs];
+		// Construct the full deterministic task list before dispatching any work.
+		// Slots take the next available task regardless of task type, so fonts are
+		// not pinned to a particular CW number.
+		const queue = [
+			...jobs.map((job) => ({ ...job, taskType: "schema" })),
+			...externalJobs.map((job, index) => ({
+				...job,
+				taskType: "external",
+				taskId: job.taskId || "external-" + index,
+			})),
+		];
 		const results = new Array(jobs.length);
 		const workers = Array.from({ length: workerCount }, () => new Worker(path.join(__dirname, "schema-worker.compiler.js")));
 		const slots = workers.map((worker, index) => ({ worker, index, job: null, online: false }));
@@ -364,8 +451,15 @@ function compileSchemaJobs(jobs, options = {}) {
 			return Promise.all(workers.map((worker) => worker.terminate().catch(() => undefined)));
 		}
 
+		function completeTask(slot) {
+			slot.job = null;
+			completed += 1;
+			if (completed === totalTasks) settleSuccess();
+			else dispatch(slot);
+		}
+
 		function settleSuccess() {
-			if (settled || completed !== jobs.length) return;
+			if (settled || completed !== totalTasks) return;
 			settled = true;
 			if (showWorkerStatus) nencLogger.clearStatus("workers");
 			stopWorkers().then(() => resolve(results));
@@ -376,11 +470,12 @@ function compileSchemaJobs(jobs, options = {}) {
 			settled = true;
 			for (const slot of slots) {
 				if (!slot.job || !showWorkerStatus) continue;
-				const label = slot.job.pageId;
+				const label = slot.job.pageId || slot.job.target || slot.job.taskId;
+				const action = slot.job.taskType === "external" ? (slot.job.operation || "work") : "compile";
 				if (slot === failedSlot) {
-					nencLogger.failWorkerTask(slot.index, "compile " + label + " — " + (error instanceof Error ? error.message : String(error)));
+					nencLogger.failWorkerTask(slot.index, action + " " + label + " — " + (error instanceof Error ? error.message : String(error)));
 				} else {
-					nencLogger.failWorkerTask(slot.index, "compile " + label + " — worker pool stopped");
+					nencLogger.failWorkerTask(slot.index, action + " " + label + " — worker pool stopped");
 				}
 			}
 			stopWorkers().then(() => reject(error instanceof Error ? error : new Error(String(error))));
@@ -394,6 +489,34 @@ function compileSchemaJobs(jobs, options = {}) {
 				return;
 			}
 			slot.job = job;
+			if (job.taskType === "external") {
+				if (showWorkerStatus) {
+					nencLogger.startWorkerTask(slot.index, {
+						operation: job.operation || "Working",
+						target: job.target || job.pageId || job.taskId,
+						mode: job.mode === "rate" ? "rate" : "percent",
+						progress: Number.isFinite(job.progress) ? job.progress : 0,
+						bytesPerSecond: Number.isFinite(job.bytesPerSecond) ? job.bytesPerSecond : 0,
+					});
+				}
+				Promise.resolve().then(() => job.run({
+					workerIndex: slot.index,
+					update: (update) => showWorkerStatus && nencLogger.updateWorkerTask(slot.index, update),
+					log,
+				})).then((result) => {
+					if (settled) return;
+					const doneMessage = typeof job.formatDone === "function"
+						? job.formatDone(result) : (result && result.doneMessage) || job.doneMessage;
+					if (doneMessage) {
+						if (showWorkerStatus) nencLogger.finishWorkerTask(slot.index, doneMessage);
+						if (typeof options.log === "function") log("DONE " + doneMessage);
+					}
+					if (typeof job.onComplete === "function") job.onComplete(result);
+					completeTask(slot);
+				}, (error) => fail(error, slot));
+				return;
+			}
+
 			if (showWorkerStatus) {
 				nencLogger.startWorkerTask(slot.index, {
 					operation: "Compiling",
@@ -422,7 +545,8 @@ function compileSchemaJobs(jobs, options = {}) {
 				dispatch(slot);
 			});
 			slot.worker.on("message", (message) => {
-				if (settled || !slot.job || !message || message.taskId !== slot.job.taskId) return;
+				if (settled || !slot.job || slot.job.taskType !== "schema"
+					|| !message || message.taskId !== slot.job.taskId) return;
 				const job = slot.job;
 				if (message.type === "progress") {
 					if (showWorkerStatus) nencLogger.updateWorkerTask(slot.index, { progress: message.progress });
@@ -454,22 +578,19 @@ function compileSchemaJobs(jobs, options = {}) {
 						// A cache callback is an optimization and must not fail the compilation.
 					}
 				}
-				if (showWorkerStatus) {
-					nencLogger.finishWorkerTask(slot.index, "compiled " + job.pageId
-						+ " (" + message.durationMs + "ms, " + message.nodeCount + " nodes)");
-				}
-				if (typeof options.log === "function") {
-					log("DONE COMPILED " + job.pageId + " — " + message.nodeCount + " nodes in " + message.durationMs + "ms");
-				}
-				slot.job = null;
-				completed += 1;
-				if (completed === jobs.length) settleSuccess();
-				else dispatch(slot);
+				const moduleCount = options.moduleCountByRoute instanceof Map
+					? options.moduleCountByRoute.get(job.pageId) : undefined;
+				const doneMessage = formatCompiledSchemaLine(job, message.page, { durationMs: message.durationMs }, moduleCount);
+				if (showWorkerStatus) nencLogger.finishWorkerTask(slot.index, doneMessage);
+				if (typeof options.log === "function") log("DONE " + doneMessage);
+				completeTask(slot);
 			});
 			slot.worker.on("error", (error) => fail(error, slot));
 			slot.worker.on("exit", (code) => {
 				if (!settled && code !== 0) fail(new Error("NENC schema worker exited with code " + code), slot);
-				else if (!settled && slot.job) fail(new Error("NENC schema worker exited before completing " + slot.job.pageId), slot);
+				else if (!settled && slot.job && slot.job.taskType === "schema") {
+					fail(new Error("NENC schema worker exited before completing " + slot.job.pageId), slot);
+				}
 			});
 		}
 	});
@@ -519,16 +640,6 @@ async function compileProject(projectRoot, options = {}) {
 		log("DONE ENGINE THEME ARTIFACTS — " + themeBuild.artifacts.length
 			+ " theme group(s), " + themeBuild.createdCount + " created, " + themeBuild.updatedCount
 			+ " updated, " + themeBuild.unchangedCount + " unchanged, " + themeBuild.removedCount + " stale removed");
-	}
-
-	const themeFontBuild = await compileEngineThemeFonts(resolvedRoot, themeBuild.artifacts);
-	if (!themeFontBuild.skipped && themeFontBuild.themeCount > 0) {
-		log("DONE ENGINE THEME FONTS — " + themeFontBuild.themeCount + " theme(s), "
-			+ themeFontBuild.downloadedFonts + " downloaded, " + themeFontBuild.fontAssetsReused + " reused, "
-			+ themeFontBuild.fallbackThemes + " stylesheet fallback(s)");
-		for (const warning of themeFontBuild.warnings) {
-			log("WARN ENGINE THEME FONT " + warning.themeId + " — " + warning.warning);
-		}
 	}
 
 	const moduleAnalysis = analyzeProjectModules(resolvedRoot, {
@@ -601,9 +712,62 @@ async function compileProject(projectRoot, options = {}) {
 		});
 	}
 
+	const moduleCountByRoute = new Map(moduleAnalysis.routes.map((route) => [route.routePath, route.engineModuleCount]));
+	const externalJobs = [];
+	let themeFontBuild;
+	const fontPlan = planThemeFontWork(themeBuild.artifacts);
+	if (process.env.NODE_ENV === "production" && fontPlan.themes.length > 0) {
+		externalJobs.push({
+			taskId: "engine-theme-fonts",
+			pageId: fontPlan.label,
+			operation: "Preparing fonts",
+			target: fontPlan.target,
+			mode: "percent",
+			progress: 0,
+			run: async ({ update }) => {
+				themeFontBuild = await compileEngineThemeFonts(resolvedRoot, themeBuild.artifacts, {
+					onTaskProgress(event) {
+						update({
+							operation: event.operation || "Preparing fonts",
+							target: event.target || fontPlan.target,
+							mode: "percent",
+							progress: event.progress,
+						});
+					},
+					onDownloadProgress(event) {
+						update({
+							operation: "Downloading",
+							target: event.target || fontPlan.label,
+							mode: "rate",
+							bytesPerSecond: event.bytesPerSecond,
+						});
+					},
+					onDownloadDone(event) {
+						const parts = [formatFontBytes(event.bytes), event.elapsedMs + "ms"];
+					if (event.bytesPerSecond > 0) parts.push(nencLogger.formatBytesPerSecond(event.bytesPerSecond));
+					const fileLabel = event.family + (event.extension ? "." + event.extension : "");
+					nencLogger.done("Downloaded font: " + fileLabel + " " + parts.join(" · "));
+					},
+				});
+				if (!themeFontBuild.skipped && themeFontBuild.themeCount > 0) {
+					const summaryText = formatFontBuildSummary(themeFontBuild);
+					log("DONE ENGINE THEME FONTS — " + summaryText);
+					for (const warning of themeFontBuild.warnings) {
+						log("WARN ENGINE THEME FONT " + warning.themeId + " — " + warning.warning);
+					}
+				}
+				return {
+					doneMessage: themeFontBuild && !themeFontBuild.skipped && themeFontBuild.themeCount > 0
+						? "EngineTheme font work complete" : "EngineTheme font cache checked",
+				};
+			},
+		},
+	);
 	const workerPages = await compileSchemaJobs(workerJobs, {
 		log,
 		showWorkerStatus: typeof options.log !== "function",
+		externalJobs,
+		moduleCountByRoute,
 		onResult(job, page, metadata) {
 			if (schemaOutputCache.write(job, job.fingerprint, page, metadata)) {
 				schemaCacheWriteCount += 1;
@@ -819,6 +983,10 @@ if (require.main === module) {
 module.exports = {
 	BUILTIN_NODE_TYPES,
 	compileProject,
+	formatCompiledSchemaLine,
+	formatFontBuildSummary,
+	formatFontBytes,
+	planThemeFontWork,
 	emitArtifacts,
 	logEvent,
 	ASCII_WORDMARK,
