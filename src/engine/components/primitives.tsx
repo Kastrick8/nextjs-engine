@@ -450,7 +450,7 @@ export const EngineHeading = memo(function EngineHeading({
 					variant="lead"
 					color="var(--e-muted, #64748b)"
 					mt="0.5rem"
-					{...engineThemeStyles?.subheading}
+					{...(engineThemeStyles?.subheading as any)}
 					{...subheadingProps}
 				>
 					{subheading}
