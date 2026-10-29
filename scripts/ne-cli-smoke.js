@@ -258,6 +258,26 @@ async function main() {
 	assert.throws(() => cli.resolveChainedCommand("npm.cmd", ["test"], {
 		platform: "win32",
 	}), /does not execute .* wrappers through a shell/);
+	const windowsUpdaterNpmScript = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
+	assert.deepEqual(project.resolveProcessInvocation("npm", ["install", "--save-exact", "next"], {
+		platform: "win32",
+		execPath: windowsNode,
+		existsSync: (candidate) => candidate === windowsUpdaterNpmScript,
+	}), {
+		command: windowsNode,
+		args: [windowsUpdaterNpmScript, "install", "--save-exact", "next"],
+	});
+	assert.throws(() => project.resolveProcessInvocation("npm.cmd", ["install"], {
+		platform: "win32",
+	}), /does not execute .* wrappers through a shell/);
+	assert.throws(() => project.resolveProcessInvocation("pnpm", ["install"], {
+		platform: "win32",
+		execPath: windowsNode,
+		existsSync: () => false,
+	}), /could not locate the JavaScript entry point/);
+	assert.deepEqual(project.resolveProcessInvocation("bun", ["install"], {
+		platform: "win32",
+	}), { command: "bun", args: ["install"] });
 	assert.deepEqual(cli.tokenizeCommand('npm run "with space"'), ["npm", "run", "with space"]);
 	assert.throws(() => cli.tokenizeCommand("git status && npm test"), /shell operators are not supported/);
 	assert.throws(() => cli.tokenizeCommand("node -e 'unterminated"), /unterminated quoted argument/);
@@ -420,7 +440,7 @@ async function main() {
 	} finally {
 		fs.rmSync(temp, { recursive: true, force: true });
 	}
-	process.stdout.write("Gen 3 NE CLI smoke assertions passed.\n");
+	process.stdout.write("NE CLI smoke assertions passed.\n");
 }
 
 main().catch((error) => {
