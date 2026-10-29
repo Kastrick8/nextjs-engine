@@ -29,6 +29,10 @@ const builtInTheme = createTheme({
 		},
 	},
 	link: { styles: { root: { color: "#0e7490", textDecoration: "none" } } },
+	text: { styles: { part: { color: "#0f766e", fontWeight: 600 }, partLink: { color: "#7c3aed", textDecoration: "none" } } },
+	spacer: { styles: { root: { backgroundColor: "#e0f2fe" } } },
+	divider: { styles: { root: { backgroundColor: "#fef3c7" } } },
+	scroll: { styles: { root: { backgroundColor: "#fce7f3" } } },
 	"custom-select": {
 		styles: {
 			root: { maxWidth: "320px" },
@@ -61,6 +65,18 @@ export default createPage({
 					props: { id: "themed-nav", items: [{ label: "Overview", href: "/engine-compat-test" }] },
 				},
 				{ type: "link", props: { href: "/engine-compat-test", content: "Themed link" } },
+				{ type: "EngineLink", props: { id: "themed-alias-link", href: "/engine-compat-test", content: "Themed alias link" } },
+				{
+					type: "text",
+					props: {
+						id: "themed-text-parts",
+						parts: [
+							{ text: "Themed part" },
+							{ text: "Themed link part", href: "/engine-compat-test" },
+							{ text: "Local override link", href: "/engine-compat-test", style: { color: "#dc2626" } },
+						],
+					},
+				},
 				{
 					type: "custom-select",
 					props: {
@@ -86,6 +102,13 @@ export default createPage({
 				},
 				{ type: "heading", props: { id: "themed-heading", content: "Themed heading", subheading: "A themed subheading" } },
 				{ type: "slot", props: { id: "themed-slot", name: "missing-themed-slot", fallback: { type: "text", props: { content: "Themed slot fallback" } } } },
+				{ type: "spacer", props: { id: "themed-spacer", axis: "x", size: "12px" } },
+				{ type: "divider", props: { id: "themed-divider", style: "dashed", thickness: "2px", color: "#f97316", my: "4px" } },
+				{
+					type: "scroll",
+					props: { id: "themed-scroll", pageTransition: false },
+					children: [{ type: "text", props: { content: "Themed scroll content" } }],
+				},
 			],
 		},
 	},
