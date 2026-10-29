@@ -112,8 +112,8 @@ const workerTaskPlan = createWorkerTaskPlan(
 	[{ taskId: "font-download", operation: "Downloading", target: "Inter.woff2" }],
 );
 assert.deepEqual(workerTaskPlan.map((task) => task.taskType + ":" + task.taskId), [
-	"external:font-download", "schema:schema-work", "schema:schema-about",
-], "one static queue schedules downloads and schemas through the same available CW slots");
+	"schema:schema-work", "external:font-download", "schema:schema-about",
+], "one interleaved static queue schedules downloads and schemas through the same available CW slots");
 
 async function main() {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
