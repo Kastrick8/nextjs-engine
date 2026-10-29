@@ -128,6 +128,8 @@ function getHelp() {
 		"  ne update --channel latest-green",
 		"  ne update --version 3.0.0-alpha.2",
 		"  ne rollback           Restore the previous dependency and lockfiles",
+		"  --and=<command>       Run one executable and its arguments after NE completes",
+		"                        Shell operators are rejected; repeat --and for multiple commands",
 		"  ne help               Show this help",
 		"",
 		"Channels:",
@@ -319,20 +321,80 @@ async function runDashboardAction(root, action) {
 	throw new Error("Unknown dashboard action: " + action);
 }
 
+function tokenizeCommand(command) {
+	if (typeof command !== "string" || !command.trim()) {
+		throw new Error("--and requires a command.");
+	}
+	const tokens = [];
+	let token = "";
+	let tokenStarted = false;
+	let quote = null;
+	for (let index = 0; index < command.length; index += 1) {
+		const character = command[index];
+		if (character === "\n" || character === "\r" || character === "\0") {
+			throw new Error("--and does not accept line breaks or NUL bytes.");
+		}
+		if (quote !== null) {
+			if (character === quote) {
+				quote = null;
+				tokenStarted = true;
+				continue;
+			}
+			if (character === "\\" && quote === "\"\"" && ["\\"", "\\"].includes(command[index + 1])) {
+				token += command[index + 1];
+				index += 1;
+				tokenStarted = true;
+				continue;
+			}
+			token += character;
+			tokenStarted = true;
+			continue;
+		}
+		if (character === "'" || character === "\"\"") {
+			quote = character;
+			tokenStarted = true;
+			continue;
+		}
+		if (/\s/.test(character)) {
+			if (tokenStarted) {
+				tokens.push(token);
+				token = "";
+				tokenStarted = false;
+			}
+			continue;
+		}
+		if (/[;&|<>\x60]/.test(character)) {
+			throw new Error("--and runs one executable at a time without a shell; shell operators are not supported. Use repeated --and options for sequential commands.");
+		}
+		if (character === "\\" && index + 1 < command.length &&
+			(/\s/.test(command[index + 1]) || ["'", "\"\"", "\\"].includes(command[index + 1]))) {
+			token += command[index + 1];
+			index += 1;
+			tokenStarted = true;
+			continue;
+		}
+		token += character;
+		tokenStarted = true;
+	}
+	if (quote !== null) throw new Error("--and contains an unterminated quoted argument.");
+	if (tokenStarted) tokens.push(token);
+	if (!tokens.length || !tokens[0]) throw new Error("--and requires an executable.");
+	return tokens;
+}
+
 async function runChainedCommands(root, options) {
 	const commands = options.andCommands || [];
 	const height = options.andTerminal || 5;
 	for (let index = 0; index < commands.length; index += 1) {
 		const command = commands[index];
+		const [executable, ...args] = tokenizeCommand(command);
 		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + command + " [viewport: " + height + " rows]\n");
 		await new Promise((resolve, reject) => {
-			const isWindows = process.platform === "win32";
-			const executable = isWindows ? (process.env.ComSpec || "cmd.exe") : "/bin/sh";
-			const args = isWindows ? ["/d", "/s", "/c", command] : ["-lc", command];
 			const child = require("node:child_process").spawn(executable, args, {
 				cwd: root,
 				env: process.env,
 				windowsHide: true,
+				shell: false,
 				stdio: ["inherit", "pipe", "pipe"],
 			});
 			let output = "";
@@ -400,4 +462,5 @@ module.exports = {
 	listChannels,
 	main,
 	runChainedCommands,
+	tokenizeCommand,
 };
