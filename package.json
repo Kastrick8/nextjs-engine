@@ -1,6 +1,6 @@
 {
 	"name": "nextjs-engine",
-	"version": "2.6.2",
+	"version": "2.7.0",
 	"private": false,
 	"scripts": {
 		"build": "npm run type-check && next build",
@@ -8,7 +8,9 @@
 		"start": "next start",
 		"type-check": "tsc --noEmit",
 		"test:browser": "playwright test",
-		"clear": "pwsh -Command \"clear; Remove-Item ./.next, ./dist, -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item tsconfig.tsbuildinfo -Force -ErrorAction SilentlyContinue\""
+		"clear": "pwsh -Command \"clear; Remove-Item ./.next, ./dist, -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item tsconfig.tsbuildinfo -Force -ErrorAction SilentlyContinue\"",
+		"ne": "node ./bin/ne.js",
+		"test:cli": "node scripts/ne-cli-smoke.js"
 	},
 	"dependencies": {
 		"next": "^16.3.3",
@@ -25,5 +27,8 @@
 		"@types/react-dom": "^19.0.0",
 		"@types/three": "^0.185.0",
 		"typescript": "^5.3.0"
+	},
+	"bin": {
+		"ne": "./bin/ne.js"
 	}
 }
