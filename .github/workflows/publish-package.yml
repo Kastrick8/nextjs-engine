@@ -320,7 +320,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("source/package.json","utf8")); if(typeof p.version!=="string"||!p.version) process.exit(1); process.stdout.write(p.version)')"
-          if [[ -n "$INPUT_VERSION" && "$INPUT_VERSION" != "$VERSION" ]]; then
+          if [[ -n "${INPUT_VERSION:-}" && "${INPUT_VERSION:-}" != "$VERSION" ]]; then
             echo "Requested version $INPUT_VERSION does not match the pinned source package.json version $VERSION." >&2
             exit 1
           fi
