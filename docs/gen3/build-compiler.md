@@ -37,7 +37,7 @@ CW3  Downloading: fonts: Inter, JetBrains Mono  239 KB/s
 
 The sample numbers above illustrate the output format; the logger prints real node progress, byte counts, elapsed times, and transfer rates from the active work. Failed tasks use a red `[NENC] ERRORED ...` line and do not suppress other CW completion records.
 
-A resolved Engine import logs its source path. An Engine symbol coming from an installed package or an unresolved source alias uses a stable import name such as `@engine/EngineCanvas`. Module completion means Engine's dependency/usage metadata is ready; it does **not** mean Engine emits a replacement JS chunk. The imported code continues through Next.js as usual. Schema jobs are the work that NENC parallelizes; Next.js remains the owner of JS/TSX transformation, React Server Component boundaries, bundling, and final JavaScript/CSS output.
+A resolved Engine import logs its source path. An Engine symbol coming from an installed package or an unresolved source alias uses a stable import name such as `@engine/EngineCanvas`. Module completion means Engine's dependency/usage metadata is ready; it does **not** mean Engine emits a replacement JS chunk. The imported code continues through Next.js as usual. Schema-compilation jobs run on Node worker threads; download/fetch jobs share the same three CW scheduling slots and report live transfer metrics while using async I/O. Next.js remains the owner of JS/TSX transformation, React Server Component boundaries, bundling, and final JavaScript/CSS output.
 
 ## Mirroring Next.js build activity
 
