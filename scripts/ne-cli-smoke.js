@@ -232,9 +232,14 @@ async function main() {
 	assert.equal(args.options.yes, true);
 	assert.deepEqual(args.options.andCommands, ["git status", "npm test"]);
 	assert.equal(args.options.andTerminal, 10);
+	assert.deepEqual(cli.tokenizeCommand("git status --short"), ["git", "status", "--short"]);
+	assert.deepEqual(cli.tokenizeCommand('npm run "with space"'), ["npm", "run", "with space"]);
+	assert.throws(() => cli.tokenizeCommand("git status && npm test"), /shell operators are not supported/);
+	assert.throws(() => cli.tokenizeCommand("node -e 'unterminated"), /unterminated quoted argument/);
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
 	assert.match(cli.getHelp(), /ne update --channel/);
+	assert.match(cli.getHelp(), /Shell operators are rejected/);
 
 	const dashboard = terminal.renderDashboard(2, {
 		projectName: "demo",
