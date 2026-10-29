@@ -187,7 +187,7 @@ function formatWorkerPanel(slots, columns = process.stdout.columns || 100, useCo
 			rows.push(ansi(label, ANSI.cyan + ANSI.bold, useColor) + " " + ansi("Idle", ANSI.gray, useColor));
 			continue;
 		}
-		const operation = cleanMessage(slot.operation || "Working");
+		const operation = formatWorkerOperation(slot.operation || "Working");
 		const target = cleanMessage(slot.target);
 		const prefix = label + "  ";
 		const metric = slot.mode === "rate"
@@ -206,6 +206,12 @@ function formatWorkerPanel(slots, columns = process.stdout.columns || 100, useCo
 	return rows;
 }
 
+function formatWorkerOperation(operation) {
+	const value = cleanMessage(operation || "Working");
+	if (/^downloading\s*:?[ ]*/i.test(value)) return "Downloading:";
+	return value.endsWith(":") ? value : value;
+}
+
 function formatWorkerMetric(slot) {
 	if (slot.mode === "rate") return formatBytesPerSecond(slot.bytesPerSecond);
 	const value = Number.isFinite(slot.progress) ? Math.max(0, Math.min(100, slot.progress)) : 0;
@@ -218,10 +224,10 @@ function formatWorkerStatus(slots) {
 	if (!active.length) return "";
 	const sameOperation = active.every((slot) => slot.operation === active[0].operation);
 	if (sameOperation) {
-		return active[0].operation + " " + active.map((slot) => slot.target).join(", ")
+		return formatWorkerOperation(active[0].operation) + " " + active.map((slot) => slot.target).join(", ")
 			+ " · (" + active.map(formatWorkerMetric).join(" - ") + ")";
 	}
-	return active.map((slot) => slot.operation + " " + slot.target + " (" + formatWorkerMetric(slot) + ")").join(" · ");
+	return active.map((slot) => formatWorkerOperation(slot.operation) + " " + slot.target + " (" + formatWorkerMetric(slot) + ")").join(" · ");
 }
 
 function liveStatusText(state) {
@@ -856,6 +862,7 @@ module.exports = {
 	formatWorkerMetric,
 	formatWorkerStatus,
 	formatWorkerPanel,
+	formatWorkerOperation,
 	renderProgressDots,
 	supportsColor,
 	colorizeLogLine,
