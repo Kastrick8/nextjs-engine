@@ -427,24 +427,15 @@ function formatFontBuildSummary(stats) {
 
 function compileSchemaJobs(jobs, options = {}) {
 	const externalJobs = Array.isArray(options.externalJobs) ? options.externalJobs : [];
-	const totalTasks = jobs.length + externalJobs.length;
+	const queue = createWorkerTaskPlan(jobs, externalJobs);
+	const totalTasks = queue.length;
 	if (!totalTasks) return Promise.resolve([]);
 	const workerCount = Math.min(3, totalTasks);
 	const log = typeof options.log === "function" ? options.log : dispatchTerminalLog;
 	const showWorkerStatus = options.showWorkerStatus !== false;
 
 	return new Promise((resolve, reject) => {
-		// Construct the full deterministic task list before dispatching any work.
-		// Slots take the next available task regardless of task type, so fonts are
-		// not pinned to a particular CW number.
-		const queue = [
-			...externalJobs.map((job, index) => ({
-				...job,
-				taskType: "external",
-				taskId: job.taskId || "external-" + index,
-			})),
-			...jobs.map((job) => ({ ...job, taskType: "schema" })),
-		];
+		// Dispatch the fixed plan to whichever worker slot becomes available next.
 		const results = new Array(jobs.length);
 		const workers = Array.from({ length: workerCount }, () => new Worker(path.join(__dirname, "schema-worker.compiler.js")));
 		const slots = workers.map((worker, index) => ({ worker, index, job: null, online: false }));
@@ -985,6 +976,7 @@ if (require.main === module) {
 module.exports = {
 	BUILTIN_NODE_TYPES,
 	compileProject,
+	createWorkerTaskPlan,
 	formatCompiledSchemaLine,
 	formatFontBuildSummary,
 	formatFontBytes,
