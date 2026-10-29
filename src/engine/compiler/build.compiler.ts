@@ -763,8 +763,8 @@ async function compileProject(projectRoot, options = {}) {
 					if (event.bytesPerSecond > 0) parts.push(nencLogger.formatBytesPerSecond(event.bytesPerSecond));
 					const fileLabel = event.family + (event.extension ? "." + event.extension : "");
 					const message = "Downloaded font: " + fileLabel + " " + parts.join(" · ");
-						if (typeof options.log === "function") log("DONE " + message);
-						else nencLogger.done(message);
+					if (typeof options.log === "function") log("DONE " + message);
+					else nencLogger.done(message);
 					},
 				});
 				if (!themeFontBuild.skipped && themeFontBuild.themeCount > 0) {
