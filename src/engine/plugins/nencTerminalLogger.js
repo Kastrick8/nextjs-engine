@@ -22,6 +22,7 @@ function getState() {
 			routeBatchCompleted: 0,
 			timer: null,
 			rows: 0,
+			panelRows: 0,
 			active: false,
 			painting: false,
 			internalWrite: false,
@@ -44,6 +45,45 @@ function cleanMessage(value) {
 		.replace(/[\r\n\t]+/g, " ")
 		.replace(/\s+/g, " ")
 		.trim();
+}
+
+const ANSI = Object.freeze({
+	reset: "\u001b[0m",
+	bold: "\u001b[1m",
+	dim: "\u001b[2m",
+	red: "\u001b[31m",
+	green: "\u001b[32m",
+	yellow: "\u001b[33m",
+	blue: "\u001b[34m",
+	cyan: "\u001b[36m",
+	brightCyan: "\u001b[1;96m",
+	brightGreen: "\u001b[1;92m",
+	gray: "\u001b[90m",
+});
+
+function supportsColor(stream = process.stdout) {
+	if (Object.prototype.hasOwnProperty.call(process.env, "NO_COLOR")) return false;
+	if (process.env.FORCE_COLOR && process.env.FORCE_COLOR !== "0") return true;
+	return Boolean(stream && stream.isTTY && process.env.TERM !== "dumb" && process.env.CI !== "true");
+}
+
+function ansi(value, style, enabled = supportsColor()) {
+	const text = String(value ?? "");
+	if (!enabled || !style) return text;
+	return style + text + ANSI.reset;
+}
+
+function colorizeLogLine(value, enabled = supportsColor()) {
+	const line = String(value ?? "");
+	if (!enabled) return line;
+	const match = line.match(/^(\[NENC\])\s+(DONE|FAILED|WARN|ERROR)?\s*(.*)$/i);
+	if (!match) return line;
+	const prefix = ansi(match[1], ANSI.cyan + ANSI.bold, enabled);
+	const level = match[2] ? " " + ansi(match[2].toUpperCase(),
+		match[2].toUpperCase() === "DONE" ? ANSI.green + ANSI.bold
+			: match[2].toUpperCase() === "WARN" ? ANSI.yellow + ANSI.bold
+			: ANSI.red + ANSI.bold, enabled) : "";
+	return prefix + level + (match[3] ? " " + match[3] : "");
 }
 
 function clip(message, maxLength) {
@@ -111,7 +151,86 @@ function formatRouteProgress(completed, total) {
 
 function formatBytesPerSecond(value) {
 	const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
+	if (safe >= 1000000) return (Math.round((safe / 1000000) * 10) / 10) + " MB/s";
+	if (safe >= 1000) return Math.round(safe / 1000) + " KB/s";
 	return Math.round(safe) + " B/s";
+}
+
+function renderProgressDots(progress, count = 14, useColor = supportsColor()) {
+	const value = Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0;
+	const size = Math.max(1, Math.min(24, Math.floor(Number(count) || 14)));
+	const filled = Math.min(size, Math.floor((value / 100) * size));
+	const marker = value >= 100 ? size - 1 : Math.min(size - 1, filled);
+	const dots = [];
+	for (let index = 0; index < size; index += 1) {
+		const dot = "·";
+		if (index === marker) dots.push(ansi(dot, ANSI.brightCyan + ANSI.bold, useColor));
+		else if (index < filled) dots.push(ansi(dot, ANSI.cyan, useColor));
+		else dots.push(ansi(dot, ANSI.gray, useColor));
+	}
+	return dots.join("");
+}
+
+function formatWorkerPanel(slots, columns = process.stdout.columns || 100, useColor = supportsColor()) {
+	const width = Math.max(36, Math.min(240, Math.floor(Number(columns) || 100)));
+	const line = "═".repeat(Math.max(0, width - 10));
+	const title = "════ NENC ";
+	const header = ansi(title, ANSI.cyan + ANSI.bold, useColor)
+		+ ansi(line.slice(0, Math.max(0, width - title.length)), ANSI.gray, useColor);
+	const current = Array.isArray(slots) ? slots : [];
+	const rows = [header];
+	for (let index = 0; index < 3; index += 1) {
+		const slot = current[index];
+		const label = "CW" + (index + 1);
+		if (!slot || !slot.target) {
+			rows.push(ansi(label, ANSI.cyan + ANSI.bold, useColor) + " " + ansi("Idle", ANSI.gray, useColor));
+			continue;
+		}
+		const operation = cleanMessage(slot.operation || "Working");
+		const target = cleanMessage(slot.target);
+		const prefix = label + "  ";
+		const metric = slot.mode === "rate"
+			? "  " + formatBytesPerSecond(slot.bytesPerSecond)
+			: "  " + renderProgressDots(slot.progress, Math.max(6, Math.min(16, width - 34)), useColor)
+				+ " " + (Number.isInteger(Math.round((slot.progress || 0) * 10) / 10)
+					? String(Math.round((slot.progress || 0) * 10) / 10)
+					: (Math.round((slot.progress || 0) * 10) / 10).toFixed(1)) + "%";
+		const available = Math.max(8, width - prefix.length - (slot.mode === "rate"
+			? formatBytesPerSecond(slot.bytesPerSecond).length + 2
+			: Math.max(6, Math.min(16, width - 34)) + 9));
+		const task = clip(operation + " " + target, available);
+		rows.push(ansi(label, ANSI.cyan + ANSI.bold, useColor) + "  "
+			+ ansi(task, ANSI.brightGreen, useColor) + ansi(metric, slot.mode === "rate" ? ANSI.yellow + ANSI.bold : "", useColor));
+	}
+	return rows;
+}
+
+function planFontTask(artifacts) {
+	const families = new Set();
+	const themes = [];
+	for (const artifact of Array.isArray(artifacts) ? artifacts : []) {
+		if (!artifact || typeof artifact.content !== "string") continue;
+		let document;
+		try { document = JSON.parse(artifact.content); } catch { continue; }
+		const content = document && document.content;
+		if (!content || content.scope === "remote" || !Array.isArray(content.fonts)) continue;
+		const urls = content.fonts.filter((value) => typeof value === "string" && value.length > 0);
+		if (!urls.length) continue;
+		themes.push(artifact.id);
+		for (const value of urls) {
+			try {
+				const url = new URL(value);
+				for (const family of url.searchParams.getAll("family")) {
+					const name = family.split(":")[0].replace(/\+/g, " ").trim();
+					if (name) families.add(name);
+				}
+			} catch { /* A font URL is validated by the font compiler before any request. */ }
+		}
+	}
+	const familyNames = [...families];
+	const label = familyNames.length ? "fonts: " + familyNames.join(", ")
+		: "theme fonts: " + themes.join(", ");
+	return { themes, families: familyNames, label };
 }
 
 function formatWorkerMetric(slot) {
@@ -148,15 +267,21 @@ function paintStatus() {
 	const state = getState();
 	if (!state.status || !supportsPinnedStatus()) return;
 	const rows = terminalRows();
+	const panelRows = Math.min(4, Math.max(1, rows - 1));
+	const rendered = formatWorkerPanel(state.workerSlots, process.stdout.columns || 100, supportsColor());
+	const lines = panelRows === rendered.length ? rendered : rendered.slice(rendered.length - panelRows);
+	const firstRow = rows - panelRows + 1;
 	state.painting = true;
 	try {
-		// Keep ordinary stdout/stderr output inside a scroll region that excludes the last row.
-		process.stdout.write("\u001b[1;" + (rows - 1) + "r");
-		process.stdout.write("\u001b[" + (rows - 1) + ";1H");
-		const liveStatus = liveStatusText(state);
-		process.stdout.write("\u001b[" + rows + ";1H\u001b[2K" + formatStatusLine(liveStatus));
-		process.stdout.write("\u001b[" + (rows - 1) + ";1H");
+		// Keep ordinary output above the bottom dashboard; use ANSI cursor/scroll controls
+		// only in interactive terminals and leave the dashboard rows out of scrollback.
+		process.stdout.write("\u001b[1;" + (rows - panelRows) + "r");
+		for (let index = 0; index < lines.length; index += 1) {
+			process.stdout.write("\u001b[" + (firstRow + index) + ";1H\u001b[2K" + lines[index]);
+		}
+		process.stdout.write("\u001b[" + Math.max(1, rows - panelRows) + ";1H");
 		state.rows = rows;
+		state.panelRows = panelRows;
 		state.active = true;
 	} catch {
 		// Logging must never break the compiler or an asset request.
@@ -227,19 +352,30 @@ function updateWorkerTask(workerIndex, update = {}) {
 	if (!Number.isInteger(index) || index < 0 || index >= 3) return false;
 	const slot = state.workerSlots[index];
 	if (!slot) return false;
+	let changed = false;
+	if (typeof update.operation === "string" && cleanMessage(update.operation) !== slot.operation) {
+		slot.operation = cleanMessage(update.operation);
+		changed = true;
+	}
+	if (typeof update.target === "string" && cleanMessage(update.target) !== slot.target) {
+		slot.target = cleanMessage(update.target);
+		changed = true;
+	}
+	if ((update.mode === "rate" || update.mode === "percent") && update.mode !== slot.mode) {
+		slot.mode = update.mode;
+		changed = true;
+	}
 	if (slot.mode === "rate" && Number.isFinite(update.bytesPerSecond)) {
 		const nextRate = Math.max(0, update.bytesPerSecond);
-		if (Math.round(nextRate) === Math.round(slot.bytesPerSecond)) return true;
+		if (Math.round(nextRate) !== Math.round(slot.bytesPerSecond)) changed = true;
 		slot.bytesPerSecond = nextRate;
 	} else if (slot.mode === "percent" && Number.isFinite(update.progress)) {
 		const nextProgress = Math.max(0, Math.min(100, update.progress));
-		// Publish only when a visible percentage changes; per-node callbacks can be frequent.
-		if (Math.round(nextProgress) === Math.round(slot.progress) && nextProgress < 100) return true;
+		// Avoid repainting for every schema-node callback when the visible percentage is unchanged.
+		if (Math.round(nextProgress) !== Math.round(slot.progress) || nextProgress === 100) changed = true;
 		slot.progress = nextProgress;
-	} else {
-		return false;
 	}
-	publishWorkerStatus();
+	if (changed) publishWorkerStatus();
 	return true;
 }
 
@@ -267,7 +403,7 @@ function writeLine(line) {
 	const state = getState();
 	try {
 		state.internalWrite = true;
-		process.stdout.write(String(line ?? "").split(/\r?\n/).map(cleanMessage).join("\n") + "\n");
+		process.stdout.write(String(line ?? "").split(/\r?\n/).map((part) => colorizeLogLine(cleanMessage(part))).join("\n") + "\n");
 	} catch {
 		// Logging must never break a compiler or an asset request.
 	} finally {
@@ -319,14 +455,20 @@ function clearStatus(source) {
 	state.timer = null;
 	const wasActive = state.active;
 	const rows = Math.max(2, state.rows || terminalRows());
+	const panelRows = Math.min(rows - 1, Math.max(1, state.panelRows || 4));
 	state.status = "";
 	state.source = "";
 	state.active = false;
 	state.rows = 0;
+	state.panelRows = 0;
 	if (!wasActive || !supportsPinnedStatus()) return;
 	state.painting = true;
 	try {
-		process.stdout.write("\u001b[r\u001b[" + rows + ";1H\u001b[2K");
+		process.stdout.write("\u001b[r");
+		for (let row = rows - panelRows + 1; row <= rows; row += 1) {
+			process.stdout.write("\u001b[" + row + ";1H\u001b[2K");
+		}
+		process.stdout.write("\u001b[" + Math.max(1, rows - panelRows) + ";1H");
 	} catch {
 		// Cleanup must not hide the compiler result.
 	} finally {
@@ -686,6 +828,11 @@ module.exports = {
 	formatBytesPerSecond,
 	formatWorkerMetric,
 	formatWorkerStatus,
+	formatWorkerPanel,
+	renderProgressDots,
+	supportsColor,
+	colorizeLogLine,
+	planFontTask,
 	startWorkerTask,
 	allocateWorkerTask,
 	updateWorkerTask,
