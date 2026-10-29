@@ -88,7 +88,7 @@ async function main() {
 	assert.equal(channels.channelLabel(parsedTags[0]), "TAG ONLY");
 
 	const greenContext = {
-		repo: "Kate-alt-69/nextjs-engine",
+		repo: "Kastrick8/nextjs-engine",
 		branch: "main-3",
 		sha: "d".repeat(40),
 	};
@@ -137,12 +137,12 @@ async function main() {
 		tag_name: manifest.tag,
 		body: "<!-- NE-CHANNEL-MANIFEST-START -->\n" + JSON.stringify(manifest, null, 2) + "\n<!-- NE-CHANNEL-MANIFEST-END -->",
 		published_at: "2026-10-28T00:00:00Z",
-		html_url: "https://github.com/Kate-alt-69/nextjs-engine/releases/tag/package-alpha.3.0.0-alpha.2",
+		html_url: "https://github.com/Kastrick8/nextjs-engine/releases/tag/package-alpha.3.0.0-alpha.2",
 		assets: [{
 			name: manifest.assetName,
 			size: 4096,
 			state: "uploaded",
-			browser_download_url: "https://github.com/Kate-alt-69/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/" + manifest.assetName,
+			browser_download_url: "https://github.com/Kastrick8/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/" + manifest.assetName,
 		}],
 	};
 	const parsedManifest = channels.parseManifestFromBody(release.body);
@@ -151,6 +151,20 @@ async function main() {
 	assert.equal(parsedRelease.version, "3.0.0-alpha.2");
 	assert.equal(parsedRelease.sourceCommit, "a".repeat(40));
 	assert.equal(parsedRelease.sha256, "b".repeat(64));
+
+	const unverifiedRelease = channels.catalogOnlyGitHubRelease({
+		...release,
+		body: "Release notes without a verified NE manifest",
+		assets: [],
+	});
+	assert.equal(unverifiedRelease.version, "3.0.0-alpha.2");
+	assert.equal(unverifiedRelease.source, "github");
+	assert.equal(unverifiedRelease.installable, false, "unverified GitHub release artifacts remain non-installable");
+	const catalogOnlyMerge = channels.normaliseCatalog([parsedTags[1], unverifiedRelease]).releases[0];
+	assert.equal(catalogOnlyMerge.source, "github", "the GitHub release remains visible when merged with its matching version tag");
+	assert.equal(catalogOnlyMerge.installable, false);
+	assert.deepEqual(catalogOnlyMerge.sources.sort(), ["github", "git-tag"]);
+	assert.equal(channels.channelLabel(catalogOnlyMerge), "CATALOG ONLY");
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sha256: "not-a-hash" }, release), null);
 	assert.equal(channels.validateReleaseManifest({ ...manifest, sourceBranch: "unknown" }, release), null);
 	const malformedAlpha = {
@@ -188,7 +202,7 @@ async function main() {
 			name: rollingManifest.assetName,
 			size: 4096,
 			state: "uploaded",
-			browser_download_url: "https://github.com/Kate-alt-69/nextjs-engine/releases/download/channel-alpha-latest/" + rollingManifest.assetName,
+			browser_download_url: "https://github.com/Kastrick8/nextjs-engine/releases/download/channel-alpha-latest/" + rollingManifest.assetName,
 		}],
 	};
 	const rollingRelease = channels.validateReleaseManifest(
@@ -251,6 +265,19 @@ async function main() {
 	assert.match(dashboard, /Channel Updater/);
 	assert.doesNotMatch(dashboard, /[\u{1F300}-\u{1FAFF}]/u);
 	assert.match(terminal.renderReleaseList(0, { releases: [rollingRelease], cached: false }, {}), /ALPHA/);
+	const manyReleases = Array.from({ length: 40 }, (_, index) => ({
+		...rollingRelease,
+		version: "3.0.0-alpha." + String(index + 1),
+		publishedAt: new Date(2026, 0, index + 1).toISOString(),
+	}));
+	const laterPage = terminal.renderReleaseList(35, { releases: manyReleases, cached: false }, {
+		projectName: "fixture",
+		installedVersion: "not installed",
+	});
+	const pageIndicator = laterPage.match(/Page (\d+)\/(\d+)/);
+	assert.ok(pageIndicator, "release list reports page position for a large inventory");
+	assert.ok(Number(pageIndicator[1]) >= 4, "release list can navigate past the first 24 entries");
+	assert.match(laterPage, /of 40/, "release list reports the full release inventory size");
 
 	const temp = fs.mkdtempSync(path.join(os.tmpdir(), "ne-cli-smoke-"));
 	try {
@@ -304,7 +331,7 @@ async function main() {
 			);
 
 			const artifactPath = path.join(temp, ".nextjs-engine", "cache", "ne-downloads", "nextjs-engine-3.0.0-alpha.2-" + "c".repeat(12) + ".tgz");
-			const remoteUrl = "https://github.com/Kate-alt-69/nextjs-engine/releases/download/channel-alpha-latest/" + path.basename(artifactPath);
+			const remoteUrl = "https://github.com/Kastrick8/nextjs-engine/releases/download/channel-alpha-latest/" + path.basename(artifactPath);
 			const artifactBytes = Buffer.from("verified fixture bytes");
 			const artifact = {
 				file: artifactPath,
