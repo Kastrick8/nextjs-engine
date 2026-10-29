@@ -245,7 +245,7 @@ try {
 		"route analysis ends at the actual 3 of 3 routes completed");
 	assert.ok(logs.some((line) => line.includes("COMPILING CUSTOM COMPONENT : notice")),
 		"custom components get a dedicated progress status");
-	assert.ok(logs.some((line) => line.startsWith("DONE SCHEMA CACHE — 0 hit(s), 3 compile miss(es), 3 output(s) persisted")),
+	assert.ok(logs.some((line) => line.startsWith("DONE SCHEMA CACHE — 3 compile misses, 3 outputs persisted")),
 		"the cold-build cache summary reports actual misses and written outputs");
 	assert.ok(!logs.some((line) => line.includes("nextjs-engine |")),
 		"compiler progress must not use the old product-name pipe prefix");
