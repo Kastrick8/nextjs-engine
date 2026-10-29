@@ -639,6 +639,18 @@ const BUILTIN_THEME_COMPONENT_STYLE_SLOTS: Readonly<Record<string, readonly stri
 	textarea: ["root"], checkbox: ["root"], label: ["root"],
 };
 
+const BUILTIN_THEME_NODE_NAMESPACE_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+	EngineLink: "link",
+	EngineNav: "nav",
+	EngineManim: "manim",
+	EngineManim3D: "manim3d",
+});
+
+function getBuiltinThemeNamespace(nodeType: string): string | undefined {
+	const namespace = BUILTIN_THEME_NODE_NAMESPACE_ALIASES[nodeType] ?? nodeType;
+	return BUILTIN_THEME_COMPONENT_STYLE_SLOTS[namespace] ? namespace : undefined;
+}
+
 const BUILTIN_THEME_META_KEYS = new Set(["defaults", "props", "styles", "variants"]);
 const BUILTIN_THEME_LAYOUT_LOCKED_SLOT_PROPERTIES = new Set([
 	"display", "position", "top", "right", "bottom", "left", "zIndex", "visibility", "pointerEvents",
@@ -719,7 +731,9 @@ function resolveBuiltinThemeNode(
 	context: EngineThemeResolutionContext,
 	registry?: EngineComponentRegistry,
 ): SchemaNode {
-	const namespace = node.type;
+	// Registry aliases share the canonical lowercase namespace so a theme only
+	// needs one definition for each underlying built-in component.
+	const namespace = BUILTIN_THEME_NODE_NAMESPACE_ALIASES[node.type] ?? node.type;
 	const explicitId = node.theme;
 	let selection: Record<string, unknown> | undefined;
 
@@ -824,7 +838,7 @@ function applyResolvedThemeToNode(
 				props: nextProps as SchemaNode["props"],
 			};
 		}
-	} else if (BUILTIN_THEME_COMPONENT_STYLE_SLOTS[result.type]) {
+	} else if (getBuiltinThemeNamespace(result.type)) {
 		result = resolveBuiltinThemeNode(result, context, registry);
 	} else {
 		result = resolveCustomComponentThemeNode(result, context, registry);
