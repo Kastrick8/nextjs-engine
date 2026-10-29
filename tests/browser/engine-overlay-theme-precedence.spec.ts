@@ -4,8 +4,8 @@ async function expectRuntimeOwnedBackdrop(page, dialogName: string, overlayId: s
 	const dialog = page.getByRole("dialog", { name: dialogName });
 	await expect(dialog).toBeVisible();
 
-	// The EngineTheme deliberately sets opacity=0.2 and transition=none.
-	// These must not disable the runtime's active animation state.
+	// EngineTheme provides the backdrop color while the explicit overlayStyle
+	// deliberately tries to pin opacity and transition. Runtime state must win.
 	const backdrop = page.locator(`[data-engine-overlay-backdrop="${overlayId}"]`);
 	await expect(backdrop).toHaveCSS("background-color", "rgb(18, 52, 86)");
 	await expect(backdrop).toHaveCSS("opacity", "1");
