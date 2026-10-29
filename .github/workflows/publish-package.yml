@@ -482,6 +482,8 @@ jobs:
           manifest.name="@kastrick/nextjs-engine";
           manifest.version=VERSION;
           manifest.private=false;
+          manifest.repository={type:"git",url:"git+https://github.com/Kastrick8/nextjs-engine.git"};
+          manifest.homepage="https://github.com/Kastrick8/nextjs-engine#readme";
           manifest.files=(manifest.files||[]).filter(p=>p!=="content.include"&&fs.existsSync(root+"/"+p));
           const includedPaths=JSON.parse(process.env.CONTENT_INCLUDE_PATHS||"[]");
           for(const included of includedPaths){
@@ -528,7 +530,11 @@ jobs:
           const target=process.argv[2], version=process.argv[3];
           const p=JSON.parse(fs.readFileSync(path.join("archive",target,"package.json"),"utf8"));
           if(p.name!=="@kastrick/nextjs-engine"||p.version!==version) throw new Error("Manifest name/version mismatch: "+p.name+"@"+p.version);
+          if(p.repository?.url!=="git+https://github.com/Kastrick8/nextjs-engine.git"||p.homepage!=="https://github.com/Kastrick8/nextjs-engine#readme") throw new Error("Snapshot repository metadata is not canonical.");
           for(const f of ["index.ts","engine/index.ts","tsconfig.json"]) if(!fs.existsSync(path.join("archive",target,f))) throw new Error("Missing "+f);
+          if(/^2\\.7\\.\\d+$/.test(version)){
+            if(p.bin?.ne!=="./bin/ne.js"||!p.files?.includes("bin")||!fs.existsSync(path.join("archive",target,"bin","ne.js"))) throw new Error("The v2.7 stable snapshot must ship the ne executable.");
+          }
           const expected=(version.includes("-alpha.")||version.includes("-beta."))?version:(version.endsWith(".0")?version.split(".").slice(0,2).join("."):version);
           if(path.basename(target)!==expected) throw new Error("Snapshot path does not match "+version);
           NODE
