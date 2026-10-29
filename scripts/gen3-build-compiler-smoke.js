@@ -84,6 +84,9 @@ assert.match(dashboard[3], /^CW3\s+Downloading: fonts: Inter, JetBrains Mono/);
 assert.ok(dashboard[3].endsWith("239 KB/s"), "download row uses the measured KB/s rate");
 assert.ok(renderProgressDots(50, 10, true).includes("\u001b["), "progress dots support ANSI contrast");
 assert.ok(colorizeLogLine("[NENC] DONE compiled /work", true).includes("\u001b["), "completion lines support ANSI colors");
+const redFailureLine = colorizeLogLine("[NENC] FAILED COMPONENT ERRORED app/broken/page.tsx -> /broken", true);
+assert.ok(redFailureLine.includes("\u001b[31m") && redFailureLine.includes("COMPONENT ERRORED"),
+	"component errors render their full status message in red");
 assert.equal(colorizeLogLine("[NENC] DONE compiled /work", false), "[NENC] DONE compiled /work");
 
 const fontPlan = planThemeFontWork([{
