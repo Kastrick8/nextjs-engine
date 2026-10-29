@@ -253,9 +253,40 @@ function readInstalledPackage(root) {
 	return readJson(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"), null);
 }
 
+function validateReleaseArtifactUrl(release) {
+	if (!release || typeof release !== "object" ||
+		typeof release.version !== "string" ||
+		!/^\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?$/.test(release.version) ||
+		typeof release.sha256 !== "string" || !/^[0-9a-f]{64}$/i.test(release.sha256) ||
+		typeof release.artifactName !== "string" ||
+		!/^nextjs-engine-[A-Za-z0-9.-]+\.tgz$/.test(release.artifactName) ||
+		typeof release.artifactUrl !== "string") {
+		throw new Error("The selected NE release has invalid artifact metadata.");
+	}
+	let url;
+	try {
+		url = new URL(release.artifactUrl);
+	} catch {
+		throw new Error("The selected NE release has an invalid artifact URL.");
+	}
+	const pathSegments = url.pathname.split("/");
+	if (url.protocol !== "https:" || url.hostname !== "github.com" || url.port ||
+		url.username || url.password || url.search || url.hash ||
+		pathSegments.length !== 7 ||
+		pathSegments[1] !== "Kastrick8" ||
+		pathSegments[2] !== "nextjs-engine" ||
+		pathSegments[3] !== "releases" ||
+		pathSegments[4] !== "download" ||
+		!pathSegments[5] || pathSegments[6] !== release.artifactName) {
+		throw new Error("Refusing to download a NE artifact outside the verified Kastrick8/nextjs-engine GitHub release path.");
+	}
+	return url.href;
+}
+
 async function downloadVerifiedArtifact(root, release) {
 	if (!release.artifactUrl || !release.sha256) throw new Error("This channel has no verified GitHub package artifact.");
-	const response = await fetch(release.artifactUrl, {
+	const artifactUrl = validateReleaseArtifactUrl(release);
+	const response = await fetch(artifactUrl, {
 		headers: { "User-Agent": "nextjs-engine-ne-cli", Accept: "application/octet-stream" },
 		signal: AbortSignal.timeout(30000),
 	});
@@ -391,8 +422,13 @@ function normalizeArtifactDependency(root, release, artifact) {
 	let lockCount = 0;
 	for (const name of lockFilesByManager[manager] || []) {
 		const file = path.join(root, name);
-		if (!fs.existsSync(file)) continue;
-		const text = fs.readFileSync(file, "utf8");
+		let text;
+		try {
+			text = fs.readFileSync(file, "utf8");
+		} catch (error) {
+			if (error && error.code === "ENOENT") continue;
+			throw error;
+		}
 		let updated;
 		if (name === "package-lock.json" || name === "npm-shrinkwrap.json") {
 			const lock = JSON.parse(text);
@@ -424,7 +460,14 @@ function normalizeArtifactDependency(root, release, artifact) {
 		if (!updated.includes(artifact.sha512) && !(name === "yarn.lock" && /^\s*checksum:\s*\S+/m.test(updated))) {
 			throw new Error(name + " did not preserve integrity metadata for the verified artifact.");
 		}
-		fs.writeFileSync(file, updated, "utf8");
+		const temporaryFile = file + ".ne-" + crypto.randomBytes(6).toString("hex") + ".tmp";
+		try {
+			fs.writeFileSync(temporaryFile, updated, { encoding: "utf8", flag: "wx" });
+			fs.renameSync(temporaryFile, file);
+		} catch (error) {
+			fs.rmSync(temporaryFile, { force: true });
+			throw error;
+		}
 		lockCount += 1;
 	}
 	if (lockCount === 0) {
@@ -618,6 +661,7 @@ module.exports = {
 	captureDependencyFiles,
 	restoreDependencyFiles,
 	downloadVerifiedArtifact,
+	validateReleaseArtifactUrl,
 	verifyInstalledVersion,
 	installRelease,
 	normalizeArtifactDependency,
