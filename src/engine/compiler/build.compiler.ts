@@ -358,6 +358,13 @@ function formatCount(value, singular, plural = singular + "s") {
 	return String(count) + " " + (count === 1 ? singular : plural);
 }
 
+function formatSchemaSourcePath(sourcePath) {
+	const value = String(sourcePath || "").replace(/\\/g, "/");
+	const segments = value.split("/");
+	// Next.js route groups affect layout/route resolution but are not URL segments.
+	return segments.filter((segment) => !/^\\([^/]+\\)$/.test(segment)).join("/");
+}
+
 function formatCompiledSchemaLine(job, page, metadata = {}, moduleCount) {
 	const pieces = [];
 	const modules = Number(moduleCount);
@@ -368,7 +375,7 @@ function formatCompiledSchemaLine(job, page, metadata = {}, moduleCount) {
 	const assets = formatCount(summary.assetCount, "asset");
 	if (islands) pieces.push(islands);
 	if (assets) pieces.push(assets);
-	const sourcePath = typeof job.sourcePath === "string" && job.sourcePath ? job.sourcePath : job.pageId;
+	const sourcePath = typeof job.sourcePath === "string" && job.sourcePath ? formatSchemaSourcePath(job.sourcePath) : job.pageId;
 	return "compiled " + sourcePath + " -> " + job.pageId + (pieces.length ? " · " + pieces.join(" · ") : "");
 }
 
@@ -1022,6 +1029,7 @@ module.exports = {
 	BUILTIN_NODE_TYPES,
 	compileProject,
 	createWorkerTaskPlan,
+	formatSchemaSourcePath,
 	formatCompiledSchemaLine,
 	formatFontBuildSummary,
 	formatFontBytes,
