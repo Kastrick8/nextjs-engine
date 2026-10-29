@@ -338,9 +338,33 @@ async function main() {
 			const bytes = Buffer.from([0x1f, 0x8b, 0x08, 0x00]);
 			const release = {
 				version: "3.0.0-alpha.2",
-				artifactUrl: "https://example.invalid/ne-test.tgz",
+				artifactName: "nextjs-engine-3.0.0-alpha.2.tgz",
+				artifactUrl: "https://github.com/Kastrick8/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/nextjs-engine-3.0.0-alpha.2.tgz",
 				sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
 			};
+			assert.equal(project.validateReleaseArtifactUrl(release), release.artifactUrl);
+			assert.throws(() => project.validateReleaseArtifactUrl({
+				...release,
+				artifactUrl: "https://example.invalid/ne-test.tgz",
+			}), /outside the verified Kastrick8\/nextjs-engine GitHub release path/);
+			assert.throws(() => project.validateReleaseArtifactUrl({
+				...release,
+				artifactUrl: "http://github.com/Kastrick8/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/nextjs-engine-3.0.0-alpha.2.tgz",
+			}), /outside the verified Kastrick8\/nextjs-engine GitHub release path/);
+			assert.throws(() => project.validateReleaseArtifactUrl({
+				...release,
+				artifactUrl: "https://github.com/Kastrick8/other-repo/releases/download/package-alpha.3.0.0-alpha.2/nextjs-engine-3.0.0-alpha.2.tgz",
+			}), /outside the verified Kastrick8\/nextjs-engine GitHub release path/);
+			let untrustedFetchCalled = false;
+			global.fetch = async () => {
+				untrustedFetchCalled = true;
+				return new Response(bytes, { status: 200 });
+			};
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, { ...release, artifactUrl: "https://example.invalid/ne-test.tgz" }),
+				/outside the verified Kastrick8\/nextjs-engine GitHub release path/
+			);
+			assert.equal(untrustedFetchCalled, false, "a file-derived URL is rejected before any outbound request");
 			global.fetch = async () => new Response(bytes, { status: 200 });
 			const downloaded = await project.downloadVerifiedArtifact(temp, release);
 			assert.deepEqual(fs.readFileSync(downloaded.file), bytes);
