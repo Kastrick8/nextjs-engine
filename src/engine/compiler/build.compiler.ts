@@ -438,12 +438,12 @@ function compileSchemaJobs(jobs, options = {}) {
 		// Slots take the next available task regardless of task type, so fonts are
 		// not pinned to a particular CW number.
 		const queue = [
-			...jobs.map((job) => ({ ...job, taskType: "schema" })),
 			...externalJobs.map((job, index) => ({
 				...job,
 				taskType: "external",
 				taskId: job.taskId || "external-" + index,
 			})),
+			...jobs.map((job) => ({ ...job, taskType: "schema" })),
 		];
 		const results = new Array(jobs.length);
 		const workers = Array.from({ length: workerCount }, () => new Worker(path.join(__dirname, "schema-worker.compiler.js")));
