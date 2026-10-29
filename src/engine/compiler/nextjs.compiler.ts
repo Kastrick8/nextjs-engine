@@ -58,6 +58,7 @@ function forwardWorkerLog(event) {
 	else if (event.level === "status") nencLogger.setStatus(event.message, event.source || "engine");
 	else if (event.level === "done") nencLogger.done(event.message);
 	else if (event.level === "failed") nencLogger.failed(event.message);
+	else if (event.level === "errored") nencLogger.errored(event.message);
 	else if (event.level === "clear") nencLogger.clearStatus(event.source || "engine");
 }
 function startCompiler(projectDir) {
