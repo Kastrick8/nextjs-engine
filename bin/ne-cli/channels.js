@@ -337,17 +337,23 @@ function validateReleaseManifest(manifest, release) {
 function catalogOnlyGitHubRelease(release) {
 	if (!release || typeof release !== "object" || typeof release.tag_name !== "string") return null;
 
-	const tagName = release.tag_name;
-	let tag = packageTagToRelease(tagName);
+	const tagName = release.tag_name.trim();
+	if (!tagName) return null;
+	const tag = packageTagToRelease(tagName);
 	let version = tag && tag.version;
 	let track = tag && tag.track;
 	if (!version) {
 		const match = tagName.match(/^v?(\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?)$/);
-		if (!match) return null;
-		version = match[1];
-		track = trackForVersion(version);
+		if (match) {
+			version = match[1];
+			track = trackForVersion(version);
+		} else {
+			// Keep other GitHub release tags visible, but never treat a free-form
+			// tag label as a SemVer version or an installation target.
+			version = tagName;
+			track = "release";
+		}
 	}
-	if (!track || !parseVersion(version)) return null;
 
 	const releaseUrl = typeof release.html_url === "string"
 		? release.html_url
@@ -370,6 +376,7 @@ function catalogOnlyGitHubRelease(release) {
 		installSpec: null,
 		npmDistTags: [],
 		gitTags: [],
+		catalogOnly: true,
 		installable: false,
 		description: "GitHub release " + tagName + " is listed for discovery, but its manifest and downloadable artifact did not pass NE verification.",
 	};
@@ -403,7 +410,8 @@ function stableFromRegistry(metadata) {
 function normaliseCatalog(entries) {
 	const byVersion = new Map();
 	for (const release of entries || []) {
-		if (!release || typeof release.version !== "string" || !parseVersion(release.version)) continue;
+		if (!release || typeof release.version !== "string" || !release.version.trim()) continue;
+		if (!parseVersion(release.version) && release.catalogOnly !== true) continue;
 		const key = release.floating ? "floating:" + release.track : release.version;
 		const existing = byVersion.get(key);
 		byVersion.set(key, existing ? mergeCatalogEntry(existing, release) : mergeCatalogEntry(release, release));
