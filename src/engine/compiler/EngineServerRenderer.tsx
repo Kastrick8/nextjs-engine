@@ -911,33 +911,46 @@ function renderServerNode(
 
 		case "spacer": {
 			const horizontal = props.axis === "x";
-			const spacerStyle = compileEngineStyles(
-				horizontal ? { width: props.size ?? "2rem" } : { height: props.size ?? "2rem" },
-				collector,
-				{ display: horizontal ? "inline-block" : "block" },
-			);
-			return <span key={compiled.id} {...debug} aria-hidden="true" style={spacerStyle} />;
+			const spacerProps = { ...props };
+			delete spacerProps.size;
+			delete spacerProps.axis;
+			delete spacerProps.style;
+			const spacerStyle = compilePrimitiveStyles(spacerProps, collector, {
+				defaults: {
+					display: horizontal ? "inline-block" : "block",
+					...(horizontal ? { width: props.size ?? "2rem" } : { height: props.size ?? "2rem" }),
+				},
+				style: explicitStyle(props),
+			});
+			return <span key={compiled.id} {...debug} id={id} className={className} aria-hidden="true" style={spacerStyle} />;
 		}
 
 		case "divider": {
 			const horizontal = props.orientation !== "vertical";
-			const dividerStyle = compileEngineStyles(
-				horizontal ? { my: props.my ?? "1rem" } : { mx: props.my ?? "1rem" },
-				collector,
-				horizontal
+			const rawLineStyle = props.lineStyle ?? (typeof props.style === "string" ? props.style : "solid");
+			const lineStyle = rawLineStyle === "dashed" || rawLineStyle === "dotted" || rawLineStyle === "solid"
+				? rawLineStyle
+				: "solid";
+			const dividerProps = { ...props };
+			for (const key of ["orientation", "thickness", "color", "style", "lineStyle"]) delete dividerProps[key];
+			if (horizontal) dividerProps.my = props.my ?? "1rem";
+			else dividerProps.mx = props.my ?? "1rem";
+			const dividerStyle = compilePrimitiveStyles(dividerProps, collector, {
+				defaults: horizontal
 					? {
 						border: "none",
-						borderTop: `${String(props.thickness ?? "1px")} ${String(props.style ?? "solid")} ${String(props.color ?? "var(--e-divider, rgba(0,0,0,.1))")}`,
+						borderTop: `${String(props.thickness ?? "1px")} ${lineStyle} ${String(props.color ?? "var(--e-divider, rgba(0,0,0,.1))")}`,
 						width: "100%",
 					}
 					: {
 						border: "none",
-						borderLeft: `${String(props.thickness ?? "1px")} ${String(props.style ?? "solid")} ${String(props.color ?? "var(--e-divider, rgba(0,0,0,.1))")}`,
+						borderLeft: `${String(props.thickness ?? "1px")} ${lineStyle} ${String(props.color ?? "var(--e-divider, rgba(0,0,0,.1))")}`,
 						height: "auto",
 						alignSelf: "stretch",
 					},
-			);
-			return <hr key={compiled.id} {...debug} style={dividerStyle} />;
+				style: explicitStyle(props),
+			});
+			return <hr key={compiled.id} {...debug} id={id} className={className} style={dividerStyle} />;
 		}
 
 		case "option":
