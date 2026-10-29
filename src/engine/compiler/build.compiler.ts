@@ -425,6 +425,20 @@ function formatFontBuildSummary(stats) {
 	return pieces.join(", ");
 }
 
+function createWorkerTaskPlan(schemaJobs, externalJobs = []) {
+	// Build the complete queue before a worker starts. External tasks (such as
+	// downloads) use the same available-slot scheduler as schema compilation;
+	// no task type is reserved for CW1, CW2, or CW3.
+	return [
+		...(Array.isArray(externalJobs) ? externalJobs : []).map((job, index) => ({
+			...job,
+			taskType: "external",
+			taskId: job.taskId || "external-" + index,
+		})),
+		...(Array.isArray(schemaJobs) ? schemaJobs : []).map((job) => ({ ...job, taskType: "schema" })),
+	];
+}
+
 function compileSchemaJobs(jobs, options = {}) {
 	const externalJobs = Array.isArray(options.externalJobs) ? options.externalJobs : [];
 	const queue = createWorkerTaskPlan(jobs, externalJobs);
