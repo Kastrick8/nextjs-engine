@@ -17,6 +17,7 @@ import type { HeroProps } from "../schema/types";
 
 export interface EngineHeroProps extends HeroProps {
 	children?: ReactNode;
+	engineThemeStyles?: Partial<Record<"inner" | "overlay", CSSProperties>>;
 }
 
 export const EngineHero = memo(
@@ -31,6 +32,7 @@ export const EngineHero = memo(
 			fullViewport = true,
 			snapAlign,
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -143,7 +145,7 @@ export const EngineHero = memo(
 					}
 					: {}),
 			} as any,
-			innerBase,
+			{ ...innerBase, ...engineThemeStyles?.inner },
 		);
 
 		// Background controls are routed through usePropStyles so breakpoint maps
@@ -172,13 +174,14 @@ export const EngineHero = memo(
 
 		const element = (
 			<section ref={handleRef} id={resolvedId} className={mergedClass} style={resolvedOuter}>
-				{overlay && (
+				{(overlay != null || engineThemeStyles?.overlay) && (
 					<div
 						aria-hidden="true"
 						style={{
+							...engineThemeStyles?.overlay,
 							position: "absolute",
 							inset: 0,
-							background: overlay,
+							...(overlay != null ? { background: overlay } : {}),
 							zIndex: 0,
 							pointerEvents: "none",
 						}}

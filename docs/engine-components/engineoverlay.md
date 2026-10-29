@@ -412,7 +412,7 @@ The portal runtime is client-side only; the trigger can still participate in nor
 
 ## EngineTheme integration status
 
-The current EngineTheme runtime resolves Markdown component defaults/styles and page-level theme fields. It does not yet apply component-specific theme namespaces directly to EngineDialog, EngineDrawer or EnginePopover. For overlays, use the documented styling props and CSS variables below; do not assume a components.overlay, components.dialog, components.drawer or components.popover theme namespace is wired in this alpha. The planned integration is tracked in [plan.md](../../plan.md#16-gen-3-first-release-gap-assessment-engineoverlay-and-reused-gen-2-surfaces).
+Generation 3 EngineTheme supports shared `overlay` styles and component-specific `dialog`, `drawer`, and `popover` namespaces, including variants and validated style slots. These definitions remain data-only and do not override interaction or accessibility behavior. See the [maintained Gen 3 EngineOverlay guide](../3/engine-components/engineoverlay.md) and [EngineTheme reference](../3/engine-components/enginetheme.md). This file is retained for compatibility; the versioned Gen 3 guides are authoritative.
 
 ---
 

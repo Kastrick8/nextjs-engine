@@ -175,18 +175,28 @@ function renderTextContent(
 	children: ReactNode,
 ): ReactNode {
 	const parts = Array.isArray(props.parts) ? props.parts as Array<Record<string, unknown>> : [];
+	const themeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+		? props.engineThemeStyles as { part?: CSSProperties; partLink?: CSSProperties }
+		: undefined;
 	if (parts.length > 0) {
 		return parts.map((part, index) => {
 			const text = String(part.text ?? "");
+			const partStyle = part.style && typeof part.style === "object" && !Array.isArray(part.style)
+				? part.style as CSSProperties
+				: undefined;
+			const resolvedStyle = {
+				...(themeStyles?.part ?? {}),
+				...(typeof part.href === "string" ? themeStyles?.partLink ?? {} : {}),
+				...(partStyle ?? {}),
+			};
+			const style = Object.keys(resolvedStyle).length > 0 ? resolvedStyle : undefined;
 			if (typeof part.href === "string") {
 				const external = /^https?:\/\//i.test(part.href);
 				const target = (part.target as string | undefined) ?? (external ? "_blank" : "_self");
 				const rel = (part.rel as string | undefined) ?? (target === "_blank" || external ? "noopener noreferrer" : undefined);
-				return <a key={index} href={part.href} target={target} rel={rel} style={part.style as CSSProperties | undefined}>{text}</a>;
+				return <a key={index} href={part.href} target={target} rel={rel} style={style}>{text}</a>;
 			}
-			return part.style
-				? <span key={index} style={part.style as CSSProperties}>{text}</span>
-				: text;
+			return style ? <span key={index} style={style}>{text}</span> : text;
 		});
 	}
 	return props.content !== undefined ? String(props.content) : children;
@@ -302,6 +312,12 @@ function renderServerImage(
 		: typeof props.rounded === "string"
 			? props.rounded
 			: undefined;
+	const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+		? props.engineThemeStyles as Record<string, CSSProperties>
+		: undefined;
+	const imageThemeStyle = engineThemeStyles?.image ?? {};
+	const placeholderThemeStyle = engineThemeStyles?.placeholder;
+	const captionThemeStyle = engineThemeStyles?.caption ?? {};
 	const wrapperUserStyle = compileEngineStyles({}, collector, explicitStyle(props));
 	const wrapperStyle: CSSProperties = {
 		position: "relative",
@@ -317,8 +333,12 @@ function renderServerImage(
 			width: "100%",
 			height: aspectRatio ? "100%" : "auto",
 		} : {}),
-		objectFit: (props.objectFit as CSSProperties["objectFit"] | undefined) ?? "cover",
+		objectFit: (props.objectFit as CSSProperties["objectFit"] | undefined) ?? imageThemeStyle.objectFit ?? "cover",
 		display: "block",
+		...imageThemeStyle,
+		...(props.objectFit !== undefined ? { objectFit: props.objectFit as CSSProperties["objectFit"] } : {}),
+		position: "relative",
+		zIndex: 1,
 	};
 	const blurDataURL = typeof props.blurDataURL === "string" ? props.blurDataURL : undefined;
 	const sizing = fill
@@ -349,8 +369,21 @@ function renderServerImage(
 		image = <NextImage {...commonProps} quality={quality} style={imageStyle} />;
 	}
 
+	const hasPlaceholderTheme = placeholderThemeStyle && Object.keys(placeholderThemeStyle).length > 0;
 	const wrapper = (
-		<div key={compiled.id} {...debug} className={className} style={wrapperStyle}>
+		<div key={compiled.id} {...debug} className={["e-img-wrap", className].filter(Boolean).join(" ")} style={wrapperStyle}>
+			{hasPlaceholderTheme ? (
+				<div
+					aria-hidden="true"
+					className="e-img-placeholder"
+					style={{
+						...placeholderThemeStyle,
+						position: "absolute",
+						inset: 0,
+						zIndex: 0,
+					}}
+				/>
+			) : null}
 			{image}
 		</div>
 	);
@@ -358,7 +391,13 @@ function renderServerImage(
 	return (
 		<figure key={compiled.id} style={{ margin: 0, padding: 0 }}>
 			{wrapper}
-			<figcaption style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--e-caption-color, #64748b)", marginTop: "0.5rem" }}>
+			<figcaption style={{
+				textAlign: "center",
+				fontSize: "0.85rem",
+				color: "var(--e-caption-color, #64748b)",
+				marginTop: "0.5rem",
+				...captionThemeStyle,
+			}}>
 				{props.caption}
 			</figcaption>
 		</figure>
@@ -419,13 +458,27 @@ function renderServerNode(
 	if (node.type === "slot") {
 		const name = typeof props.name === "string" ? props.name : "";
 		const slotContent = slots?.[name];
-		if (slotContent != null) return <React.Fragment key={compiled.id}>{slotContent}</React.Fragment>;
 		const fallback = compiled.children[0];
-		return (
-			<React.Fragment key={compiled.id}>
-				{fallback ? renderServerNode(fallback, collector, config, slots, registry) : null}
-			</React.Fragment>
-		);
+		const content = slotContent != null
+			? slotContent
+			: fallback
+				? renderServerNode(fallback, collector, config, slots, registry)
+				: null;
+		const id = typeof props.id === "string"
+			? props.id
+			: typeof props.point === "string"
+				? props.point
+				: undefined;
+		const className = mergeClassName(node, collector);
+		const style = compileEngineStyles(props as any, collector, explicitStyle(props));
+		if (id || className || Object.keys(style).length > 0) {
+			return (
+				<div key={compiled.id} {...debug} id={id} className={className} style={style}>
+					{content}
+				</div>
+			);
+		}
+		return <React.Fragment key={compiled.id}>{content}</React.Fragment>;
 	}
 
 	const children = renderChildren();
@@ -530,8 +583,13 @@ function renderServerNode(
 			const level = Math.min(6, Math.max(1, Number(props.level ?? 2))) as 1 | 2 | 3 | 4 | 5 | 6;
 			const variant = `h${level}` as TextVariant;
 			const Tag = `h${level}` as ElementType;
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: undefined;
+			const headingStyleProps = { ...props };
+			delete headingStyleProps.engineThemeStyles;
 			const headingStyle = compilePrimitiveStyles(
-				props as any,
+				headingStyleProps as any,
 				collector,
 				{
 					defaults: TEXT_STYLES[variant],
@@ -554,6 +612,7 @@ function renderServerNode(
 			const subheadingInput: Record<string, unknown> = {
 				color: "var(--e-muted, #64748b)",
 				mt: "0.5rem",
+				...(engineThemeStyles?.subheading ?? {}),
 				...subheadingProps,
 			};
 			const subheadingVariant = (subheadingInput.variant ?? "lead") as TextVariant;
@@ -594,6 +653,7 @@ function renderServerNode(
 			delete sectionProps.px;
 			delete sectionProps.py;
 			delete sectionProps.style;
+			delete sectionProps.engineThemeStyles;
 			const outer = compilePrimitiveStyles(
 				sectionProps,
 				collector,
@@ -606,6 +666,9 @@ function renderServerNode(
 					style: userStyle,
 				},
 			);
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: undefined;
 			const inner = compileEngineStyles(
 				{
 					maxW: props.contentMaxWidth ?? "1200px",
@@ -616,6 +679,7 @@ function renderServerNode(
 				{
 					width: "100%",
 					...(props.centered !== false ? { marginLeft: "auto", marginRight: "auto" } : {}),
+					...(engineThemeStyles?.inner ?? {}),
 				},
 			);
 			return wrapHref(
@@ -652,6 +716,9 @@ function renderServerNode(
 					style: userStyle,
 				},
 			);
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: undefined;
 			const inner = compileEngineStyles(
 				{
 					px: props.px ?? (variant === "fullbleed" ? "0" : "1.5rem"),
@@ -670,12 +737,20 @@ function renderServerNode(
 					...(props.centered !== false && variant !== "fullbleed" ? { marginLeft: "auto", marginRight: "auto" } : {}),
 					...(variant === "centered" ? { display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" } : {}),
 					...(variant === "split" ? { display: "grid", alignItems: "center" } : {}),
+					...(engineThemeStyles?.inner ?? {}),
 				},
 			);
 			const hero = (
 				<section key={compiled.id} {...debug} id={id} className={className} style={outer}>
-					{typeof props.overlay === "string" ? (
-						<div aria-hidden="true" style={{ position: "absolute", inset: 0, background: props.overlay, zIndex: 0, pointerEvents: "none" }} />
+					{(typeof props.overlay === "string" || engineThemeStyles?.overlay) ? (
+						<div aria-hidden="true" style={{
+							...(engineThemeStyles?.overlay ?? {}),
+							position: "absolute",
+							inset: 0,
+							...(typeof props.overlay === "string" ? { background: props.overlay } : {}),
+							zIndex: 0,
+							pointerEvents: "none",
+						}} />
 					) : null}
 					<div style={inner}>{children}</div>
 				</section>
@@ -693,7 +768,11 @@ function renderServerNode(
 					: variant === "filled"
 						? { background: "var(--e-card-filled, #f8fafc)" }
 						: { background: "var(--e-card-bg, #fff)" };
+			const engineThemeStyles = props.engineThemeStyles && typeof props.engineThemeStyles === "object" && !Array.isArray(props.engineThemeStyles)
+				? props.engineThemeStyles as Record<string, CSSProperties>
+				: undefined;
 			const cardProps = { ...props };
+			delete cardProps.engineThemeStyles;
 			for (const key of [
 				"variant", "interactive", "cover", "coverAlt", "coverRatio", "coverFit",
 				"coverClassName", "direction", "innerPadding", "coverWidth", "style",
@@ -716,6 +795,7 @@ function renderServerNode(
 			const cover = typeof props.cover === "string" ? (
 				<div
 					style={{
+						...(engineThemeStyles?.cover ?? {}),
 						flexShrink: 0,
 						width: horizontal ? String(props.coverWidth ?? "40%") : "100%",
 						aspectRatio: horizontal ? undefined : String(props.coverRatio ?? "16/9"),
@@ -729,9 +809,10 @@ function renderServerNode(
 						alt={String(props.coverAlt ?? "")}
 						className={typeof props.coverClassName === "string" ? props.coverClassName : undefined}
 						style={{
+							...(engineThemeStyles?.coverImage ?? {}),
 							width: "100%",
 							height: "100%",
-							objectFit: (props.coverFit as CSSProperties["objectFit"] | undefined) ?? "cover",
+							objectFit: (props.coverFit as CSSProperties["objectFit"] | undefined) ?? engineThemeStyles?.coverImage?.objectFit ?? "cover",
 							display: "block",
 							position: horizontal ? "absolute" : "static",
 							top: horizontal ? 0 : undefined,
@@ -741,7 +822,14 @@ function renderServerNode(
 				</div>
 			) : null;
 			const content = (
-				<div style={{ flex: 1, padding: String(props.innerPadding ?? "1.25rem"), display: "flex", flexDirection: "column", minWidth: 0 }}>
+				<div style={{
+					...(engineThemeStyles?.content ?? {}),
+					flex: 1,
+					padding: String(props.innerPadding ?? engineThemeStyles?.content?.padding ?? "1.25rem"),
+					display: "flex",
+					flexDirection: "column",
+					minWidth: 0,
+				}}>
 					{children}
 				</div>
 			);
@@ -823,33 +911,50 @@ function renderServerNode(
 
 		case "spacer": {
 			const horizontal = props.axis === "x";
-			const spacerStyle = compileEngineStyles(
-				horizontal ? { width: props.size ?? "2rem" } : { height: props.size ?? "2rem" },
-				collector,
-				{ display: horizontal ? "inline-block" : "block" },
-			);
-			return <span key={compiled.id} {...debug} aria-hidden="true" style={spacerStyle} />;
+			const spacerProps = { ...props };
+			const size = props.size ?? "2rem";
+			const width = props.width;
+			const height = props.height;
+			delete spacerProps.size;
+			delete spacerProps.axis;
+			delete spacerProps.style;
+			delete spacerProps.width;
+			delete spacerProps.height;
+			if (horizontal) spacerProps.width = width ?? size;
+			else spacerProps.height = height ?? size;
+			const spacerStyle = compilePrimitiveStyles(spacerProps, collector, {
+				defaults: { display: horizontal ? "inline-block" : "block" },
+				style: explicitStyle(props),
+			});
+			return <span key={compiled.id} {...debug} id={id} className={className} aria-hidden="true" style={spacerStyle} />;
 		}
 
 		case "divider": {
 			const horizontal = props.orientation !== "vertical";
-			const dividerStyle = compileEngineStyles(
-				horizontal ? { my: props.my ?? "1rem" } : { mx: props.my ?? "1rem" },
-				collector,
-				horizontal
+			const rawLineStyle = props.lineStyle ?? (typeof props.style === "string" ? props.style : "solid");
+			const lineStyle = rawLineStyle === "dashed" || rawLineStyle === "dotted" || rawLineStyle === "solid"
+				? rawLineStyle
+				: "solid";
+			const dividerProps = { ...props };
+			for (const key of ["orientation", "thickness", "color", "style", "lineStyle"]) delete dividerProps[key];
+			if (horizontal) dividerProps.my = props.my ?? "1rem";
+			else dividerProps.mx = props.my ?? "1rem";
+			const dividerStyle = compilePrimitiveStyles(dividerProps, collector, {
+				defaults: horizontal
 					? {
 						border: "none",
-						borderTop: `${String(props.thickness ?? "1px")} ${String(props.style ?? "solid")} ${String(props.color ?? "var(--e-divider, rgba(0,0,0,.1))")}`,
+						borderTop: `${String(props.thickness ?? "1px")} ${lineStyle} ${String(props.color ?? "var(--e-divider, rgba(0,0,0,.1))")}`,
 						width: "100%",
 					}
 					: {
 						border: "none",
-						borderLeft: `${String(props.thickness ?? "1px")} ${String(props.style ?? "solid")} ${String(props.color ?? "var(--e-divider, rgba(0,0,0,.1))")}`,
+						borderLeft: `${String(props.thickness ?? "1px")} ${lineStyle} ${String(props.color ?? "var(--e-divider, rgba(0,0,0,.1))")}`,
 						height: "auto",
 						alignSelf: "stretch",
 					},
-			);
-			return <hr key={compiled.id} {...debug} style={dividerStyle} />;
+				style: explicitStyle(props),
+			});
+			return <hr key={compiled.id} {...debug} id={id} className={className} style={dividerStyle} />;
 		}
 
 		case "option":

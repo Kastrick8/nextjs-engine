@@ -73,6 +73,7 @@ export interface EngineImageProps extends Omit<ImageNodeProps, "type" | "objectF
 	nearMargin?: string;
 	releaseWhenFar?: boolean;
 	unoptimized?: boolean;
+	engineThemeStyles?: Partial<Record<"image" | "placeholder" | "caption", CSSProperties>>;
 }
 
 export const EngineImage = memo(function EngineImage({
@@ -86,7 +87,7 @@ export const EngineImage = memo(function EngineImage({
 	qualityPreset = "balanced",
 	qualityMobile,
 	qualityDesktop,
-	objectFit = "cover",
+	objectFit,
 	aspectRatio,
 	sizes,
 	rounded,
@@ -100,6 +101,7 @@ export const EngineImage = memo(function EngineImage({
 	unoptimized = false,
 	style,
 	className,
+	engineThemeStyles,
 }: EngineImageProps) {
 	const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
 	const loaded = loadedSrc === src;
@@ -139,6 +141,7 @@ export const EngineImage = memo(function EngineImage({
 		: typeof rounded === "string"
 			? rounded
 			: undefined;
+	const resolvedObjectFit = objectFit ?? engineThemeStyles?.image?.objectFit ?? "cover";
 
 	const responsiveProps = useMemo(() => {
 		if (!usePerViewport) return null;
@@ -185,6 +188,7 @@ export const EngineImage = memo(function EngineImage({
 				backgroundPosition: "center",
 				filter: blurDataURL ? "blur(20px) scale(1.1)" : undefined,
 				animation: blurDataURL ? undefined : "e-shimmer 1.6s ease-in-out infinite",
+				...engineThemeStyles?.placeholder,
 			}}
 		/>
 	) : null;
@@ -194,7 +198,9 @@ export const EngineImage = memo(function EngineImage({
 			width: "100%",
 			height: resolvedAspectRatio ? "100%" : "auto",
 		} : {}),
-		objectFit,
+		objectFit: resolvedObjectFit,
+		...engineThemeStyles?.image,
+		...(objectFit !== undefined ? { objectFit } : {}),
 		transition: "opacity 0.25s ease",
 		opacity: loaded ? 1 : 0,
 	};
@@ -237,7 +243,7 @@ export const EngineImage = memo(function EngineImage({
 	return (
 		<figure style={{ margin: 0, padding: 0 }}>
 			{wrapper}
-			<figcaption style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--e-caption-color, #64748b)", marginTop: "0.5rem" }}>
+			<figcaption style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--e-caption-color, #64748b)", marginTop: "0.5rem", ...engineThemeStyles?.caption }}>
 				{caption}
 			</figcaption>
 		</figure>

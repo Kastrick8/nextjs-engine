@@ -746,6 +746,208 @@ async function testPublicThemeApi() {
 			root: { type: "dialog" },
 		}), /Unsupported EngineTheme default 'side'/, "component namespaces reject defaults that could change the wrong component");
 
+		const builtinRuntimeTheme = createTheme({
+			id: "builtin-theme-runtime-smoke",
+			scope: "global",
+			hero: {
+				defaults: { color: "#f8fafc", backgroundColor: "#111827" },
+				styles: {
+					inner: { gap: "12px", maxWidth: "640px" },
+					overlay: { backgroundColor: "rgba(0,0,0,.2)" },
+				},
+				variants: { accent: { styles: { root: { backgroundColor: "#581c87" } } } },
+			},
+			nav: {
+				styles: {
+					root: { backgroundColor: "#fef3c7" },
+					item: { color: "#78350f" },
+					activeItem: { color: "#be123c" },
+					dropdown: { borderRadius: "8px" },
+				},
+			},
+			link: { styles: { root: { color: "#0e7490", textDecoration: "none" } } },
+			"custom-select": {
+				styles: {
+					root: { maxWidth: "320px" },
+					trigger: { backgroundColor: "#ecfccb" },
+					dropdown: { borderColor: "#65a30d" },
+					option: { color: "#166534" },
+				},
+			},
+			image: {
+				styles: {
+					root: { borderRadius: "12px", backgroundColor: "#f1f5f9" },
+					image: { objectFit: "contain" },
+					placeholder: { backgroundColor: "#e5e7eb" },
+					caption: { color: "#334155" },
+				},
+			},
+			video: {
+				styles: {
+					root: { borderRadius: "12px", backgroundColor: "#0b1120" },
+					video: { objectFit: "contain" },
+					poster: { objectFit: "contain" },
+				},
+			},
+			section: {
+				variants: {
+					contentArea: { styles: { inner: { gap: "14px", backgroundColor: "#fef9c3" } } },
+				},
+			},
+			card: {
+				styles: {
+					cover: { borderRadius: "8px" },
+					coverImage: { objectFit: "contain" },
+					content: { backgroundColor: "#f0fdf4", padding: "20px" },
+				},
+			},
+			heading: { styles: { subheading: { color: "#7c3aed", fontSize: "14px", marginTop: "10px" } } },
+			button: { styles: { root: { backgroundColor: "#0e7490", color: "#ffffff" } } },
+		});
+		const builtinThemedPage = resolveEngineThemeSchema({
+			theme: { id: "builtin-theme-runtime-smoke" },
+			root: {
+				type: "section",
+				children: [
+					{ type: "hero", theme: "builtin-theme-runtime-smoke.hero.accent", props: { backgroundColor: "#7c3aed" } },
+					{ type: "nav", props: { items: [{ label: "Home", href: "/" }] } },
+					{ type: "link", props: { href: "/docs", content: "Read docs" } },
+					{ type: "custom-select", props: { name: "plan", label: "Plan", options: [{ value: "starter", label: "Starter" }], style: { borderRadius: "4px" } } },
+					{ type: "image", props: { src: "/next.svg", alt: "Fixture image", style: { borderRadius: "4px" } } },
+					{ type: "video", props: { src: "/fixture.mp4", style: { borderRadius: "4px" } } },
+					{ type: "button", props: { content: "Themed button" } },
+					{ type: "section", theme: "builtin-theme-runtime-smoke.section.contentArea", props: { id: "themed-section" } },
+					{ type: "card", props: { cover: "/next.svg", innerPadding: "6px" } },
+					{ type: "heading", props: { content: "Themed heading", subheading: "A themed subheading" } },
+				],
+			},
+		});
+		const [themedHero, themedNav, themedLink, themedSelect, themedImage, themedVideo, themedButton] = builtinThemedPage.root.children;
+		assert.equal(themedHero.theme, undefined, "built-in node variant IDs are consumed before rendering");
+		assert.equal(themedHero.props.backgroundColor, "#7c3aed", "explicit built-in props override variant defaults");
+		assert.equal(themedHero.props.color, "#f8fafc", "built-in component defaults become root styling props");
+		assert.deepEqual(themedHero.props.engineThemeStyles.inner, { gap: "12px", maxWidth: "640px" });
+		assert.equal(themedHero.props.engineThemeStyles.overlay.backgroundColor, "rgba(0,0,0,.2)");
+		assert.equal(themedNav.props.backgroundColor, "#fef3c7");
+		assert.equal(themedNav.props.engineThemeStyles.item.color, "#78350f");
+		assert.equal(themedNav.props.engineThemeStyles.activeItem.color, "#be123c");
+		assert.equal(themedLink.props.color, "#0e7490");
+		assert.equal(themedLink.props.textDecoration, "none");
+		assert.equal(themedSelect.props.maxWidth, "320px");
+		assert.equal(themedSelect.props.engineThemeStyles.trigger.backgroundColor, "#ecfccb");
+		assert.equal(themedSelect.props.engineThemeStyles.dropdown.borderColor, "#65a30d");
+		assert.equal(themedSelect.props.engineThemeStyles.option.color, "#166534");
+		assert.equal(themedSelect.props.style.borderRadius, "4px", "explicit local styles override root theme styles");
+		assert.equal(themedImage.props.style.backgroundColor, "#f1f5f9");
+		assert.equal(themedImage.props.style.borderRadius, "4px");
+		assert.equal(themedImage.props.engineThemeStyles.image.objectFit, "contain");
+		assert.equal(themedImage.props.engineThemeStyles.placeholder.backgroundColor, "#e5e7eb");
+		assert.equal(themedVideo.props.style.backgroundColor, "#0b1120");
+		assert.equal(themedVideo.props.style.borderRadius, "4px");
+		assert.equal(themedVideo.props.engineThemeStyles.video.objectFit, "contain");
+		assert.equal(themedVideo.props.engineThemeStyles.poster.objectFit, "contain");
+		assert.equal(themedButton.props.backgroundColor, "#0e7490");
+		const [themedSection, themedCard, themedHeading] = builtinThemedPage.root.children.slice(7);
+		assert.deepEqual(themedSection.props.engineThemeStyles.inner, { gap: "14px", backgroundColor: "#fef9c3" },
+			"Section inner slots support component-specific styles and variants");
+		assert.equal(themedCard.props.engineThemeStyles.cover.borderRadius, "8px");
+		assert.equal(themedCard.props.engineThemeStyles.coverImage.objectFit, "contain");
+		assert.equal(themedCard.props.engineThemeStyles.content.backgroundColor, "#f0fdf4");
+		assert.equal(themedCard.props.engineThemeStyles.content.padding, "20px");
+		assert.equal(themedHeading.props.engineThemeStyles.subheading.color, "#7c3aed");
+		assert.equal(themedHeading.props.engineThemeStyles.subheading.fontSize, "14px");
+
+		const builtinNodeTypes = [
+			"box", "stack", "grid", "text", "heading", "section", "card", "button", "link",
+			"nav", "hero", "image", "video", "manim", "manim3d", "spacer", "divider", "canvas",
+			"scroll", "custom-select", "suspense", "option", "optgroup", "form", "input",
+			"textarea", "checkbox", "label", "slot",
+		];
+		const completeBuiltinTheme = createTheme({
+			id: "complete-builtin-theme-smoke",
+			scope: "local",
+			...Object.fromEntries(builtinNodeTypes.map((type) => [
+				type,
+				{ styles: { root: { outlineColor: "#123456" } } },
+			])),
+		});
+		const completeBuiltinPage = resolveEngineThemeSchema({
+			theme: completeBuiltinTheme,
+			root: {
+				type: "section",
+				children: builtinNodeTypes.map((type) => ({
+					type,
+					props: { style: { borderRadius: "4px" } },
+				})),
+			},
+		});
+		assert.equal(completeBuiltinPage.root.children.length, builtinNodeTypes.length,
+			"every built-in UI namespace is retained during theme resolution");
+		for (let index = 0; index < builtinNodeTypes.length; index += 1) {
+			const type = builtinNodeTypes[index];
+			const props = completeBuiltinPage.root.children[index].props;
+			assert.equal(props.style.borderRadius, "4px", type + " keeps explicit local styles");
+			if (["image", "video", "canvas", "manim", "manim3d", "slot"].includes(type)) {
+				assert.equal(props.style.outlineColor, "#123456", type + " routes theme root styles into its style prop");
+			} else {
+				assert.equal(props.outlineColor, "#123456", type + " resolves theme root styles");
+			}
+		}
+
+		const unsafeBuiltinTheme = createTheme({
+			id: "unsafe-builtin-theme-smoke",
+			scope: "local",
+			hero: { styles: { root: { backgroundImage: "url(https://evil.invalid/pixel)" } } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: unsafeBuiltinTheme,
+			root: { type: "hero" },
+		}), /Unsafe or invalid CSS value/, "built-in themes reject CSS values that can load network resources");
+		const unsupportedBuiltinSlotTheme = createTheme({
+			id: "unsupported-builtin-slot-smoke",
+			scope: "local",
+			hero: { styles: { unknownPart: { color: "#fff" } } },
+		});
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: unsupportedBuiltinSlotTheme,
+			root: { type: "hero" },
+		}), /Unsupported EngineTheme style slot 'unknownPart'/, "built-in named slots are validated per component");
+		assert.throws(() => resolveEngineThemeSchema({
+			theme: builtinRuntimeTheme,
+			root: { type: "hero", theme: "builtin-theme-runtime-smoke.link" },
+		}), /must use an EngineTheme namespace with the same ID/, "built-in namespaces cannot be applied to a different component");
+
+
+
+		const aliasTheme = createTheme({
+			id: "builtin-alias-theme-smoke",
+			scope: "local",
+			link: { styles: { root: { color: "#123456" } } },
+			nav: { styles: { root: { backgroundColor: "#abcdef" } } },
+			manim: { styles: { root: { outlineColor: "#234567" } } },
+			manim3d: { styles: { root: { outlineColor: "#345678" } } },
+		});
+		const aliasPage = resolveEngineThemeSchema({
+			theme: aliasTheme,
+			root: {
+				type: "section",
+				children: [
+					{ type: "EngineLink", props: {} },
+					{ type: "EngineNav", props: {} },
+					{ type: "EngineManim", props: {} },
+					{ type: "EngineManim3D", props: {} },
+				],
+			},
+		});
+		assert.equal(aliasPage.root.children[0].props.color, "#123456",
+			"EngineLink uses the canonical link theme namespace");
+		assert.equal(aliasPage.root.children[1].props.backgroundColor, "#abcdef",
+			"EngineNav uses the canonical nav theme namespace");
+		assert.equal(aliasPage.root.children[2].props.style.outlineColor, "#234567",
+			"EngineManim uses the canonical manim theme namespace");
+		assert.equal(aliasPage.root.children[3].props.style.outlineColor, "#345678",
+			"EngineManim3D uses the canonical manim3d theme namespace");
+
 		const localVarsOnlyTheme = createTheme({
 			id: "local-vars-only-theme-smoke",
 			scope: "local",

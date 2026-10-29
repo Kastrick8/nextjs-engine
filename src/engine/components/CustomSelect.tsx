@@ -26,6 +26,10 @@ type CustomSelectComponentProps = Omit<CustomSelectProps, "onChange" | "value"> 
 	ariaLabel?: string;
 	searchPlaceholder?: string;
 	emptyLabel?: string;
+	engineThemeStyles?: Partial<Record<
+		"label" | "trigger" | "clearButton" | "dropdown" | "list" | "searchInput" | "option" | "emptyMessage",
+		CSSProperties
+	>>;
 };
 
 const SIZE_CONFIG = {
@@ -140,6 +144,7 @@ export const CustomSelect = memo(function CustomSelect({
 	style,
 	className,
 	cprop,
+	engineThemeStyles,
 	...props
 }: CustomSelectComponentProps) {
 	const generatedId = useId();
@@ -327,6 +332,7 @@ export const CustomSelect = memo(function CustomSelect({
 		fontWeight: 500,
 		color: "var(--e-text-color, #30475f)",
 		userSelect: "none",
+		...engineThemeStyles?.label,
 	};
 
 	const triggerStyle: CSSProperties = {
@@ -352,6 +358,7 @@ export const CustomSelect = memo(function CustomSelect({
 		userSelect: "none",
 		outline: "none",
 		fontFamily: "inherit",
+		...engineThemeStyles?.trigger,
 	};
 
 	const clearButtonStyle: CSSProperties = {
@@ -365,6 +372,7 @@ export const CustomSelect = memo(function CustomSelect({
 		justifyContent: "center",
 		padding: "0 0.7rem",
 		fontFamily: "inherit",
+		...engineThemeStyles?.clearButton,
 	};
 
 	const dropdownStyle: CSSProperties = {
@@ -380,12 +388,14 @@ export const CustomSelect = memo(function CustomSelect({
 		overflow: "hidden",
 		transformOrigin: "top center",
 		animation: "e-select-open 0.15s ease forwards",
+		...engineThemeStyles?.dropdown,
 	};
 
 	const listStyle: CSSProperties = {
 		maxHeight: "240px",
 		overflowY: "auto",
 		padding: "0.3rem",
+		...engineThemeStyles?.list,
 	};
 
 	const optionStyle = (option: SelectOption, index: number): CSSProperties => {
@@ -413,6 +423,7 @@ export const CustomSelect = memo(function CustomSelect({
 			gap: "0.5rem",
 			userSelect: "none",
 			opacity: option.disabled ? 0.5 : 1,
+			...engineThemeStyles?.option,
 		};
 	};
 
@@ -478,7 +489,7 @@ export const CustomSelect = memo(function CustomSelect({
 										setFocusedIndex(firstEnabledIndex(filterOptions(options, searchable, nextSearch)));
 									}}
 									onKeyDown={handleSearchKeyDown}
-									style={{ border: "none", outline: "none", background: "transparent", fontSize: cfg.fontSize, color: "var(--e-text-color, #30475f)", width: "100%", fontFamily: "inherit" }}
+									style={{ border: "none", outline: "none", background: "transparent", fontSize: cfg.fontSize, color: "var(--e-text-color, #30475f)", width: "100%", fontFamily: "inherit", ...engineThemeStyles?.searchInput }}
 								/>
 							</div>
 						</div>
@@ -496,7 +507,7 @@ export const CustomSelect = memo(function CustomSelect({
 						tabIndex={-1}
 					>
 						{filteredOptions.length === 0 ? (
-							<div style={{ padding: "1rem", textAlign: "center", color: "var(--e-muted, #94a3b8)", fontSize: cfg.fontSize, userSelect: "none" }}>
+							<div style={{ padding: "1rem", textAlign: "center", color: "var(--e-muted, #94a3b8)", fontSize: cfg.fontSize, userSelect: "none", ...engineThemeStyles?.emptyMessage }}>
 								No options found
 							</div>
 						) : filteredOptions.map((option, index) => (

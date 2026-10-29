@@ -36,6 +36,7 @@ export interface EngineVideoProps {
 	borderRadius?: string;
 	onCanPlay?: () => void;
 	onEnded?: () => void;
+	engineThemeStyles?: Partial<Record<"video" | "poster", CSSProperties>>;
 }
 
 function VideoSpinner() {
@@ -91,6 +92,7 @@ export const EngineVideo = memo(function EngineVideo({
 	borderRadius,
 	onCanPlay,
 	onEnded,
+	engineThemeStyles,
 }: EngineVideoProps) {
 	const [activated, setActivated] = useState(eager);
 	const [videoReady, setVideoReady] = useState(false);
@@ -178,7 +180,7 @@ export const EngineVideo = memo(function EngineVideo({
 				<img
 					src={poster}
 					alt="Video thumbnail"
-					style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+					style={{ ...engineThemeStyles?.poster, position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: engineThemeStyles?.poster?.objectFit ?? "cover" }}
 				/>
 			)}
 			{buffering && !videoReady && <VideoSpinner />}
@@ -202,7 +204,8 @@ export const EngineVideo = memo(function EngineVideo({
 						inset: 0,
 						width: "100%",
 						height: "100%",
-						objectFit: "cover",
+						objectFit: engineThemeStyles?.video?.objectFit ?? "cover",
+						...engineThemeStyles?.video,
 						opacity: autoPlay ? (videoReady ? 1 : 0) : 1,
 						transition: "opacity 0.25s ease",
 					}}

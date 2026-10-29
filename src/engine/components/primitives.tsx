@@ -311,9 +311,23 @@ const VARIANT_STYLE: Record<TextVariant, CSSProperties> = {
 
 export interface EngineTextProps extends TextProps {
 	children?: ReactNode;
+	/** Theme-only styling for inline parts and links rendered from the parts array. */
+	engineThemeStyles?: Partial<Record<"part" | "partLink", CSSProperties>>;
 }
 
-function renderPart(part: TextPart, index: number): ReactNode {
+function renderPart(
+	part: TextPart,
+	index: number,
+	themeStyles?: EngineTextProps["engineThemeStyles"],
+): ReactNode {
+	// Local per-part styles are intentionally last so an individual run can opt out
+	// of or override the shared typography and link treatment from its theme.
+	const style = {
+		...(themeStyles?.part ?? {}),
+		...(part.href ? themeStyles?.partLink ?? {} : {}),
+		...(part.style ?? {}),
+	};
+	const resolvedStyle = Object.keys(style).length > 0 ? style : undefined;
 	if (part.href) {
 		const isExternal = part.href.startsWith("http://") || part.href.startsWith("https://");
 		const target = part.target ?? (isExternal ? "_blank" : "_self");
@@ -321,13 +335,13 @@ function renderPart(part: TextPart, index: number): ReactNode {
 			? (part.rel ?? "noopener noreferrer")
 			: part.rel;
 		return (
-			<a key={index} href={part.href} target={target} rel={rel} style={part.style}>
+			<a key={index} href={part.href} target={target} rel={rel} style={resolvedStyle}>
 				{part.text}
 			</a>
 		);
 	}
-	return part.style
-		? <span key={index} style={part.style}>{part.text}</span>
+	return resolvedStyle
+		? <span key={index} style={resolvedStyle}>{part.text}</span>
 		: part.text;
 }
 
@@ -348,6 +362,7 @@ export const EngineText = memo(
 			italic,
 			underline,
 			gradient,
+			engineThemeStyles,
 			style,
 			className,
 			id,
@@ -404,7 +419,7 @@ export const EngineText = memo(
 		const resolvedId = id ?? point;
 		const clickHandler = useNodeClickHandler(onClick);
 		const renderedContent: ReactNode = parts && parts.length > 0
-			? parts.map(renderPart)
+			? parts.map((part, index) => renderPart(part, index, engineThemeStyles))
 			: (content ?? children);
 
 		const element = (
@@ -427,6 +442,7 @@ export const EngineText = memo(
 
 export interface EngineHeadingProps extends HeadingProps {
 	children?: ReactNode;
+	engineThemeStyles?: Partial<Record<"subheading", CSSProperties>>;
 }
 
 export const EngineHeading = memo(function EngineHeading({
@@ -435,6 +451,7 @@ export const EngineHeading = memo(function EngineHeading({
 	subheadingProps,
 	children,
 	content,
+	engineThemeStyles,
 	...props
 }: EngineHeadingProps) {
 	const variant = `h${level}` as TextVariant;
@@ -444,7 +461,13 @@ export const EngineHeading = memo(function EngineHeading({
 				{children}
 			</EngineText>
 			{subheading && (
-				<EngineText variant="lead" color="var(--e-muted, #64748b)" mt="0.5rem" {...subheadingProps}>
+				<EngineText
+					variant="lead"
+					color="var(--e-muted, #64748b)"
+					mt="0.5rem"
+					{...(engineThemeStyles?.subheading as any)}
+					{...subheadingProps}
+				>
 					{subheading}
 				</EngineText>
 			)}
@@ -456,6 +479,7 @@ export const EngineHeading = memo(function EngineHeading({
 
 export interface EngineSectionProps extends SectionProps {
 	children?: ReactNode;
+	engineThemeStyles?: Partial<Record<"inner", CSSProperties>>;
 }
 
 export const EngineSection = memo(
@@ -467,6 +491,7 @@ export const EngineSection = memo(
 			fullViewport = false,
 			snapAlign,
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -510,7 +535,7 @@ export const EngineSection = memo(
 				style={resolvedOuter}
 				onClick={clickHandler}
 			>
-				<div className={innerLayoutClass} style={resolvedInner}>{children}</div>
+				<div className={innerLayoutClass} style={{ ...resolvedInner, ...engineThemeStyles?.inner }}>{children}</div>
 			</section>
 		);
 
@@ -625,6 +650,7 @@ export const EngineButton = memo(function EngineButton({
 export interface EngineCardProps extends CardProps {
 	children?: ReactNode;
 	coverClassName?: string;
+	engineThemeStyles?: Partial<Record<"cover" | "coverImage" | "content", CSSProperties>>;
 }
 
 export const EngineCard = memo(
@@ -636,12 +662,13 @@ export const EngineCard = memo(
 			cover,
 			coverAlt = "",
 			coverRatio = "16/9",
-			coverFit = "cover",
+			coverFit,
 			coverClassName,
 			direction = "vertical",
-			innerPadding = "1.25rem",
+			innerPadding,
 			coverWidth = "40%",
 			style,
+			engineThemeStyles,
 			className,
 			id,
 			point,
@@ -713,6 +740,7 @@ export const EngineCard = memo(
 							overflow: "hidden",
 							position: "relative",
 						}, styleCollector)}
+					style={engineThemeStyles?.cover}
 					>
 						<img
 							src={cover}
@@ -722,24 +750,32 @@ export const EngineCard = memo(
 								staticClass({
 									width: "100%",
 									height: "100%",
-									objectFit: coverFit as any,
+									objectFit: (coverFit ?? engineThemeStyles?.coverImage?.objectFit ?? "cover") as any,
 									display: "block",
 									position: isHorizontal ? "absolute" : "static",
 									top: isHorizontal ? 0 : undefined,
 									left: isHorizontal ? 0 : undefined,
 								}, styleCollector),
 							].filter(Boolean).join(" ") || undefined}
+							style={{
+								...(engineThemeStyles?.coverImage ?? {}),
+								...(coverFit !== undefined ? { objectFit: coverFit as CSSProperties["objectFit"] } : {}),
+							}}
 						/>
 					</div>
 				)}
 				<div
 					className={staticClass({
 						flex: 1,
-						padding: innerPadding,
+						padding: innerPadding ?? "1.25rem",
 						display: "flex",
 						flexDirection: "column",
 						minWidth: 0,
 					}, styleCollector)}
+					style={{
+						...(engineThemeStyles?.content ?? {}),
+						...(innerPadding !== undefined ? { padding: innerPadding } : {}),
+					}}
 				>
 					{children}
 				</div>
@@ -755,13 +791,29 @@ export const EngineCard = memo(
 export const EngineSpacer = memo(function EngineSpacer({
 	size = "2rem",
 	axis = "y",
+	width,
+	height,
+	style,
+	className,
+	id,
+	point,
+	cprop,
+	...props
 }: SpacerProps) {
 	const isHorizontal = axis === "x";
-	const resolvedStyle = usePropStyles(
-		isHorizontal ? { width: size } as any : { height: size } as any,
-		{ display: isHorizontal ? "inline-block" : "block" },
+	const resolvedStyle = usePrimitiveStyles(
+		{
+			...props,
+			...(isHorizontal ? { width: width ?? size } : { height: height ?? size }),
+		} as any,
+		{
+			defaults: { display: isHorizontal ? "inline-block" : "block" },
+			style,
+		},
 	);
-	return <span aria-hidden="true" style={resolvedStyle} />;
+	const stateClass = useCpropClass(cprop);
+	const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
+	return <span aria-hidden="true" id={id ?? point} className={mergedClass} style={resolvedStyle} />;
 });
 
 // ── Divider ───────────────────────────────────────────────────────────────────
@@ -770,26 +822,35 @@ export const EngineDivider = memo(function EngineDivider({
 	orientation = "horizontal",
 	color = "var(--e-divider, rgba(0,0,0,.1))",
 	thickness = "1px",
-	style: styleVariant = "solid",
+	style: styleInput = "solid",
+	lineStyle,
 	my,
+	className,
+	id,
+	point,
+	cprop,
+	...props
 }: DividerProps) {
 	const isHorizontal = orientation === "horizontal";
-	const resolvedStyle = usePropStyles(
-		isHorizontal ? { my: my ?? "1rem" } as any : { mx: my ?? "1rem" } as any,
-		isHorizontal
-			? {
-				border: "none",
-				borderTop: `${thickness} ${styleVariant} ${color}`,
-				width: "100%",
-			}
-			: {
-				border: "none",
-				borderLeft: `${thickness} ${styleVariant} ${color}`,
-				height: "auto",
-				alignSelf: "stretch",
-			},
+	const styleVariant = lineStyle ?? (typeof styleInput === "string" ? styleInput : "solid");
+	const explicitStyle = styleInput && typeof styleInput === "object" && !Array.isArray(styleInput)
+		? styleInput as CSSProperties
+		: undefined;
+	const resolvedStyle = usePrimitiveStyles(
+		{
+			...props,
+			...(isHorizontal ? { my: my ?? "1rem" } : { mx: my ?? "1rem" }),
+		} as any,
+		{
+			defaults: isHorizontal
+				? { border: "none", borderTop: `${thickness} ${styleVariant} ${color}`, width: "100%" }
+				: { border: "none", borderLeft: `${thickness} ${styleVariant} ${color}`, height: "auto", alignSelf: "stretch" },
+			style: explicitStyle,
+		},
 	);
-	return <hr style={resolvedStyle} />;
+	const stateClass = useCpropClass(cprop);
+	const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
+	return <hr id={id ?? point} className={mergedClass} style={resolvedStyle} />;
 });
 
 // ── Option ────────────────────────────────────────────────────────────────────

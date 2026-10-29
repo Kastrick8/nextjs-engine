@@ -14,6 +14,8 @@ import React, {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { EngineBrowser } from "../core/EngineBrowser";
+import { useCpropClass } from "../hooks/usePropStyles";
+import { usePrimitiveStyles } from "../hooks/usePrimitiveStyles";
 import type { EngineScrollProps } from "../schema/types";
 
 interface ScrollContextValue {
@@ -101,6 +103,12 @@ export const EngineScrollProvider = memo(function EngineScrollProvider({
 	transitionDuration = 350,
 	transitionColor = "var(--e-bg, #ffffff)",
 	scrollOffset = 80,
+	style,
+	className,
+	id,
+	point,
+	cprop,
+	...styleProps
 }: EngineScrollProviderProps) {
 	const router = useRouter();
 	const pathname = usePathname();
@@ -338,9 +346,12 @@ export const EngineScrollProvider = memo(function EngineScrollProvider({
 		return () => root.removeEventListener("click", handleAnchorClick, { capture: true });
 	}, [navigateTo]);
 
-	const containerStyle: CSSProperties = {
-		...(pageTransition ? { background: transitionColor } : {}),
-	};
+	const containerStyle = usePrimitiveStyles(styleProps as any, {
+		defaults: pageTransition ? { background: transitionColor } : {},
+		style,
+	});
+	const stateClass = useCpropClass(cprop);
+	const mergedClass = [className, stateClass].filter(Boolean).join(" ") || undefined;
 	const contentStyle: CSSProperties = {
 		opacity: pageTransition ? (visible ? 1 : 0) : 1,
 		transition: pageTransition && !reducedMotion ? `opacity ${safeTransitionDuration}ms ease` : undefined,
@@ -349,7 +360,7 @@ export const EngineScrollProvider = memo(function EngineScrollProvider({
 
 	return (
 		<EngineScrollContext.Provider value={contextValue}>
-			<div ref={containerRef} style={containerStyle}>
+			<div ref={containerRef} id={id ?? point} className={mergedClass} style={containerStyle}>
 				<div style={contentStyle}>{children}</div>
 			</div>
 		</EngineScrollContext.Provider>

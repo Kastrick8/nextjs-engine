@@ -37,13 +37,90 @@ This is the trusted local-component contract, not a remote component loader: `.e
 
 ## Current runtime scope
 
-The public createTheme() API, versioned `.etr` compiler/loader, templates, Data-API, highlighting adapters and font pipeline are implemented. Generation 3 resolves component-specific styles for EngineMarkdown, EngineDialog/Drawer/Popover, and registered custom schema-node types. Custom-node styles are restricted to a validated visual-property vocabulary; trusted application code still owns component behavior and accessibility. The scoped registry API now isolates custom components, global/verified remote theme groups, Data-API handlers and template adapters when passed explicitly. Full cross-request acceptance and broader built-in adapters remain unfinished pending current-head tests.
+The public `createTheme()` API, versioned `.etr` compiler/loader, templates, Data-API, highlighting adapters and font pipeline are implemented. Generation 3 resolves component styles for EngineMarkdown, EngineDialog/Drawer/Popover, registered custom schema-node types, and built-in visual/form components. Built-in themes are data-only: they can set validated CSS values, not event handlers, arbitrary component props, or executable code. Local props and explicit `style` remain the override layer; accessibility and interaction behavior stay owned by the component runtime.
 
-This distinction matters: EngineTheme is implemented, while the component-binding coverage is still being expanded. Use page-level vars and other documented supported theme fields where appropriate, or ordinary Engine styling props for components without a theme resolver.
+Built-in theme namespaces are supported for `box`, `stack`, `grid`, `text`, `heading`, `section`, `card`, `button`, `link`, `nav`, `hero`, `image`, `video`, `manim`, `manim3d`, `spacer`, `divider`, `canvas`, `scroll`, `custom-select`, `suspense`, `option`, `optgroup`, `form`, `input`, `textarea`, `checkbox`, `label`, and `slot`. Most components use the `root` style slot. Hero, Nav, Image, Video, and CustomSelect expose additional slots. A slot with no theme/style/class/id remains a fragment; a styled slot receives a wrapper so the root theme has a DOM target. A node-level qualified `theme` selects a variant in the same group and matching component namespace; unresolved namespaces, unknown slots/properties, and unsafe CSS values fail closed.
+
+For components without a named slot, place CSS declarations in `defaults`, `props`, or `styles.root`. These declarations set visual defaults only; use ordinary schema props to configure behavior such as media source, autoplay, navigation items, select options, and layout mode. Page-level `vars` remain available for shared design tokens.
 
 ## Module layout
 
 `createTheme()`, ID resolution, highlighting, declarative templates, remote `.etr` loading, font URL policy, and the event-driven Data-API are implemented in `src/engine/component/engineTheme/`. `src/engine/compiler/theme/3/compiler.ts` owns static NENC theme extraction and `.etr` generation; `src/engine/compiler/font/3/compiler.ts` owns production font asset compilation. The `src/engine/plugins/gen3ThemeCompiler.js` file is only a compatibility link to the theme compiler. Runtime theme code and compiler logic do not live in `plugins/`.
+
+## Built-in component bindings
+
+Component namespaces use the same base/variant syntax as Markdown and custom components. A local, global, or explicitly preloaded remote theme can theme a built-in component without registering custom React code:
+
+~~~tsx
+import { createPage, createTheme } from "nextjs-engine";
+
+const siteTheme = createTheme({
+  id: "site",
+  scope: "global",
+  hero: {
+    defaults: { backgroundColor: "#111827", color: "#f8fafc" },
+    styles: {
+      inner: { gap: "1rem", maxWidth: "64rem" },
+      overlay: { backgroundColor: "rgba(2, 6, 23, .2)" }
+    },
+    variants: {
+      accent: { styles: { root: { backgroundColor: "#6d28d9" } } }
+    }
+  },
+  nav: {
+    styles: {
+      root: { backgroundColor: "#fef3c7" },
+      item: { color: "#78350f" },
+      activeItem: { color: "#be123c" }
+    }
+  },
+  text: {
+    styles: {
+      part: { fontWeight: 500 },
+      partLink: { color: "#0e7490", textDecoration: "underline" }
+    }
+  },
+  "custom-select": {
+    styles: {
+      trigger: { backgroundColor: "#ecfccb" },
+      dropdown: { borderColor: "#65a30d" },
+      option: { color: "#166534" }
+    }
+  }
+});
+
+export default createPage({
+  schema: {
+    theme: { id: "site" },
+    root: {
+      type: "section",
+      children: [
+        {
+          type: "hero",
+          theme: "site.hero.accent",
+          props: { title: "Build something" }
+        },
+        { type: "nav", props: { items: [{ label: "Home", href: "/" }] } },
+        { type: "text", props: { parts: [{ text: "Read the guide", href: "/guide" }] } }
+      ]
+    }
+  }
+});
+~~~
+
+### Named slots
+
+- **Text:** `root`, `part`, `partLink`
+- **Section:** `root`, `inner`
+- **Card:** `root`, `cover`, `coverImage`, `content`
+- **Heading:** `root`, `subheading`
+- **Hero:** `root`, `inner`, `overlay`
+- **Nav:** `root`, `inner`, `items`, `item`, `activeItem`, `dropdown`, `logo`, `mobileToggle`, `mobileMenu`
+- **Image:** `root`, `image`, `placeholder`, `caption`
+- **Video:** `root`, `video`, `poster`
+- **CustomSelect:** `root`, `label`, `trigger`, `clearButton`, `dropdown`, `list`, `searchInput`, `option`, `emptyMessage`
+
+Schema aliases `EngineLink`, `EngineNav`, `EngineManim`, and `EngineManim3D` reuse the canonical `link`, `nav`, `manim`, and `manim3d` namespaces. `Spacer`, `Divider`, and `EngineScroll` also apply root theme CSS to their rendered DOM nodes; Divider retains the legacy `style: "solid" | "dashed" | "dotted"` line-pattern form and accepts a CSS object for visual styling. For `text`, `part` styles target non-link runs in the `parts` array, while `partLink` styles overlay those values for linked runs. An individual `TextPart.style` is applied last in both server-first and client rendering. The `root` slot can also be written as a flat `styles` object, while named slots use `styles: { slotName: { ... } }`. For most built-ins, root CSS declarations are resolved as style props, preserving explicit local props and responsive styling. Image and Video merge root declarations into their explicit inline `style` object. Theme values are validated against a bounded CSS property/value vocabulary; named slots cannot override structural visibility, positioning, or display behavior.
 
 ## Define a theme group
 

@@ -639,16 +639,19 @@ export interface CardProps extends Omit<BaseNodeProps, "direction"> {
 	innerPadding?: string;
 }
 
-export interface SpacerProps {
+export interface SpacerProps extends BaseNodeProps {
 	size?: ResponsiveValue<string | number>;
 	axis?: "x" | "y";
 }
 
-export interface DividerProps {
+export interface DividerProps extends Omit<BaseNodeProps, "style"> {
 	orientation?: "horizontal" | "vertical";
 	color?: string;
 	thickness?: string;
-	style?: "solid" | "dashed" | "dotted";
+	/** Legacy line pattern; CSS object values are accepted for themed root styling. */
+	style?: "solid" | "dashed" | "dotted" | EngineStyleObject;
+	/** Preferred explicit line-pattern prop; style remains backward compatible. */
+	lineStyle?: "solid" | "dashed" | "dotted";
 	my?: ResponsiveValue<string | number>;
 }
 
