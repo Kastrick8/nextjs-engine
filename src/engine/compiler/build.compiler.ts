@@ -460,7 +460,15 @@ function compileSchemaJobs(jobs, options = {}) {
 		const results = new Array(jobs.length);
 		const taskErrors = [];
 		const workers = Array.from({ length: workerCount }, () => new Worker(path.join(__dirname, "schema-worker.compiler.js")));
-		const slots = workers.map((worker, index) => ({ worker, index, job: null, online: false }));
+		const slots = workers.map((worker, index) => ({
+			worker,
+			index,
+			job: null,
+			online: false,
+			failed: false,
+			lastNodeType: "",
+			lastNodePath: "root",
+		}));
 		let completed = 0;
 		let settled = false;
 
@@ -470,8 +478,11 @@ function compileSchemaJobs(jobs, options = {}) {
 
 		function completeTask(slot) {
 			slot.job = null;
+			slot.lastNodeType = "";
+			slot.lastNodePath = "root";
 			completed += 1;
 			if (completed === totalTasks) settleSuccess();
+			else if (slot.failed) drainUnserviceableQueue();
 			else dispatch(slot);
 		}
 
@@ -482,30 +493,77 @@ function compileSchemaJobs(jobs, options = {}) {
 			stopWorkers().then(() => resolve({ pages: results, errors: taskErrors }));
 		}
 
-		function fail(error, failedSlot) {
-			if (settled) return;
-			settled = true;
-			for (const slot of slots) {
-				if (!slot.job || !showWorkerStatus) continue;
-				const label = slot.job.pageId || slot.job.target || slot.job.taskId;
-				const action = slot.job.taskType === "external" ? (slot.job.operation || "work") : "compile";
-				if (slot === failedSlot) {
-					nencLogger.failWorkerTask(slot.index, action + " " + label + " — " + (error instanceof Error ? error.message : String(error)));
-				} else {
-					nencLogger.failWorkerTask(slot.index, action + " " + label + " — worker pool stopped");
-				}
+		function recordTaskError(job, error, slot, kind = "task") {
+			const taskType = job.taskType === "external" ? "external" : "schema";
+			const sourcePath = job.sourcePath ? formatSchemaSourcePath(job.sourcePath) : undefined;
+			const nodeType = slot && slot.lastNodeType ? slot.lastNodeType : undefined;
+			const nodePath = slot && slot.lastNodePath ? slot.lastNodePath : undefined;
+			const message = error instanceof Error ? error.message : String(error);
+			const failure = {
+				taskId: job.taskId,
+				taskType,
+				...(job.pageId ? { pageId: job.pageId } : {}),
+				...(sourcePath ? { sourcePath } : {}),
+				...(job.target ? { target: job.target } : {}),
+				name: error instanceof Error ? error.name : "Error",
+				message,
+				...(nodeType ? { componentType: nodeType } : {}),
+				...(nodePath ? { nodePath } : {}),
+			};
+			taskErrors.push(failure);
+			let detail;
+			if (taskType === "schema") {
+				const component = nodeType ? " · " + nodeType + " at " + (nodePath || "root") : "";
+				const prefix = kind === "worker" ? "WORKER ERRORED " : "COMPONENT ERRORED ";
+				detail = prefix + (sourcePath || job.pageId) + " -> " + job.pageId + component + " — " + message;
+			} else {
+				detail = (kind === "worker" ? "WORKER ERRORED " : "TASK ERRORED ")
+					+ (job.operation || "work") + " " + (job.target || job.pageId || job.taskId) + " — " + message;
 			}
-			stopWorkers().then(() => reject(error instanceof Error ? error : new Error(String(error))));
+			if (showWorkerStatus && slot && slot.job) nencLogger.failWorkerTask(slot.index, detail);
+			else if (showWorkerStatus) nencLogger.errored(detail);
+			else log("ERRORED " + detail);
+			return failure;
+		}
+
+		function drainUnserviceableQueue() {
+			if (!slots.every((slot) => slot.failed)) return;
+			while (queue.length > 0) {
+				const job = queue.shift();
+				const error = new Error("No NENC compile workers remain; task was not started.");
+				recordTaskError(job, error, null, "worker");
+				completed += 1;
+			}
+			if (completed === totalTasks) settleSuccess();
+		}
+
+		function workerFailed(error, slot) {
+			if (settled || slot.failed) return;
+			slot.failed = true;
+			slot.online = false;
+			const activeJob = slot.job;
+			if (activeJob && activeJob.taskType === "schema") {
+				recordTaskError(activeJob, error, slot, "worker");
+				completeTask(slot);
+			} else if (!activeJob) {
+				drainUnserviceableQueue();
+			}
+			// Do not terminate the other CWs. They keep their current tasks and
+			// continue pulling the shared queue; successful results remain valid.
+			if (slot.worker) slot.worker.terminate().catch(() => undefined);
+			drainUnserviceableQueue();
 		}
 
 		function dispatch(slot) {
-			if (settled || !slot.online || slot.job) return;
+			if (settled || slot.failed || !slot.online || slot.job) return;
 			const job = queue.shift();
 			if (!job) {
 				settleSuccess();
 				return;
 			}
 			slot.job = job;
+			slot.lastNodeType = "";
+			slot.lastNodePath = "root";
 			if (job.taskType === "external") {
 				if (showWorkerStatus) {
 					nencLogger.startWorkerTask(slot.index, {
@@ -532,7 +590,11 @@ function compileSchemaJobs(jobs, options = {}) {
 					}
 					if (typeof job.onComplete === "function") job.onComplete(result);
 					completeTask(slot);
-				}, (error) => fail(error, slot));
+				}, (error) => {
+					if (settled) return;
+					recordTaskError(job, error, slot, "task");
+					completeTask(slot);
+				});
 				return;
 			}
 
@@ -564,10 +626,12 @@ function compileSchemaJobs(jobs, options = {}) {
 				dispatch(slot);
 			});
 			slot.worker.on("message", (message) => {
-				if (settled || !slot.job || slot.job.taskType !== "schema"
+				if (settled || slot.failed || !slot.job || slot.job.taskType !== "schema"
 					|| !message || message.taskId !== slot.job.taskId) return;
 				const job = slot.job;
 				if (message.type === "progress") {
+					slot.lastNodeType = typeof message.nodeType === "string" ? message.nodeType : slot.lastNodeType;
+					slot.lastNodePath = typeof message.nodePath === "string" ? message.nodePath : slot.lastNodePath;
 					if (showWorkerStatus) nencLogger.updateWorkerTask(slot.index, { progress: message.progress });
 					if (message.customComponent) {
 						const status = "COMPILING CUSTOM COMPONENT : " + message.nodeType
@@ -581,20 +645,8 @@ function compileSchemaJobs(jobs, options = {}) {
 					const error = new Error(message.error && message.error.message || "NENC schema worker failed");
 					error.name = message.error && message.error.name || "Error";
 					if (message.error && message.error.stack) error.stack = message.error.stack;
-					const failure = {
-						taskId: job.taskId,
-						pageId: job.pageId,
-						sourcePath: job.sourcePath,
-						name: error.name,
-						message: error.message,
-					};
-					taskErrors.push(failure);
-					const sourcePath = formatSchemaSourcePath(job.sourcePath || job.pageId);
-					const detail = "COMPONENT ERRORED " + sourcePath + " -> " + job.pageId + " — " + error.message;
-					// A schema/component error belongs to this task, not to the worker
-					// pool. Keep other CWs running and reuse this worker for queued jobs.
-					if (showWorkerStatus) nencLogger.failWorkerTask(slot.index, detail);
-					else log("ERROR " + detail);
+					// A component error belongs to this task only: other CWs keep working.
+					recordTaskError(job, error, slot, "task");
 					completeTask(slot);
 					return;
 				}
@@ -618,11 +670,16 @@ function compileSchemaJobs(jobs, options = {}) {
 				if (typeof options.log === "function") log("DONE " + doneMessage);
 				completeTask(slot);
 			});
-			slot.worker.on("error", (error) => fail(error, slot));
+			slot.worker.on("error", (error) => workerFailed(error, slot));
 			slot.worker.on("exit", (code) => {
-				if (!settled && code !== 0) fail(new Error("NENC schema worker exited with code " + code), slot);
-				else if (!settled && slot.job && slot.job.taskType === "schema") {
-					fail(new Error("NENC schema worker exited before completing " + slot.job.pageId), slot);
+				if (settled || slot.failed) return;
+				if (code !== 0) workerFailed(new Error("NENC schema worker exited with code " + code), slot);
+				else if (slot.job && slot.job.taskType === "schema") {
+					workerFailed(new Error("NENC schema worker exited before completing " + slot.job.pageId), slot);
+				} else {
+					slot.failed = true;
+					slot.online = false;
+					drainUnserviceableQueue();
 				}
 			});
 		}
@@ -815,7 +872,8 @@ async function compileProject(projectRoot, options = {}) {
 	for (let index = 0; index < workerJobs.length; index++) {
 		pages[workerJobs[index].outputOrder] = workerResult.pages[index];
 	}
-	const schemaErrors = workerResult.errors;
+	const taskErrors = workerResult.errors;
+	const schemaErrors = taskErrors.filter((error) => error.taskType === "schema");
 	// Only successful compiler records enter the manifest. A failed job never
 	// overwrites its cache entry; existing valid cache artifacts stay untouched.
 	const compiledPages = pages.filter((page) => page && typeof page === "object");
@@ -844,6 +902,7 @@ async function compileProject(projectRoot, options = {}) {
 		compiledPageCount: compiledPages.length,
 		compiledSchemaPageCount: compiledPages.length,
 		failedSchemaCount: schemaErrors.length,
+		failedTaskCount: taskErrors.length,
 		skippedPageCount: skipped.length,
 		customComponentTypeCount: new Set(registered.concat(...compiledPages.map((page) => page.customComponents))).size,
 		compilerPassTimeMs: Date.now() - passStartedAt,
@@ -867,6 +926,8 @@ async function compileProject(projectRoot, options = {}) {
 	if (routeEntries) passDetails.push(routeEntries);
 	if (schemaPlans) passDetails.push(schemaPlans);
 	if (engineModules) passDetails.push(engineModules);
+	const failedTasks = formatCount(taskErrors.length, "task error");
+	if (failedTasks) passDetails.push(failedTasks);
 	if (passDetails.length) {
 		log("DONE COMPILER PASS — " + passDetails.join(", ") + " in " + summary.compilerPassTimeMs + "ms");
 	}
@@ -884,7 +945,7 @@ async function compileProject(projectRoot, options = {}) {
 		registeredCustomComponents: registered,
 		pages: compiledPages,
 		skipped,
-		errors: schemaErrors,
+		errors: taskErrors,
 		summary,
 	};
 }
