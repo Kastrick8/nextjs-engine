@@ -211,10 +211,10 @@ async function main() {
 
 	const fixtureCatalog = {
 		releases: [
-			{ version: "2.7.0", track: "stable", source: "npm" },
-			{ version: "3.0.0-alpha.1", track: "alpha", source: "github" },
-			{ version: "3.0.0-alpha.2", track: "alpha", source: "github", floating: true, sourceCommit: "a".repeat(40) },
-			{ version: "3.0.0-beta.1", track: "beta", source: "github" },
+			{ version: "2.7.0", track: "stable", source: "npm", installable: true, installSpec: "@kastrick/nextjs-engine@2.7.0" },
+			{ version: "3.0.0-alpha.1", track: "alpha", source: "github", installable: true, installSpec: "https://downloads.example.test/alpha.1.tgz" },
+			{ version: "3.0.0-alpha.2", track: "alpha", source: "github", installable: true, installSpec: "https://downloads.example.test/alpha-latest.tgz", floating: true, sourceCommit: "a".repeat(40) },
+			{ version: "3.0.0-beta.1", track: "beta", source: "github", installable: true, installSpec: "https://downloads.example.test/beta.1.tgz" },
 		],
 	};
 	assert.equal(channels.resolveRelease(fixtureCatalog, { channel: "alpha" }).floating, true);
