@@ -60,7 +60,7 @@ export default createPage({
 				},
 				{ type: "image", props: { src: "/next.svg", alt: "Themed fixture image", caption: "Themed image caption", style: { borderRadius: "4px" } } },
 				{ type: "video", props: { src: "/fixture.mp4", className: "themed-video", style: { borderRadius: "4px" } } },
-				{ type: "slot", props: { id: "themed-slot", name: "missing-themed-slot" }, children: [{ type: "text", props: { content: "Themed slot fallback" } }] },
+				{ type: "slot", props: { id: "themed-slot", name: "missing-themed-slot", fallback: { type: "text", props: { content: "Themed slot fallback" } } } },
 			],
 		},
 	},
