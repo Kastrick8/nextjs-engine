@@ -15,6 +15,14 @@ function project() {
 	return require("./project");
 }
 
+function diagnostics() {
+	return require("./diagnostics");
+}
+
+function presentation() {
+	return require("./presentation");
+}
+
 function packageVersion() {
 	try {
 		return require("../../package.json").version || "unknown";
@@ -47,29 +55,33 @@ function parseArgs(argv) {
 			const value = equal === -1 ? undefined : argument.slice(equal + 1);
 			if (name === "and") {
 				const command = value !== undefined ? value : argv[index + 1];
-				if (!command || (value === undefined && command.startsWith("-"))) throw new Error("--and requires a command.");
+				if (!command || (value === undefined && command.startsWith("-"))) throw diagnostics().missingOptionValue("--and", "a command to run");
 				if (value === undefined) index += 1;
 				(options.andCommands ||= []).push(command);
 			} else if (name === "and-terminal") {
 				const rawHeight = value !== undefined ? value : argv[index + 1];
-				if (!rawHeight || (value === undefined && rawHeight.startsWith("-"))) throw new Error("--and-terminal requires a height.");
+				if (!rawHeight || (value === undefined && rawHeight.startsWith("-"))) throw diagnostics().missingOptionValue("--and-terminal", "a terminal height");
 				if (value === undefined) index += 1;
 				const height = Number(rawHeight);
-				if (!Number.isInteger(height) || height < 1 || height > 100) throw new Error("and-terminal height must be an integer between 1 and 100.");
+				if (!Number.isInteger(height) || height < 1 || height > 100) throw diagnostics().invalidOptionValue("--and-terminal", "an integer between 1 and 100");
 				options.andTerminal = height;
 			} else if (takesValue.has(name)) {
 				if (value !== undefined) options[name] = value;
 				else if (argv[index + 1] && !argv[index + 1].startsWith("-")) options[name] = argv[++index];
-				else throw new Error("--" + name + " requires a value.");
-			} else if (["yes", "check", "json", "dry-run", "force"].includes(name)) {
-				options[name === "dry-run" ? "dryRun" : name === "yes" ? "yes" : name] = true;
+				else throw diagnostics().missingOptionValue("--" + name, "a value");
+			} else if (["yes", "check", "json", "dry-run", "force", "no-color"].includes(name)) {
+				options[name === "dry-run" ? "dryRun" : name === "no-color" ? "noColor" : name] = true;
 			} else {
-				throw new Error("Unknown option: " + argument + ". Run ne help for commands.");
+				throw diagnostics().unknownOption(argument, [
+					"--channel", "--version", "--and", "--and-terminal",
+					"--yes", "--check", "--json", "--dry-run", "--force",
+					"--quiet", "--no-color",
+				]);
 			}
 			continue;
 		}
 		if (argument === "-and") {
-			if (!argv[index + 1]) throw new Error("-and requires a command.");
+			if (!argv[index + 1]) throw diagnostics().missingOptionValue("-and", "a command to run");
 			(options.andCommands ||= []).push(argv[++index]);
 			continue;
 		}
@@ -101,17 +113,17 @@ function shouldShowExperimentalWarning() {
 	return !args.includes("-q") && !args.includes("--quiet");
 }
 
-function experimentalWarning() {
+function experimentalWarning(options) {
 	if (!shouldShowExperimentalWarning()) return;
-	const ascii = process.env.NE_ASCII === "1" || process.env.TERM === "dumb";
-	const top = ascii ? "+--------------------------------------------------------------------------+" : "  ╭──────────────────────────────────────────────────────────────────────────╮";
-	const bottom = ascii ? "+--------------------------------------------------------------------------+" : "  ╰──────────────────────────────────────────────────────────────────────────╯";
-	const edge = ascii ? "|" : "  │";
-	const tail = ascii ? "|" : "│";
-	process.stdout.write(top + "\n");
-	process.stdout.write((ascii ? "|" : "  │") + " !! WARNING : NE is experimental and may change or be removed in a future !! " + tail + "\n");
-	process.stdout.write((ascii ? "|" : "  │") + "    version. Review the selected channel before applying updates.             " + tail + "\n");
-	process.stdout.write(bottom + "\n");
+	const settings = options || {};
+	const banner = presentation().renderBanner({
+		type: "warning",
+		title: "NE CLI · EXPERIMENTAL",
+		message: "NE is experimental and may change or be removed in a future version.",
+		details: ["Review the selected channel before applying updates."],
+		color: settings.noColor ? false : undefined,
+	});
+	process.stderr.write(banner + "\n");
 }
 
 function getHelp() {
@@ -409,7 +421,9 @@ async function executeCommand(root, command, subArgs, options, showWarning) {
 	if (command === "check") return project().runCheck(root);
 	if (command === "clean") return project().runClean(root, Boolean(options.dryRun));
 	if (command === "rollback") return project().rollback(root);
-	throw new Error("Unknown command: " + command + ". Run ne help for commands.");
+			throw diagnostics().unknownCommand(command, [
+			"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+		]);
 }
 
 async function main(argv) {
@@ -425,10 +439,12 @@ async function main(argv) {
 		return;
 	}
 	if (command && !["updater", "update", "dev", "build", "start", "check", "clean", "rollback"].includes(command)) {
-		throw new Error("Unknown command: " + command + ". Run ne help for commands.");
+				throw diagnostics().unknownCommand(command, [
+			"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+		]);
 	}
 	const usesTui = !command || command === "updater";
-	if (!usesTui) experimentalWarning();
+	if (!usesTui) experimentalWarning(args.options);
 	const root = project().findProjectRoot(process.cwd());
 	await executeCommand(root, command, subArgs, args.options, shouldShowExperimentalWarning());
 	await runChainedCommands(root, args.options);
