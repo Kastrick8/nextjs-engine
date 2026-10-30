@@ -4,7 +4,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { commandWorkers, TaskTree } = require("./tasks");
+
+function taskRuntime() {
+	return require("./tasks");
+}
 function loadGen3MigrationDiagnostics() {
 	for (const candidate of [
 		path.resolve(__dirname, "../../src/engine/plugins/gen3MigrationDiagnostics.js"),
@@ -139,6 +142,7 @@ function runProcess(command, args, options) {
 		: 256 * 1024;
 
 	if (opts.worker) {
+		const { commandWorkers } = taskRuntime();
 		return commandWorkers.run(command, args, {
 			cwd: opts.cwd || process.cwd(),
 			env,
@@ -756,6 +760,7 @@ function commandDisplayPath(root, file) {
 }
 
 async function runCheck(root, options) {
+	const { TaskTree } = taskRuntime();
 	const settings = options || {};
 	const ownsTree = !settings.tree;
 	const tree = settings.tree || new TaskTree("ne check");
@@ -913,6 +918,7 @@ function buildOutputObserver(tree, taskId) {
 }
 
 async function runBuild(root) {
+	const { TaskTree } = taskRuntime();
 	const tree = new TaskTree("ne build");
 	try {
 		if (packageScript(root, "prepare:production")) {
