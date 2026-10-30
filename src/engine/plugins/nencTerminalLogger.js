@@ -63,7 +63,7 @@ const ANSI = Object.freeze({
 
 function supportsColor(stream = process.stdout) {
 	if (Object.prototype.hasOwnProperty.call(process.env, "NO_COLOR")) return false;
-	if (process.env.FORCE_COLOR && process.env.FORCE_COLOR !== "0") return true;
+	if (Object.prototype.hasOwnProperty.call(process.env, "FORCE_COLOR")) return process.env.FORCE_COLOR !== "0";
 	return Boolean(stream && stream.isTTY && process.env.TERM !== "dumb" && process.env.CI !== "true");
 }
 
@@ -180,7 +180,7 @@ function formatWorkerPanel(slots, columns = process.stdout.columns || 100, useCo
 	const current = Array.isArray(slots) ? slots : [];
 	const anyActive = current.some((slot) => slot && slot.target);
 	const statusLabel = !anyActive && fallbackStatus ? " · " + clip(cleanMessage(fallbackStatus), Math.max(0, width - 14)) : "";
-	const title = "════ NENC" + statusLabel + " ";
+	const title = "═ [NENC] ═" + statusLabel + " ";
 	const header = ansi(title, ANSI.cyan + ANSI.bold, useColor)
 		+ ansi("═".repeat(Math.max(0, width - title.length)), ANSI.gray, useColor);
 	const rows = [header];
