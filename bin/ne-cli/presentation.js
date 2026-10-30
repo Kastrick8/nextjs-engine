@@ -242,9 +242,10 @@ function renderError(error, options) {
 	const details = [];
 	if (locationInfo && locationInfo.location) {
 		const location = locationInfo.location;
-		const where = [location.file, location.line && ("line " + location.line), location.column && ("column " + location.column)]
-			.filter(Boolean).join(":");
-		if (where) details.push("at " + where);
+		let where = location.file || "unknown source";
+		if (location.line) where += ":" + location.line;
+		if (location.column) where += ":" + location.column;
+		details.push("at " + where);
 	}
 	if (failure.neSuggestion) details.push("Suggestion: " + failure.neSuggestion);
 	if (failure.neHint) details.push("Hint: " + failure.neHint);
