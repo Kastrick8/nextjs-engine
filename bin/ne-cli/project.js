@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { createPrivateTempDirectory, writeFileAtomically } = require("./file-system");
 
 function taskRuntime() {
 	return require("./tasks");
@@ -53,10 +54,7 @@ function loadState(root) {
 
 function saveState(root, value) {
 	const file = path.join(root, STATE_RELATIVE_PATH);
-	fs.mkdirSync(path.dirname(file), { recursive: true });
-	const temporary = file + ".tmp";
-	fs.writeFileSync(temporary, JSON.stringify(value, null, 2) + "\n", "utf8");
-	fs.renameSync(temporary, file);
+	writeFileAtomically(file, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
 }
 
 function detectPackageManager(root) {
@@ -381,19 +379,23 @@ async function runClean(root, dryRun) {
 
 function captureDependencyFiles(root) {
 	const backupRoot = path.join(root, BACKUP_RELATIVE_PATH);
-	fs.mkdirSync(backupRoot, { recursive: true });
-	const name = new Date().toISOString().replace(/[:.]/g, "-") + "-" + crypto.randomBytes(3).toString("hex");
-	const directory = path.join(backupRoot, name);
-	fs.mkdirSync(directory, { recursive: true });
+	const backupDirectory = createPrivateTempDirectory(backupRoot, "backup-");
+	const directory = backupDirectory.name;
 	const files = {};
-	for (const relative of DEPENDENCY_FILES) {
-		const source = path.join(root, relative);
-		const exists = fs.existsSync(source);
-		files[relative] = { exists };
-		if (exists) fs.copyFileSync(source, path.join(directory, relative));
+	try {
+		for (const relative of DEPENDENCY_FILES) {
+			const source = path.join(root, relative);
+			const exists = fs.existsSync(source);
+			files[relative] = { exists };
+			if (exists) fs.copyFileSync(source, path.join(directory, relative));
+		}
+		writeFileAtomically(path.join(directory, "backup.json"), JSON.stringify({ files }, null, 2) + "\n", { mode: 0o600 });
+		// Successful rollback snapshots are intentionally kept until `ne clean`/rotation removes them.
+		return { directory, relative: path.relative(root, directory), files };
+	} catch (error) {
+		backupDirectory.removeCallback();
+		throw error;
 	}
-	fs.writeFileSync(path.join(directory, "backup.json"), JSON.stringify({ files }, null, 2) + "\n", "utf8");
-	return { directory, relative: path.relative(root, directory), files };
 }
 
 function restoreDependencyFiles(root, backup) {
@@ -544,7 +546,7 @@ function normalizeArtifactDependency(root, release, artifact) {
 		throw new Error("The package manager did not save " + PACKAGE_NAME + " to package.json; refusing to leave an untracked install.");
 	}
 	const indent = (pkgText.match(/\n([ \t]+)"/) || [null, "\t"])[1];
-	fs.writeFileSync(packageFile, JSON.stringify(pkg, null, indent) + "\n", "utf8");
+	writeFileAtomically(packageFile, JSON.stringify(pkg, null, indent) + "\n");
 
 	const manager = detectPackageManager(root);
 	const lockFilesByManager = {
@@ -609,7 +611,7 @@ function normalizeArtifactDependency(root, release, artifact) {
 		if (!updated.includes(artifact.sha512) && !(name === "yarn.lock" && /^\s*checksum:\s*\S+/m.test(updated))) {
 			throw new Error(name + " did not preserve integrity metadata for the verified artifact.");
 		}
-		fs.writeFileSync(file, updated, "utf8");
+		writeFileAtomically(file, updated);
 		lockCount += 1;
 	}
 	if (lockCount === 0) {
