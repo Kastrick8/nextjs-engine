@@ -54,4 +54,7 @@ jobs:
             gh api --paginate "/repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&per_page=100&ref=$ref" \
               --jq '.[] | [(.number | tostring), .rule.id, (.rule.security_severity_level // .rule.severity // "unknown"), (.most_recent_instance.ref // "unknown-ref"), (.most_recent_instance.location.path // "unknown-path"), ((.most_recent_instance.location.start_line // 0) | tostring)] | @tsv' || true
           done
+          echo "Detailed insecure-temporary-file findings for this PR merge ref:"
+          gh api --paginate "/repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&per_page=100&ref=refs/pull/79/merge" \
+            --jq '.[] | select(.rule.id == "js/insecure-temporary-file") | {number, rule: {id: .rule.id, description: .rule.description, help: .rule.help, severity: .rule.security_severity_level}, message: .most_recent_instance.message.text, location: .most_recent_instance.location, related_locations: .most_recent_instance.related_locations}' || true
 
