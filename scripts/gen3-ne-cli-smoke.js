@@ -29,7 +29,14 @@ async function main() {
 	assert.equal(versionResult.status, 0, "ne --version works without a project directory");
 	assert.equal(versionResult.stdout.trim(), startupPackageManifest.version);
 	assert.equal(versionResult.stderr, "");
-	assert.ok(versionElapsedMs < 5000, "the standalone version path completes within the startup budget");
+	assert.ok(versionElapsedMs < 1000, "the standalone version path completes within the one-second startup budget");
+	const shortVersionResult = spawnSync(process.execPath, [executable, "-v"], {
+		cwd: os.tmpdir(),
+		encoding: "utf8",
+		timeout: 5000,
+	});
+	assert.equal(shortVersionResult.status, 0);
+	assert.equal(shortVersionResult.stdout.trim(), startupPackageManifest.version);
 
 	const helpResult = spawnSync(process.execPath, [executable, "--help"], {
 		cwd: os.tmpdir(),
@@ -49,6 +56,8 @@ async function main() {
 		"const names = ['channels', 'terminal', 'project', 'tasks'];",
 		"const eager = names.filter((name) => require.cache[require.resolve(path.join(root, name + '.js'))]);",
 		"if (eager.length) { process.stderr.write('Eager CLI imports: ' + eager.join(', ')); process.exitCode = 1; }",
+		"require(path.join(root, 'project.js'));",
+		"if (require.cache[require.resolve(path.join(root, 'tasks.js'))]) { process.stderr.write('Project runner eagerly loaded NE task workers'); process.exitCode = 1; }",
 	].join("\n");
 	const lazyResult = spawnSync(process.execPath, ["-e", lazyProbe], {
 		cwd: os.tmpdir(),
@@ -57,7 +66,7 @@ async function main() {
 	});
 	assert.equal(lazyResult.status, 0, "loading the CLI router does not load command-specific modules");
 	assert.equal(lazyResult.stderr, "");
-	process.stdout.write("[NE-CLI] Fast startup paths: version " + versionElapsedMs.toFixed(1) + "ms; lazy command imports verified.\n");
+	process.stdout.write("[NE-CLI] Fast startup: version " + versionElapsedMs.toFixed(1) + "ms; command modules and worker runtime lazy-load verified.\n");
 	const windowsNode = "C:\\Program Files\\nodejs\\node.exe";
 	const windowsNpmScript = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
 	assert.deepEqual(project.resolveProcessInvocation("npm", ["install", "--save-exact", "next"], {
