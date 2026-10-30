@@ -38,7 +38,10 @@ function OverlayActionButton({ action, close, theme }: { action: EngineOverlayAc
 				background: variant === "primary" ? "var(--e-accent, #4f46e5)" : variant === "danger" ? "#dc2626" : variant === "ghost" ? "transparent" : "var(--e-overlay-action-bg, #f1f5f9)",
 				color: variant === "primary" || variant === "danger" ? "#fff" : "inherit",
 				borderColor: variant === "ghost" ? "transparent" : undefined,
-				...(variant === "primary" ? theme?.styles?.actionPrimary : variant === "danger" ? theme?.styles?.actionDanger : theme?.styles?.actionSecondary),
+				...(variant === "primary" ? theme?.styles?.actionPrimary
+					: variant === "danger" ? theme?.styles?.actionDanger
+						: variant === "ghost" ? (theme?.styles?.actionGhost ?? theme?.styles?.actionSecondary)
+							: theme?.styles?.actionSecondary),
 				opacity: action.disabled ? 0.55 : 1,
 				cursor: action.disabled ? "not-allowed" : "pointer",
 			}}
