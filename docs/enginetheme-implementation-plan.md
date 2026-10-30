@@ -711,79 +711,46 @@ A third-party package should integrate through a small public adapter rather tha
 - Which initial extension points are stable and which remain experimental, including the future-facing Next.js adapter boundary.
 - The smallest package-to-package proof of concept after the extension-point inventory.
 
-## 16. Gen 3 first-release gap assessment: EngineOverlay and reused Gen 2 surfaces
+## 16. Gen 3 first-release status: EngineTheme and EngineOverlay
 
-This is a source-backed planning assessment, not an implementation claim. EngineTheme and the .etr pipeline are already implemented by merged PR #45; this section focuses on the missing component integration and the older modules that still carry their Gen 2 implementation into Gen 3.
+**Reviewed against `main-3` on 2026-10-30.** This section records the implementation visible in the source and tests, and separates automated evidence from performance or assistive-technology claims that still need independent validation.
 
-### Audit method and evidence boundary
+### Current implementation status
 
-The connector could not resolve v2.6.2 as a Git ref, so this section does not claim an exact tag-to-head “last touched” date. It compares file blobs on the available main-2 and main-3 branches. Identical hashes prove those checked files are byte-for-byte unchanged between the branches; they are evidence of Gen 2 carry-over, not by themselves proof that a file is defective.
+EngineTheme's group/variant model and `.etr` pipeline were established by PR #45. Overlay namespace integration was merged in PR #48; built-in component bindings were extended by PR #58 and form-control bindings by PR #70. The current source uses the resolver-injected `engineOverlayTheme` contract. It does not use the older `themeStyles` component implementation still present in draft PR #55.
 
-| Module/file | main-2 vs main-3 result | Planning consequence |
-|---|---|---|
-| **src/engine/components/EngineOverlay/EngineDialog.tsx** | Identical blob 8f0766f35c600c81ad211ab1ff0d65fd2e5dea92 | Prioritize shared overlay lifecycle, accessibility and themes before visual-only changes |
-| **src/engine/components/EngineOverlay/EngineDrawer.tsx** | Identical blob 4f947ad234a34bc31e2e7e4aa135ad873dfa3202 | Reuse common theme slots and animation/stacking policies |
-| **src/engine/components/EngineOverlay/EnginePopover.tsx** | Identical blob 75c10d82a0248cc811291f60ad483f1e5a83ed4d | Improve positioning and interaction policy on the shared runtime |
-| **src/engine/components/EngineOverlay/OverlayShared.tsx** | Identical blob 9623cbc2b9796a224cf5e9e1ed305414623fe9a9 | Share reduced-motion subscriptions, focus/scroll handling and presence behavior |
-| **src/engine/components/EngineOverlay/OverlayParts.tsx** | Identical blob 307e4b25b335548530e3c0c6ce97ea08173a47b4 | Theme trigger, close button, actions, content and description as named slots |
-| **src/engine/components/EngineOverlay/types.ts** | Identical blob 17afb3e06afd0ab7db63bb4eccc717fe28a80910 | Add typed theme/variant and accessible behavior props without breaking existing props |
-| **src/engine/core/engineoverlay/EngineOverlayRuntime.ts** | Identical blob adbd0afb4a107ffbacbc5827d538ce7fa1205881 | Review global stack/scroll-lock ownership, positioning updates and lifecycle isolation |
-| **src/engine/components/EngineForms.tsx** | Identical blob 734ed9560f141f088d9b6d1d9e52cc6b81efc833 | Modernize the form contract only where behavior tests identify a real benefit |
-| **src/engine/components/EngineTransitionLink.tsx** | Identical blob 6efe1809f52a970be401eca5ff87413f427e3e7f | Align supported Next.js link options and transition/reduced-motion behavior |
-| **src/engine/components/CustomSelect.tsx** | Identical blob ab73eab348be75aff79a06817395cc71d737a6d3 | Audit long-option-list behavior, keyboard/type-ahead and listbox semantics before adding features |
-| **src/engine/components/EngineManim/EngineManim.tsx** | Identical blob a8861b37df7d98e5e7f31fa314ecfd600e0232e7 | Preserve as stable unless runtime/budget tests find a Gen 3 integration issue |
-| **src/engine/hooks/usePrimitiveStyles.ts** | Identical blob 3eabf494cf6c255df0757d82cdd2641246c8e62f | Do not refactor only because it is unchanged; verify compatibility with the new style collector |
+- [x] **Resolver integration:** `resolveEngineThemeSchema()` resolves shared `overlay` and component-specific `dialog`, `drawer`, and `popover` namespaces through the existing global, local, and verified remote-theme paths. Node-level qualified IDs are consumed by the resolver and are not forwarded as DOM props.
+- [x] **Defaults and precedence:** shared styles/defaults are merged before component-specific styles and variants. Explicit component props and local `style` remain stronger than theme defaults. Theme defaults are restricted to behavior-neutral fields.
+- [x] **Theme safety:** overlay style slots/properties use an allowlist; unsafe URL/network CSS and unsupported fields fail closed. Themes remain declarative JSON and do not execute code. No `.etr` format bump is required.
+- [x] **Overlay UI slots:** trigger, backdrop, panel, header, title, description, content, actions, primary/secondary/danger/ghost action buttons, and close button. The dedicated `actionGhost` slot is supported and falls back to `actionSecondary` when omitted; resolver smoke and browser coverage verify both paths. `popoverArrow` remains deferred because Popover does not currently render an arrow element.
+- [x] **Document-scoped runtime:** stack ownership, top-overlay selection, body-scroll locking, z-index layers, modal background inertness, viewport listeners, animation-frame scheduling, and ResizeObserver subscriptions are scoped to the owning document. Inert states and layer styles are restored during unregister.
+- [x] **Popover update behavior:** scroll/resize/visual-viewport updates are coalesced through the document frame scheduler. The component avoids a React state update when computed position and placement are unchanged.
+- [x] **Reduced motion and focus:** mounted overlays share the reduced-motion subscription. Focus discovery excludes disabled/hidden/inert/aria-hidden elements, and focus restoration falls back when the original trigger is no longer available.
+- [x] **Trigger contract:** `triggerAsChild` composes exactly one native `button`; interactive descendants without opt-in fail closed. Links and arbitrary custom-component triggers remain outside the current typed contract.
+- [x] **Popover role boundary:** `EnginePopover` advertises dialog semantics only. Menu/listbox roles remain unavailable until arrow-key movement, active-item semantics, and the corresponding accessibility behavior are implemented.
+- [ ] **Final release verification:** complete runtime/type-check/build, EngineTheme/EngineOverlay smoke tests, and Chromium/Firefox/WebKit checks on the final post-merge `main-3` commit.
+- [ ] **Manual accessibility review:** validate screen-reader announcements and focus behavior with assistive technologies, including dialog naming/descriptions, reduced-motion settings, and nested modal/non-modal combinations.
+- [ ] **Exit lifecycle edge:** add a browser regression for rapid close/reopen while an exit transition is pending; verify no stale registration, body lock, inert state, or focus callback survives.
+- [ ] **Performance evidence:** collect repeatable measurements for zero overlays, mounted-but-closed overlays, one active Popover, and nested overlays on a constrained device profile. The per-document scheduling/observer structure is source-backed; do not claim a low-end performance improvement until measurements exist.
 
-The audit also found branch changes in EngineLink, EngineNav, EngineCanvas, EngineVideo, EngineImage, EngineMarkdown, EngineScroll, usePropStyles, EngineProvider, and StyleCollector. These should not be put into a blanket “rewrite Gen 2” bucket; review them against their existing Gen 3 implementation and tests instead.
+### Source and test evidence
 
-### P0 — Generic EngineTheme integration through createComponent()
+- `src/engine/component/engineTheme/resolveTheme.ts` — overlay namespace selection, bounded defaults/style resolution, and internal prop injection.
+- `src/engine/components/EngineOverlay/` — typed theme slots, resolved appearance consumption, trigger composition, focus behavior, and component defaults.
+- `src/engine/core/engineoverlay/EngineOverlayRuntime.ts` — per-document stack, inertness, z-index, frame scheduling, viewport subscriptions, and resize observers.
+- `scripts/gen3-theme-compiler-smoke.js` — local/global/remote theme resolution, variants, precedence, and unsafe-style rejection.
+- `scripts/engine-overlay-smoke.js` — document isolation, stack restoration, modal inertness, multi-root Drawer, and scheduling.
+- `tests/browser/engine-overlay.spec.ts` — nested overlays, Escape/outside-pointer handling, controlled state, focus fallback, scroll-lock restoration, and reduced-motion behavior.
 
-PR #45 supplies the EngineTheme group/variant model, token handling, Markdown resolver, .etr pipeline and remote loader. PR #48 extends the existing resolver into EngineOverlay without duplicating that machinery.
+These checks establish implementation and automated coverage. They do not replace a manual assistive-technology audit or repeatable constrained-device performance measurements.
 
-- `SchemaNode.theme` is a reserved component/variant binding resolved by `resolveEngineThemeSchema()` before rendering. `createPage()` and `createComponent()` share this path.
-- Shared `overlay` and per-component `dialog`, `drawer`, and `popover` namespaces resolve from global definitions, explicit node-level variants, local theme objects, and already-verified remote .etr groups. IDs are consumed before rendering; raw IDs are not forwarded as React props.
-- Shared style slots merge first, then component styles/variants; explicit node style/behavior props remain the local override. Theme defaults are bounded to behavior-neutral keys: shared duration; dialog duration; drawer duration/side/size; popover duration/placement/alignment/offset/viewport padding/trigger-width matching.
-- Style slots use an allowlisted CSS vocabulary. Unsafe URL/network CSS, unknown style slots/properties, unsupported defaults, missing variants, missing group context, and wrong-component IDs produce clear errors. Remote themes remain JSON-only; no .etr format bump is required.
-- Regression coverage exercises group/variant resolution, shared/component style merging, local overrides, local/global/remote group handling, unsafe CSS rejection and invalid binding diagnostics.
-- PR #48 does not complete the other P0 overlay runtime/accessibility work. Track those separately and do not claim the whole overlay integration is complete until their tests pass.
+### PR #55 disposition
 
-Suggested overlay theme slots include trigger, backdrop, panel, header, title, description, content, actions, actionPrimary, actionSecondary, actionDanger, closeButton, and popoverArrow. Prefer a validated style/token vocabulary or safe declarative Engine Schema templates over allowing arbitrary remote CSS/code. Existing CSS-variable hooks (--e-overlay-bg, --e-overlay-color, --e-overlay-border, --e-overlay-shadow, --e-overlay-radius, --e-overlay-trigger-*, --e-overlay-action-bg, --e-overlay-muted) provide a compatibility bridge for the first pass.
+Do not merge the old draft branch wholesale. It is based on an earlier `main-3` revision and is 30 commits behind the current branch; several overlapping files still use the superseded `themeStyles` component contract. The required theme resolver/runtime behavior was landed and extended by PR #48 and subsequent `main-3` commits. Carry over only a discrete improvement that current source confirms is missing and that receives its own regression coverage; otherwise mark the draft as superseded rather than reintroducing old files.
 
-### P0 — Shared overlay runtime and low-end performance
+### Remaining recommendation
 
-The current implementation still duplicates portal/backdrop/panel orchestration across EngineDialog, EngineDrawer, and EnginePopover. Overlay stack and scroll-lock ownership are scoped in a WeakMap keyed by the owning Document. Reduced-motion preference uses one shared external store/subscription, popover viewport resize/scroll/visualViewport listeners are shared per Document, and unchanged computed position retains the previous state object. ResizeObserver targets are tracked by one observer per owning Document, and registrations are removed as Popovers leave the rendered lifecycle. Popover position callbacks are now coalesced into one animation-frame pass per Document; explicit batched read-then-write layout scheduling still needs verification and refinement.
-
-Continue with a targeted shared-runtime improvement rather than rewriting the components into a large new abstraction:
-
-1. Maintain per-document overlay state using a bounded document-scoped manager (or equivalent isolation) for stack order, top-overlay checks, scroll-lock reference counting, focus restoration and z-index ordering. Do not let request/app state leak through a server-global singleton.
-2. Share the prefers-reduced-motion subscription so mounted dialogs/popovers do not each add their own change listener. Preserve the reduced-motion fallback when matchMedia or modern listener APIs are missing.
-3. Coalesce positioning reads into one animation-frame pass per document while overlays need repositioning. Keep read/write phases deliberate; avoid unnecessary setPosition() when coordinates and placement have not changed.
-4. Attach and remove observers/listeners only during the visible/open lifecycle, use passive scroll listeners where appropriate, and retain a safe fallback without ResizeObserver or visualViewport.
-5. Centralize base z-index/backdrop behavior for stacked and nested overlays. Explicit user-provided z-index should remain an override within a documented policy; top-overlay Escape/outside-pointer behavior must stay deterministic.
-6. Keep optional content lazy and do not make a provider mandatory for pages that never render overlays. The no-overlay path should install no global listeners and perform no overlay-related work.
-
-Use measurements from a page with zero overlays, one open popover, many mounted-but-closed overlays, and several simultaneously open nested overlays. Measure listener counts, ResizeObserver count, rerenders per scroll/resize, scripting time, layout reads, and production bundle impact on low-end-style device throttling; do not accept “faster” without a repeatable baseline.
-
-### P0 — Accessibility and interaction correctness
-
-Some explicit gaps are visible in the current component contracts:
-
-- EnginePopover now restricts its role type to `dialog` until menu/listbox-specific arrow-key navigation and active-item semantics are implemented and tested. Visual menu compositions remain possible, but they do not claim composite-widget ARIA behavior.
-- `OverlayTrigger` now supports an explicit `triggerAsChild` path for exactly one native button, merging refs, click behavior, disabled state and ARIA props. Interactive children without opt-in are rejected, and non-button elements are rejected in asChild mode; a broader typed contract for links/custom components remains deferred.
-- `getFocusableElements()` now excludes native disabled controls, hidden/inert/aria-hidden ancestors, elements without a layout box, and computed hidden/collapsed visibility. Browser/assistive-tech coverage is still required for remaining native focusability edge cases.
-- Dialog and Drawer now register modal portal roots with the document-scoped overlay manager. Background sibling branches become inert while a modal is active; overlays stacked above that modal remain interactive, and previous inert values are restored when modal layers close. Runtime smoke coverage exercises nested modal/popover registration. The Playwright overlay spec exercises background inertness, a nested popover, Escape cleanup, and trigger focus restoration across Chromium, Firefox, and WebKit. Manual assistive-technology validation, trigger removal, changing initialFocus, and close/reopen during an exit transition remain release checks.
-- Provide deterministic behavior for Escape, outside pointer, backdrop clicks, controlled open, named/function onOpenChange, reduced motion, and scroll-lock cleanup. Invalid role combinations should fail validation or generate development diagnostics.
-
-### P1 — Useful new EngineOverlay components
-
-Do not expand the overlay catalog before the existing primitives share their behavior and theme contract. After P0 tests pass, consider the following thin, composable additions:
-
-1. **EngineAlertDialog** — a confirmation/destructive-action wrapper over dialog semantics with safe focus defaults and explicit confirm/cancel actions. It should not reimplement portals, stacking or focus management.
-2. **EngineTooltip** — a non-modal hover/focus disclosure with aria-describedby, Escape/dismissal behavior and no focus trap/body scroll lock. It should share the positioning/theme runtime but not be registered as a modal overlay unnecessarily.
-3. **EngineToast / notification region** — a bounded queue/stack with polite/assertive live-region options, dismiss actions, reduced-motion support, pause-on-hover/focus timing, and no focus stealing. Notifications should have a separate lifecycle/queue contract rather than being forced into the dialog/drawer modal stack.
-4. **Context menu / menu popover** — consider only after menu/listbox keyboard semantics are implemented and tested; do not expose roles that the primitive cannot honor.
-
-The first-release recommendation is to land overlay theme bindings, the shared runtime and accessibility regressions first; choose at most EngineAlertDialog as the first additional wrapper. Tooltip and toast may follow once their non-modal behavior is isolated and measured.
+Keep the first-release scope on correctness: finish the dedicated ghost-action theme slot, run the final automated matrix, add the close/reopen regression, and complete manual accessibility/performance review. Do not add Tooltip, Toast, context-menu, or other new overlay primitives before the existing Dialog/Drawer/Popover contract is fully verified.
 
 ### P1 — Other carry-over API contracts worth reviewing
 

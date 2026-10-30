@@ -77,6 +77,24 @@ test("standalone popover is non-modal and outside pointer closes it", async ({ p
 	await expect(popover).toBeHidden();
 });
 
+test("ghost action theme slot overrides secondary and keeps the backwards-compatible fallback", async ({ page }) => {
+	await page.goto("/engine-overlay-test");
+
+	await page.getByRole("button", { name: "Open ghost action themed dialog" }).click();
+	const dedicatedDialog = page.getByRole("dialog", { name: "Ghost action theme" });
+	await expect(dedicatedDialog).toBeVisible();
+	await expect(dedicatedDialog.getByRole("button", { name: "Dedicated ghost action" }))
+		.toHaveCSS("color", "rgb(180, 83, 9)");
+	await page.keyboard.press("Escape");
+	await expect(dedicatedDialog).toBeHidden();
+
+	await page.getByRole("button", { name: "Open ghost action fallback dialog" }).click();
+	const fallbackDialog = page.getByRole("dialog", { name: "Ghost action fallback" });
+	await expect(fallbackDialog).toBeVisible();
+	await expect(fallbackDialog.getByRole("button", { name: "Fallback ghost action" }))
+		.toHaveCSS("color", "rgb(15, 118, 110)");
+});
+
 test("drawer releases its scroll lock and restores focus on Escape", async ({ page }) => {
 	await page.goto("/engine-overlay-test");
 
