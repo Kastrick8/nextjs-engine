@@ -263,6 +263,12 @@ async function main() {
 	assert.equal(channels.resolveRelease(fixtureCatalog, { version: "3.0.0-alpha.2" }), null);
 	assert.match(channels.channelLabel(fixtureCatalog.releases[2]), /LATEST COMMIT/);
 
+	const packageManifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"));
+	assert.equal(packageManifest.bin && packageManifest.bin.ne, "./bin/ne.js",
+		"npm exposes the ne command directly through the package bin map");
+	assert.match(fs.readFileSync(path.join(__dirname, "..", "bin", "ne.js"), "utf8"), /^#!\/usr\/bin\/env node/,
+		"the ne executable has a Node.js shebang");
+
 	const args = cli.parseArgs([
 		"update", "--channel", "alpha", "--yes",
 		"--and=git status", "-and=npm test", "--and-terminal=10",
