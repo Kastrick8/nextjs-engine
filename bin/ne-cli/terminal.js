@@ -107,6 +107,7 @@ function renderDashboard(selected, context) {
 	rows.push("");
 	rows.push("Move: arrows / W A S D    Open: Enter / E    Back/Quit: Esc / Q");
 	rows.push("Mouse selection is enabled in terminals that report SGR mouse events.");
+	if (context.rollbackAvailable === false) rows.push("Rollback is unavailable until a channel install creates a snapshot.");
 	return frame("NEXTJS-ENGINE (ne)  " + (context.version || "") + "  [Gen 2]", rows);
 }
 
@@ -227,8 +228,8 @@ function runTui(options) {
 		function chooseMenu() {
 			const item = MENU_ITEMS[selected];
 			if (!item) return;
-			if (item.id === "rollback" && liveContext.rollbackAvailable === false) {
-				liveContext.activity = "No rollback snapshot yet. Install a channel first to enable rollback.";
+			if (item.id === "rollback" && context.rollbackAvailable === false) {
+				process.stdout.write("\x1b[0m\r\n[NE] No rollback snapshot yet. Install a channel first to enable rollback.\r\n");
 				draw();
 				return;
 			}
