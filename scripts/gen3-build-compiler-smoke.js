@@ -240,7 +240,11 @@ try {
 		"a duplicate adapter instance in the same build does not print the banner again");
 	assert.deepEqual(firstBanner, renderBannerLines(), "the first claim emits the complete banner");
 	assert.equal(duplicateBanner.length, 0, "a duplicate claim emits no banner rows");
+	const bannerLock = path.join(bannerProject, ".nextjs-engine", ".cache", "gen3", "build-banner.lock");
+	assert.equal(fs.existsSync(bannerLock), true, "the banner lock is stored in the project's NENC cache, not the shared OS temp directory");
+	if (process.platform !== "win32") assert.equal(fs.statSync(bannerLock).mode & 0o777, 0o600, "the banner lock is private");
 	releaseBanner(bannerProject);
+	assert.equal(fs.existsSync(bannerLock), false, "releasing the banner removes its cache lock");
 	assert.equal(printBannerOnce(bannerProject, () => {}), true, "the next build can print after the marker is released");
 	releaseBanner(bannerProject);
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");
