@@ -4,15 +4,20 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { runGen3MigrationDiagnostics } = (() => {
+function loadGen3MigrationDiagnostics() {
 	for (const candidate of [
 		path.resolve(__dirname, "../../src/engine/plugins/gen3MigrationDiagnostics.js"),
 		path.resolve(__dirname, "../../engine/plugins/gen3MigrationDiagnostics.js"),
 	]) {
-		try { return require(candidate); } catch {}
+		try {
+			const loaded = require(candidate);
+			if (loaded && typeof loaded.runGen3MigrationDiagnostics === "function") {
+				return loaded.runGen3MigrationDiagnostics;
+			}
+		} catch {}
 	}
-	return {};
-})();
+	return null;
+}
 
 const PACKAGE_NAME = "@kastrick/nextjs-engine";
 const STATE_RELATIVE_PATH = path.join(".nextjs-engine", "config", "ne.config.json");
@@ -69,17 +74,82 @@ function managerCommand(manager) {
 function runProcess(command, args, options) {
 	return new Promise((resolve, reject) => {
 		const opts = options || {};
+		const startedAt = Date.now();
+		const label = typeof opts.label === "string" && opts.label.trim() ? opts.label.trim() : "";
+		const canAnimate = Boolean(label && process.stdout.isTTY && process.stderr.isTTY &&
+			process.env.CI !== "true" && process.env.NE_NO_PROGRESS !== "1" && process.env.NO_COLOR === undefined);
+		const report = Boolean(label && !opts.quiet);
+		const spinnerFrames = ["|", "/", "-", "\\"];
+		let frame = 0;
+		let timer = null;
+		let finished = false;
+
+		function elapsed() {
+			return ((Date.now() - startedAt) / 1000).toFixed(1) + "s";
+		}
+
+		function clearStatus() {
+			if (canAnimate) process.stdout.write("\r\x1b[2K");
+		}
+
+		function renderStatus() {
+			if (!canAnimate || finished) return;
+			process.stdout.write("\r\x1b[2K" + spinnerFrames[frame++ % spinnerFrames.length] +
+				" " + label + " · " + elapsed());
+		}
+
+		function completeLine(success, suffix) {
+			if (!report) return;
+			if (canAnimate) clearStatus();
+			process.stdout.write("[NE] " + (success ? "DONE " : "FAILED ") + label +
+				" · " + elapsed() + (suffix ? " · " + suffix : "") + "\n");
+		}
+
+		if (report && !canAnimate) process.stdout.write("[NE] RUNNING " + label + "\n");
 		const child = spawn(command, args, {
 			cwd: opts.cwd || process.cwd(),
 			env: opts.env || process.env,
-			stdio: opts.stdio || "inherit",
+			stdio: canAnimate ? ["inherit", "pipe", "pipe"] : (opts.stdio || "inherit"),
 			windowsHide: true,
 			shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(command),
 		});
-		child.once("error", reject);
+
+		function forward(stream, destination) {
+			return (chunk) => {
+				if (canAnimate) clearStatus();
+				destination.write(chunk);
+				if (canAnimate) renderStatus();
+			};
+		}
+		if (canAnimate) {
+			child.stdout.on("data", forward(child.stdout, process.stdout));
+			child.stderr.on("data", forward(child.stderr, process.stderr));
+			renderStatus();
+			timer = setInterval(renderStatus, 140);
+			if (typeof timer.unref === "function") timer.unref();
+		}
+
+		function finish() {
+			if (finished) return;
+			finished = true;
+			if (timer) clearInterval(timer);
+		}
+
+		child.once("error", (error) => {
+			finish();
+			completeLine(false, error.message);
+			reject(error);
+		});
 		child.once("close", (code, signal) => {
-			if (code === 0) resolve();
-			else reject(new Error(command + " exited with " + (signal || ("code " + code)) + "."));
+			finish();
+			if (code === 0) {
+				completeLine(true);
+				resolve();
+			} else {
+				const reason = signal || ("code " + code);
+				completeLine(false, reason);
+				reject(new Error(command + " exited with " + reason + "."));
+			}
 		});
 	});
 }
@@ -91,7 +161,10 @@ function packageScript(root, name) {
 
 async function runPackageScript(root, name) {
 	const manager = detectPackageManager(root);
-	await runProcess(managerCommand(manager), ["run", name], { cwd: root });
+	await runProcess(managerCommand(manager), ["run", name], {
+		cwd: root,
+		label: manager + " run " + name,
+	});
 }
 
 function typeScriptCli(root) {
@@ -117,7 +190,11 @@ function nextCli(root) {
 async function runNext(root, args) {
 	const cli = nextCli(root);
 	if (!cli) throw new Error("Next.js CLI was not found in this project. Install the project's dependencies first.");
-	await runProcess(process.execPath, [cli, ...args], { cwd: root });
+	const action = Array.isArray(args) && args.length ? args[0] : "command";
+	await runProcess(process.execPath, [cli, ...args], {
+		cwd: root,
+		label: "Next.js " + action,
+	});
 }
 
 function projectName(root) {
@@ -167,6 +244,7 @@ async function runClean(root, dryRun) {
 	}
 	if (!removed.length) process.stdout.write("[NE] No generated build artifacts were found.\n");
 	else {
+		process.stdout.write("[NE] " + (dryRun ? "Previewing" : "Cleaning") + " " + removed.length + " generated target(s)...\n");
 		for (const item of removed) process.stdout.write((dryRun ? "[NE] Would remove: " : "[NE] Removed: ") + item + "\n");
 	}
 	process.stdout.write("[NE] Channel rollback backups are preserved.\n");
@@ -216,7 +294,10 @@ async function installWithManager(root, target) {
 	else if (manager === "pnpm") args = ["add", "--save-exact", target];
 	else if (manager === "yarn") args = ["add", "--exact", target];
 	else args = ["add", "--exact", target];
-	await runProcess(managerCommand(manager), args, { cwd: root });
+	await runProcess(managerCommand(manager), args, {
+		cwd: root,
+		label: "Installing " + target + " with " + manager,
+	});
 	return manager;
 }
 
@@ -530,6 +611,7 @@ async function runCheck(root) {
 		process.stdout.write("[NE-CHECK] No TypeScript project was detected; skipping tsc.\n");
 	}
 
+	const runGen3MigrationDiagnostics = loadGen3MigrationDiagnostics();
 	if (typeof runGen3MigrationDiagnostics === "function") {
 		const pkg = readJson(path.join(root, "package.json"), {});
 		const isEngineSource = pkg.name === "nextjs-engine" && fs.existsSync(path.join(root, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"));
