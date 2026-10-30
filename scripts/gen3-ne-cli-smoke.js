@@ -74,7 +74,7 @@ async function main() {
 	].join("\n");
 	const inferredSyntaxBanner = presentation.renderError(nativeSyntaxError, { width: 72, color: false });
 	assert.match(inferredSyntaxBanner, /NE2001/);
-	assert.match(inferredSyntaxBanner, /gen3-ne-cli-smoke\.js/);
+	assert.match(inferredSyntaxBanner, /smoke\.js:2:line 2:column 7/);
 	assert.match(inferredSyntaxBanner, /\^/);
 
 	const commandTypo = diagnostics.unknownCommand("bulid", [
