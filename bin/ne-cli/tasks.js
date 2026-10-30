@@ -96,12 +96,20 @@ function clip(value, width) {
 	return text.slice(0, width - 3) + "...";
 }
 
+function unicodeEnabled() {
+	return process.env.NE_ASCII !== "1" && process.env.TERM !== "dumb";
+}
+
 function statusBadge(status, frame) {
-	if (status === "running") return { text: ["◐ RUNNING", "◓ RUNNING", "◑ RUNNING", "◒ RUNNING"][frame % 4], color: "36;1" };
-	if (status === "success") return { text: "✓ DONE", color: "32;1" };
-	if (status === "failed") return { text: "✕ FAILED", color: "31;1" };
-	if (status === "skipped") return { text: "— SKIPPED", color: "33" };
-	return { text: "… PENDING", color: "90" };
+	const glyphs = unicodeEnabled();
+	if (status === "running") {
+		const frames = glyphs ? ["◐", "◓", "◑", "◒"] : ["|", "/", "-", "\\"];
+		return { text: frames[frame % 4] + " RUNNING", color: "36;1" };
+	}
+	if (status === "success") return { text: (glyphs ? "✓" : "[OK]") + " DONE", color: "32;1" };
+	if (status === "failed") return { text: (glyphs ? "✕" : "[X]") + " FAILED", color: "31;1" };
+	if (status === "skipped") return { text: (glyphs ? "—" : "[-]") + " SKIPPED", color: "33" };
+	return { text: (glyphs ? "…" : "...") + " PENDING", color: "90" };
 }
 
 class TaskTree {
@@ -225,15 +233,21 @@ class TaskTree {
 		if (!this.interactive) return;
 		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
 		const inner = width - 4;
-		const borderChars = ["─", "━", "═", "━"];
+		const glyphs = unicodeEnabled();
+		const borderChars = glyphs ? ["─", "━", "═", "━"] : ["-", "=", "#", "="];
 		const border = borderChars[this.frame % borderChars.length];
+		const left = glyphs ? "╭" : "+";
+		const right = glyphs ? "╮" : "+";
+		const bottomLeft = glyphs ? "╰" : "+";
+		const bottomRight = glyphs ? "╯" : "+";
+		const vertical = glyphs ? "│" : "|";
 		const color = this.root.status === "failed" ? "31;1" : this.root.status === "success" ? "32;1" : "36;1";
 		const title = " NE TASK TREE · " + this.command + " ";
-		const top = "╭" + border + title + border.repeat(Math.max(1, width - title.length - 3)) + "╮";
-		const bottom = "╰" + border.repeat(width - 2) + "╯";
+		const top = left + border + title + border.repeat(Math.max(1, width - title.length - 3)) + right;
+		const bottom = bottomLeft + border.repeat(width - 2) + bottomRight;
 		const rows = [paint(top, color)];
 		for (const line of this.renderRows(inner)) {
-			rows.push(paint("│", "90") + " " + line + " ".repeat(Math.max(0, inner - line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length)) + " " + paint("│", "90"));
+			rows.push(paint(vertical, "90") + " " + line + " ".repeat(Math.max(0, inner - line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length)) + " " + paint(vertical, "90"));
 		}
 		rows.push(paint(bottom, color));
 		process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + rows.join("\n") + "\x1b[?25h");
@@ -242,13 +256,19 @@ class TaskTree {
 		if (!this.interactive) return;
 		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
 		const inner = width - 4;
+		const glyphs = unicodeEnabled();
+		const border = glyphs ? "═" : "=";
+		const left = glyphs ? "╭" : "+";
+		const right = glyphs ? "╮" : "+";
+		const bottomLeft = glyphs ? "╰" : "+";
+		const bottomRight = glyphs ? "╯" : "+";
+		const vertical = glyphs ? "│" : "|";
 		const title = " NE TASK TREE · " + this.command + " ";
-		const border = "═";
-		const top = "╭" + border + title + border.repeat(Math.max(1, width - title.length - 3)) + "╮";
-		const bottom = "╰" + border.repeat(width - 2) + "╯";
+		const top = left + border + title + border.repeat(Math.max(1, width - title.length - 3)) + right;
+		const bottom = bottomLeft + border.repeat(width - 2) + bottomRight;
 		const rows = [paint(top, "32;1")];
 		for (const line of this.renderRows(inner)) {
-			rows.push(paint("│", "90") + " " + line + " ".repeat(Math.max(0, inner - line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length)) + " " + paint("│", "90"));
+			rows.push(paint(vertical, "90") + " " + line + " ".repeat(Math.max(0, inner - line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length)) + " " + paint(vertical, "90"));
 		}
 		rows.push(paint(bottom, "32;1"));
 		process.stdout.write("\x1b[2J\x1b[H" + rows.join("\n") + "\n\x1b[?25h");
