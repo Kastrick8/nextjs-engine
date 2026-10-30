@@ -261,7 +261,9 @@ const ASCII_WORDMARK = Object.freeze(readBannerAsset("wordmark.txt"));
 const BOTTOM_TEXT = Object.freeze(readBannerAsset("bottom-text.txt"));
 
 function bannerMarkerPath(projectRoot) {
-	const resolvedRoot = fs.realpathSync(path.resolve(projectRoot || process.cwd()));
+	const projectRootPath = path.resolve(projectRoot || process.cwd());
+	fs.mkdirSync(projectRootPath, { recursive: true });
+	const resolvedRoot = fs.realpathSync(projectRootPath);
 	return resolveSafeOutputPath(path.join(resolvedRoot, ".nextjs-engine", ".cache", "gen3", "build-banner.lock"));
 }
 
