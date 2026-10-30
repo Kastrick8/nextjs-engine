@@ -32,11 +32,29 @@ async function main() {
 	assert.match(warningBanner, /NEW IN 2\.7\.0/);
 	assert.match(warningBanner, /removed in a future release/);
 
+	const errorBookBase = "https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/ne-cli-error-book.md";
+	assert.equal(presentation.errorBookUrl("NE1001"), errorBookBase + "#ne1001");
+	assert.equal(presentation.errorBookUrl("ne2001"), errorBookBase + "#ne2001");
+	assert.equal(presentation.errorBookUrl("NE12"), null);
+	assert.equal(presentation.errorBookUrl("NEMIG1001"), null);
+	assert.equal(presentation.errorBookUrl("CUSTOM_APP_ERROR"), null);
+
 	const errorBanner = presentation.renderError(diagnostics.unknownCommand("bulid", [
 		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
 	]), { width: 58, ascii: true, color: false });
 	assert.match(errorBanner, /NE1001/);
+	assert.match(errorBanner, /blob\/main/);
+	assert.match(errorBanner, /ne-cli-error-book\.md#ne1001/, "the wrapped Help URL retains its destination and code anchor");
 	assert.ok(errorBanner.split("\n").every((line) => !/[╭╮╰╯│─]/.test(line)));
+
+	const errorBook = fs.readFileSync(path.join(repoRoot, "docs/2/ne-cli-error-book.md"), "utf8");
+	for (const code of ["NE1001", "NE1002", "NE1003", "NE1004", "NE2001"]) {
+		assert.match(errorBook, new RegExp(code), "the CLI error book documents " + code);
+	}
+	const migrationGuide = fs.readFileSync(path.join(repoRoot, "docs/2/migrating-to-3.md"), "utf8");
+	for (const code of ["W3M001", "E3M001", "E3M002", "W3M002", "W3M003"]) {
+		assert.match(migrationGuide, new RegExp(code), "the migration guide documents " + code);
+	}
 
 	const commandTypo = diagnostics.unknownCommand("bulid", [
 		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",

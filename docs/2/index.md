@@ -2,8 +2,8 @@
 
 > **Generation:** 2.x stable API line  
 > **Source branch:** `main-2`  
-> **Maintenance line:** v2.6.x  
-> **Release status:** v2.5.0 is the latest published stable release; v2.6.2 is a prepared patch, not a published release.  
+> **Maintenance line:** 2.x stable; v2.7.0 release candidate  
+> **Release status:** v2.6.2 is the latest published GitHub release; v2.7.0 is prepared but has not been published to npm or GitHub.  
 > **Audience:** Existing Gen 2 applications and maintainers.
 
 Use these pages for the code maintained on `main-2`. Generation 3 is a separate compiler-first architecture; its implementation details are not the Gen 2 contract.
@@ -13,6 +13,8 @@ Use these pages for the code maintained on `main-2`. Generation 3 is a separate 
 | Goal | Guide |
 |---|---|
 | Use the newly introduced v2.7.0 command-line interface | [NE CLI](./ne-cli.md) |
+| Understand NE CLI diagnostic codes | [NE CLI Error Book](./ne-cli-error-book.md) |
+| Prepare a Generation 2 app for Generation 3 | [Migrating to Gen 3](./migrating-to-3.md) |
 | Learn the schema and page APIs | [Getting Started](./readme.md) |
 | Use styling props | [Styling — simple guide](./styling.md) |
 | Understand styling internals | [Styling — detailed reference](./styling-detailed.md) |
