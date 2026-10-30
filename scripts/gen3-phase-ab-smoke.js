@@ -179,8 +179,11 @@ check(scrollPoints.includes("private static releaseObserverIfUnused()")
 	"EngineScroll releases its shared ResizeObserver after the last registered point");
 
 const model = read("src/engine/core/EngineModel.ts");
-for (const api of ["get<", "set<", "update<", "computed<", "action<", "watch<", "subscribe("]) {
-	check(model.includes(api), `EngineModel exposes ${api.replaceAll("<", "")}`);
+for (const [api, label] of [
+	["get<", "get"], ["set<", "set"], ["update<", "update"], ["computed<", "computed"],
+	["action<", "action"], ["watch<", "watch"], ["subscribe(", "subscribe"],
+]) {
+	check(model.includes(api), `EngineModel exposes ${label}`);
 }
 
 const page = read("src/engine/createPage.tsx");
