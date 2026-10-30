@@ -87,7 +87,9 @@ function renderDashboard(selected, context) {
 	const half = Math.floor((width - 8) / 2);
 	const items = MENU_ITEMS.map((item, index) => {
 		const marker = selectedMarker(selected, index);
-		const text = marker + " [" + (index + 1) + "] " + item.label + " (" + item.command + ")";
+		const unavailable = item.id === "rollback" && context.rollbackAvailable === false;
+		const label = unavailable ? item.label + " [no snapshot]" : item.label;
+		const text = marker + " [" + (index + 1) + "] " + label + " (" + item.command + ")";
 		return { index, text };
 	});
 	const rows = [
@@ -247,6 +249,11 @@ function runTui(options) {
 		function chooseMenu() {
 			const item = MENU_ITEMS[selected];
 			if (!item) return;
+			if (item.id === "rollback" && liveContext.rollbackAvailable === false) {
+				liveContext.activity = "No rollback snapshot yet. Install a channel first to enable rollback.";
+				draw();
+				return;
+			}
 			if (item.id === "updater") {
 				priorScreen = "dashboard";
 				screen = "releases";
