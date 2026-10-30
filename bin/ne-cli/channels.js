@@ -229,7 +229,7 @@ function githubTagToRelease(value) {
 			: value && typeof value.name === "string"
 				? value.name
 				: "";
-	if (!rawName || rawName === "package.latest") return null;
+	if (!rawName) return null;
 	const packageRelease = packageTagToRelease(rawName);
 	if (packageRelease) return packageRelease;
 	const tagUrl = "https://github.com/Kastrick8/nextjs-engine/tree/" + encodeURIComponent(rawName);
