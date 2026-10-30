@@ -1,0 +1,33 @@
+name: NE CLI smoke
+
+on:
+  pull_request:
+    branches:
+      - main-3
+    paths:
+      - "bin/ne-cli/**"
+      - "bin/ne.js"
+      - "scripts/gen3-ne-cli-smoke.js"
+      - "scripts/gen3-assert-green-commit.js"
+      - ".github/workflows/ne-cli-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ne-cli-smoke:
+    name: NE CLI and worker task tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test updater catalog, worker pool, command tree and failure output
+        run: node scripts/gen3-ne-cli-smoke.js
