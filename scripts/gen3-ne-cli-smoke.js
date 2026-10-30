@@ -666,7 +666,8 @@ async function main() {
 			const bytes = Buffer.from([0x1f, 0x8b, 0x08, 0x00]);
 			const release = {
 				version: "3.0.0-alpha.2",
-				artifactUrl: "https://example.invalid/ne-test.tgz",
+				artifactName: "ne-test.tgz",
+				artifactUrl: "https://github.com/Kastrick8/nextjs-engine/releases/download/channel-alpha-latest/ne-test.tgz",
 				sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
 			};
 			global.fetch = async () => new Response(bytes, { status: 200 });
