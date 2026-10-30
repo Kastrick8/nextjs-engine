@@ -8,7 +8,7 @@ const ts = require("typescript");
 
 function containsExactUrl(text, expectedValue) {
 	const expected = new URL(expectedValue);
-	return String(text).split(/\\s+/).some((part) => {
+	return String(text).split(/\s+/).some((part) => {
 		const candidate = part.replace(/[),.;]+$/, "");
 		try {
 			const actual = new URL(candidate);
