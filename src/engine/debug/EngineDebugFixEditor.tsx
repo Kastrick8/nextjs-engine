@@ -108,11 +108,24 @@ export function EngineDebugFixEditor({ diagnostic, onApplied }: EngineDebugFixEd
 		const propertyMatch = diagnostic.message.match(/Cannot read propert(?:y|ies) of (?:undefined|null) \(reading ['"]?([A-Za-z_$][\w$]*)['"]?\)/i);
 		if (propertyMatch?.[1]) {
 			const property = propertyMatch[1];
-			const escapedProperty = property.replace(/[.*+?^$()|[\]{}\\]/g, "\\$&");
-			const access = new RegExp("(?<![?.])\\." + escapedProperty + "\\b", "g");
-			const matches = highlighted.match(access) ?? [];
+			const access = "." + property;
+			const matches: number[] = [];
+			const isIdentifierContinuation = (code: number) =>
+				code === 36 || code === 95 || (code >= 48 && code <= 57)
+				|| (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+			let searchFrom = 0;
+			while (searchFrom < highlighted.length) {
+				const index = highlighted.indexOf(access, searchFrom);
+				if (index < 0) break;
+				const previous = highlighted[index - 1];
+				const nextCharacter = highlighted[index + access.length];
+				const nextCode = nextCharacter ? nextCharacter.charCodeAt(0) : 0;
+				if (previous !== "?" && !isIdentifierContinuation(nextCode)) matches.push(index);
+				searchFrom = index + access.length;
+			}
 			if (matches.length === 1) {
-				lines[relativeLine] = highlighted.replace(access, "?." + property);
+				const index = matches[0];
+				lines[relativeLine] = highlighted.slice(0, index) + "?." + property + highlighted.slice(index + access.length);
 				setDraft(lines.join("\n"));
 				setSuggestion("Suggested optional chaining for ." + property + ". Review the diff before applying; this is a proposal, not proof that the value is safe to omit.");
 				setStatus("");
