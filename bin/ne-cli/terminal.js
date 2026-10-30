@@ -21,6 +21,25 @@ function paint(value, code) {
 	return ansiEnabled() ? "\x1b[" + code + "m" + value + "\x1b[0m" : value;
 }
 
+/** Restore the interactive input mode without keeping an idle CLI process alive. */
+function restoreTerminalInput(stream, oldRaw, oldPaused, onData) {
+	stream.removeListener("data", onData);
+	try { stream.setRawMode(oldRaw); } catch {}
+
+	const hasOtherReaders = typeof stream.listenerCount === "function" &&
+		(stream.listenerCount("data") > 0 || stream.listenerCount("readable") > 0);
+	if (hasOtherReaders) {
+		if (oldPaused) stream.pause();
+		else {
+			stream.ref?.();
+			stream.resume();
+		}
+		return;
+	}
+
+	stream.pause();
+	stream.unref?.();
+}
 function unicodeEnabled() {
 	return process.env.NE_ASCII !== "1" && process.env.TERM !== "dumb";
 }
@@ -206,11 +225,8 @@ function runTui(options) {
 			if (settled) return;
 			settled = true;
 			if (animationTimer) clearInterval(animationTimer);
-			process.stdin.removeListener("data", onData);
-			try { process.stdin.setRawMode(oldRaw); } catch {}
-			try { process.stdin.pause(); } catch {}
-			process.stdout.write("\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[?1049l");
-			if (!oldPaused) process.stdin.resume();
+			restoreTerminalInput(process.stdin, oldRaw, oldPaused, onData);
+			process.stdout.write("\x1b[0m\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[?1049l");
 		}
 
 		function finish(result) {
@@ -365,6 +381,7 @@ function runTui(options) {
 			}
 		}
 
+		process.stdin.ref?.();
 		process.stdin.setRawMode(true);
 		process.stdin.resume();
 		process.stdin.on("data", onData);
@@ -416,5 +433,6 @@ module.exports = {
 	renderReleaseList,
 	renderReleaseDetails,
 	parseMouseSequence,
+	restoreTerminalInput,
 	runTui,
 };
