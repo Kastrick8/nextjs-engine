@@ -323,10 +323,13 @@ async function runDashboard(root, showWarning) {
 	return result;
 }
 
-async function runDashboardAction(root, result) {
+async function runDashboardAction(root, result, dependencies) {
 	const action = typeof result === "string" ? result : result && result.action;
+	const install = dependencies && typeof dependencies.installRelease === "function"
+		? dependencies.installRelease
+		: installRelease;
 	if (action === "install" && result && result.release) {
-		return installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+		return install(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
 	}
 	if (action === "dev") return runNext(root, ["dev"]);
 	if (action === "build") return runBuild(root);
