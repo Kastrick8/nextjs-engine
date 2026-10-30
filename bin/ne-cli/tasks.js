@@ -330,11 +330,16 @@ class TaskTree {
 		this.finished = true;
 		this.lastTaskId = id || "root";
 		this.lastError = error || new Error("Task failed.");
-		if (error && typeof error === "object") error.neOutputDisplayed = true;
+		if (error && typeof error === "object") {
+			error.neOutputDisplayed = true;
+			error.neFailureDisplayed = true;
+		}
 		this.stopTimer();
 
-		if (this.interactive) process.stdout.write("\x1b[2J\x1b[H\x1b[?25h");
-		process.stdout.write("> " + this.command + "\n");
+		if (this.interactive) {
+			process.stdout.write("\x1b[2J\x1b[H\x1b[?25h");
+			process.stdout.write("> " + this.command + "\n");
+		}
 		process.stderr.write("[NE] FAILED " + node.label + "\n");
 		if (error && error.message) process.stderr.write(error.message + "\n");
 		const output = error && (error.output ||
