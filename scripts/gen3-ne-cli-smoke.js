@@ -526,6 +526,14 @@ async function main() {
 	assert.equal(args.options.yes, true);
 	assert.deepEqual(args.options.andCommands, ["git status", "npm test"]);
 	assert.equal(args.options.andTerminal, 10);
+	assert.deepEqual(cli.parseChainedCommand('npm run "type check" -- --pretty false'),
+		["npm", "run", "type check", "--", "--pretty", "false"]);
+	assert.throws(() => cli.parseChainedCommand("npm test && curl https://invalid.example"),
+		/shell operators or expansions/, "NE --and rejects shell operators before spawning");
+	assert.throws(() => cli.parseChainedCommand("npm test $(whoami)"),
+		/shell operators or expansions/, "NE --and rejects command substitutions");
+	assert.throws(() => cli.parseChainedCommand("npm test | cat"),
+		/shell operators or expansions/, "NE --and rejects shell pipelines");
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
 	assert.match(cli.getHelp(), /ne update --channel/);
