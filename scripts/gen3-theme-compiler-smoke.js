@@ -1243,7 +1243,7 @@ async function testPublicThemeApi() {
 		}));
 		const fontUrls = [];
 		const fakeFontCss = "@font-face{font-family:'Fixture';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/fixture/font.woff2) format('woff2');unicode-range:U+0000-00FF;}";
-		const fakeFontBytes = Buffer.from("fake-woff2-fixture-font");
+		const fakeFontBytes = Buffer.concat([Buffer.from("wOF2"), Buffer.from("fixture-font-payload")]);
 		const fakeFontFetch = async (url, init) => {
 			fontUrls.push(url);
 			assert.equal(init.redirect, "error");
