@@ -143,7 +143,16 @@ function getHelp() {
 		"  --json        Print the channel catalog as JSON",
 		"  -q, --quiet   Suppress the experimental notice banner",
 		"",
-		"One-shot invocation before a local installation:",
+		"Install once for direct shell commands:",
+		"  npm install --global @kastrick/nextjs-engine",
+		"  ne                    Open the dashboard",
+		"  ne build              Build the current project",
+		"  ne clean              Clean generated build files",
+		"",
+		"Development checkout:",
+		"  npm link              Expose this checkout's ne executable on PATH",
+		"",
+		"One-shot invocation without a global install:",
 		"  npx --yes --package=@kastrick/nextjs-engine ne updater",
 		"",
 	].join("\n");
@@ -217,6 +226,7 @@ async function askToInstall(release, options) {
 
 async function commandUpdate(root, options) {
 	const state = loadState(root);
+	if (!options.json) process.stdout.write("[NE-UPDATER] Refreshing npm versions, GitHub releases and repository tags...\n");
 	const catalog = await loadChannelCatalog(root, {
 		force: Boolean(options.force || options.check),
 		onSourceStatus: (update) => {
