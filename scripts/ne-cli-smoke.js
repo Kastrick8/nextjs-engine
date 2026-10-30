@@ -408,7 +408,7 @@ async function main() {
 	});
 	assert.match(dashboard, /Production Build/);
 	assert.match(dashboard, /Channel Updater/);
-	assert.match(terminal.renderDashboard(0, { rollbackAvailable: false }), /Rollback Build \[no snapshot\]/,
+	assert.match(terminal.renderDashboard(0, { rollbackAvailable: false }), /Rollback is unavailable until a channel install creates a snapshot/,
 		"rollback is visibly unavailable before a snapshot exists");
 	assert.doesNotMatch(dashboard, /[\u{1F300}-\u{1FAFF}]/u);
 	assert.match(terminal.renderReleaseList(0, { releases: [rollingRelease], cached: false }, {}), /ALPHA/);
