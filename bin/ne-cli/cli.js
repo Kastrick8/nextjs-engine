@@ -422,9 +422,9 @@ async function executeCommand(root, command, subArgs, options, showWarning) {
 	if (command === "check") return project().runCheck(root);
 	if (command === "clean") return project().runClean(root, Boolean(options.dryRun));
 	if (command === "rollback") return project().rollback(root);
-			throw diagnostics().unknownCommand(command, [
-			"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
-		]);
+	throw diagnostics().unknownCommand(command, [
+		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+	]);
 }
 
 async function main(argv) {
