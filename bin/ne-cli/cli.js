@@ -502,4 +502,5 @@ module.exports = {
 	runChainedCommands,
 	tokenizeCommand,
 	resolveChainedCommand,
+	runDashboardAction,
 };
