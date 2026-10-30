@@ -30,7 +30,7 @@ async function main() {
 	const warningWidths = warningBanner.split("\n").map(presentation.visibleWidth);
 	assert.equal(new Set(warningWidths).size, 1, "the v2 warning banner has aligned borders and content");
 	assert.match(warningBanner, /NEW IN 2\.7\.0/);
-	assert.match(warningBanner, /could be removed in a future release/);
+	assert.match(warningBanner, /removed in a future release/);
 
 	const errorBanner = presentation.renderError(diagnostics.unknownCommand("bulid", [
 		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
