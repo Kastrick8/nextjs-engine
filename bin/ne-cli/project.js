@@ -738,14 +738,30 @@ async function runCheck(root, options) {
 		if (packageScript(root, "type-check")) {
 			const manager = detectPackageManager(root);
 			const label = manager + " run type-check";
+			const script = String(readJson(path.join(root, "package.json"), {}).scripts["type-check"] || "").trim();
 			try {
-				await runTrackedTask(tree, "check-type-check", label, parentId, () =>
-					runPackageScript(root, "type-check", {
-						worker: true,
-						captureOutput: true,
-						taskTree: true,
-					})
-				);
+				await runTrackedTask(tree, "check-type-check", label, parentId, async () => {
+					if (script) {
+						tree.add("check-type-check-script", script, "check-type-check");
+						tree.start("check-type-check-script");
+					}
+					try {
+						const result = await runPackageScript(root, "type-check", {
+							worker: true,
+							captureOutput: true,
+							taskTree: true,
+						});
+						if (script) tree.succeed("check-type-check-script");
+						return result;
+					} catch (error) {
+						if (script) {
+							error.neTaskId = "check-type-check-script";
+							error.taskLabel = script;
+							tree.setStatus("check-type-check-script", "failed", error.message);
+						}
+						throw error;
+					}
+				});
 			} catch (error) {
 				errors.push(error);
 			}
@@ -827,10 +843,12 @@ async function runCheck(root, options) {
 		}
 
 		if (errors.length) {
+			if (checkTaskId) tree.setStatus(checkTaskId, "failed", errors.length + " subtask(s) failed");
 			const failure = errors[0];
 			failure.message = "ne check failed with " + errors.length + " error(s). " + failure.message;
 			throw failure;
 		}
+		if (checkTaskId) tree.succeed(checkTaskId);
 		if (ownsTree) tree.complete();
 		return { ok: true };
 	} catch (error) {
@@ -869,20 +887,33 @@ async function runBuild(root) {
 		if (packageScript(root, "prepare:production")) {
 			const pkg = readJson(path.join(root, "package.json"), {});
 			const script = String(pkg.scripts["prepare:production"] || "").trim();
+			const manager = detectPackageManager(root);
 			await runTrackedTask(tree, "build-prepare", "ne prepare:production", "root", async () => {
 				const childId = "build-prepare-command";
-				await runTrackedTask(tree, childId, "npm run prepare:production", "build-prepare", () =>
-					runPackageScript(root, "prepare:production", {
-						worker: true,
-						captureOutput: true,
-						taskTree: true,
-					})
-				);
-				if (/^(node|node.exe)\s+/.test(script)) {
-					const nodeCommand = script.replace(/^(node|node.exe)\s+/, "node ");
-					tree.add("build-prepare-script", nodeCommand, childId);
-					tree.succeed("build-prepare-script", "Executed by the package script");
-				}
+				await runTrackedTask(tree, childId, manager + " run prepare:production", "build-prepare", async () => {
+					let scriptId = null;
+					if (script) {
+						scriptId = "build-prepare-script";
+						tree.add(scriptId, script, childId);
+						tree.start(scriptId);
+					}
+					try {
+						const result = await runPackageScript(root, "prepare:production", {
+							worker: true,
+							captureOutput: true,
+							taskTree: true,
+						});
+						if (scriptId) tree.succeed(scriptId);
+						return result;
+					} catch (error) {
+						if (scriptId) {
+							error.neTaskId = scriptId;
+							error.taskLabel = script;
+							tree.setStatus(scriptId, "failed", error.message);
+						}
+						throw error;
+					}
+				});
 			});
 		}
 
