@@ -5,6 +5,25 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const ts = require("typescript");
+
+function containsExactUrl(text, expectedValue) {
+	const expected = new URL(expectedValue);
+	return String(text).split(/\\s+/).some((part) => {
+		const candidate = part.replace(/[),.;]+$/, "");
+		try {
+			const actual = new URL(candidate);
+			return actual.protocol === expected.protocol
+				&& actual.host === expected.host
+				&& actual.pathname === expected.pathname
+				&& actual.search === expected.search
+				&& actual.hash === expected.hash;
+		} catch {
+			return false;
+		}
+	});
+}
+
+
 const { GENERATED_MARKER, prepareEngineErrorHandling } = require("../src/engine/plugins/engineErrorHandling");
 const {
 	createEngineErrorReport,
@@ -95,9 +114,9 @@ assert.match(formatted, /src\/app\/page\.tsx:14:2/, "file locations use VS Code-
 assert.match(formatted, /Route: \/guide/, "route query strings are not printed");
 assert.match(formatted, /Request: GET \/guide/, "request query strings are not printed");
 assert.match(formatted, /Caused by: TypeError: Underlying lookup failed/, "nested error causes are shown");
-assert.ok(formatted.includes("https://kastrick.vercel.app/project/nextjs-engine"), "terminal diagnostics include the Kastrick website project link");
+assert.ok(containsExactUrl(formatted, "https://kastrick.vercel.app/project/nextjs-engine"), "terminal diagnostics include the exact Kastrick website project link");
 assert.ok(formatted.includes("Error Book · NE-TEST-01"), "formatted report names the Error Book");
-assert.ok(formatted.includes("https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes"), "custom codes fall back to the book index");
+assert.ok(containsExactUrl(formatted, "https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes"), "custom codes fall back to the exact Error Book index URL");
 assert.doesNotMatch(formatted, /secret-token|very-secret|private-route-token|private-query-token|private-api-key/, "token-like values are redacted");
 assert.doesNotMatch(formatted, /\u001b\[/, "plain-text mode emits no ANSI escapes");
 const colored = formatEngineErrorReport(report, { color: true });
@@ -112,7 +131,7 @@ try {
 	console.error = originalConsoleError;
 }
 assert.match(consoleMessages.join("\n"), /NE-TEST-02/, "reportEngineError writes structured terminal output");
-assert.ok(consoleMessages.join("\n").includes("https://kastrick.vercel.app/project/nextjs-engine"), "runtime logging includes the Kastrick website project link");
+assert.ok(containsExactUrl(consoleMessages.join("\n"), "https://kastrick.vercel.app/project/nextjs-engine"), "runtime logging includes the exact Kastrick website project link");
 assert.ok(consoleMessages.join("\n").includes("Help:"), "runtime logging includes an Error Book help URL");
 
 const monitorCount = process.listenerCount("uncaughtExceptionMonitor");
