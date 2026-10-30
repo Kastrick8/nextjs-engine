@@ -293,7 +293,7 @@ function printBannerOnce(projectRoot, logger = console.log) {
 	for (let attempt = 0; attempt < 2; attempt++) {
 		let descriptor;
 		try {
-			descriptor = fs.openSync(marker, "wx");
+			descriptor = fs.openSync(marker, "wx", 0o600);
 		} catch (error) {
 			if (error.code !== "EEXIST") throw error;
 			let stale = false;
