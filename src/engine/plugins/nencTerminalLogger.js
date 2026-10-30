@@ -180,7 +180,7 @@ function formatWorkerPanel(slots, columns = process.stdout.columns || 100, useCo
 	const current = Array.isArray(slots) ? slots : [];
 	const anyActive = current.some((slot) => slot && slot.target);
 	const statusLabel = !anyActive && fallbackStatus ? " · " + clip(cleanMessage(fallbackStatus), Math.max(0, width - 14)) : "";
-	const title = "═ [NENC] ═" + statusLabel + " ";
+	const title = "═ [NENC] ═" + statusLabel;
 	const header = ansi(title, ANSI.cyan + ANSI.bold, useColor)
 		+ ansi("═".repeat(Math.max(0, width - title.length)), ANSI.gray, useColor);
 	const rows = [header];
