@@ -121,8 +121,8 @@ try {
 		"the module log uses the EC abbreviation and resolved source path");
 	assert.ok(logs.some((line) => line.includes("COMPILING EC : @engine/EngineCanvas")),
 		"the module log uses the import alias when the source is package-only");
-	assert.ok(logs.some((line) => line.includes("COMPILING PAGE : app/page.tsx")),
-		"the pass logs the actual page entry point");
+	assert.ok(logs.some((line) => line.includes("INDEXING PAGE : app/page.tsx")),
+		"the module-analysis pass logs the actual page entry point without claiming schema compilation is complete");
 	assert.ok(!result.modules.some((module) => module.name === "EngineCanvasProps"),
 		"type-only imports do not become runtime module jobs");
 
