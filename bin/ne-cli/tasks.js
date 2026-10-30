@@ -108,8 +108,8 @@ function statusBadge(status, frame) {
 	}
 	if (status === "success") return { text: (glyphs ? "✓" : "[OK]") + " DONE", color: "32;1" };
 	if (status === "failed") return { text: (glyphs ? "✕" : "[X]") + " FAILED", color: "31;1" };
-	if (status === "skipped") return { text: (glyphs ? "—" : "[-]") + " SKIPPED", color: "33" };
-	return { text: (glyphs ? "…" : "...") + " PENDING", color: "90" };
+	if (status === "skipped") return { text: (glyphs ? "—" : "[-]") + " SKIPPED", color: "90" };
+	return { text: (glyphs ? "…" : "...") + " PENDING", color: "33;1" };
 }
 
 class TaskTree {
@@ -211,21 +211,64 @@ class TaskTree {
 		return depth;
 	}
 
+	childrenOf(parentId) {
+		return this.nodes.filter((node) => node.parentId === parentId);
+	}
+
+	branchColor(status) {
+		if (status === "success") return "32;1";
+		if (status === "failed") return "31;1";
+		if (status === "running") return "36;1";
+		if (status === "skipped") return "90";
+		return "33;1";
+	}
+
 	renderRows(inner) {
 		const width = Math.max(24, inner || 72);
+		const glyphs = unicodeEnabled();
 		const rows = [];
 		const rootBadge = statusBadge(this.root.status, this.frame);
 		const rootLabel = "> " + this.command;
-		rows.push(clip(rootLabel, Math.max(1, width - rootBadge.text.length - 2)) +
-			"  " + paint(rootBadge.text, rootBadge.color));
+		rows.push({
+			text: clip(rootLabel, Math.max(1, width - rootBadge.text.length - 2)) +
+				"  " + paint(rootBadge.text, rootBadge.color),
+			color: this.branchColor(this.root.status),
+		});
+
 		for (const node of this.nodes) {
-			const depth = this.depthOf(node);
-			const arrow = depth === 1 ? "->" : "-".repeat(depth) + ">";
+			const ancestors = [];
+			let parent = this.byId.get(node.parentId);
+			while (parent && parent.id !== "root") {
+				ancestors.unshift(parent);
+				parent = this.byId.get(parent.parentId);
+			}
+
+			let prefix = "";
+			for (const ancestor of ancestors) {
+				const siblings = this.childrenOf(ancestor.parentId);
+				const isLast = siblings.length > 0 && siblings[siblings.length - 1].id === ancestor.id;
+				const rail = glyphs ? (isLast ? "   " : "│  ") : (isLast ? "   " : "|  ");
+				prefix += paint(rail, this.branchColor(ancestor.status));
+			}
+
+			const siblings = this.childrenOf(node.parentId);
+			const isLast = siblings.length > 0 && siblings[siblings.length - 1].id === node.id;
+			const branch = glyphs ? (isLast ? "└─>" : "├─>") : (isLast ? "\\-->" : "|-->");
+			prefix += paint(branch + " ", this.branchColor(node.status));
+
 			const badge = statusBadge(node.status, this.frame);
-			const prefix = arrow + " ";
-			const labelWidth = Math.max(1, width - prefix.length - badge.text.length - 2);
-			rows.push(prefix + clip(node.label, labelWidth) + "  " + paint(badge.text, badge.color));
-			if (node.detail) rows.push("   " + clip(node.detail, width - 3));
+			const prefixWidth = prefix.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length;
+			const labelWidth = Math.max(1, width - prefixWidth - badge.text.length - 2);
+			const text = prefix + clip(node.label, labelWidth) + "  " + paint(badge.text, badge.color);
+			rows.push({ text, color: this.branchColor(node.status) });
+
+			if (node.detail) {
+				const indent = " ".repeat(prefixWidth + 1);
+				rows.push({
+					text: paint(indent, this.branchColor(node.status)) + paint(clip(node.detail, width - prefixWidth - 1), "90"),
+					color: this.branchColor(node.status),
+				});
+			}
 		}
 		return rows;
 	}
@@ -246,8 +289,10 @@ class TaskTree {
 		const top = left + border + title + border.repeat(Math.max(1, width - title.length - 3)) + right;
 		const bottom = bottomLeft + border.repeat(width - 2) + bottomRight;
 		const rows = [paint(top, color)];
-		for (const line of this.renderRows(inner)) {
-			rows.push(paint(vertical, "90") + " " + line + " ".repeat(Math.max(0, inner - line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length)) + " " + paint(vertical, "90"));
+		for (const row of this.renderRows(inner)) {
+			const visibleLength = row.text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length;
+			rows.push(paint(vertical, row.color) + " " + row.text +
+				" ".repeat(Math.max(0, inner - visibleLength)) + " " + paint(vertical, row.color));
 		}
 		rows.push(paint(bottom, color));
 		process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + rows.join("\n") + "\x1b[?25h");
@@ -267,8 +312,10 @@ class TaskTree {
 		const top = left + border + title + border.repeat(Math.max(1, width - title.length - 3)) + right;
 		const bottom = bottomLeft + border.repeat(width - 2) + bottomRight;
 		const rows = [paint(top, "32;1")];
-		for (const line of this.renderRows(inner)) {
-			rows.push(paint(vertical, "90") + " " + line + " ".repeat(Math.max(0, inner - line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length)) + " " + paint(vertical, "90"));
+		for (const row of this.renderRows(inner)) {
+			const visibleLength = row.text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length;
+			rows.push(paint(vertical, row.color) + " " + row.text +
+				" ".repeat(Math.max(0, inner - visibleLength)) + " " + paint(vertical, row.color));
 		}
 		rows.push(paint(bottom, "32;1"));
 		process.stdout.write("\x1b[2J\x1b[H" + rows.join("\n") + "\n\x1b[?25h");
