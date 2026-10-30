@@ -5,6 +5,25 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 
 const NO_FOLLOW = fs.constants.O_NOFOLLOW || 0;
+const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,240}$/;
+
+function resolveSafeOutputPath(filename) {
+	if (typeof filename !== "string" || !filename.trim()) {
+		throw new TypeError("A non-empty output file path is required.");
+	}
+	const absolute = path.resolve(filename);
+	const fileName = path.basename(absolute);
+	if (!SAFE_FILE_NAME.test(fileName) || fileName === "." || fileName === "..") {
+		throw new Error("Refusing an unsafe output file name.");
+	}
+	const directory = path.dirname(absolute);
+	fs.mkdirSync(directory, { recursive: true });
+	const realDirectory = fs.realpathSync(directory);
+	if (path.resolve(realDirectory) !== directory) {
+		throw new Error("Refusing an output path whose parent traverses a symbolic link.");
+	}
+	return path.join(realDirectory, fileName);
+}
 
 function readRegularFile(filename, encoding = "utf8") {
 	const descriptor = fs.openSync(filename, fs.constants.O_RDONLY | NO_FOLLOW);
@@ -31,10 +50,10 @@ function readRegularFileIfExists(filename, encoding = "utf8") {
 }
 
 function writeFileAtomically(filename, data, options = {}) {
-	const directory = path.dirname(filename);
-	fs.mkdirSync(directory, { recursive: true });
+	const destination = resolveSafeOutputPath(filename);
+	const directory = path.dirname(destination);
 	const suffix = crypto.randomBytes(8).toString("hex");
-	const temporary = filename + ".tmp-" + process.pid + "-" + suffix;
+	const temporary = path.join(directory, path.basename(destination) + ".tmp-" + process.pid + "-" + suffix);
 	const mode = Number.isInteger(options.mode) ? options.mode : 0o600;
 	let descriptor;
 	try {
@@ -43,7 +62,7 @@ function writeFileAtomically(filename, data, options = {}) {
 		fs.fsyncSync(descriptor);
 		fs.closeSync(descriptor);
 		descriptor = undefined;
-		fs.renameSync(temporary, filename);
+		fs.renameSync(temporary, destination);
 	} catch (error) {
 		if (descriptor !== undefined) {
 			try { fs.closeSync(descriptor); } catch { /* Preserve the original write error. */ }
@@ -54,10 +73,10 @@ function writeFileAtomically(filename, data, options = {}) {
 }
 
 function writeFileExclusively(filename, data, options = {}) {
-	fs.mkdirSync(path.dirname(filename), { recursive: true });
+	const destination = resolveSafeOutputPath(filename);
 	let descriptor;
 	try {
-		descriptor = fs.openSync(filename, "wx", Number.isInteger(options.mode) ? options.mode : 0o600);
+		descriptor = fs.openSync(destination, "wx", Number.isInteger(options.mode) ? options.mode : 0o600);
 		fs.writeFileSync(descriptor, data, options.encoding ? { encoding: options.encoding } : undefined);
 		fs.fsyncSync(descriptor);
 		return true;
@@ -67,7 +86,7 @@ function writeFileExclusively(filename, data, options = {}) {
 			descriptor = undefined;
 		}
 		if (error && error.code === "EEXIST") return false;
-		try { fs.unlinkSync(filename); } catch { /* Preserve the original write error. */ }
+		try { fs.unlinkSync(destination); } catch { /* Preserve the original write error. */ }
 		throw error;
 	} finally {
 		if (descriptor !== undefined) fs.closeSync(descriptor);
@@ -77,6 +96,7 @@ function writeFileExclusively(filename, data, options = {}) {
 module.exports = {
 	readRegularFile,
 	readRegularFileIfExists,
+	resolveSafeOutputPath,
 	writeFileAtomically,
 	writeFileExclusively,
 };
