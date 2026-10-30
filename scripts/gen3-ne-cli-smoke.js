@@ -37,6 +37,8 @@ async function main() {
 		const coloredRows = treeFixture.renderRows(76);
 		assert.match(coloredRows[3].text, /\x1b\[32;1m├─>/,
 			"the completed ne check branch connector is green");
+		assert.match(coloredRows[3].text, /\x1b\[32;1mne check\x1b\[0m/,
+			"the completed ne check label is green too");
 		assert.match(coloredRows[4].text, /\x1b\[32;1m│  \x1b\[0m/,
 			"child connector rails inherit the completed parent's green status");
 		assert.match(coloredRows[4].text, /\x1b\[36;1m├─> \x1b\[0m/,
