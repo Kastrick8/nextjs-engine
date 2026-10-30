@@ -22,6 +22,10 @@ const nencLogger = require("../src/engine/plugins/nencTerminalLogger");
 assert.equal(nencLogger.formatRouteProgress(0, 3), "0/3 routes completed (0%)");
 assert.equal(nencLogger.formatRouteProgress(1, 3), "1/3 routes completed (33.3%)");
 assert.equal(nencLogger.formatRouteProgress(3, 3), "3/3 routes completed (100%)");
+assert.deepEqual(nencLogger.splitLogSegments("one\r\ntwo\nthree\rfour"),
+	["one\r\n", "two\n", "three\r", "four"],
+	"the stdout bridge splits CRLF, LF, and CR in one linear pass");
+assert.deepEqual(nencLogger.splitLogSegments(""), [""], "empty stream chunks are preserved");
 const compilerAdapterSource = fs.readFileSync(path.join(__dirname, "..", "src", "engine", "compiler", "nextjs.compiler.ts"), "utf8");
 assert.match(compilerAdapterSource, /event\.level === "errored"\) nencLogger\.errored\(event\.message\)/,
 	"the parent Next.js adapter must forward the worker ERRORED record over IPC");
