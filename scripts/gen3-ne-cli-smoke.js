@@ -15,6 +15,49 @@ const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
 
 async function main() {
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
+
+	const { spawnSync } = require("node:child_process");
+	const executable = path.resolve(__dirname, "../bin/ne.js");
+	const packageManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+	const versionStarted = process.hrtime.bigint();
+	const versionResult = spawnSync(process.execPath, [executable, "--version"], {
+		cwd: os.tmpdir(),
+		encoding: "utf8",
+		timeout: 5000,
+	});
+	const versionElapsedMs = Number(process.hrtime.bigint() - versionStarted) / 1e6;
+	assert.equal(versionResult.status, 0, "ne --version works without a project directory");
+	assert.equal(versionResult.stdout.trim(), packageManifest.version);
+	assert.equal(versionResult.stderr, "");
+	assert.ok(versionElapsedMs < 5000, "the standalone version path completes within the startup budget");
+
+	const helpResult = spawnSync(process.execPath, [executable, "--help"], {
+		cwd: os.tmpdir(),
+		encoding: "utf8",
+		timeout: 5000,
+	});
+	assert.equal(helpResult.status, 0, "ne --help does not require a project package.json");
+	assert.match(helpResult.stdout, /Open the interactive dashboard/);
+	assert.equal(helpResult.stderr, "");
+
+	const cliModulePath = path.resolve(__dirname, "../bin/ne-cli/cli.js");
+	const lazyProbe = [
+		"const cliPath = " + JSON.stringify(cliModulePath) + ";",
+		"require(cliPath);",
+		"const path = require('node:path');",
+		"const root = path.dirname(cliPath);",
+		"const names = ['channels', 'terminal', 'project', 'tasks'];",
+		"const eager = names.filter((name) => require.cache[require.resolve(path.join(root, name + '.js'))]);",
+		"if (eager.length) { process.stderr.write('Eager CLI imports: ' + eager.join(', ')); process.exitCode = 1; }",
+	].join("\\n");
+	const lazyResult = spawnSync(process.execPath, ["-e", lazyProbe], {
+		cwd: os.tmpdir(),
+		encoding: "utf8",
+		timeout: 5000,
+	});
+	assert.equal(lazyResult.status, 0, "loading the CLI router does not load command-specific modules");
+	assert.equal(lazyResult.stderr, "");
+	process.stdout.write("[NE-CLI] Fast startup paths: version " + versionElapsedMs.toFixed(1) + "ms; lazy command imports verified.\\n");
 	const windowsNode = "C:\\Program Files\\nodejs\\node.exe";
 	const windowsNpmScript = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
 	assert.deepEqual(project.resolveProcessInvocation("npm", ["install", "--save-exact", "next"], {
