@@ -61,12 +61,13 @@ function compareVersions(left, right) {
 }
 
 async function fetchJsonResponse(url, label) {
+	const isNpmRegistry = new URL(url).hostname === "registry.npmjs.org";
 	const response = await fetch(url, {
 		headers: {
-			Accept: "application/vnd.github+json, application/json",
+			Accept: isNpmRegistry ? "application/vnd.npm.install-v1+json" : "application/vnd.github+json, application/json",
 			"User-Agent": "nextjs-engine-ne-cli",
 		},
-		signal: AbortSignal.timeout(12000),
+		signal: AbortSignal.timeout(isNpmRegistry ? 20000 : 12000),
 	});
 	if (!response.ok) {
 		throw new Error(label + " returned HTTP " + response.status + ".");
@@ -600,7 +601,9 @@ async function loadChannelCatalog(rootDir, options) {
 			github.push(rolling);
 			setStatus("alpha", "ready", "Verified rolling Alpha " + rolling.version + " from " + rolling.sourceCommit.slice(0, 8));
 		} else {
-			setStatus("alpha", "partial", "The Alpha tag was reached, but its manifest or artifact did not pass validation");
+			const message = "The Alpha tag was reached, but its manifest or artifact did not pass validation";
+			setStatus("alpha", "partial", message);
+			sourceErrors.push({ source: "alpha", message });
 		}
 	} else {
 		const error = results[2].reason;
