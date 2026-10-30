@@ -391,7 +391,11 @@ async function installWithManager(root, target) {
 	else args = ["add", "--exact", target];
 	await runProcess(managerCommand(manager), args, {
 		cwd: root,
-		label: "Installing " + target + " with " + manager,
+		label: manager + " " + args.join(" "),
+		worker: true,
+		captureOutput: true,
+		quietNpmNotices: true,
+		taskTree: true,
 	});
 	return manager;
 }
@@ -627,7 +631,13 @@ async function installRelease(root, release, requestedChannel) {
 			try {
 				restoreDependencyFiles(root, backup);
 				if (managerInstallStarted) {
-					await runProcess(managerCommand(detectPackageManager(root)), ["install"], { cwd: root });
+					await runProcess(managerCommand(detectPackageManager(root)), ["install"], {
+						cwd: root,
+						worker: true,
+						captureOutput: true,
+						quietNpmNotices: true,
+						taskTree: true,
+					});
 				}
 			} catch (restoreError) {
 				error.message += " Automatic rollback also failed: " + restoreError.message;
@@ -650,7 +660,13 @@ async function rollback(root) {
 	const currentBackup = captureDependencyFiles(root);
 	try {
 		restoreDependencyFiles(root, { directory: backupDirectory, files: state.previous.files });
-		await runProcess(managerCommand(detectPackageManager(root)), ["install"], { cwd: root });
+		await runProcess(managerCommand(detectPackageManager(root)), ["install"], {
+						cwd: root,
+						worker: true,
+						captureOutput: true,
+						quietNpmNotices: true,
+						taskTree: true,
+					});
 		const restored = readInstalledPackage(root);
 		if (state.previous.installedVersion && (!restored || restored.version !== state.previous.installedVersion)) {
 			throw new Error("Restored package version did not match the saved NE state.");
@@ -674,7 +690,13 @@ async function rollback(root) {
 	} catch (error) {
 		try {
 			restoreDependencyFiles(root, currentBackup);
-			await runProcess(managerCommand(detectPackageManager(root)), ["install"], { cwd: root });
+			await runProcess(managerCommand(detectPackageManager(root)), ["install"], {
+						cwd: root,
+						worker: true,
+						captureOutput: true,
+						quietNpmNotices: true,
+						taskTree: true,
+					});
 		} catch (restoreError) {
 			error.message += " Failed to restore the pre-rollback dependency state: " + restoreError.message;
 		}
