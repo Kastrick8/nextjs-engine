@@ -87,7 +87,7 @@ function runGen3MigrationDiagnostics(options={}) {
  const development=options.development===undefined?isDevelopmentProcess():options.development;
  if(!development) return [];
  const version=packageVersion(root,options.version), diagnostics=[];
- const add=d=>{diagnostics.push(d);emitOnce(root,d,()=>reportDiagnostic(d));};
+ const add=d=>{diagnostics.push(d);emitOnce(root,d,reportDiagnostic);};
  if(options.reportEngineApiMigration!==false) {
   const legacy=findLegacyEngineAPI(root);
   if(legacy) {

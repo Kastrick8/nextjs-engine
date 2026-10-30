@@ -158,7 +158,6 @@ export function equalisePoints(
 	const target = Math.max(a.length, b.length);
 	const expand = (src: Float32Array, len: number): Float32Array => {
 		const out  = new Float32Array(len);
-		const ratio = src.length / len;
 		for (let i = 0; i < len; i += 2) {
 			const si  = Math.floor((i / len) * (src.length / 2)) * 2;
 			out[i]    = src[Math.min(si,     src.length - 2)];

@@ -35,6 +35,12 @@ const {
 	formatErroredLine,
 } = require("../src/engine/plugins/nencTerminalLogger");
 const { schemaOutputCachePath } = require("../src/engine/plugins/gen3SchemaCache");
+const {
+	readRegularFile,
+	readRegularFileIfExists,
+	writeFileAtomically,
+	writeFileExclusively,
+} = require("../src/engine/plugins/safeFileSystem.js");
 
 assert.equal(formatDoneLine("COMPILED PAGE : app/page.tsx"), "[NENC] DONE COMPILED PAGE : app/page.tsx");
 assert.ok(formatStatusLine("COMPILING CUSTOM COMPONENT : Notice", 32).startsWith("[NENC] "));
@@ -142,6 +148,24 @@ assert.deepEqual(workerTaskPlan.map((task) => task.taskType + ":" + task.taskId)
 async function main() {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
 try {
+	const safeFile = path.join(root, "safe-file.txt");
+	writeFileAtomically(safeFile, "atomic contents");
+	assert.equal(readRegularFile(safeFile), "atomic contents", "atomic output is readable through a no-follow descriptor");
+	assert.equal(writeFileExclusively(safeFile, "replacement"), false, "exclusive creation never overwrites an existing file");
+	assert.equal(writeFileExclusively(path.join(root, "exclusive.txt"), "exclusive"), true, "exclusive creation installs a new regular file");
+	assert.equal(readRegularFileIfExists(path.join(root, "missing.txt")), undefined, "missing no-follow reads return undefined");
+	if (fs.constants.O_NOFOLLOW) {
+		const target = path.join(root, "safe-target.txt");
+		const link = path.join(root, "safe-link.txt");
+		fs.writeFileSync(target, "target");
+		try {
+			fs.symlinkSync(target, link);
+			assert.throws(() => readRegularFile(link), (error) => error && error.code === "ELOOP",
+				"no-follow reads reject symbolic links");
+		} catch (error) {
+			if (error && error.code !== "EPERM" && error.code !== "EACCES" && error.code !== "ENOTSUP") throw error;
+		}
+	}
 	const banner = [];
 	printBanner((line) => banner.push(line));
 	assert.deepEqual(banner, renderBannerLines(), "the output is exactly the shared framed banner render");
@@ -216,7 +240,11 @@ try {
 		"a duplicate adapter instance in the same build does not print the banner again");
 	assert.deepEqual(firstBanner, renderBannerLines(), "the first claim emits the complete banner");
 	assert.equal(duplicateBanner.length, 0, "a duplicate claim emits no banner rows");
+	const bannerLock = path.join(bannerProject, ".nextjs-engine", ".cache", "gen3", "build-banner.lock");
+	assert.equal(fs.existsSync(bannerLock), true, "the banner lock is stored in the project's NENC cache, not the shared OS temp directory");
+	if (process.platform !== "win32") assert.equal(fs.statSync(bannerLock).mode & 0o777, 0o600, "the banner lock is private");
 	releaseBanner(bannerProject);
+	assert.equal(fs.existsSync(bannerLock), false, "releasing the banner removes its cache lock");
 	assert.equal(printBannerOnce(bannerProject, () => {}), true, "the next build can print after the marker is released");
 	releaseBanner(bannerProject);
 	const pageDirectory = path.join(root, "app", "(marketing)", "about");

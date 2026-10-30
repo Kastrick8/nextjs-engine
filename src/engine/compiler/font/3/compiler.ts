@@ -5,6 +5,7 @@ const crypto = require("node:crypto");
 const dns = require("node:dns").promises;
 const fs = require("node:fs");
 const path = require("node:path");
+const { readRegularFile, readRegularFileIfExists, resolveSafeOutputPath, writeFileAtomically } = require("../../../plugins/safeFileSystem.js");
 
 const GENERATED_BY = "NENC_ENGINE_THEME_FONTS";
 const FORMAT_VERSION = 1;
@@ -88,19 +89,53 @@ function ensureDirectory(root, target) {
 function atomicWrite(root, target, value) {
 	assertSafeChildPath(root, target);
 	ensureDirectory(root, path.dirname(target));
-	const temporary = target + "." + process.pid + "." + crypto.randomBytes(6).toString("hex") + ".tmp";
+	writeFileAtomically(target, value);
+}
+
+// The only network-to-disk path is the content-addressed font cache. Revalidate
+// the font signature, size, digest and exact cache destination at this boundary.
+// This is intentional binary caching after HTTPS origin, DNS, redirect, MIME,
+// and payload-size validation in fetchBounded/compileOneTheme.
+function writeVerifiedFontAssetAtomically(root, target, bytes, extension, digest) {
+	if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > MAX_FONT_BYTES
+		|| !FONT_EXTENSIONS.has(extension) || !/^[a-f0-9]{64}$/.test(digest)
+		|| path.basename(target) !== digest + "." + extension
+		|| sha256(bytes) !== digest || !hasValidFontSignature(bytes, extension)) {
+		throw new Error("[EngineTheme fonts] Refusing an unverified font cache payload.");
+	}
+	const expectedCacheRoot = path.join(root, ".nextjs-engine", ".cache", "gen3", "fonts", "assets");
+	const absoluteTarget = path.resolve(target);
+	if (path.dirname(absoluteTarget) !== expectedCacheRoot) {
+		throw new Error("[EngineTheme fonts] Font cache output must stay in the content-addressed asset directory.");
+	}
+	assertSafeChildPath(root, absoluteTarget);
+	ensureDirectory(root, expectedCacheRoot);
+	const destination = resolveSafeOutputPath(absoluteTarget);
+	const temporary = path.join(path.dirname(destination),
+		"." + path.basename(destination) + ".tmp-" + process.pid + "-" + crypto.randomBytes(8).toString("hex"));
+	let descriptor;
 	try {
-		fs.writeFileSync(temporary, value, { flag: "wx", mode: 0o600 });
-		fs.renameSync(temporary, target);
+		descriptor = fs.openSync(temporary, "wx", 0o600);
+		// Intentional: only a size-limited, signature-checked, SHA-256-addressed font
+		// from an allowlisted public HTTPS provider is persisted in this fixed cache.
+		// codeql[js/http-to-file-access]
+		fs.writeFileSync(descriptor, bytes);
+		fs.fsyncSync(descriptor);
+		fs.closeSync(descriptor);
+		descriptor = undefined;
+		fs.renameSync(temporary, destination);
 	} catch (error) {
-		try { fs.rmSync(temporary, { force: true }); } catch { /* Preserve the original error. */ }
+		if (descriptor !== undefined) {
+			try { fs.closeSync(descriptor); } catch { /* Preserve the original write error. */ }
+		}
+		try { fs.rmSync(temporary, { force: true }); } catch { /* Preserve the original write error. */ }
 		throw error;
 	}
 }
 
 function readJson(target) {
 	try {
-		const value = JSON.parse(fs.readFileSync(target, "utf8"));
+		const value = JSON.parse(readRegularFile(target, "utf8"));
 		return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 	} catch {
 		return null;
@@ -379,8 +414,8 @@ function validCachedFile(root, filename, expectedSha) {
 		|| typeof expectedSha !== "string" || !/^[a-f0-9]{64}$/.test(expectedSha)) return false;
 	const target = path.join(root, filename);
 	try {
-		const stat = fs.lstatSync(target);
-		return stat.isFile() && !stat.isSymbolicLink() && sha256(fs.readFileSync(target)) === expectedSha;
+		const contents = readRegularFileIfExists(target, null);
+		return contents !== undefined && sha256(contents) === expectedSha;
 	} catch {
 		return false;
 	}
@@ -432,22 +467,22 @@ function writePublicAssets(root, publicFontRoot, cacheAssetRoot, entry, previous
 		const cached = path.join(cacheAssetRoot, asset.cacheFileName);
 		const output = path.join(publicFontRoot, asset.fileName);
 		assertSafeChildPath(root, output);
-		ensureDirectory(root, path.dirname(output));
-		if (fs.existsSync(output)) {
-			const stat = fs.lstatSync(output);
-			if (!stat.isFile() || stat.isSymbolicLink() || sha256(fs.readFileSync(output)) !== asset.sha256) {
+		const cachedBytes = readRegularFile(cached, null);
+		const existingBytes = readRegularFileIfExists(output, null);
+		if (existingBytes !== undefined) {
+			if (sha256(existingBytes) !== asset.sha256) {
 				throw new Error("[EngineTheme fonts] Refusing to overwrite a non-generated font asset: " + path.relative(root, output));
 			}
 		} else {
-			atomicWrite(root, output, fs.readFileSync(cached));
+			atomicWrite(root, output, cachedBytes);
 		}
 		assetRecords.push({ sourceUrl: asset.sourceUrl, sha256: asset.sha256, fileName: asset.fileName, cacheFileName: asset.cacheFileName, bytes: asset.bytes });
 	}
 	const cssPath = path.join(publicFontRoot, entry.cssFileName);
 	assertSafeChildPath(root, cssPath);
-	if (fs.existsSync(cssPath)) {
-		const stat = fs.lstatSync(cssPath);
-		const currentHash = stat.isFile() && !stat.isSymbolicLink() ? sha256(fs.readFileSync(cssPath)) : "";
+	const existingCss = readRegularFileIfExists(cssPath, "utf8");
+	if (existingCss !== undefined) {
+		const currentHash = sha256(Buffer.from(existingCss, "utf8"));
 		const ownedHash = previousEntry && previousEntry.cssSha256;
 		if (currentHash !== entry.cssSha256 && currentHash !== ownedHash) {
 			throw new Error("[EngineTheme fonts] Refusing to overwrite a CSS file not owned by NENC: " + path.relative(root, cssPath));
@@ -457,6 +492,16 @@ function writePublicAssets(root, publicFontRoot, cacheAssetRoot, entry, previous
 		atomicWrite(root, cssPath, entry.cssContent);
 	}
 	return assetRecords;
+}
+
+function hasValidFontSignature(bytes, extension) {
+	if (!bytes || typeof bytes.length !== "number" || bytes.length < 4) return false;
+	const signature = Buffer.from(bytes).subarray(0, 4).toString("latin1");
+	if (extension === "woff2") return signature === "wOF2";
+	if (extension === "woff") return signature === "wOFF";
+	if (extension === "otf") return signature === "OTTO";
+	if (extension === "ttf") return signature === "\\u0000\\u0001\\u0000\\u0000" || signature === "true" || signature === "typ1";
+	return false;
 }
 
 function fontFormat(extension) {
@@ -583,6 +628,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				});
 				const extension = extensionFromUrl(fontUrl) || extensionFromType(fetched.contentType);
 				if (!FONT_EXTENSIONS.has(extension)) throw new Error("[EngineTheme fonts] Unsupported font file type from " + fontUrl.origin + ".");
+				if (!hasValidFontSignature(fetched.bytes, extension)) {
+					throw new Error("[EngineTheme fonts] Downloaded font bytes do not match the declared font format.");
+				}
 				totalBytes += fetched.bytes.byteLength;
 				if (fetched.bytes.byteLength === 0 || totalBytes > MAX_TOTAL_FONT_BYTES
 					|| stats.downloadedBytes + fetched.bytes.byteLength > MAX_TOTAL_BUILD_FONT_BYTES) {
@@ -593,8 +641,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				const cacheFileName = digest + "." + extension;
 				ensureDirectory(root, cacheAssetRoot);
 				const cacheFile = path.join(cacheAssetRoot, cacheFileName);
-				if (!fs.existsSync(cacheFile)) atomicWrite(root, cacheFile, fetched.bytes);
-				else if (sha256(fs.readFileSync(cacheFile)) !== digest) throw new Error("[EngineTheme fonts] Font cache hash mismatch.");
+				const cachedFont = readRegularFileIfExists(cacheFile, null);
+				if (cachedFont === undefined) writeVerifiedFontAssetAtomically(root, cacheFile, fetched.bytes, extension, digest);
+				else if (sha256(cachedFont) !== digest) throw new Error("[EngineTheme fonts] Font cache hash mismatch.");
 				asset = { sourceUrl: fontUrl.href, sha256: digest, fileName: filename, cacheFileName, extension, bytes: fetched.bytes.byteLength, updatedAt: Date.now() };
 				stats.downloadedFonts += 1;
 				stats.downloadedBytes += fetched.bytes.byteLength;
@@ -629,8 +678,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 		const cacheCssFileName = cssSha256 + ".css";
 		ensureDirectory(root, cacheCssRoot);
 		const cacheCssPath = path.join(cacheCssRoot, cacheCssFileName);
-		if (!fs.existsSync(cacheCssPath)) atomicWrite(root, cacheCssPath, cssContent);
-		else if (sha256(fs.readFileSync(cacheCssPath)) !== cssSha256) throw new Error("[EngineTheme fonts] CSS cache hash mismatch.");
+		const cachedCss = readRegularFileIfExists(cacheCssPath, null);
+		if (cachedCss === undefined) atomicWrite(root, cacheCssPath, cssContent);
+		else if (sha256(cachedCss) !== cssSha256) throw new Error("[EngineTheme fonts] CSS cache hash mismatch.");
 		const entry = {
 			id: themeId,
 			sourceKey,
@@ -676,9 +726,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 		const cssPath = path.join(publicFontRoot, cssFileName);
 		assertSafeChildPath(root, cssPath);
 		ensureDirectory(root, path.dirname(cssPath));
-		if (fs.existsSync(cssPath)) {
-			const stat = fs.lstatSync(cssPath);
-			const currentHash = stat.isFile() && !stat.isSymbolicLink() ? sha256(fs.readFileSync(cssPath)) : "";
+		const existingCss = readRegularFileIfExists(cssPath, "utf8");
+		if (existingCss !== undefined) {
+			const currentHash = sha256(Buffer.from(existingCss, "utf8"));
 			const ownedHash = previous && previous.cssSha256;
 			if (currentHash !== cssSha256 && currentHash !== ownedHash) {
 				throw new Error("[EngineTheme fonts] Refusing to overwrite a CSS file not owned by NENC: " + path.relative(root, cssPath));
@@ -710,7 +760,6 @@ async function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 
 	const root = fs.realpathSync(path.resolve(projectRoot));
 	const cacheRoot = path.join(root, ".nextjs-engine", ".cache", "gen3", "fonts");
-	const cacheAssetRoot = path.join(cacheRoot, "assets");
 	const manifestPath = path.join(cacheRoot, "manifest.json");
 	const themeRoot = path.join(root, ".nextjs-engine", "gen3", "theme");
 	const publicFontRoot = path.join(root, "public", "nextjs-engine", "fonts");
@@ -793,9 +842,8 @@ async function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 	};
 	const manifestText = JSON.stringify(nextManifest, null, 2) + "\n";
 	ensureDirectory(root, cacheRoot);
-	if (!fs.existsSync(manifestPath) || fs.readFileSync(manifestPath, "utf8") !== manifestText) {
-		atomicWrite(root, manifestPath, manifestText);
-	}
+	const existingManifest = readRegularFileIfExists(manifestPath, "utf8");
+	if (existingManifest !== manifestText) atomicWrite(root, manifestPath, manifestText);
 	return stats;
 }
 

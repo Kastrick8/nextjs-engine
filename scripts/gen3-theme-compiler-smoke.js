@@ -28,6 +28,37 @@ function assertCodedThemeFailure(operation, code, messagePattern) {
 	return caught;
 }
 
+function assertLocalFontAssetUrls(css, label) {
+	const source = String(css);
+	const lowered = source.toLowerCase();
+	const values = [];
+	let cursor = 0;
+	while (cursor < source.length) {
+		const start = lowered.indexOf("url(", cursor);
+		if (start < 0) break;
+		let valueStart = start + 4;
+		while (valueStart < source.length && /\s/.test(source[valueStart])) valueStart += 1;
+		const quote = source[valueStart] === "'" || source[valueStart] === '"' ? source[valueStart] : "";
+		if (quote) valueStart += 1;
+		let valueEnd = valueStart;
+		while (valueEnd < source.length && (quote ? source[valueEnd] !== quote : source[valueEnd] !== ")")) valueEnd += 1;
+		assert.ok(valueEnd < source.length, label + ": every CSS url() value is terminated");
+		const value = source.slice(valueStart, valueEnd);
+		assert.ok(value.length > 0, label + ": CSS url() values are not empty");
+		values.push(value);
+		cursor = valueEnd + (quote ? 1 : 0);
+		while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
+		assert.equal(source[cursor], ")", label + ": each CSS url() value closes correctly");
+		cursor += 1;
+	}
+	assert.ok(values.length > 0, label + ": generated font CSS contains a local asset URL");
+	for (const value of values) {
+		const resolved = new URL(value, "https://engine-font-smoke.invalid");
+		assert.equal(resolved.origin, "https://engine-font-smoke.invalid", label + ": font URLs stay on the local origin");
+		assert.ok(resolved.pathname.startsWith("/nextjs-engine/fonts/font-"), label + ": font URLs use the local content-addressed asset directory");
+	}
+}
+
 assert.equal(pluginCompilerLink.compileEngineThemeArtifacts, compileEngineThemeArtifacts, "the Next.js plugin forwards to the dedicated EngineTheme compiler");
 
 async function testPublicThemeApi() {
@@ -1243,7 +1274,7 @@ async function testPublicThemeApi() {
 		}));
 		const fontUrls = [];
 		const fakeFontCss = "@font-face{font-family:'Fixture';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/fixture/font.woff2) format('woff2');unicode-range:U+0000-00FF;}";
-		const fakeFontBytes = Buffer.from("fake-woff2-fixture-font");
+		const fakeFontBytes = Buffer.concat([Buffer.from("wOF2"), Buffer.from("fixture-font-payload")]);
 		const fakeFontFetch = async (url, init) => {
 			fontUrls.push(url);
 			assert.equal(init.redirect, "error");
@@ -1266,8 +1297,7 @@ async function testPublicThemeApi() {
 			assert.equal(fontUrls.length, 2, "only the stylesheet and selected font are fetched");
 			const localCssPath = path.join(fontRoot, "public", "nextjs-engine", "fonts", "font-smoke.css");
 			const localCss = fs.readFileSync(localCssPath, "utf8");
-			assert.ok(localCss.includes("/nextjs-engine/fonts/font-"), "generated CSS points at a local content-addressed font");
-			assert.ok(!localCss.includes("fonts.gstatic.com"), "generated CSS no longer points at the external font host");
+			assertLocalFontAssetUrls(localCss, "Google font pipeline");
 			const emittedFont = fs.readdirSync(path.dirname(localCssPath)).find((name) => /^font-[a-f0-9]{64}\.woff2$/.test(name));
 			assert.ok(emittedFont, "font file names use a content hash rather than source names");
 			assert.equal(fs.readFileSync(path.join(path.dirname(localCssPath), emittedFont)).toString(), fakeFontBytes.toString());
@@ -1342,8 +1372,7 @@ async function testPublicThemeApi() {
 				});
 				assert.equal(providerBuild.downloadedFonts, 1, "explicitly allowed non-Google CSS/font origins are compiled locally");
 				const providerLocalCss = fs.readFileSync(path.join(fontRoot, "public", "nextjs-engine", "fonts", "provider-font.css"), "utf8");
-				assert.ok(providerLocalCss.includes("/nextjs-engine/fonts/font-"));
-				assert.ok(!providerLocalCss.includes("fixture.example.com"), "provider CSS emits only local font URLs");
+				assertLocalFontAssetUrls(providerLocalCss, "non-Google provider pipeline");
 			} finally {
 				if (previousProviderCssOrigins === undefined) delete process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
 				else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousProviderCssOrigins;
@@ -1378,13 +1407,40 @@ async function testPublicThemeApi() {
 				assert.equal(bunnyFixtureBuild.downloadedFonts, 1, "Bunny Fonts-style same-origin assets compile to local files");
 				const bunnyCssPath = path.join(fontRoot, "public", "nextjs-engine", "fonts", "bunny-fixture.css");
 				const bunnyCss = fs.readFileSync(bunnyCssPath, "utf8");
-				assert.ok(!bunnyCss.includes("fonts.bunny.net"), "Bunny fixture output contains only local font URLs");
+				assertLocalFontAssetUrls(bunnyCss, "Bunny font pipeline");
 			} finally {
 				if (previousBunnyCssOrigins === undefined) delete process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
 				else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousBunnyCssOrigins;
 				if (previousBunnyFileOrigins === undefined) delete process.env.ENGINE_THEME_FONT_FILE_ORIGINS;
 				else process.env.ENGINE_THEME_FONT_FILE_ORIGINS = previousBunnyFileOrigins;
 			}
+
+			writeFontFixture("invalid-signature-font", "https://fonts.googleapis.com/css2?family=InvalidSignature");
+			const invalidFontBytes = Buffer.from("not-a-font-payload");
+			const invalidFontDigest = crypto.createHash("sha256").update(invalidFontBytes).digest("hex");
+			const invalidFontCss = fakeFontCss
+				.replace("Fixture", "InvalidSignature")
+				.replace("https://fonts.gstatic.com/s/fixture/font.woff2", "https://fonts.gstatic.com/s/fixture/invalid-signature.woff2");
+			await assert.rejects(() => compileEngineThemeFonts(fontRoot, [
+				{ id: "invalid-signature-font", fileName: "invalid-signature-font.etr" },
+			], {
+				production: true,
+				failurePolicy: "error",
+				fetchImpl: async (url) => {
+					if (url === "https://fonts.googleapis.com/css2?family=InvalidSignature") {
+						return new Response(invalidFontCss, { status: 200, headers: { "content-type": "text/css; charset=utf-8" } });
+					}
+					if (url === "https://fonts.gstatic.com/s/fixture/invalid-signature.woff2") {
+						return new Response(invalidFontBytes, { status: 200, headers: { "content-type": "font/woff2" } });
+					}
+					throw new Error("Unexpected invalid-font fixture URL: " + url);
+				},
+			}), (error) => error.code === "NETH8002"
+				&& /Downloaded font bytes do not match the declared font format/.test(error.cause?.message || ""),
+			"unrecognized remote binary data is rejected before the cache file writer");
+			assert.equal(fs.existsSync(path.join(fontRoot, ".nextjs-engine", ".cache", "gen3", "fonts", "assets", invalidFontDigest + ".woff2")), false,
+				"rejected font payloads never reach the content-addressed cache");
+
 			writeFontFixture("blocked-font", "https://untrusted.example/fonts.css");
 			const blockedFallback = await compileEngineThemeFonts(fontRoot, [
 				{ id: "blocked-font", fileName: "blocked-font.etr" },
