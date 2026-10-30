@@ -243,7 +243,7 @@ function swapArtifactDirectory(stagingDirectory, outputDirectory) {
 		fs.renameSync(stagingDirectory, outputDirectory);
 		installed = true;
 	} catch (reason) {
-		if (!installed) {
+		{
 			if (fs.existsSync(outputDirectory)) fs.rmSync(outputDirectory, { recursive: true, force: true });
 			if (backedUp && fs.existsSync(backupDirectory)) {
 				fs.renameSync(backupDirectory, outputDirectory);
