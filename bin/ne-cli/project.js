@@ -439,11 +439,56 @@ function readInstalledPackage(root) {
 }
 
 async function downloadVerifiedArtifact(root, release) {
-	if (!release.artifactUrl || !release.sha256) throw new Error("This channel has no verified GitHub package artifact.");
-	const response = await fetch(release.artifactUrl, {
+	const version = typeof release?.version === "string" ? release.version : "";
+	const digest = typeof release?.sha256 === "string" ? release.sha256 : "";
+	const assetName = typeof release?.artifactName === "string" ? release.artifactName : "";
+	if (!/^\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta)\\.\\d+)?$/.test(version)
+		|| !/^[a-f0-9]{64}$/.test(digest)
+		|| !/^nextjs-engine-[A-Za-z0-9._+-]+\\.tgz$/.test(assetName)
+		|| typeof release.artifactUrl !== "string") {
+		throw new Error("This channel has no verified GitHub package artifact.");
+	}
+	let artifactUrl;
+	try { artifactUrl = new URL(release.artifactUrl); }
+	catch { throw new Error("The channel artifact URL is invalid."); }
+	const segments = artifactUrl.pathname.split("/");
+	const isOfficialReleasePath = segments.length === 7 && segments[1] === "Kastrick8"
+		&& segments[2] === "nextjs-engine" && segments[3] === "releases"
+		&& segments[4] === "download" && /^[A-Za-z0-9._+-]{1,128}$/.test(segments[5])
+		&& segments[6] === assetName;
+	if (artifactUrl.protocol !== "https:" || artifactUrl.hostname !== "github.com"
+		|| artifactUrl.username || artifactUrl.password || artifactUrl.port
+		|| artifactUrl.search || artifactUrl.hash || !isOfficialReleasePath) {
+		throw new Error("Refusing an artifact URL outside the official Nextjs Engine GitHub releases.");
+	}
+	const requestOptions = {
 		headers: { "User-Agent": "nextjs-engine-ne-cli", Accept: "application/octet-stream" },
 		signal: AbortSignal.timeout(30000),
-	});
+		redirect: "manual",
+	};
+	let response = await fetch(artifactUrl.href, requestOptions);
+	if (response.status >= 300 && response.status < 400) {
+		const location = response.headers.get("location");
+		let assetUrl;
+		try { assetUrl = new URL(location, artifactUrl); }
+		catch { throw new Error("GitHub returned an invalid artifact redirect."); }
+		if (assetUrl.protocol !== "https:" || !["release-assets.githubusercontent.com", "objects.githubusercontent.com"].includes(assetUrl.hostname)
+			|| assetUrl.username || assetUrl.password || assetUrl.port) {
+			try { await response.body?.cancel(); } catch {}
+			throw new Error("Refusing a redirect outside GitHub's release asset hosts.");
+		}
+		try { await response.body?.cancel(); } catch {}
+		response = await fetch(assetUrl.href, { ...requestOptions, redirect: "error" });
+	}
+	if (response.url) {
+		let finalUrl;
+		try { finalUrl = new URL(response.url); }
+		catch { try { await response.body?.cancel(); } catch {} throw new Error("GitHub returned an invalid artifact response URL."); }
+		if (finalUrl.protocol !== "https:" || !["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].includes(finalUrl.hostname)) {
+			try { await response.body?.cancel(); } catch {}
+			throw new Error("Refusing an artifact response from an untrusted host.");
+		}
+	}
 	if (!response.ok) {
 		try { await response.body?.cancel(); } catch {}
 		throw new Error("GitHub artifact download returned HTTP " + response.status + ".");
@@ -458,7 +503,7 @@ async function downloadVerifiedArtifact(root, release) {
 
 	const directory = path.join(root, ".nextjs-engine", "cache", "ne-downloads");
 	fs.mkdirSync(directory, { recursive: true });
-	const file = path.join(directory, "nextjs-engine-" + release.version + "-" + release.sha256.slice(0, 12) + ".tgz");
+	const file = path.join(directory, "nextjs-engine-" + version + "-" + digest.slice(0, 12) + ".tgz");
 	const temporary = file + ".tmp-" + crypto.randomBytes(6).toString("hex");
 	const sha256 = crypto.createHash("sha256");
 	const sha512 = crypto.createHash("sha512");
@@ -490,7 +535,7 @@ async function downloadVerifiedArtifact(root, release) {
 			throw new Error("The channel artifact is not a gzip package archive.");
 		}
 		const digest = sha256.digest("hex");
-		if (digest !== release.sha256) {
+		if (digest !== release.sha256.toLowerCase()) {
 			throw new Error("SHA-256 mismatch for " + release.version + ". No dependency manifest or lockfile was changed.");
 		}
 		const integrity = sha512.digest("base64");
