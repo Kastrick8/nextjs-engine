@@ -10,9 +10,11 @@ const channels = require("../bin/ne-cli/channels");
 const terminal = require("../bin/ne-cli/terminal");
 const cli = require("../bin/ne-cli/cli");
 const project = require("../bin/ne-cli/project");
+const tasks = require("../bin/ne-cli/tasks");
 const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
 
 async function main() {
+	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
 	assert.equal(channels.compareVersions("3.0.0-alpha.1", "3.0.0-alpha.2"), -1);
 	assert.equal(channels.compareVersions("3.0.0-alpha.2", "3.0.0-beta.1"), -1);
 	assert.equal(channels.compareVersions("3.0.0-beta.1", "2.7.0"), 1);
@@ -331,6 +333,52 @@ async function main() {
 		fs.mkdirSync(path.join(temp, "dist"), { recursive: true });
 		fs.mkdirSync(path.join(temp, ".nextjs-engine", "cache", "ne-backups"), { recursive: true });
 		fs.writeFileSync(path.join(temp, ".nextjs-engine", "cache", "ne-backups", "keep.txt"), "keep");
+		const workerRun = await tasks.commandWorkers.run(process.execPath, [
+			"-e",
+			"process.stdout.write('NE_WORKER_OK'); process.stderr.write('NE_WORKER_STDERR');",
+		], { cwd: temp });
+		assert.equal(workerRun.code, 0);
+		assert.equal(workerRun.stdout, "NE_WORKER_OK");
+		assert.equal(workerRun.stderr, "NE_WORKER_STDERR");
+
+		await assert.rejects(
+			() => project.runProcess(process.execPath, [
+				"-e",
+				"process.stdout.write('WORKER_FAILURE_STDOUT'); process.stderr.write('WORKER_FAILURE_STDERR'); process.exitCode = 9;",
+			], { cwd: temp, worker: true, captureOutput: true, taskTree: true }),
+			(error) => {
+				assert.match(error.output, /WORKER_FAILURE_STDOUT/);
+				assert.match(error.output, /WORKER_FAILURE_STDERR/);
+				return true;
+			}
+		);
+
+		const buildRoot = path.join(temp, "build-project");
+		fs.mkdirSync(path.join(buildRoot, "scripts"), { recursive: true });
+		fs.mkdirSync(path.join(buildRoot, "node_modules", "next", "dist", "bin"), { recursive: true });
+		fs.mkdirSync(path.join(buildRoot, "src", "engine", "plugins"), { recursive: true });
+		fs.writeFileSync(path.join(buildRoot, "package.json"), JSON.stringify({
+			name: "nextjs-engine",
+			version: "3.0.0-alpha.1",
+			scripts: {
+				"type-check": "node scripts/type-check.js",
+				"prepare:production": "node scripts/prepare.js",
+			},
+		}, null, 2) + "\n");
+		fs.writeFileSync(path.join(buildRoot, "scripts", "type-check.js"),
+			"process.stdout.write('TYPECHECK_WORKER_OK');\n");
+		fs.writeFileSync(path.join(buildRoot, "scripts", "prepare.js"),
+			"require('node:fs').writeFileSync('prepare.marker', 'prepared');\n");
+		fs.writeFileSync(path.join(buildRoot, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"),
+			"module.exports = {};\n");
+		fs.writeFileSync(path.join(buildRoot, "node_modules", "next", "dist", "bin", "next"),
+			"process.stdout.write('[NENC] Compiling app/page.tsx -> /\\\\n');\n");
+		await project.runBuild(buildRoot);
+		assert.equal(fs.readFileSync(path.join(buildRoot, "prepare.marker"), "utf8"), "prepared",
+			"ne build executes prepare:production before checking");
+		assert.ok(fs.existsSync(path.join(buildRoot, "node_modules", "next", "dist", "bin", "next")),
+			"the Next.js production build runs after ne check");
+
 
 		const backup = project.captureDependencyFiles(temp);
 		fs.writeFileSync(path.join(temp, "package.json"), "{\"name\":\"changed\"}\n");
@@ -340,6 +388,31 @@ async function main() {
 
 		await project.runClean(temp, false);
 		assert.equal(fs.existsSync(path.join(temp, "dist")), false);
+
+		const failedBuildRoot = path.join(temp, "failed-build-project");
+		fs.mkdirSync(path.join(failedBuildRoot, "scripts"), { recursive: true });
+		fs.mkdirSync(path.join(failedBuildRoot, "node_modules", "next", "dist", "bin"), { recursive: true });
+		fs.mkdirSync(path.join(failedBuildRoot, "src", "engine", "plugins"), { recursive: true });
+		fs.writeFileSync(path.join(failedBuildRoot, "package.json"), JSON.stringify({
+			name: "nextjs-engine",
+			version: "3.0.0-alpha.1",
+			scripts: { "type-check": "node scripts/type-check.js" },
+		}, null, 2) + "\n");
+		fs.writeFileSync(path.join(failedBuildRoot, "scripts", "type-check.js"),
+			"process.stdout.write('TYPECHECK_FAILURE_OUTPUT'); process.stderr.write('TYPECHECK_FAILURE_STDERR'); process.exitCode = 7;\n");
+		fs.writeFileSync(path.join(failedBuildRoot, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"), "module.exports = {};\n");
+		fs.writeFileSync(path.join(failedBuildRoot, "node_modules", "next", "dist", "bin", "next"),
+			"require('node:fs').writeFileSync('next-build-ran.marker', 'unexpected');\n");
+		await assert.rejects(() => project.runBuild(failedBuildRoot), (error) => {
+			assert.equal(error.neTaskId, "check-type-check-script");
+			assert.match(error.output, /TYPECHECK_FAILURE_OUTPUT/);
+			assert.match(error.output, /TYPECHECK_FAILURE_STDERR/);
+			assert.equal(error.neOutputDisplayed, true, "the task tree already displayed the failing child output");
+			return true;
+		});
+		assert.equal(fs.existsSync(path.join(failedBuildRoot, "next-build-ran.marker")), false,
+			"Next.js does not start after a failed ne check");
+
 		assert.equal(fs.existsSync(path.join(temp, ".nextjs-engine", "cache", "ne-backups", "keep.txt")), true);
 
 		const previousFetch = global.fetch;
