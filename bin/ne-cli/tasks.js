@@ -96,12 +96,12 @@ function clip(value, width) {
 	return text.slice(0, width - 3) + "...";
 }
 
-function statusText(status, frame) {
-	if (status === "running") return paint((["◐", "◓", "◑", "◒"][frame % 4]) + " RUNNING", "36;1");
-	if (status === "success") return paint("✓ DONE", "32;1");
-	if (status === "failed") return paint("✕ FAILED", "31;1");
-	if (status === "skipped") return paint("— SKIPPED", "33");
-	return paint("… PENDING", "90");
+function statusBadge(status, frame) {
+	if (status === "running") return { text: ["◐ RUNNING", "◓ RUNNING", "◑ RUNNING", "◒ RUNNING"][frame % 4], color: "36;1" };
+	if (status === "success") return { text: "✓ DONE", color: "32;1" };
+	if (status === "failed") return { text: "✕ FAILED", color: "31;1" };
+	if (status === "skipped") return { text: "— SKIPPED", color: "33" };
+	return { text: "… PENDING", color: "90" };
 }
 
 class TaskTree {
@@ -203,19 +203,24 @@ class TaskTree {
 		return depth;
 	}
 
-	renderRows() {
-		const rows = [
-			"> " + this.command + "  " + statusText(this.root.status, this.frame),
-		];
+	renderRows(inner) {
+		const width = Math.max(24, inner || 72);
+		const rows = [];
+		const rootBadge = statusBadge(this.root.status, this.frame);
+		const rootLabel = "> " + this.command;
+		rows.push(clip(rootLabel, Math.max(1, width - rootBadge.text.length - 2)) +
+			"  " + paint(rootBadge.text, rootBadge.color));
 		for (const node of this.nodes) {
 			const depth = this.depthOf(node);
 			const arrow = depth === 1 ? "->" : "-".repeat(depth) + ">";
-			rows.push(arrow + " " + node.label + "  " + statusText(node.status, this.frame));
-			if (node.detail) rows.push("   " + node.detail);
+			const badge = statusBadge(node.status, this.frame);
+			const prefix = arrow + " ";
+			const labelWidth = Math.max(1, width - prefix.length - badge.text.length - 2);
+			rows.push(prefix + clip(node.label, labelWidth) + "  " + paint(badge.text, badge.color));
+			if (node.detail) rows.push("   " + clip(node.detail, width - 3));
 		}
 		return rows;
 	}
-
 	draw() {
 		if (!this.interactive) return;
 		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
@@ -224,40 +229,30 @@ class TaskTree {
 		const border = borderChars[this.frame % borderChars.length];
 		const color = this.root.status === "failed" ? "31;1" : this.root.status === "success" ? "32;1" : "36;1";
 		const title = " NE TASK TREE · " + this.command + " ";
-		const top = "╭" + border + title + border.repeat(Math.max(1, width - title.length - 2)) + "╮";
+		const top = "╭" + border + title + border.repeat(Math.max(1, width - title.length - 3)) + "╮";
 		const bottom = "╰" + border.repeat(width - 2) + "╯";
-		const rows = [top, ...this.renderRows().map((line) => "│ " + clip(line, inner).padEnd(inner, " ") + " │"), bottom];
-		process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + paint(rows.join("\n"), color) + "\x1b[?25h");
-	}
-
-	stopTimer() {
-		if (this.timer) {
-			clearInterval(this.timer);
-			this.timer = null;
+		const rows = [paint(top, color)];
+		for (const line of this.renderRows(inner)) {
+			rows.push(paint("│", "90") + " " + line + " ".repeat(Math.max(0, inner - line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length)) + " " + paint("│", "90"));
 		}
+		rows.push(paint(bottom, color));
+		process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + rows.join("\n") + "\x1b[?25h");
 	}
-
-	complete() {
-		if (this.finished) return;
-		this.root.status = "success";
-		this.finished = true;
-		this.stopTimer();
-		if (this.interactive) this.drawFinal();
-		else process.stdout.write("[NE] DONE " + this.command + "\n");
-	}
-
 	drawFinal() {
 		if (!this.interactive) return;
 		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
 		const inner = width - 4;
 		const title = " NE TASK TREE · " + this.command + " ";
 		const border = "═";
-		const top = "╭" + border + title + border.repeat(Math.max(1, width - title.length - 2)) + "╮";
+		const top = "╭" + border + title + border.repeat(Math.max(1, width - title.length - 3)) + "╮";
 		const bottom = "╰" + border.repeat(width - 2) + "╯";
-		const rows = [top, ...this.renderRows().map((line) => "│ " + clip(line, inner).padEnd(inner, " ") + " │"), bottom];
-		process.stdout.write("\x1b[2J\x1b[H" + paint(rows.join("\n"), "32;1") + "\n\x1b[?25h");
+		const rows = [paint(top, "32;1")];
+		for (const line of this.renderRows(inner)) {
+			rows.push(paint("│", "90") + " " + line + " ".repeat(Math.max(0, inner - line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length)) + " " + paint("│", "90"));
+		}
+		rows.push(paint(bottom, "32;1"));
+		process.stdout.write("\x1b[2J\x1b[H" + rows.join("\n") + "\n\x1b[?25h");
 	}
-
 	fail(id, error) {
 		if (this.failed) return;
 		const node = this.byId.get(id) || this.root;
