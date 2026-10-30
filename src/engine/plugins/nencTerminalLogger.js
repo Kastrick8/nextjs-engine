@@ -801,9 +801,9 @@ function splitLogSegments(raw) {
 	let start = 0;
 	for (let index = 0; index < raw.length; index += 1) {
 		const character = raw[index];
-		if (character !== "\\r" && character !== "\\n") continue;
+		if (character !== "\r" && character !== "\n") continue;
 		let end = index + 1;
-		if (character === "\\r" && raw[index + 1] === "\\n") {
+		if (character === "\r" && raw[index + 1] === "\n") {
 			end += 1;
 			index += 1;
 		}
