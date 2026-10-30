@@ -367,6 +367,7 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [showAutoCompletions, setShowAutoCompletions] = useState(false);
 	const frameSource = useMemo(() => {
 		const trustedOrigin = "http://engine-debug.invalid";
+		if (typeof selectedPage !== "string" || !selectedPage.startsWith("/") || selectedPage.startsWith("//")) return "/";
 		try {
 			const url = new URL(selectedPage, trustedOrigin);
 			if (url.origin !== trustedOrigin || !url.pathname.startsWith("/") || url.pathname.startsWith("//")) return "/";
