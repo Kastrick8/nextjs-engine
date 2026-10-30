@@ -156,6 +156,7 @@ function getHelp() {
 		"  --check       Refresh and list channel availability without installing",
 		"  --json        Print the channel catalog as JSON",
 		"  -q, --quiet   Suppress the experimental notice banner",
+		"  --no-color    Disable ANSI colors in CLI output",
 		"",
 		"Install once for direct shell commands:",
 		"  npm install --global @kastrick/nextjs-engine",
