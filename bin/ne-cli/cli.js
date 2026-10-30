@@ -1,7 +1,6 @@
 "use strict";
 
 const path = require("node:path");
-const fs = require("node:fs");
 
 // Keep CLI import time small. Feature modules are loaded only after routing.
 function channels() {
@@ -366,83 +365,20 @@ async function runDashboardAction(root, action) {
 	throw new Error("Unknown dashboard action: " + action);
 }
 
-function parseChainedCommand(command) {
-	if (typeof command !== "string" || command.length === 0 || command.length > 4096) {
-		throw new Error("A chained command must be a non-empty command line under 4096 characters.");
-	}
-	const tokens = [];
-	let token = "";
-	let quote = "";
-	let escaped = false;
-	const pushToken = () => {
-		if (token) tokens.push(token);
-		token = "";
-	};
-	for (const character of command) {
-		if (escaped) {
-			token += character;
-			escaped = false;
-			continue;
-		}
-		if (quote) {
-			if (character === "\\" && quote === '"') {
-				escaped = true;
-			} else if (character === quote) {
-				quote = "";
-			} else {
-				token += character;
-			}
-			continue;
-		}
-		if (character === "'" || character === '"') {
-			quote = character;
-			continue;
-		}
-		if (/[\r\n;&|<>\x60$()]/.test(character)) {
-			throw new Error("NE --and accepts one executable and arguments, not shell operators or expansions. Run shell scripts from a script file.");
-		}
-		if (/\s/.test(character)) {
-			pushToken();
-			continue;
-		}
-		token += character;
-	}
-	if (escaped || quote) throw new Error("NE --and contains an unterminated quote or escape.");
-	pushToken();
-	if (!tokens.length) throw new Error("NE --and did not contain an executable.");
-	return tokens;
-}
-
-function resolveChainedCommand(commandTokens) {
-	const [command, ...args] = commandTokens;
-	if (process.platform === "win32") {
-		const name = path.basename(command).toLowerCase();
-		if (name === "npm" || name === "npm.cmd" || name === "npx" || name === "npx.cmd") {
-			const cliName = name.startsWith("npx") ? "npx-cli.js" : "npm-cli.js";
-			const cliPath = path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", cliName);
-			if (!fs.existsSync(cliPath)) throw new Error("Could not locate the Node.js " + cliName + " for safe chained execution.");
-			return { executable: process.execPath, args: [cliPath, ...args] };
-		}
-		if (/\.(?:cmd|bat)$/i.test(command)) {
-			throw new Error("NE --and does not execute .cmd/.bat wrappers through a shell. Use npm/npx or a native executable.");
-		}
-	}
-	return { executable: command, args };
-}
-
 async function runChainedCommands(root, options) {
 	const commands = options.andCommands || [];
 	const height = options.andTerminal || 5;
 	for (let index = 0; index < commands.length; index += 1) {
 		const command = commands[index];
-		const invocation = resolveChainedCommand(parseChainedCommand(command));
 		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + command + " [viewport: " + height + " rows]\n");
 		await new Promise((resolve, reject) => {
-			const child = require("node:child_process").spawn(invocation.executable, invocation.args, {
+			const isWindows = process.platform === "win32";
+			const executable = isWindows ? (process.env.ComSpec || "cmd.exe") : "/bin/sh";
+			const args = isWindows ? ["/d", "/s", "/c", command] : ["-lc", command];
+			const child = require("node:child_process").spawn(executable, args, {
 				cwd: root,
 				env: process.env,
 				windowsHide: true,
-				shell: false,
 				stdio: ["inherit", "pipe", "pipe"],
 			});
 			let output = "";
@@ -517,7 +453,6 @@ async function main(argv) {
 
 module.exports = {
 	parseArgs,
-	parseChainedCommand,
 	getHelp,
 	listChannels,
 	main,
