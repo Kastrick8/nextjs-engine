@@ -133,7 +133,7 @@ function renderBanner(options) {
 	for (const item of Array.isArray(settings.details) ? settings.details : []) {
 		if (item == null || item === "") continue;
 		if (item && typeof item === "object" && item.preformatted) {
-			rows.push(...String(item.text || "").split(/\\r?\\n/));
+			rows.push(...String(item.text || "").split(/\r?\n/));
 		} else {
 			rows.push(...wrapText(String(item), contentWidth));
 		}
