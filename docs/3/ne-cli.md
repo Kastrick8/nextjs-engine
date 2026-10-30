@@ -21,13 +21,78 @@ The NE CLI gives projects one command interface for development, production buil
 | **ne rollback** | Restore the previous package manifest and lockfiles, then reinstall dependencies. |
 | **ne help** | Print command help. |
 
+## Terminal presentation and diagnostics
+
+NE CLI messages use a shared adaptive banner renderer. Banner width is based on the available terminal columns, visible text width ignores ANSI color sequences, long messages wrap to fit, and narrow/ASCII terminals use a plain character fallback. Severity styles are consistent across command warnings and failures: errors are red, warnings yellow, successful notices green, and informational/running messages cyan.
+
+Use `--no-color` to disable ANSI colors for a single invocation, or set `NO_COLOR=1` for the standard environment-wide opt-out. `NE_ASCII=1` forces ASCII box drawing when the terminal does not render Unicode correctly.
+
+CLI argument and command errors use stable diagnostic codes:
+
+| Code | Meaning |
+| --- | --- |
+| `NE1001` | Unknown command, with a close command suggestion when possible. |
+| `NE1002` | Unknown option, with a close option suggestion when possible. |
+| `NE1003` | Required option value is missing. |
+| `NE1004` | Option value is invalid. |
+| `NE2001` | JavaScript syntax error with an inferred source location/code frame when Node exposes it. |
+
+For example, `ne bulid` suggests `ne build`, while `ne --verison` suggests `--version`. Suggestions are informational and never execute a command automatically. Code-frame rendering is available when a diagnostic supplies source text and a line/column location.
+
+## Live command task tree
+
+Build and check commands render a live hierarchical task tree instead of leaving the terminal blank or printing successful package-manager output:
+
+```text
+> ne build
+│
+├─> ne prepare:production                         ✓
+│   └─> npm run prepare:production                ✓
+│       └─> node scripts/gen3-prepare-production.js ✓
+│
+├─> ne check                                      ✓
+│   ├─> npm run type-check                        ✓
+│   │   └─> tsc --noEmit                          ✓
+│   └─> Gen 3 migration diagnostics               ✓
+│
+└─> next build                                    ●
+    └─> NENC compiler activity                    ●
+```
+
+Only steps that actually exist in the current project are shown. The prepare step is omitted when no `prepare:production` script exists. Check subtasks are nested beneath `ne check`. The Next.js build runs from the CLI main thread; safe package/check subprocesses can run through NE's bounded worker pool (up to three workers). NENC output is summarized inside the live build step instead of flooding the terminal.
+
+The task tree uses ANSI status colors: green for completed steps, cyan for running steps, yellow for pending steps, and red for failed steps. Branch connectors inherit their group status, so a completed `ne check` branch turns green while a pending `next build` branch remains yellow. The border animates while a task is active and settles to green on success. Set `NE_ASCII=1` for ASCII connectors.
+
+On failure, NE clears the live frame, preserves the original `> ne build` command header, and prints the failed subcommand's captured stdout/stderr. Successful npm output and routine notifier/fund notices stay hidden; diagnostics are not discarded on failure. Output capture is bounded to prevent a runaway command from consuming unbounded memory.
+
+NE does not run `npm install` or `npm audit fix` automatically on every build. Dependency installation and security remediation modify manifests, lockfiles, or package versions and must remain explicit operations.
+
+## Startup behavior
+
+The executable keeps its initial loader small. `ne --version` / `ne -v` reads the installed package version directly without loading the CLI router, dashboard, updater feeds, or worker pool. `ne --help` loads only the lightweight command router; command-specific modules are required after argument routing. The project runner loads the task worker runtime only for check/build/worker-backed operations, not for `ne clean`, `ne dev`, or `ne start`.
+
+This keeps common shell actions off the dashboard/updater code path while preserving the same command interface.
+
 ## Installation forms
 
-After the package's bin entry has shipped:
+The published npm package exposes **ne** through its `bin` entry. Install it once globally to use the commands directly from a project directory:
 
-- Local install: **ne updater** or **ne update --channel alpha**.
-- One-shot executable: **npx --yes --package=@kastrick/nextjs-engine ne updater**.
-- **ne updater** opens the interactive UI. **ne update** intentionally stays in command-line mode.
+```sh
+npm install --global @kastrick/nextjs-engine
+ne
+ne build
+ne clean
+```
+
+For local development from a source checkout, run **npm link** at the repository root; npm then places this checkout's **ne** executable on the shell PATH. In a project with a local package install, npm scripts can also call **ne** directly because npm adds `node_modules/.bin` to the script PATH.
+
+A one-shot invocation without a global installation remains available:
+
+```sh
+npx --yes --package=@kastrick/nextjs-engine ne updater
+```
+
+**ne** opens the interactive dashboard. **ne updater** opens the release catalog directly. **ne update** intentionally stays in command-line mode.
 
 ## Channels
 
@@ -36,7 +101,9 @@ After the package's bin entry has shipped:
 - **Latest Green:** the highest SemVer release among Stable and Beta. Alpha versions are excluded.
 - **Beta:** prerelease artifacts enter the catalog only after runtime CI and cross-browser CI both pass for the exact source commit recorded in the snapshot.
 
-The channel feed is fetched from the npm registry and the public GitHub Releases API. A small cache is stored at **.nextjs-engine/cache/ne-channels-cache.json**; an offline cache is used only for a bounded period.
+The updater loads the complete npm packument (all published SemVer versions and npm dist-tags), GitHub Releases (including the rolling **channel-alpha-latest** manifest), and repository Git tags. Package version tags, the **package.latest** alias, the rolling Alpha tag, and other GitHub tags remain visible in the catalog; Git tags without a verified package artifact are marked **TAG ONLY** and cannot be installed directly. Feed failures are reported by source instead of being silently swallowed.
+
+A small cache is stored at **.nextjs-engine/cache/ne-channels-cache.json**; the dashboard renders from this cache immediately, then refreshes npm and GitHub feeds in place. An offline cache is used only for a bounded period.
 
 ### Rolling Latest Alpha
 
@@ -75,6 +142,8 @@ Before switching a dependency, the updater snapshots package.json and package-ma
 ## Experimental notice and controls
 
 Interactive use displays an experimental notice. It is suppressed by **-q**, **--quiet**, **CI=true**, or **NE_NO_WARN=1**. Set **NE_ASCII=1** for ASCII-only borders; otherwise the TUI uses Unicode box-drawing characters. Arrow keys and W/A/S/D navigation work in the TUI, and SGR mouse clicks are handled in terminals that report them.
+
+The dashboard shows an animated activity indicator and per-feed status while the release catalog loads. Build, check, install, Next.js, and cleanup tasks announce their active operation; interactive terminals receive a lightweight spinner and live child-process output. Non-interactive terminals receive plain-text RUNNING/DONE/FAILED lines, with animation disabled.
 
 ## Verification
 

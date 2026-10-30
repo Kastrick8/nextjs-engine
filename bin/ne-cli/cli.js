@@ -1,29 +1,35 @@
 "use strict";
 
 const path = require("node:path");
-const readline = require("node:readline/promises");
-const {
-	PACKAGE_NAME,
-	parseVersion,
-	compareVersions,
-	loadChannelCatalog,
-	resolveRelease,
-	channelLabel,
-} = require("./channels");
-const {
-	runTui,
-} = require("./terminal");
-const {
-	findProjectRoot,
-	loadState,
-	runNext,
-	projectName,
-	runClean,
-	installRelease,
-	rollback,
-	runCheck,
-	runBuild,
-} = require("./project");
+
+// Keep CLI import time small. Feature modules are loaded only after routing.
+function channels() {
+	return require("./channels");
+}
+
+function terminal() {
+	return require("./terminal");
+}
+
+function project() {
+	return require("./project");
+}
+
+function diagnostics() {
+	return require("./diagnostics");
+}
+
+function presentation() {
+	return require("./presentation");
+}
+
+function packageVersion() {
+	try {
+		return require("../../package.json").version || "unknown";
+	} catch {
+		return "unknown";
+	}
+}
 
 function parseArgs(argv) {
 	const positional = [];
@@ -31,6 +37,10 @@ function parseArgs(argv) {
 	const takesValue = new Set(["channel", "version", "and", "and-terminal"]);
 	for (let index = 0; index < argv.length; index += 1) {
 		const argument = argv[index];
+		if (argument === "-v" || argument === "--version") {
+			options.version = true;
+			continue;
+		}
 		if (argument === "-q" || argument === "--quiet") {
 			options.quiet = true;
 			continue;
@@ -45,29 +55,33 @@ function parseArgs(argv) {
 			const value = equal === -1 ? undefined : argument.slice(equal + 1);
 			if (name === "and") {
 				const command = value !== undefined ? value : argv[index + 1];
-				if (!command || (value === undefined && command.startsWith("-"))) throw new Error("--and requires a command.");
+				if (!command || (value === undefined && command.startsWith("-"))) throw diagnostics().missingOptionValue("--and", "a command to run");
 				if (value === undefined) index += 1;
 				(options.andCommands ||= []).push(command);
 			} else if (name === "and-terminal") {
 				const rawHeight = value !== undefined ? value : argv[index + 1];
-				if (!rawHeight || (value === undefined && rawHeight.startsWith("-"))) throw new Error("--and-terminal requires a height.");
+				if (!rawHeight || (value === undefined && rawHeight.startsWith("-"))) throw diagnostics().missingOptionValue("--and-terminal", "a terminal height");
 				if (value === undefined) index += 1;
 				const height = Number(rawHeight);
-				if (!Number.isInteger(height) || height < 1 || height > 100) throw new Error("and-terminal height must be an integer between 1 and 100.");
+				if (!Number.isInteger(height) || height < 1 || height > 100) throw diagnostics().invalidOptionValue("--and-terminal", "an integer between 1 and 100");
 				options.andTerminal = height;
 			} else if (takesValue.has(name)) {
 				if (value !== undefined) options[name] = value;
 				else if (argv[index + 1] && !argv[index + 1].startsWith("-")) options[name] = argv[++index];
-				else throw new Error("--" + name + " requires a value.");
-			} else if (["yes", "check", "json", "dry-run", "force"].includes(name)) {
-				options[name === "dry-run" ? "dryRun" : name === "yes" ? "yes" : name] = true;
+				else throw diagnostics().missingOptionValue("--" + name, "a value");
+			} else if (["yes", "check", "json", "dry-run", "force", "no-color"].includes(name)) {
+				options[name === "dry-run" ? "dryRun" : name === "no-color" ? "noColor" : name] = true;
 			} else {
-				throw new Error("Unknown option: " + argument + ". Run ne help for commands.");
+				throw diagnostics().unknownOption(argument, [
+					"--channel", "--version", "--and", "--and-terminal",
+					"--yes", "--check", "--json", "--dry-run", "--force",
+					"--quiet", "--no-color",
+				]);
 			}
 			continue;
 		}
 		if (argument === "-and") {
-			if (!argv[index + 1]) throw new Error("-and requires a command.");
+			if (!argv[index + 1]) throw diagnostics().missingOptionValue("-and", "a command to run");
 			(options.andCommands ||= []).push(argv[++index]);
 			continue;
 		}
@@ -83,7 +97,7 @@ function parseArgs(argv) {
 			const value = argument.slice(argument.indexOf("=") + 1);
 			const height = Number(value);
 			if (!Number.isInteger(height) || height < 1 || height > 100) {
-				throw new Error("and-terminal height must be an integer between 1 and 100.");
+				throw diagnostics().invalidOptionValue("-and-terminal", "an integer between 1 and 100");
 			}
 			options.andTerminal = height;
 			continue;
@@ -99,22 +113,23 @@ function shouldShowExperimentalWarning() {
 	return !args.includes("-q") && !args.includes("--quiet");
 }
 
-function experimentalWarning() {
+function experimentalWarning(options) {
 	if (!shouldShowExperimentalWarning()) return;
-	const ascii = process.env.NE_ASCII === "1" || process.env.TERM === "dumb";
-	const top = ascii ? "+--------------------------------------------------------------------------+" : "  ╭──────────────────────────────────────────────────────────────────────────╮";
-	const bottom = ascii ? "+--------------------------------------------------------------------------+" : "  ╰──────────────────────────────────────────────────────────────────────────╯";
-	const edge = ascii ? "|" : "  │";
-	const tail = ascii ? "|" : "│";
-	process.stdout.write(top + "\n");
-	process.stdout.write((ascii ? "|" : "  │") + " !! WARNING : NE is experimental and may change or be removed in a future !! " + tail + "\n");
-	process.stdout.write((ascii ? "|" : "  │") + "    version. Review the selected channel before applying updates.             " + tail + "\n");
-	process.stdout.write(bottom + "\n");
+	const settings = options || {};
+	const banner = presentation().renderBanner({
+		type: "warning",
+		title: "NE CLI · EXPERIMENTAL",
+		message: "NE is experimental and may change or be removed in a future version.",
+		details: ["Review the selected channel before applying updates."],
+		color: settings.noColor ? false : undefined,
+	});
+	process.stderr.write(banner + "\n");
 }
 
 function getHelp() {
 	return [
 		"Nextjs Engine (NE) CLI",
+		"  ne --version         Print the installed package version",
 		"",
 		"  ne                    Open the interactive dashboard",
 		"  ne dev                Start the Next.js development server",
@@ -141,8 +156,18 @@ function getHelp() {
 		"  --check       Refresh and list channel availability without installing",
 		"  --json        Print the channel catalog as JSON",
 		"  -q, --quiet   Suppress the experimental notice banner",
+		"  --no-color    Disable ANSI colors in CLI output",
 		"",
-		"One-shot invocation before a local installation:",
+		"Install once for direct shell commands:",
+		"  npm install --global @kastrick/nextjs-engine",
+		"  ne                    Open the dashboard",
+		"  ne build              Build the current project",
+		"  ne clean              Clean generated build files",
+		"",
+		"Development checkout:",
+		"  npm link              Expose this checkout's ne executable on PATH",
+		"",
+		"One-shot invocation without a global install:",
 		"  npx --yes --package=@kastrick/nextjs-engine ne updater",
 		"",
 	].join("\n");
@@ -164,7 +189,7 @@ function listChannels(catalog, state) {
 		const installability = release.installable === false ? "  [catalog only]" : "";
 		lines.push(
 			release.version.padEnd(26, " ") + " " +
-			channelLabel(release).padEnd(20, " ") + " " +
+			channels().channelLabel(release).padEnd(20, " ") + " " +
 			sources + active + installability
 		);
 	}
@@ -173,7 +198,7 @@ function listChannels(catalog, state) {
 }
 
 async function loadExactStableVersion(rootDir, version) {
-	if (!parseVersion(version) || parseVersion(version).prerelease !== null) return null;
+	if (!channels().parseVersion(version) || channels().parseVersion(version).prerelease !== null) return null;
 	const url = "https://registry.npmjs.org/@kastrick%2fnextjs-engine/" + encodeURIComponent(version);
 	const response = await fetch(url, {
 		headers: { Accept: "application/json", "User-Agent": "nextjs-engine-ne-cli" },
@@ -181,7 +206,7 @@ async function loadExactStableVersion(rootDir, version) {
 	});
 	if (!response.ok) return null;
 	const metadata = await response.json();
-	if (metadata.name !== PACKAGE_NAME || metadata.version !== version) return null;
+	if (metadata.name !== channels().PACKAGE_NAME || metadata.version !== version) return null;
 	return {
 		version,
 		track: "stable",
@@ -194,8 +219,8 @@ async function loadExactStableVersion(rootDir, version) {
 		artifactName: null,
 		artifactUrl: null,
 		publishedAt: "",
-		releaseUrl: "https://www.npmjs.com/package/" + PACKAGE_NAME + "?activeTab=versions",
-		installSpec: PACKAGE_NAME + "@" + version,
+		releaseUrl: "https://www.npmjs.com/package/" + channels().PACKAGE_NAME + "?activeTab=versions",
+		installSpec: channels().PACKAGE_NAME + "@" + version,
 		description: "Published stable package from the npm registry.",
 	};
 }
@@ -205,9 +230,10 @@ async function askToInstall(release, options) {
 	if (process.env.CI === "true" || !process.stdin.isTTY || !process.stdout.isTTY) {
 		throw new Error("Installation requires confirmation in CI/non-interactive mode. Review the release and pass --yes to continue.");
 	}
+	const readline = require("node:readline/promises");
 	const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
 	try {
-		const answer = await prompt.question("Install " + PACKAGE_NAME + "@" + release.version + " from " + release.sourceLabel + "? [y/N] ");
+		const answer = await prompt.question("Install " + channels().PACKAGE_NAME + "@" + release.version + " from " + release.sourceLabel + "? [y/N] ");
 		return /^y(es)?$/i.test(answer.trim());
 	} finally {
 		prompt.close();
@@ -215,8 +241,20 @@ async function askToInstall(release, options) {
 }
 
 async function commandUpdate(root, options) {
-	const state = loadState(root);
-	const catalog = await loadChannelCatalog(root, { force: Boolean(options.force || options.check) });
+	const state = project().loadState(root);
+	if (!options.json) process.stdout.write("[NE-UPDATER] Refreshing npm versions, GitHub releases and repository tags...\n");
+	const catalog = await channels().loadChannelCatalog(root, {
+		force: Boolean(options.force || options.check),
+		onSourceStatus: (update) => {
+			if (options.quiet || process.env.CI === "true" || !process.stderr.isTTY) return;
+			if (update && update.status === "failed") {
+				process.stderr.write("[NE-UPDATER] " + update.source + " feed failed: " + update.message + "\n");
+			}
+		},
+	});
+	for (const warning of catalog.sourceErrors || []) {
+		process.stderr.write("[NE-UPDATER] " + warning.source + " feed warning: " + warning.message + "\n");
+	}
 	if (options.json) {
 		process.stdout.write(JSON.stringify({ cached: catalog.cached, releases: catalog.releases }, null, 2) + "\n");
 		if (options.check || (!options.channel && !options.version)) return;
@@ -228,13 +266,13 @@ async function commandUpdate(root, options) {
 	if (options.channel && !["stable", "alpha", "beta", "latest-green"].includes(options.channel)) {
 		throw new Error("Unknown channel " + options.channel + ". Use stable, alpha, beta, or latest-green.");
 	}
-	let release = resolveRelease(catalog, { channel: options.channel, version: options.version });
+	let release = channels().resolveRelease(catalog, { channel: options.channel, version: options.version });
 	if (!release && options.version) release = await loadExactStableVersion(root, options.version);
 	if (!release) {
 		throw new Error("No verified installable release was found for " + (options.version || options.channel) + ". The catalog may list npm prereleases or Git tags without a verified installation artifact.");
 	}
 	if (options.check || options.dryRun) {
-		process.stdout.write("[NE] Selected " + release.version + " [" + channelLabel(release) + "] from " + release.sourceLabel + ".\n");
+		process.stdout.write("[NE] Selected " + release.version + " [" + channels().channelLabel(release) + "] from " + release.sourceLabel + ".\n");
 		if (options.dryRun) process.stdout.write("[NE] Dry run only; the project was not modified.\n");
 		return;
 	}
@@ -242,77 +280,85 @@ async function commandUpdate(root, options) {
 		process.stdout.write("[NE] Installation cancelled.\n");
 		return;
 	}
-	await installRelease(root, release, options.channel || release.track);
+	await project().installRelease(root, release, options.channel || release.track);
 }
 
 async function commandUpdater(root, showWarning) {
-	const catalog = await loadChannelCatalog(root);
-	const state = loadState(root);
+	const state = project().loadState(root);
+	const cached = channels().readCachedCatalog(root);
 	if (!process.stdin.isTTY || !process.stdout.isTTY) {
+		const catalog = await channels().loadChannelCatalog(root);
 		process.stdout.write(listChannels(catalog, state) + "\n");
+		if (catalog.sourceErrors && catalog.sourceErrors.length) {
+			for (const warning of catalog.sourceErrors) {
+				process.stderr.write("[NE-UPDATER] " + warning.source + " feed warning: " + warning.message + "\n");
+			}
+		}
 		process.stdout.write("Run ne update --channel alpha|latest-green|stable to install without the interactive UI.\n");
 		return;
 	}
-	const result = await runTui({
+	const projectManifest = project().readJson(path.join(root, "package.json"), {});
+	const projectTitle = projectManifest.name || path.basename(root);
+	const installedVersion = readInstalledVersion(root, projectManifest);
+	const result = await terminal().runTui({
 		initialScreen: "releases",
 		showWarning: Boolean(showWarning),
-		catalog,
+		catalog: cached,
+		loadCatalog: (onSourceStatus) => channels().loadChannelCatalog(root, { onSourceStatus }),
 		context: {
-			projectName: projectName(root),
-			version: readInstalledVersion(root),
-			installedVersion: state.installedVersion || readInstalledVersion(root),
+			projectName: projectTitle,
+			version: installedVersion,
+			installedVersion: state.installedVersion || installedVersion,
 			channel: state.activeChannel || "not selected",
-			cacheStatus: "ready",
+			cacheStatus: cached.releases.length ? "cached" : "loading",
+			sourceStatus: cached.sourceStatus || {},
+			activity: "Opening release catalog",
 		},
 	});
 	if (result.action === "install" && result.release) {
-		await installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+		await project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
 	}
 }
 
-function readInstalledVersion(root) {
+function readInstalledVersion(root, projectManifest) {
 	const installedPath = path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json");
-	try {
-		const installed = JSON.parse(require("node:fs").readFileSync(installedPath, "utf8"));
-		if (installed.name === PACKAGE_NAME) return installed.version || "unknown";
-	} catch {}
-	const pkg = require("node:fs").existsSync(path.join(root, "package.json"))
-		? require("node:fs").readFileSync(path.join(root, "package.json"), "utf8")
-		: "{}";
-	try {
-		const parsed = JSON.parse(pkg);
-		return parsed.name === "nextjs-engine" ? (parsed.version || "unknown") : "not installed";
-	} catch {
-		return "unknown";
-	}
+	const installed = project().readJson(installedPath, null);
+	if (installed && installed.name === channels().PACKAGE_NAME) return installed.version || "unknown";
+	const manifest = projectManifest || project().readJson(path.join(root, "package.json"), {});
+	return manifest.name === "nextjs-engine" ? (manifest.version || "unknown") : "not installed";
 }
 
 async function runDashboard(root, showWarning) {
-	const state = loadState(root);
-	let catalog = { releases: [], cached: true };
-	try { catalog = await loadChannelCatalog(root); } catch {}
-	const result = await runTui({
+	const state = project().loadState(root);
+	const cached = channels().readCachedCatalog(root);
+	const projectManifest = project().readJson(path.join(root, "package.json"), {});
+	const projectTitle = projectManifest.name || path.basename(root);
+	const installedVersion = readInstalledVersion(root, projectManifest);
+	const result = await terminal().runTui({
 		initialScreen: "dashboard",
 		showWarning: Boolean(showWarning),
-		catalog,
+		catalog: cached,
+		loadCatalog: (onSourceStatus) => channels().loadChannelCatalog(root, { onSourceStatus }),
 		context: {
-			projectName: projectName(root),
-			version: readInstalledVersion(root),
-			installedVersion: state.installedVersion || readInstalledVersion(root),
+			projectName: projectTitle,
+			version: installedVersion,
+			installedVersion: state.installedVersion || installedVersion,
 			channel: state.activeChannel || "not selected",
-			cacheStatus: catalog.cached ? "cached" : "ready",
+			cacheStatus: cached.releases.length ? "cached" : "loading",
+			sourceStatus: cached.sourceStatus || {},
+			activity: "Preparing project dashboard",
 		},
 	});
 	return result;
 }
 
 async function runDashboardAction(root, action) {
-	if (action === "dev") return runNext(root, ["dev"]);
-	if (action === "build") return runBuild(root);
-	if (action === "start") return runNext(root, ["start"]);
-	if (action === "check") return runCheck(root);
-	if (action === "clean") return runClean(root, false);
-	if (action === "rollback") return rollback(root);
+	if (action === "dev") return project().runNext(root, ["dev"]);
+	if (action === "build") return project().runBuild(root);
+	if (action === "start") return project().runNext(root, ["start"]);
+	if (action === "check") return project().runCheck(root);
+	if (action === "clean") return project().runClean(root, false);
+	if (action === "rollback") return project().rollback(root);
 	if (action === "help") return process.stdout.write(getHelp());
 	if (action === "updater") return commandUpdater(root, false);
 	if (action === "quit") return;
@@ -370,26 +416,37 @@ async function executeCommand(root, command, subArgs, options, showWarning) {
 	}
 	if (command === "updater") return commandUpdater(root, showWarning);
 	if (command === "update") return commandUpdate(root, options);
-	if (command === "dev") return runNext(root, ["dev", ...subArgs]);
-	if (command === "build") return runBuild(root);
-	if (command === "start") return runNext(root, ["start", ...subArgs]);
-	if (command === "check") return runCheck(root);
-	if (command === "clean") return runClean(root, Boolean(options.dryRun));
-	if (command === "rollback") return rollback(root);
-	throw new Error("Unknown command: " + command + ". Run ne help for commands.");
+	if (command === "dev") return project().runNext(root, ["dev", ...subArgs]);
+	if (command === "build") return project().runBuild(root);
+	if (command === "start") return project().runNext(root, ["start", ...subArgs]);
+	if (command === "check") return project().runCheck(root);
+	if (command === "clean") return project().runClean(root, Boolean(options.dryRun));
+	if (command === "rollback") return project().rollback(root);
+	throw diagnostics().unknownCommand(command, [
+		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+	]);
 }
 
 async function main(argv) {
 	const args = parseArgs(argv || process.argv.slice(2));
 	const command = args.positional[0];
 	const subArgs = args.positional.slice(1);
+	if (args.options.version) {
+		process.stdout.write(packageVersion() + "\n");
+		return;
+	}
 	if (args.options.help || command === "help") {
 		process.stdout.write(getHelp());
 		return;
 	}
+	if (command && !["updater", "update", "dev", "build", "start", "check", "clean", "rollback"].includes(command)) {
+		throw diagnostics().unknownCommand(command, [
+			"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+		]);
+	}
 	const usesTui = !command || command === "updater";
-	if (!usesTui) experimentalWarning();
-	const root = findProjectRoot(process.cwd());
+	if (!usesTui) experimentalWarning(args.options);
+	const root = project().findProjectRoot(process.cwd());
 	await executeCommand(root, command, subArgs, args.options, shouldShowExperimentalWarning());
 	await runChainedCommands(root, args.options);
 }
