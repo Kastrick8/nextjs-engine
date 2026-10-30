@@ -169,6 +169,8 @@ function getHelp() {
 		"",
 		"One-shot invocation without a global install:",
 		"  npx --yes --package=@kastrick/nextjs-engine ne updater",
+		"  npx ne --help           Use the locally installed package from this project",
+		"  npm link                Expose this source checkout as a global development command",
 		"",
 	].join("\n");
 }
@@ -462,4 +464,5 @@ module.exports = {
 	listChannels,
 	main,
 	runChainedCommands,
+	runDashboardAction,
 };
