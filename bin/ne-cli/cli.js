@@ -398,10 +398,10 @@ function parseChainedCommand(command) {
 			quote = character;
 			continue;
 		}
-		if (/[\\r\\n;&|<>\x60$()]/.test(character)) {
+		if (/[\r\n;&|<>\x60$()]/.test(character)) {
 			throw new Error("NE --and accepts one executable and arguments, not shell operators or expansions. Run shell scripts from a script file.");
 		}
-		if (/\\s/.test(character)) {
+		if (/\s/.test(character)) {
 			pushToken();
 			continue;
 		}
@@ -423,7 +423,7 @@ function resolveChainedCommand(commandTokens) {
 			if (!fs.existsSync(cliPath)) throw new Error("Could not locate the Node.js " + cliName + " for safe chained execution.");
 			return { executable: process.execPath, args: [cliPath, ...args] };
 		}
-		if (/\\.(?:cmd|bat)$/i.test(command)) {
+		if (/\.(?:cmd|bat)$/i.test(command)) {
 			throw new Error("NE --and does not execute .cmd/.bat wrappers through a shell. Use npm/npx or a native executable.");
 		}
 	}
@@ -436,7 +436,7 @@ async function runChainedCommands(root, options) {
 	for (let index = 0; index < commands.length; index += 1) {
 		const command = commands[index];
 		const invocation = resolveChainedCommand(parseChainedCommand(command));
-		process.stdout.write("\\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + command + " [viewport: " + height + " rows]\\n");
+		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + command + " [viewport: " + height + " rows]\n");
 		await new Promise((resolve, reject) => {
 			const child = require("node:child_process").spawn(invocation.executable, invocation.args, {
 				cwd: root,
