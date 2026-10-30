@@ -54,6 +54,11 @@ async function main() {
 	assert.equal(parsedTags[0].installable, false);
 	assert.equal(parsedTags[3], null);
 	assert.equal(parsedTags[4], null);
+	const rollingTag = channels.githubTagToRelease({ ref: "refs/tags/channel-alpha-latest" });
+	assert.equal(rollingTag.version, "channel-alpha-latest");
+	assert.equal(rollingTag.installable, false, "channel pointer tags are visible but never directly installable");
+	assert.equal(channels.githubTagToRelease({ ref: "refs/tags/package.latest" }), null);
+	assert.equal(channels.githubTagToRelease({ ref: "refs/tags/Release-v2.6.2" }).tagName, "Release-v2.6.2");
 
 	const freeformGitHubRelease = channels.catalogOnlyGitHubRelease({
 		tag_name: "historical-engine-prerelease",
@@ -275,12 +280,25 @@ async function main() {
 		projectName: "demo",
 		version: "3.0.0-alpha.2",
 		channel: "alpha",
-		cacheStatus: "ready",
+		cacheStatus: "loading",
+		loading: true,
+		spinner: "◓",
+		activity: "Fetching release inventory",
+		sourceStatus: { npm: { status: "loading" }, github: { status: "loading" }, alpha: { status: "loading" }, tags: { status: "loading" } },
 	});
 	assert.match(dashboard, /Production Build/);
 	assert.match(dashboard, /Channel Updater/);
+	assert.match(dashboard, /Activity.*Fetching release inventory/);
+	assert.match(dashboard, /npm: loading.*github: loading/);
 	assert.doesNotMatch(dashboard, /[\u{1F300}-\u{1FAFF}]/u);
 	assert.match(terminal.renderReleaseList(0, { releases: [rollingRelease], cached: false }, {}), /ALPHA/);
+	const loadingList = terminal.renderReleaseList(0, { releases: [], cached: true }, {
+		loading: true,
+		spinner: "◒",
+		sourceStatus: { npm: { status: "loading" } },
+	});
+	assert.match(loadingList, /Contacting npm and GitHub/);
+	assert.match(loadingList, /npm: loading/);
 	const manyReleases = Array.from({ length: 40 }, (_, index) => ({
 		...rollingRelease,
 		version: "3.0.0-alpha." + String(index + 1),
@@ -320,6 +338,56 @@ async function main() {
 
 		const previousFetch = global.fetch;
 		try {
+			const feedRoot = path.join(temp, "feed-project");
+			fs.mkdirSync(feedRoot, { recursive: true });
+			const versions = {};
+			const versionCount = 120;
+			for (let index = 0; index < versionCount; index += 1) {
+				const version = "1.0." + index;
+				versions[version] = { name: "@kastrick/nextjs-engine", version };
+			}
+			const packument = {
+				name: "@kastrick/nextjs-engine",
+				"dist-tags": { latest: "1.0.119" },
+				versions,
+				time: { "1.0.119": "2026-10-01T00:00:00.000Z" },
+			};
+			const gitRefs = [
+				{ ref: "refs/tags/package.1.0.119" },
+				{ ref: "refs/tags/package-alpha.3.0.0-alpha.1" },
+				{ ref: "refs/tags/channel-alpha-latest" },
+				{ ref: "refs/tags/Release-v2.6.2" },
+				{ ref: "refs/tags/package.latest" },
+			];
+			const sourceEvents = [];
+			global.fetch = async (url) => {
+				if (url === channels.NPM_PACKUMENT_URL) return new Response(JSON.stringify(packument), { status: 200 });
+				if (url === channels.GITHUB_RELEASES_URL) return new Response("[]", { status: 200 });
+				if (url === channels.GITHUB_LATEST_ALPHA_URL) return new Response(JSON.stringify(rollingAsset), { status: 200 });
+				if (url === channels.GITHUB_PACKAGE_TAGS_URL) return new Response(JSON.stringify(gitRefs), { status: 200 });
+				throw new Error("Unexpected updater feed URL: " + url);
+			};
+			const feedCatalog = await channels.loadChannelCatalog(feedRoot, {
+				force: true,
+				onSourceStatus: (event) => sourceEvents.push(event),
+			});
+			assert.equal(feedCatalog.releases.filter((item) => item.source === "npm" || item.isNpmPublished).length >= versionCount, true,
+				"the complete npm packument is retained instead of only latest");
+			assert.ok(feedCatalog.releases.some((item) => item.version === "1.0.119" && item.gitTags.includes("package.1.0.119")),
+				"package/main Git tags merge onto their matching npm version");
+			assert.ok(feedCatalog.releases.some((item) => item.tagName === "channel-alpha-latest"),
+				"the rolling Alpha Git tag is visible in the updater");
+			assert.ok(feedCatalog.releases.some((item) => item.version === "3.0.0-alpha.2" && item.floating === true),
+				"the verified rolling Alpha artifact is listed as an installable Alpha channel");
+			assert.ok(feedCatalog.releases.some((item) => item.tagName === "Release-v2.6.2"),
+				"non-SemVer GitHub tags remain discoverable without becoming installable");
+			assert.equal(feedCatalog.sourceStatus.npm.status, "ready");
+			assert.equal(feedCatalog.sourceStatus.tags.status, "ready");
+			assert.ok(sourceEvents.some((event) => event.source === "alpha" && event.status === "ready"),
+				"the dashboard receives live status updates for the Alpha channel");
+			const cachedFeed = channels.readCachedCatalog(feedRoot);
+			assert.equal(cachedFeed.releases.length, feedCatalog.releases.length, "the full catalog is cached for an immediate next launch");
+
 			const bytes = Buffer.from([0x1f, 0x8b, 0x08, 0x00]);
 			const release = {
 				version: "3.0.0-alpha.2",
