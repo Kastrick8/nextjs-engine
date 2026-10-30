@@ -94,7 +94,7 @@ function atomicWrite(root, target, value) {
 
 function readJson(target) {
 	try {
-		const value = JSON.parse(fs.readFileSync(target, "utf8"));
+		const value = JSON.parse(readRegularFile(target, "utf8"));
 		return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 	} catch {
 		return null;
@@ -453,6 +453,16 @@ function writePublicAssets(root, publicFontRoot, cacheAssetRoot, entry, previous
 	return assetRecords;
 }
 
+function hasValidFontSignature(bytes, extension) {
+	if (!bytes || typeof bytes.length !== "number" || bytes.length < 4) return false;
+	const signature = Buffer.from(bytes).subarray(0, 4).toString("latin1");
+	if (extension === "woff2") return signature === "wOF2";
+	if (extension === "woff") return signature === "wOFF";
+	if (extension === "otf") return signature === "OTTO";
+	if (extension === "ttf") return signature === "\\u0000\\u0001\\u0000\\u0000" || signature === "true" || signature === "typ1";
+	return false;
+}
+
 function fontFormat(extension) {
 	return extension === "woff2" ? "woff2" : extension === "woff" ? "woff" : extension === "ttf" ? "truetype" : "opentype";
 }
@@ -577,6 +587,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				});
 				const extension = extensionFromUrl(fontUrl) || extensionFromType(fetched.contentType);
 				if (!FONT_EXTENSIONS.has(extension)) throw new Error("[EngineTheme fonts] Unsupported font file type from " + fontUrl.origin + ".");
+				if (!hasValidFontSignature(fetched.bytes, extension)) {
+					throw new Error("[EngineTheme fonts] Downloaded font bytes do not match the declared font format.");
+				}
 				totalBytes += fetched.bytes.byteLength;
 				if (fetched.bytes.byteLength === 0 || totalBytes > MAX_TOTAL_FONT_BYTES
 					|| stats.downloadedBytes + fetched.bytes.byteLength > MAX_TOTAL_BUILD_FONT_BYTES) {
@@ -587,8 +600,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 				const cacheFileName = digest + "." + extension;
 				ensureDirectory(root, cacheAssetRoot);
 				const cacheFile = path.join(cacheAssetRoot, cacheFileName);
-				if (!fs.existsSync(cacheFile)) atomicWrite(root, cacheFile, fetched.bytes);
-				else if (sha256(fs.readFileSync(cacheFile)) !== digest) throw new Error("[EngineTheme fonts] Font cache hash mismatch.");
+				const cachedFont = readRegularFileIfExists(cacheFile, null);
+				if (cachedFont === undefined) atomicWrite(root, cacheFile, fetched.bytes);
+				else if (sha256(cachedFont) !== digest) throw new Error("[EngineTheme fonts] Font cache hash mismatch.");
 				asset = { sourceUrl: fontUrl.href, sha256: digest, fileName: filename, cacheFileName, extension, bytes: fetched.bytes.byteLength, updatedAt: Date.now() };
 				stats.downloadedFonts += 1;
 				stats.downloadedBytes += fetched.bytes.byteLength;
@@ -623,8 +637,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 		const cacheCssFileName = cssSha256 + ".css";
 		ensureDirectory(root, cacheCssRoot);
 		const cacheCssPath = path.join(cacheCssRoot, cacheCssFileName);
-		if (!fs.existsSync(cacheCssPath)) atomicWrite(root, cacheCssPath, cssContent);
-		else if (sha256(fs.readFileSync(cacheCssPath)) !== cssSha256) throw new Error("[EngineTheme fonts] CSS cache hash mismatch.");
+		const cachedCss = readRegularFileIfExists(cacheCssPath, null);
+		if (cachedCss === undefined) atomicWrite(root, cacheCssPath, cssContent);
+		else if (sha256(cachedCss) !== cssSha256) throw new Error("[EngineTheme fonts] CSS cache hash mismatch.");
 		const entry = {
 			id: themeId,
 			sourceKey,
@@ -786,9 +801,8 @@ async function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 	};
 	const manifestText = JSON.stringify(nextManifest, null, 2) + "\n";
 	ensureDirectory(root, cacheRoot);
-	if (!fs.existsSync(manifestPath) || fs.readFileSync(manifestPath, "utf8") !== manifestText) {
-		atomicWrite(root, manifestPath, manifestText);
-	}
+	const existingManifest = readRegularFileIfExists(manifestPath, "utf8");
+	if (existingManifest !== manifestText) atomicWrite(root, manifestPath, manifestText);
 	return stats;
 }
 
