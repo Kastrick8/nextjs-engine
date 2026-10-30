@@ -18,7 +18,7 @@ async function main() {
 
 	const { spawnSync } = require("node:child_process");
 	const executable = path.resolve(__dirname, "../bin/ne.js");
-	const packageManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+	const startupPackageManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
 	const versionStarted = process.hrtime.bigint();
 	const versionResult = spawnSync(process.execPath, [executable, "--version"], {
 		cwd: os.tmpdir(),
@@ -27,7 +27,7 @@ async function main() {
 	});
 	const versionElapsedMs = Number(process.hrtime.bigint() - versionStarted) / 1e6;
 	assert.equal(versionResult.status, 0, "ne --version works without a project directory");
-	assert.equal(versionResult.stdout.trim(), packageManifest.version);
+	assert.equal(versionResult.stdout.trim(), startupPackageManifest.version);
 	assert.equal(versionResult.stderr, "");
 	assert.ok(versionElapsedMs < 5000, "the standalone version path completes within the startup budget");
 
