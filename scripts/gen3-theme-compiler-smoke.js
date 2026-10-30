@@ -37,7 +37,7 @@ function assertLocalFontAssetUrls(css, label) {
 		const start = lowered.indexOf("url(", cursor);
 		if (start < 0) break;
 		let valueStart = start + 4;
-		while (valueStart < source.length && /\\s/.test(source[valueStart])) valueStart += 1;
+		while (valueStart < source.length && /\s/.test(source[valueStart])) valueStart += 1;
 		const quote = source[valueStart] === "'" || source[valueStart] === '"' ? source[valueStart] : "";
 		if (quote) valueStart += 1;
 		let valueEnd = valueStart;
@@ -47,7 +47,7 @@ function assertLocalFontAssetUrls(css, label) {
 		assert.ok(value.length > 0, label + ": CSS url() values are not empty");
 		values.push(value);
 		cursor = valueEnd + (quote ? 1 : 0);
-		while (cursor < source.length && /\\s/.test(source[cursor])) cursor += 1;
+		while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
 		assert.equal(source[cursor], ")", label + ": each CSS url() value closes correctly");
 		cursor += 1;
 	}
