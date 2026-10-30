@@ -25,11 +25,11 @@ The same three-slot logger labels every active download task as `Downloading:`, 
 Next.js 16 does not reliably expose `dev` in `process.argv` while evaluating `next.config.js`; the development bridge also checks `NODE_ENV` and the development phase. Without an interactive TTY, terminal-cursor pinning is unavailable; CI/redirected output keeps completion and failure lines rather than pretending to maintain a viewport row.
 
 ```text
-[NENC] DONE compiled app/work/page.tsx -> /work · 58 Engine modules · 19ms · 1 client island · 2 assets
+[NENC] DONE Compiled app/work/page.tsx -> /work 58 modules · 19ms · 1 client island · 2 assets
 [NENC] DONE Downloaded font: Inter.woff2 184 KB · 768ms · 239 KB/s
 [NENC] DONE downloaded icon:github.com (76 KB · 84ms · 905 KB/s)
 
-════ NENC ═════════════════════════════════════════════════════════════════════
+═ [NENC] ═══════════════════════════════════════════════════════════════════════
 CW1  Compiling /privacy-policy ················· 34.2%
 CW2  Compiling / ····························· 21.7%
 CW3  Downloading: fonts: Inter, JetBrains Mono  239 KB/s
