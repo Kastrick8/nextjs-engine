@@ -444,7 +444,7 @@ async function downloadVerifiedArtifact(root, release) {
 	const version = typeof release?.version === "string" ? release.version : "";
 	const expectedSha256 = typeof release?.sha256 === "string" ? release.sha256.toLowerCase() : "";
 	const assetName = typeof release?.artifactName === "string" ? release.artifactName : "";
-	if (!/^\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta)\\.\\d+)?$/.test(version)
+	if (!/^\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?$/.test(version)
 		|| !/^[a-f0-9]{64}$/.test(expectedSha256)
 		|| assetName !== "nextjs-engine-" + version + ".tgz"
 		|| typeof release.artifactUrl !== "string") {
