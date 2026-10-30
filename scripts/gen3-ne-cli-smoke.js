@@ -15,6 +15,42 @@ const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
 
 async function main() {
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
+	const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+	const stderrDescriptor = Object.getOwnPropertyDescriptor(process.stderr, "isTTY");
+	const noColor = process.env.NO_COLOR;
+	try {
+		Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
+		Object.defineProperty(process.stderr, "isTTY", { configurable: true, value: true });
+		delete process.env.NO_COLOR;
+		const treeFixture = Object.create(tasks.TaskTree.prototype);
+		treeFixture.root = { id: "root", label: "ne build", parentId: null, status: "running", detail: "" };
+		treeFixture.nodes = [
+			{ id: "prepare", label: "ne prepare:production", parentId: "root", status: "success", detail: "" },
+			{ id: "prepare-script", label: "node scripts/prepare.js", parentId: "prepare", status: "success", detail: "" },
+			{ id: "check", label: "ne check", parentId: "root", status: "success", detail: "" },
+			{ id: "type-check", label: "npm run type-check", parentId: "check", status: "running", detail: "" },
+			{ id: "diagnostics", label: "Gen 3 migration diagnostics", parentId: "check", status: "pending", detail: "" },
+			{ id: "next", label: "next build", parentId: "root", status: "pending", detail: "" },
+		];
+		treeFixture.byId = new Map([treeFixture.root, ...treeFixture.nodes].map((node) => [node.id, node]));
+		treeFixture.frame = 1;
+		const coloredRows = treeFixture.renderRows(76);
+		assert.match(coloredRows[3].text, /\x1b\[32;1m├─>/,
+			"the completed ne check branch connector is green");
+		assert.match(coloredRows[4].text, /\x1b\[32;1m│  \x1b\[0m/,
+			"child connector rails inherit the completed parent's green status");
+		assert.match(coloredRows[4].text, /\x1b\[36;1m├─> \x1b\[0m/,
+			"the currently running child branch is cyan");
+		assert.match(coloredRows[5].text, /\x1b\[33;1m└─> \x1b\[0m/,
+			"pending child branches are yellow");
+	} finally {
+		if (stdoutDescriptor) Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
+		else delete process.stdout.isTTY;
+		if (stderrDescriptor) Object.defineProperty(process.stderr, "isTTY", stderrDescriptor);
+		else delete process.stderr.isTTY;
+		if (noColor === undefined) delete process.env.NO_COLOR;
+		else process.env.NO_COLOR = noColor;
+	}
 	assert.equal(channels.compareVersions("3.0.0-alpha.1", "3.0.0-alpha.2"), -1);
 	assert.equal(channels.compareVersions("3.0.0-alpha.2", "3.0.0-beta.1"), -1);
 	assert.equal(channels.compareVersions("3.0.0-beta.1", "2.7.0"), 1);
