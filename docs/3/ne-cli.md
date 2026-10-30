@@ -21,6 +21,24 @@ The NE CLI gives projects one command interface for development, production buil
 | **ne rollback** | Restore the previous package manifest and lockfiles, then reinstall dependencies. |
 | **ne help** | Print command help. |
 
+## Terminal presentation and diagnostics
+
+NE CLI messages use a shared adaptive banner renderer. Banner width is based on the available terminal columns, visible text width ignores ANSI color sequences, long messages wrap to fit, and narrow/ASCII terminals use a plain character fallback. Severity styles are consistent across command warnings and failures: errors are red, warnings yellow, successful notices green, and informational/running messages cyan.
+
+Use `--no-color` to disable ANSI colors for a single invocation, or set `NO_COLOR=1` for the standard environment-wide opt-out. `NE_ASCII=1` forces ASCII box drawing when the terminal does not render Unicode correctly.
+
+CLI argument and command errors use stable diagnostic codes:
+
+| Code | Meaning |
+| --- | --- |
+| `NE1001` | Unknown command, with a close command suggestion when possible. |
+| `NE1002` | Unknown option, with a close option suggestion when possible. |
+| `NE1003` | Required option value is missing. |
+| `NE1004` | Option value is invalid. |
+| `NE2001` | JavaScript syntax error with an inferred source location/code frame when Node exposes it. |
+
+For example, `ne bulid` suggests `ne build`, while `ne --verison` suggests `--version`. Suggestions are informational and never execute a command automatically. Code-frame rendering is available when a diagnostic supplies source text and a line/column location.
+
 ## Live command task tree
 
 Build and check commands render a live hierarchical task tree instead of leaving the terminal blank or printing successful package-manager output:
