@@ -517,6 +517,7 @@ async function main(argv) {
 
 module.exports = {
 	parseArgs,
+	parseChainedCommand,
 	getHelp,
 	listChannels,
 	main,
