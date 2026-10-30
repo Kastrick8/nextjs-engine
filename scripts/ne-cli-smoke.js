@@ -12,12 +12,38 @@ const cli = require("../bin/ne-cli/cli");
 const project = require("../bin/ne-cli/project");
 const presentation = require("../bin/ne-cli/presentation");
 const diagnostics = require("../bin/ne-cli/diagnostics");
+const { EventEmitter } = require("node:events");
 
 async function main() {
 	const { spawnSync } = require("node:child_process");
 	const executable = path.resolve(__dirname, "../bin/ne.js");
 	const repoRoot = path.resolve(__dirname, "..");
 
+	const idleInput = new EventEmitter();
+	const inputCalls = [];
+	idleInput.setRawMode = (value) => inputCalls.push("raw:" + value);
+	idleInput.pause = () => inputCalls.push("pause");
+	idleInput.resume = () => inputCalls.push("resume");
+	idleInput.ref = () => inputCalls.push("ref");
+	idleInput.unref = () => inputCalls.push("unref");
+	const tuiInputListener = () => {};
+	idleInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(idleInput, false, false, tuiInputListener);
+	assert.deepEqual(inputCalls, ["raw:false", "pause", "unref"], "idle TUI input is released after closing");
+	assert.equal(idleInput.listenerCount("data"), 0);
+	const sharedInput = new EventEmitter();
+	const sharedCalls = [];
+	sharedInput.setRawMode = (value) => sharedCalls.push("raw:" + value);
+	sharedInput.pause = () => sharedCalls.push("pause");
+	sharedInput.resume = () => sharedCalls.push("resume");
+	sharedInput.ref = () => sharedCalls.push("ref");
+	sharedInput.unref = () => sharedCalls.push("unref");
+	const otherReader = () => {};
+	sharedInput.on("data", otherReader);
+	sharedInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(sharedInput, false, false, tuiInputListener);
+	assert.deepEqual(sharedCalls, ["raw:false", "ref", "resume"], "other stdin readers remain active");
+	assert.equal(sharedInput.listenerCount("data"), 1);
 	assert.equal(presentation.visibleWidth("\x1b[31mERROR\x1b[0m"), 5);
 	const warningBanner = presentation.renderBanner({
 		type: "warning",
@@ -349,7 +375,19 @@ async function main() {
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
 	assert.match(cli.getHelp(), /ne update --channel/);
+	assert.match(cli.getHelp(), /npx ne --help/);
 	assert.match(cli.getHelp(), /Shell operators are rejected/);
+	const originalInstallRelease = project.installRelease;
+	let dashboardInstall = null;
+	project.installRelease = async (...args) => { dashboardInstall = args; };
+	try {
+		const fixtureRelease = { version: "3.0.0-alpha.2", track: "alpha" };
+		await cli.runDashboardAction(os.tmpdir(), { action: "install", release: fixtureRelease });
+		assert.equal(dashboardInstall[1], fixtureRelease, "dashboard forwards selected release to installer");
+		assert.equal(dashboardInstall[2], "alpha");
+	} finally {
+		project.installRelease = originalInstallRelease;
+	}
 
 	const dashboard = terminal.renderDashboard(2, {
 		projectName: "demo",
@@ -359,6 +397,8 @@ async function main() {
 	});
 	assert.match(dashboard, /Production Build/);
 	assert.match(dashboard, /Channel Updater/);
+	assert.match(terminal.renderDashboard(0, { rollbackAvailable: false }), /Rollback Build \[no snapshot\]/,
+		"rollback is visibly unavailable before a snapshot exists");
 	assert.doesNotMatch(dashboard, /[\u{1F300}-\u{1FAFF}]/u);
 	assert.match(terminal.renderReleaseList(0, { releases: [rollingRelease], cached: false }, {}), /ALPHA/);
 	const manyReleases = Array.from({ length: 40 }, (_, index) => ({
