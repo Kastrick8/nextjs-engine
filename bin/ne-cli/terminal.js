@@ -90,7 +90,7 @@ function renderDashboard(selected, context) {
 	const items = MENU_ITEMS.map((item, index) => {
 		const marker = selectedMarker(selected, index);
 		const unavailable = item.id === "rollback" && context.rollbackAvailable === false;
-		const label = unavailable ? item.label + " [no snapshot]" : item.label;
+		const label = unavailable ? item.label + " [disabled]" : item.label;
 		const text = marker + " [" + (index + 1) + "] " + label + " (" + item.command + ")";
 		return { index, text };
 	});
