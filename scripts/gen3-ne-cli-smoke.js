@@ -15,6 +15,19 @@ const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
 
 async function main() {
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
+	const windowsNode = "C:\\Program Files\\nodejs\\node.exe";
+	const windowsNpmScript = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
+	assert.deepEqual(project.resolveProcessInvocation("npm", ["install", "--save-exact", "next"], {
+		platform: "win32",
+		execPath: windowsNode,
+		existsSync: (candidate) => candidate === windowsNpmScript,
+	}), {
+		command: windowsNode,
+		args: [windowsNpmScript, "install", "--save-exact", "next"],
+	});
+	assert.throws(() => project.resolveProcessInvocation("npm.cmd", ["install"], {
+		platform: "win32",
+	}), /does not execute \.cmd\/.bat wrappers through a shell/);
 	const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 	const stderrDescriptor = Object.getOwnPropertyDescriptor(process.stderr, "isTTY");
 	const noColor = process.env.NO_COLOR;
