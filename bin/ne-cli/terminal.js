@@ -90,7 +90,7 @@ function renderDashboard(selected, context) {
 	const items = MENU_ITEMS.map((item, index) => {
 		const marker = selectedMarker(selected, index);
 		const unavailable = item.id === "rollback" && context.rollbackAvailable === false;
-		const label = unavailable ? item.label + " [no snapshot]" : item.label;
+		const label = unavailable ? item.label + " [disabled]" : item.label;
 		const text = marker + " [" + (index + 1) + "] " + label + " (" + item.command + ")";
 		return { index, text };
 	});
@@ -116,6 +116,7 @@ function renderDashboard(selected, context) {
 	rows.push("Feeds     " + sourceSummary);
 	rows.push("Move: arrows / W A S D    Open: Enter / E    Back/Quit: Esc / Q");
 	rows.push("Mouse selection is enabled in terminals that report SGR mouse events.");
+	if (context.rollbackAvailable === false) rows.push("Rollback unavailable: install a channel first to create a snapshot.");
 	return frame("NEXTJS-ENGINE (ne)  " + (context.version || "") + "  [Gen 3]", rows);
 }
 
