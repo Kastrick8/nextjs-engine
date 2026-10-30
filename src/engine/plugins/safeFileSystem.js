@@ -89,22 +89,24 @@ function writeFileAtomically(filename, data, options = {}) {
 
 function writeFileExclusively(filename, data, options = {}) {
 	const destination = resolveSafeOutputPath(filename);
+	const temporary = destination + ".tmp-" + process.pid + "-" + crypto.randomBytes(8).toString("hex");
 	let descriptor;
 	try {
-		descriptor = fs.openSync(destination, "wx", Number.isInteger(options.mode) ? options.mode : 0o600);
+		descriptor = fs.openSync(temporary, "wx", Number.isInteger(options.mode) ? options.mode : 0o600);
 		fs.writeFileSync(descriptor, data, options.encoding ? { encoding: options.encoding } : undefined);
 		fs.fsyncSync(descriptor);
-		return true;
-	} catch (error) {
-		if (descriptor !== undefined) {
-			try { fs.closeSync(descriptor); } catch { /* Preserve the original write error. */ }
-			descriptor = undefined;
+		fs.closeSync(descriptor);
+		descriptor = undefined;
+		try {
+			fs.linkSync(temporary, destination);
+		} catch (error) {
+			if (error && error.code === "EEXIST") return false;
+			throw error;
 		}
-		if (error && error.code === "EEXIST") return false;
-		try { fs.unlinkSync(destination); } catch { /* Preserve the original write error. */ }
-		throw error;
+		return true;
 	} finally {
 		if (descriptor !== undefined) fs.closeSync(descriptor);
+		try { fs.rmSync(temporary, { force: true }); } catch { /* Preserve the write/link outcome. */ }
 	}
 }
 
