@@ -375,20 +375,69 @@ async function runDashboardAction(root, result) {
 	throw new Error("Unknown dashboard action: " + (action || "none"));
 }
 
+function parseChainedCommand(command) {
+	if (typeof command !== "string" || command.length === 0 || command.length > 4096) {
+		throw new Error("A chained command must be a non-empty command line under 4096 characters.");
+	}
+	const tokens = [];
+	let token = "";
+	let quote = "";
+	let escaped = false;
+	const pushToken = () => {
+		if (token) tokens.push(token);
+		token = "";
+	};
+	for (const character of command) {
+		if (escaped) {
+			token += character;
+			escaped = false;
+			continue;
+		}
+		if (quote) {
+			if (character === "\\" && quote === '"') {
+				escaped = true;
+			} else if (character === quote) {
+				quote = "";
+			} else {
+				token += character;
+			}
+			continue;
+		}
+		if (character === "'" || character === '"') {
+			quote = character;
+			continue;
+		}
+		const code = character.charCodeAt(0);
+		if (code === 10 || code === 13 || code === 96 || ";&|<>()$".includes(character)) {
+			throw new Error("NE --and accepts one executable and arguments, not shell operators or expansions. Run shell scripts from a script file.");
+		}
+		if (/\s/.test(character)) {
+			pushToken();
+			continue;
+		}
+		token += character;
+	}
+	if (escaped || quote) throw new Error("NE --and contains an unterminated quote or escape.");
+	pushToken();
+	if (!tokens.length) throw new Error("NE --and did not contain an executable.");
+	return tokens;
+}
+
 async function runChainedCommands(root, options) {
 	const commands = options.andCommands || [];
 	const height = options.andTerminal || 5;
 	for (let index = 0; index < commands.length; index += 1) {
 		const command = commands[index];
-		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + command + " [viewport: " + height + " rows]\n");
+		const tokens = parseChainedCommand(command);
+		const invocation = project().resolveProcessInvocation(tokens[0], tokens.slice(1));
+		const label = tokens.map((token) => JSON.stringify(token)).join(" ");
+		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + label + " [viewport: " + height + " rows]\n");
 		await new Promise((resolve, reject) => {
-			const isWindows = process.platform === "win32";
-			const executable = isWindows ? (process.env.ComSpec || "cmd.exe") : "/bin/sh";
-			const args = isWindows ? ["/d", "/s", "/c", command] : ["-lc", command];
-			const child = require("node:child_process").spawn(executable, args, {
+			const child = require("node:child_process").spawn(invocation.command, invocation.args, {
 				cwd: root,
 				env: process.env,
 				windowsHide: true,
+				shell: false,
 				stdio: ["inherit", "pipe", "pipe"],
 			});
 			let output = "";
@@ -463,6 +512,7 @@ async function main(argv) {
 
 module.exports = {
 	parseArgs,
+	parseChainedCommand,
 	getHelp,
 	listChannels,
 	main,
