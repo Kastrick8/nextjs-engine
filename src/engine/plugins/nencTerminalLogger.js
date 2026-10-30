@@ -906,6 +906,7 @@ module.exports = {
 	failWorkerTask,
 	clearStatus,
 	classifyNextBuildLine,
+	splitLogSegments,
 	dispatchCompilerLine,
 	done,
 	failed,
