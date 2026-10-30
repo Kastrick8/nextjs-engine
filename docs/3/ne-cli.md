@@ -23,11 +23,24 @@ The NE CLI gives projects one command interface for development, production buil
 
 ## Installation forms
 
-After the package's bin entry has shipped:
+The published npm package exposes **ne** through its `bin` entry. Install it once globally to use the commands directly from a project directory:
 
-- Local install: **ne updater** or **ne update --channel alpha**.
-- One-shot executable: **npx --yes --package=@kastrick/nextjs-engine ne updater**.
-- **ne updater** opens the interactive UI. **ne update** intentionally stays in command-line mode.
+```sh
+npm install --global @kastrick/nextjs-engine
+ne
+ne build
+ne clean
+```
+
+For local development from a source checkout, run **npm link** at the repository root; npm then places this checkout's **ne** executable on the shell PATH. In a project with a local package install, npm scripts can also call **ne** directly because npm adds `node_modules/.bin` to the script PATH.
+
+A one-shot invocation without a global installation remains available:
+
+```sh
+npx --yes --package=@kastrick/nextjs-engine ne updater
+```
+
+**ne** opens the interactive dashboard. **ne updater** opens the release catalog directly. **ne update** intentionally stays in command-line mode.
 
 ## Channels
 
@@ -36,7 +49,9 @@ After the package's bin entry has shipped:
 - **Latest Green:** the highest SemVer release among Stable and Beta. Alpha versions are excluded.
 - **Beta:** prerelease artifacts enter the catalog only after runtime CI and cross-browser CI both pass for the exact source commit recorded in the snapshot.
 
-The channel feed is fetched from the npm registry and the public GitHub Releases API. A small cache is stored at **.nextjs-engine/cache/ne-channels-cache.json**; an offline cache is used only for a bounded period.
+The updater loads the complete npm packument (all published SemVer versions and npm dist-tags), GitHub Releases (including the rolling **channel-alpha-latest** manifest), and repository Git tags. Package version tags, the **package.latest** alias, the rolling Alpha tag, and other GitHub tags remain visible in the catalog; Git tags without a verified package artifact are marked **TAG ONLY** and cannot be installed directly. Feed failures are reported by source instead of being silently swallowed.
+
+A small cache is stored at **.nextjs-engine/cache/ne-channels-cache.json**; the dashboard renders from this cache immediately, then refreshes npm and GitHub feeds in place. An offline cache is used only for a bounded period.
 
 ### Rolling Latest Alpha
 
@@ -75,6 +90,8 @@ Before switching a dependency, the updater snapshots package.json and package-ma
 ## Experimental notice and controls
 
 Interactive use displays an experimental notice. It is suppressed by **-q**, **--quiet**, **CI=true**, or **NE_NO_WARN=1**. Set **NE_ASCII=1** for ASCII-only borders; otherwise the TUI uses Unicode box-drawing characters. Arrow keys and W/A/S/D navigation work in the TUI, and SGR mouse clicks are handled in terminals that report them.
+
+The dashboard shows an animated activity indicator and per-feed status while the release catalog loads. Build, check, install, Next.js, and cleanup tasks announce their active operation; interactive terminals receive a lightweight spinner and live child-process output. Non-interactive terminals receive plain-text RUNNING/DONE/FAILED lines, with animation disabled.
 
 ## Verification
 
