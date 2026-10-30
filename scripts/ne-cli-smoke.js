@@ -10,8 +10,55 @@ const channels = require("../bin/ne-cli/channels");
 const terminal = require("../bin/ne-cli/terminal");
 const cli = require("../bin/ne-cli/cli");
 const project = require("../bin/ne-cli/project");
+const presentation = require("../bin/ne-cli/presentation");
+const diagnostics = require("../bin/ne-cli/diagnostics");
 
 async function main() {
+	const { spawnSync } = require("node:child_process");
+	const executable = path.resolve(__dirname, "../bin/ne.js");
+	const repoRoot = path.resolve(__dirname, "..");
+
+	assert.equal(presentation.visibleWidth("\x1b[31mERROR\x1b[0m"), 5);
+	const warningBanner = presentation.renderBanner({
+		type: "warning",
+		title: "NE CLI · NEW IN 2.7.0",
+		message: "The NE CLI was newly introduced in v2.7.0. Its commands and behavior may change, and it could be removed in a future release.",
+		details: ["Review the selected release before applying updates."],
+		width: 58,
+		color: true,
+	});
+	const warningWidths = warningBanner.split("\n").map(presentation.visibleWidth);
+	assert.equal(new Set(warningWidths).size, 1, "the v2 warning banner has aligned borders and content");
+	assert.match(warningBanner, /NEW IN 2\.7\.0/);
+	assert.match(warningBanner, /removed in a future release/);
+
+	const errorBanner = presentation.renderError(diagnostics.unknownCommand("bulid", [
+		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+	]), { width: 58, ascii: true, color: false });
+	assert.match(errorBanner, /NE1001/);
+	assert.ok(errorBanner.split("\n").every((line) => !/[╭╮╰╯│─]/.test(line)));
+
+	const commandTypo = diagnostics.unknownCommand("bulid", [
+		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+	]);
+	assert.match(commandTypo.neSuggestion, /ne build/);
+	assert.match(diagnostics.unknownOption("--verison", ["--channel", "--version", "--yes"]).neSuggestion, /--version/);
+	assert.equal(diagnostics.missingOptionValue("--channel").neCode, "NE1003");
+
+	const typoResult = spawnSync(process.execPath, [executable, "bulid"], {
+		cwd: repoRoot, encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(typoResult.status, 1);
+	assert.match(typoResult.stderr, /NE1001/);
+	assert.match(typoResult.stderr, /Did you mean "ne build"/);
+
+	const typoOptionResult = spawnSync(process.execPath, [executable, "--verison"], {
+		cwd: repoRoot, encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(typoOptionResult.status, 1);
+	assert.match(typoOptionResult.stderr, /NE1002/);
+	assert.match(typoOptionResult.stderr, /--version/);
+
 	assert.equal(channels.compareVersions("3.0.0-alpha.1", "3.0.0-alpha.2"), -1);
 	assert.equal(channels.compareVersions("3.0.0-alpha.2", "3.0.0-beta.1"), -1);
 	assert.equal(channels.compareVersions("3.0.0-beta.1", "2.7.0"), 1);
