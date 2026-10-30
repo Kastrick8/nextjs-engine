@@ -35,6 +35,8 @@ async function main() {
 	const errorBookBase = "https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/ne-cli-error-book.md";
 	assert.equal(presentation.errorBookUrl("NE1001"), errorBookBase + "#ne1001");
 	assert.equal(presentation.errorBookUrl("ne2001"), errorBookBase + "#ne2001");
+	assert.equal(presentation.errorBookUrl("NE12"), null);
+	assert.equal(presentation.errorBookUrl("NEMIG1001"), null);
 	assert.equal(presentation.errorBookUrl("CUSTOM_APP_ERROR"), null);
 
 	const errorBanner = presentation.renderError(diagnostics.unknownCommand("bulid", [
