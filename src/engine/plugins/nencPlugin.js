@@ -82,7 +82,7 @@ function swapDirectory(stagingDirectory, outputDirectory) {
 		fs.renameSync(stagingDirectory, outputDirectory);
 		installed = true;
 	} catch (error) {
-		if (!installed && backedUp && !fs.existsSync(outputDirectory) && fs.existsSync(backupDirectory)) {
+		if (backedUp && !fs.existsSync(outputDirectory) && fs.existsSync(backupDirectory)) {
 			fs.renameSync(backupDirectory, outputDirectory);
 			backedUp = false;
 		}
@@ -129,7 +129,7 @@ function writeRoute(routeFile, serverManifestFile, handlerModule, commandFiles) 
 		fs.renameSync(temporaryFile, routeFile);
 		installed = true;
 	} catch (error) {
-		if (!installed && backedUp && !fs.existsSync(routeFile) && fs.existsSync(backupFile)) {
+		if (backedUp && !fs.existsSync(routeFile) && fs.existsSync(backupFile)) {
 			fs.renameSync(backupFile, routeFile);
 			backedUp = false;
 		}
@@ -163,7 +163,7 @@ function writeFaviconRoute(routeFile, helperModule, loggerModule) {
 		fs.renameSync(temporaryFile, routeFile);
 		installed = true;
 	} catch (error) {
-		if (!installed && backedUp && !fs.existsSync(routeFile) && fs.existsSync(backupFile)) {
+		if (backedUp && !fs.existsSync(routeFile) && fs.existsSync(backupFile)) {
 			fs.renameSync(backupFile, routeFile);
 			backedUp = false;
 		}
