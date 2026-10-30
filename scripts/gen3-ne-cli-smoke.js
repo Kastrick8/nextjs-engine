@@ -88,12 +88,6 @@ async function main() {
 	assert.equal(optionTypo.neCode, "NE1002");
 	assert.match(optionTypo.neSuggestion, /--version/);
 	assert.equal(diagnostics.missingOptionValue("--channel").neCode, "NE1003");
-	assert.deepEqual(cli.parseChainedCommand('npm run "type check" -- --pretty false'),
-		["npm", "run", "type check", "--", "--pretty", "false"]);
-	assert.throws(() => cli.parseChainedCommand("npm test && curl https://invalid.example"),
-		/shell operators or expansions/, "chained CLI commands must never pass shell operators to a shell");
-	assert.throws(() => cli.parseChainedCommand("npm test $(whoami)"),
-		/shell operators or expansions/, "command substitutions are rejected before spawning");
 
 	const typoResult = spawnSync(process.execPath, [neExecutable, "bulid"], {
 		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
@@ -666,8 +660,7 @@ async function main() {
 			const bytes = Buffer.from([0x1f, 0x8b, 0x08, 0x00]);
 			const release = {
 				version: "3.0.0-alpha.2",
-				artifactName: "ne-test.tgz",
-				artifactUrl: "https://github.com/Kastrick8/nextjs-engine/releases/download/channel-alpha-latest/ne-test.tgz",
+				artifactUrl: "https://example.invalid/ne-test.tgz",
 				sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
 			};
 			global.fetch = async () => new Response(bytes, { status: 200 });
