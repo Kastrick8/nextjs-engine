@@ -8,7 +8,7 @@ Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, 
 **Release notes:** [`docs/release/NE-v2-7-0.md`](./docs/release/NE-v2-7-0.md)  
 **Previous stability notes:** [`docs/release/NE-v2-6-2.md`](./docs/release/NE-v2-6-2.md)  
 **Earlier stability notes:** [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md)  
-**Latest published GitHub release:** [NE v2.5.0](https://github.com/Kastrick8/nextjs-engine/releases/tag/Release-v2.5.0)
+**Latest published GitHub release:** [NE v2.6.2](https://github.com/Kastrick8/nextjs-engine/releases/tag/Release-v2.6.2)
 
 > v2.7.0 is a release candidate in the source branch. It will be marked released only after the package workflow confirms the npm publication and GitHub release.
 

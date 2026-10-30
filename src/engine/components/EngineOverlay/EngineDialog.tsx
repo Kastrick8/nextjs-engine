@@ -104,6 +104,7 @@ export const EngineDialog = memo(function EngineDialog({
 			/>
 			{target && present && createPortal(
 				<div
+					data-engine-overlay-backdrop={panelId}
 					style={{
 						position: "fixed",
 						inset: 0,
@@ -113,9 +114,10 @@ export const EngineDialog = memo(function EngineDialog({
 						padding: "1rem",
 						background: "rgba(2,6,23,.58)",
 						backdropFilter: "blur(6px)",
-						opacity: active ? 1 : 0,
-						transition: `opacity ${transitionMs}ms ease`,
 						...overlayStyle,
+						// Callers may style the backdrop, but animation state is runtime-owned.
+						opacity: active ? 1 : 0,
+						transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
 					}}
 					onPointerDown={(event) => {
 						if (closeOnBackdrop && event.target === event.currentTarget && isTopOverlay(panelId)) close();
