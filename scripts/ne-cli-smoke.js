@@ -44,6 +44,17 @@ async function main() {
 	terminal.restoreTerminalInput(sharedInput, false, false, tuiInputListener);
 	assert.deepEqual(sharedCalls, ["raw:false", "ref", "resume"], "other stdin readers remain active");
 	assert.equal(sharedInput.listenerCount("data"), 1);
+	const pausedInput = new EventEmitter();
+	const pausedCalls = [];
+	pausedInput.setRawMode = (value) => pausedCalls.push("raw:" + value);
+	pausedInput.pause = () => pausedCalls.push("pause");
+	pausedInput.resume = () => pausedCalls.push("resume");
+	pausedInput.ref = () => pausedCalls.push("ref");
+	pausedInput.unref = () => pausedCalls.push("unref");
+	pausedInput.on("data", otherReader);
+	pausedInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(pausedInput, true, true, tuiInputListener);
+	assert.deepEqual(pausedCalls, ["raw:true", "pause", "unref"], "a previously paused input stream remains paused and unreferenced");
 	assert.equal(presentation.visibleWidth("\x1b[31mERROR\x1b[0m"), 5);
 	const warningBanner = presentation.renderBanner({
 		type: "warning",
