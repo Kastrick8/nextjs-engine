@@ -84,6 +84,13 @@ function renderDashboard(selected, context) {
 		rows.push(left + "  " + right);
 	}
 	rows.push("");
+	const activity = context.activity || (context.loading ? "Refreshing release inventory" : "Ready");
+	rows.push("Activity  " + (context.spinner || "✓") + " " + activity);
+	const sources = context.sourceStatus || {};
+	const sourceSummary = ["npm", "github", "alpha", "tags"]
+		.map((key) => key + ": " + (sources[key] && sources[key].status || "idle"))
+		.join("  ");
+	rows.push("Feeds     " + sourceSummary);
 	rows.push("Move: arrows / W A S D    Open: Enter / E    Back/Quit: Esc / Q");
 	rows.push("Mouse selection is enabled in terminals that report SGR mouse events.");
 	return frame("NEXTJS-ENGINE (ne)  " + (context.version || "") + "  [Gen 2]", rows);
@@ -98,9 +105,17 @@ function renderReleaseList(selected, catalog, context) {
 		"AVAILABLE RELEASES  (select a version to inspect)",
 	];
 	const releases = catalog.releases || [];
-	if (!releases.length) {
+	const feedStatus = context.sourceStatus || catalog.sourceStatus || {};
+	const feedSummary = ["npm", "github", "alpha", "tags"]
+		.map((key) => key + ": " + (feedStatus[key] && feedStatus[key].status || "idle"))
+		.join("  ");
+	rows.push("Sources   " + feedSummary);
+	if (context.loading && !releases.length) {
+		rows.push((context.spinner || "…") + " Contacting npm and GitHub; the inventory will appear here as feeds finish.");
+		rows.push("You can keep navigating while the release list refreshes.");
+	} else if (!releases.length) {
 		rows.push("No releases were found from the available sources.");
-		rows.push("The catalog retains a cached inventory when sources are temporarily unavailable.");
+		rows.push("Check the feed status above; cached results are retained when a source is offline.");
 	} else {
 		const pageSize = Math.max(1, Math.floor((widthForTerminal() > 90 ? 20 : 14) / 2));
 		const pageStart = Math.floor(selected / pageSize) * pageSize;
@@ -177,6 +192,11 @@ function runTui(options) {
 	let inputBuffer = "";
 	let settled = false;
 	let busy = false;
+	let loading = typeof settings.loadCatalog === "function";
+	let animationFrame = 0;
+	let animationTimer = null;
+	const liveContext = { ...context, loading, sourceStatus: context.sourceStatus || catalog.sourceStatus || {} };
+	const spinnerFrames = unicodeEnabled() ? ["◐", "◓", "◑", "◒"] : ["|", "/", "-", "\\"];
 
 	return new Promise((resolve) => {
 		const oldRaw = Boolean(process.stdin.isRaw);
@@ -185,6 +205,7 @@ function runTui(options) {
 		function cleanup() {
 			if (settled) return;
 			settled = true;
+			if (animationTimer) clearInterval(animationTimer);
 			process.stdin.removeListener("data", onData);
 			try { process.stdin.setRawMode(oldRaw); } catch {}
 			try { process.stdin.pause(); } catch {}
@@ -198,14 +219,15 @@ function runTui(options) {
 		}
 
 		function draw() {
+			liveContext.loading = loading;
+			liveContext.spinner = loading ? spinnerFrames[animationFrame % spinnerFrames.length] : "✓";
 			let content;
 			if (screen === "warning") content = frame("EXPERIMENTAL NOTICE", ["NE is experimental and may change or be removed in a future release.", "Review the selected channel before applying updates.", "", "Press any key to continue. Press Ctrl+C to quit."]);
-			else if (screen === "dashboard") content = renderDashboard(selected, context);
-			else if (screen === "releases") content = renderReleaseList(selected, catalog, context);
-			else content = renderReleaseDetails(selectedRelease, context);
+			else if (screen === "dashboard") content = renderDashboard(selected, liveContext);
+			else if (screen === "releases") content = renderReleaseList(selected, catalog, liveContext);
+			else content = renderReleaseDetails(selectedRelease, liveContext);
 			process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + content + "\n");
 		}
-
 		function chooseMenu() {
 			const item = MENU_ITEMS[selected];
 			if (!item) return;
@@ -348,6 +370,43 @@ function runTui(options) {
 		process.stdin.on("data", onData);
 		process.stdout.write("\x1b[?1049h\x1b[?1000h\x1b[?1006h");
 		draw();
+		if (loading) {
+			animationTimer = setInterval(() => {
+				if (!loading || settled) return;
+				animationFrame += 1;
+				draw();
+			}, 160);
+			if (typeof animationTimer.unref === "function") animationTimer.unref();
+			Promise.resolve().then(() => settings.loadCatalog((update) => {
+				if (!update || typeof update !== "object") return;
+				liveContext.sourceStatus = update.sources || liveContext.sourceStatus;
+				liveContext.activity = update.message
+					? update.source + ": " + update.message
+					: "Refreshing " + update.source + " feed";
+				draw();
+			})).then((result) => {
+				if (settled) return;
+				if (result && Array.isArray(result.releases)) {
+					catalog.releases = result.releases;
+					catalog.cached = Boolean(result.cached);
+					catalog.sourceStatus = result.sourceStatus || liveContext.sourceStatus;
+					liveContext.sourceStatus = catalog.sourceStatus;
+					liveContext.cacheStatus = catalog.cached ? "cached" : "ready";
+				}
+				loading = false;
+				liveContext.loading = false;
+				liveContext.activity = result && result.sourceErrors && result.sourceErrors.length
+					? "Loaded with " + result.sourceErrors.length + " feed warning(s)"
+					: "Release inventory ready";
+				selected = Math.min(selected, Math.max(0, catalog.releases.length - 1));
+				draw();
+			}).catch((error) => {
+				if (settled) return;
+				loading = false;
+				liveContext.activity = "Feed refresh failed: " + (error && error.message || String(error));
+				draw();
+			});
+		}
 	});
 }
 
