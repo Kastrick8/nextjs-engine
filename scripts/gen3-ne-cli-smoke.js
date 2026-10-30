@@ -14,6 +14,7 @@ const tasks = require("../bin/ne-cli/tasks");
 const presentation = require("../bin/ne-cli/presentation");
 const diagnostics = require("../bin/ne-cli/diagnostics");
 const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
+const { EventEmitter } = require("node:events");
 
 async function main() {
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
@@ -166,6 +167,31 @@ async function main() {
 	assert.throws(() => project.resolveProcessInvocation("npm.cmd", ["install"], {
 		platform: "win32",
 	}), /does not execute \.cmd\/.bat wrappers through a shell/);
+	const idleInput = new EventEmitter();
+	const inputCalls = [];
+	idleInput.setRawMode = (value) => inputCalls.push("raw:" + value);
+	idleInput.pause = () => inputCalls.push("pause");
+	idleInput.resume = () => inputCalls.push("resume");
+	idleInput.ref = () => inputCalls.push("ref");
+	idleInput.unref = () => inputCalls.push("unref");
+	const tuiInputListener = () => {};
+	idleInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(idleInput, false, false, tuiInputListener);
+	assert.deepEqual(inputCalls, ["raw:false", "pause", "unref"], "idle TUI input is released after closing");
+	assert.equal(idleInput.listenerCount("data"), 0);
+	const sharedInput = new EventEmitter();
+	const sharedCalls = [];
+	sharedInput.setRawMode = (value) => sharedCalls.push("raw:" + value);
+	sharedInput.pause = () => sharedCalls.push("pause");
+	sharedInput.resume = () => sharedCalls.push("resume");
+	sharedInput.ref = () => sharedCalls.push("ref");
+	sharedInput.unref = () => sharedCalls.push("unref");
+	const otherReader = () => {};
+	sharedInput.on("data", otherReader);
+	sharedInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(sharedInput, false, false, tuiInputListener);
+	assert.deepEqual(sharedCalls, ["raw:false", "ref", "resume"], "other stdin readers remain active");
+	assert.equal(sharedInput.listenerCount("data"), 1);
 	const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 	const stderrDescriptor = Object.getOwnPropertyDescriptor(process.stderr, "isTTY");
 	const noColor = process.env.NO_COLOR;
@@ -196,6 +222,23 @@ async function main() {
 			"the currently running child branch is cyan");
 		assert.match(coloredRows[5].text, /\x1b\[33;1m└─> \x1b\[0m/,
 			"pending child branches are yellow");
+		const panelLines = treeFixture.buildPanelLines(80, 12);
+		assert.doesNotMatch(panelLines[0], /\x1b\[(?:31|32|36);1m/, "task-tree frame stays neutral");
+		assert.doesNotMatch(panelLines[panelLines.length - 1], /\x1b\[(?:31|32|36);1m/, "bottom frame stays neutral");
+		assert.match(panelLines[4], /\x1b\[32;1m├─>/, "completed progress is green inside the task tree");
+		const originalWrite = process.stdout.write;
+		const drawOutput = [];
+		process.stdout.write = function (chunk) { drawOutput.push(String(chunk)); return true; };
+		try {
+			treeFixture.interactive = true;
+			treeFixture.panelHeight = 0;
+			treeFixture.scrollRegionActive = false;
+			treeFixture.draw();
+		} finally {
+			process.stdout.write = originalWrite;
+		}
+		assert.doesNotMatch(drawOutput.join(""), /\x1b\[2J/, "task-tree updates do not clear the whole terminal");
+		assert.match(drawOutput.join(""), /\x1b\[1;\d+r/, "task-tree reserves a sticky scrolling region");
 	} finally {
 		if (stdoutDescriptor) Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
 		else delete process.stdout.isTTY;
@@ -473,6 +516,17 @@ async function main() {
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
 	assert.match(cli.getHelp(), /ne update --channel/);
+	const originalInstallRelease = project.installRelease;
+	let dashboardInstall = null;
+	project.installRelease = async (...args) => { dashboardInstall = args; };
+	try {
+		const fixtureRelease = { version: "3.0.0-alpha.2", track: "alpha" };
+		await cli.runDashboardAction(os.tmpdir(), { action: "install", release: fixtureRelease });
+		assert.equal(dashboardInstall[1], fixtureRelease, "dashboard forwards selected release to installer");
+		assert.equal(dashboardInstall[2], "alpha");
+	} finally {
+		project.installRelease = originalInstallRelease;
+	}
 
 	const dashboard = terminal.renderDashboard(2, {
 		projectName: "demo",
@@ -485,6 +539,8 @@ async function main() {
 		sourceStatus: { npm: { status: "loading" }, github: { status: "loading" }, alpha: { status: "loading" }, tags: { status: "loading" } },
 	});
 	assert.match(dashboard, /Production Build/);
+	assert.match(terminal.renderDashboard(0, { rollbackAvailable: false }), /Rollback Build \\[no snapshot\\]/,
+		"rollback is visibly unavailable before a snapshot exists");
 	assert.match(dashboard, /Channel Updater/);
 	assert.match(dashboard, /Activity.*Fetching release inventory/);
 	assert.match(dashboard, /npm: loading.*github: loading/);
