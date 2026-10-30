@@ -4,16 +4,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { runGen3MigrationDiagnostics } = (() => {
-	for (const candidate of [
-		path.resolve(__dirname, "../../src/engine/plugins/gen3MigrationDiagnostics.js"),
-		path.resolve(__dirname, "../../engine/plugins/gen3MigrationDiagnostics.js"),
-	]) {
-		try { return require(candidate); } catch {}
-	}
-	return {};
-})();
-
 const PACKAGE_NAME = "@kastrick/nextjs-engine";
 const STATE_RELATIVE_PATH = path.join(".nextjs-engine", "config", "ne.config.json");
 const BACKUP_RELATIVE_PATH = path.join(".nextjs-engine", "cache", "ne-backups");
@@ -602,32 +592,6 @@ async function runCheck(root) {
 		process.stdout.write("[NE-CHECK] No TypeScript project was detected; skipping tsc.\n");
 	}
 
-	if (typeof runGen3MigrationDiagnostics === "function") {
-		const pkg = readJson(path.join(root, "package.json"), {});
-		const isEngineSource = pkg.name === "nextjs-engine" && fs.existsSync(path.join(root, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"));
-		if (!isEngineSource) {
-			const warnings = [];
-			const errorsFound = [];
-			const originalWarn = console.warn;
-			const originalError = console.error;
-			let diagnostics = [];
-			console.warn = (...args) => warnings.push(args.join(" "));
-			console.error = (...args) => errorsFound.push(args.join(" "));
-			try {
-				diagnostics = runGen3MigrationDiagnostics({ rootDir: root, development: true }) || [];
-			} finally {
-				console.warn = originalWarn;
-				console.error = originalError;
-			}
-			for (const line of [...warnings, ...errorsFound]) process.stdout.write(line + "\n");
-			const fatal = diagnostics.filter((item) => item && item.severity === "error");
-			errors += fatal.length;
-			if (fatal.length) process.stderr.write("[NE-CHECK] " + fatal.length + " migration error(s) must be fixed.\n");
-			if (!diagnostics.length) process.stdout.write("[NE-CHECK] No migration diagnostics were found.\n");
-		} else {
-			process.stdout.write("[NE-CHECK] Running inside the NE source repository; skipping self-scanning migration rules.\n");
-		}
-	}
 	if (errors) throw new Error("ne check failed with " + errors + " error(s).");
 	process.stdout.write("[NE-CHECK] Checks passed.\n");
 }

@@ -77,8 +77,19 @@ export const EngineDrawer = memo(function EngineDrawer({
 			{target && present && createPortal(
 				<>
 					<div
+						data-engine-overlay-backdrop={panelId}
 						aria-hidden="true"
-						style={{ position: "fixed", inset: 0, zIndex, background: "rgba(2,6,23,.5)", backdropFilter: "blur(4px)", opacity: active ? 1 : 0, transition: `opacity ${transitionMs}ms ease`, ...overlayStyle }}
+						style={{
+							position: "fixed",
+							inset: 0,
+							zIndex,
+							background: "rgba(2,6,23,.5)",
+							backdropFilter: "blur(4px)",
+							...overlayStyle,
+							// Callers may style the backdrop, but animation state is runtime-owned.
+							opacity: active ? 1 : 0,
+							transition: transitionMs === 0 ? "none" : `opacity ${transitionMs}ms ease`,
+						} as React.CSSProperties}
 						onPointerDown={() => {
 							if (closeOnBackdrop && isTopOverlay(panelId)) close();
 						}}
