@@ -108,7 +108,7 @@ export function EngineDebugFixEditor({ diagnostic, onApplied }: EngineDebugFixEd
 		const propertyMatch = diagnostic.message.match(/Cannot read propert(?:y|ies) of (?:undefined|null) \(reading ['"]?([A-Za-z_$][\w$]*)['"]?\)/i);
 		if (propertyMatch?.[1]) {
 			const property = propertyMatch[1];
-			const escapedProperty = property.replace(/\$/g, "\\$");
+			const escapedProperty = property.replace(/[.*+?^$()|[\]{}\\]/g, "\\$&");
 			const access = new RegExp("(?<![?.])\\." + escapedProperty + "\\b", "g");
 			const matches = highlighted.match(access) ?? [];
 			if (matches.length === 1) {
