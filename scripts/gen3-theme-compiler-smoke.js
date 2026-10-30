@@ -1414,6 +1414,33 @@ async function testPublicThemeApi() {
 				if (previousBunnyFileOrigins === undefined) delete process.env.ENGINE_THEME_FONT_FILE_ORIGINS;
 				else process.env.ENGINE_THEME_FONT_FILE_ORIGINS = previousBunnyFileOrigins;
 			}
+
+			writeFontFixture("invalid-signature-font", "https://fonts.googleapis.com/css2?family=InvalidSignature");
+			const invalidFontBytes = Buffer.from("not-a-font-payload");
+			const invalidFontDigest = crypto.createHash("sha256").update(invalidFontBytes).digest("hex");
+			const invalidFontCss = fakeFontCss
+				.replace("Fixture", "InvalidSignature")
+				.replace("https://fonts.gstatic.com/s/fixture/font.woff2", "https://fonts.gstatic.com/s/fixture/invalid-signature.woff2");
+			await assert.rejects(() => compileEngineThemeFonts(fontRoot, [
+				{ id: "invalid-signature-font", fileName: "invalid-signature-font.etr" },
+			], {
+				production: true,
+				failurePolicy: "error",
+				fetchImpl: async (url) => {
+					if (url === "https://fonts.googleapis.com/css2?family=InvalidSignature") {
+						return new Response(invalidFontCss, { status: 200, headers: { "content-type": "text/css; charset=utf-8" } });
+					}
+					if (url === "https://fonts.gstatic.com/s/fixture/invalid-signature.woff2") {
+						return new Response(invalidFontBytes, { status: 200, headers: { "content-type": "font/woff2" } });
+					}
+					throw new Error("Unexpected invalid-font fixture URL: " + url);
+				},
+			}), (error) => error.code === "NETH8002"
+				&& /Downloaded font bytes do not match the declared font format/.test(error.cause?.message || ""),
+			"unrecognized remote binary data is rejected before the cache file writer");
+			assert.equal(fs.existsSync(path.join(fontRoot, ".nextjs-engine", ".cache", "gen3", "fonts", "assets", invalidFontDigest + ".woff2")), false,
+				"rejected font payloads never reach the content-addressed cache");
+
 			writeFontFixture("blocked-font", "https://untrusted.example/fonts.css");
 			const blockedFallback = await compileEngineThemeFonts(fontRoot, [
 				{ id: "blocked-font", fileName: "blocked-font.etr" },
