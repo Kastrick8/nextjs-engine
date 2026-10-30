@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 
 const NO_FOLLOW = fs.constants.O_NOFOLLOW || 0;
-const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,240}$/;
+const SAFE_FILE_NAME = /^[A-Za-z0-9._()[\]@%+-]{1,240}$/;
 
 function resolveSafeOutputPath(filename) {
 	if (typeof filename !== "string" || !filename.trim()) {
