@@ -212,7 +212,7 @@ function extractSyntaxContext(error) {
 	if (!error || error.name !== "SyntaxError") return null;
 	const lines = String(error.stack || "").split(/\r?\n/);
 	for (let index = 0; index < lines.length; index += 1) {
-		const match = lines[index].match(/^(.+):(\d+)(?::(\d+))?$/);
+		const match = lines[index].match(/^(.+?):(\d+)(?::(\d+))?$/);
 		if (!match) continue;
 		const sourceLine = lines[index + 1] && !/^\s*at\s/.test(lines[index + 1]) ? lines[index + 1] : "";
 		const markerLine = sourceLine && lines[index + 2] && /\^/.test(lines[index + 2]) ? lines[index + 2] : "";
