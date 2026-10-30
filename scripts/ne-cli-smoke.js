@@ -13,6 +13,8 @@ const project = require("../bin/ne-cli/project");
 const presentation = require("../bin/ne-cli/presentation");
 const diagnostics = require("../bin/ne-cli/diagnostics");
 const { EventEmitter } = require("node:events");
+const tmp = require("tmp");
+const fileSystem = require("../bin/ne-cli/file-system");
 
 async function main() {
 	const { spawnSync } = require("node:child_process");
@@ -422,8 +424,17 @@ async function main() {
 	assert.ok(Number(pageIndicator[1]) >= 4, "release list can navigate past the first 24 entries");
 	assert.match(laterPage, /of 40/, "release list reports the full release inventory size");
 
-	const temp = fs.mkdtempSync(path.join(os.tmpdir(), "ne-cli-smoke-"));
+	const tempDirectory = tmp.dirSync({ prefix: "ne-cli-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	const temp = tempDirectory.name;
 	try {
+		const atomicFile = path.join(temp, "atomic-state.json");
+		fileSystem.writeFileAtomically(atomicFile, "{\"revision\":1}\n", { mode: 0o600 });
+		fileSystem.writeFileAtomically(atomicFile, "{\"revision\":2}\n", { mode: 0o600 });
+		assert.equal(fs.readFileSync(atomicFile, "utf8"), "{\"revision\":2}\n", "atomic writer replaces existing files");
+		assert.deepEqual(fs.readdirSync(temp), ["atomic-state.json"], "atomic writer removes its private staging directory");
+		const privateDirectory = fileSystem.createPrivateTempDirectory(temp, "backup-test-");
+		if (process.platform !== "win32") assert.equal(fs.statSync(privateDirectory.name).mode & 0o777, 0o700, "rollback temp directories are private");
+		privateDirectory.removeCallback();
 		fs.writeFileSync(path.join(temp, "package.json"), JSON.stringify({
 			name: "fixture",
 			version: "1.0.0",
@@ -574,7 +585,7 @@ async function main() {
 			global.fetch = previousFetch;
 		}
 	} finally {
-		fs.rmSync(temp, { recursive: true, force: true });
+		tempDirectory.removeCallback();
 	}
 	process.stdout.write("NE CLI smoke assertions passed.\n");
 }
