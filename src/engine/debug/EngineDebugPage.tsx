@@ -365,7 +365,17 @@ export function EngineDebugPage({ pages }: EngineDebugPageProps) {
 	const [sourceEditorStatus, setSourceEditorStatus] = useState<"idle" | "loading" | "ready" | "saving" | "saved" | "error" | "unavailable">("idle");
 	const [sourceEditorError, setSourceEditorError] = useState<string | null>(null);
 	const [showAutoCompletions, setShowAutoCompletions] = useState(false);
-	const frameSource = useMemo(() => `${selectedPage}${selectedPage.includes("?") ? "&" : "?"}__engine_debug=1`, [selectedPage]);
+	const frameSource = useMemo(() => {
+		const trustedOrigin = "http://engine-debug.invalid";
+		try {
+			const url = new URL(selectedPage, trustedOrigin);
+			if (url.origin !== trustedOrigin || !url.pathname.startsWith("/") || url.pathname.startsWith("//")) return "/";
+			url.searchParams.set("__engine_debug", "1");
+			return url.pathname + url.search + url.hash;
+		} catch {
+			return "/";
+		}
+	}, [selectedPage]);
 
 	async function fetchSourceDocument(source: EngineDebugSourceLocation): Promise<EngineDebugSourceDocument> {
 		const query = new URLSearchParams({ file: source.path, line: String(source.line), mode: "edit" });
