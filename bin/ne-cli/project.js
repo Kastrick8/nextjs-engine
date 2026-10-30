@@ -438,15 +438,64 @@ function readInstalledPackage(root) {
 	return readJson(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"), null);
 }
 
+function readRegularProjectFile(filename, encoding = "utf8") {
+	const descriptor = fs.openSync(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+	try {
+		if (!fs.fstatSync(descriptor).isFile()) throw new Error("Refusing to read a non-regular project file: " + filename);
+		return fs.readFileSync(descriptor, encoding);
+	} finally {
+		fs.closeSync(descriptor);
+	}
+}
+
+function writeProjectFileAtomically(filename, contents) {
+	const temporary = filename + ".tmp-" + process.pid + "-" + crypto.randomBytes(8).toString("hex");
+	let descriptor;
+	try {
+		descriptor = fs.openSync(temporary, "wx", 0o600);
+		fs.writeFileSync(descriptor, contents, "utf8");
+		fs.fsyncSync(descriptor);
+		fs.closeSync(descriptor);
+		descriptor = undefined;
+		fs.renameSync(temporary, filename);
+	} catch (error) {
+		if (descriptor !== undefined) {
+			try { fs.closeSync(descriptor); } catch { /* Preserve the original error. */ }
+		}
+		try { fs.rmSync(temporary, { force: true }); } catch { /* Preserve the original error. */ }
+		throw error;
+	}
+}
+
 async function downloadVerifiedArtifact(root, release) {
-	if (!release.artifactUrl || !release.sha256) throw new Error("This channel has no verified GitHub package artifact.");
-	const response = await fetch(release.artifactUrl, {
+	if (!release.artifactUrl || !release.sha256 || !release.artifactName) {
+		throw new Error("This channel has no verified GitHub package artifact.");
+	}
+	let artifactUrl;
+	try { artifactUrl = new URL(release.artifactUrl); }
+	catch { throw new Error("The channel artifact URL is invalid."); }
+	if (artifactUrl.protocol !== "https:" || artifactUrl.hostname !== "github.com"
+		|| artifactUrl.username || artifactUrl.password || artifactUrl.port
+		|| !artifactUrl.pathname.startsWith("/Kastrick8/nextjs-engine/releases/download/")
+		|| path.posix.basename(artifactUrl.pathname) !== release.artifactName
+		|| !/^[A-Za-z0-9._+-]+$/.test(release.artifactName)) {
+		throw new Error("Refusing to download an artifact URL outside the official Nextjs Engine GitHub releases.");
+	}
+	const response = await fetch(artifactUrl.href, {
 		headers: { "User-Agent": "nextjs-engine-ne-cli", Accept: "application/octet-stream" },
 		signal: AbortSignal.timeout(30000),
 	});
 	if (!response.ok) {
 		try { await response.body?.cancel(); } catch {}
 		throw new Error("GitHub artifact download returned HTTP " + response.status + ".");
+	}
+	let finalArtifactUrl;
+	try { finalArtifactUrl = new URL(response.url || artifactUrl.href); }
+	catch { try { await response.body?.cancel(); } catch {} throw new Error("GitHub returned an invalid artifact redirect URL."); }
+	if (finalArtifactUrl.protocol !== "https:"
+		|| !["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].includes(finalArtifactUrl.hostname)) {
+		try { await response.body?.cancel(); } catch {}
+		throw new Error("GitHub redirected the artifact download to an untrusted host.");
 	}
 	const maxBytes = 100 * 1024 * 1024;
 	const declaredSize = Number(response.headers.get("content-length") || 0);
@@ -576,8 +625,12 @@ function normalizeArtifactDependency(root, release, artifact) {
 	let lockCount = 0;
 	for (const name of lockFilesByManager[manager] || []) {
 		const file = path.join(root, name);
-		if (!fs.existsSync(file)) continue;
-		const text = fs.readFileSync(file, "utf8");
+		let text;
+		try { text = readRegularProjectFile(file, "utf8"); }
+		catch (error) {
+			if (error && error.code === "ENOENT") continue;
+			throw error;
+		}
 		let updated;
 		if (name === "package-lock.json" || name === "npm-shrinkwrap.json") {
 			const lock = JSON.parse(text);
@@ -609,7 +662,7 @@ function normalizeArtifactDependency(root, release, artifact) {
 		if (!updated.includes(artifact.sha512) && !(name === "yarn.lock" && /^\s*checksum:\s*\S+/m.test(updated))) {
 			throw new Error(name + " did not preserve integrity metadata for the verified artifact.");
 		}
-		fs.writeFileSync(file, updated, "utf8");
+		writeProjectFileAtomically(file, updated);
 		lockCount += 1;
 	}
 	if (lockCount === 0) {
