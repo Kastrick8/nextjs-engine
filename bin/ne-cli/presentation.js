@@ -145,11 +145,12 @@ function renderBanner(options) {
 	};
 	const top = border.topLeft + border.horizontal.repeat(boxWidth - 2) + border.topRight;
 	const bottom = border.bottomLeft + border.horizontal.repeat(boxWidth - 2) + border.bottomRight;
+	const coloredBorder = (value) => paint(value, severity, enabled);
 	const body = rows.map((row, index) => {
 		const content = index === 0 ? paint(row, severity, enabled) : row;
-		return border.vertical + " " + pad(content) + " " + border.vertical;
+		return coloredBorder(border.vertical) + " " + pad(content) + " " + coloredBorder(border.vertical);
 	});
-	return [top, ...body, bottom].join("\n");
+	return [coloredBorder(top), ...body, coloredBorder(bottom)].join("\n");
 }
 
 function expandTabs(value, tabSize) {
@@ -179,12 +180,17 @@ function renderCodeFrame(source, location, options) {
 	const start = Math.max(1, lineNumber - context);
 	const end = Math.min(lines.length, lineNumber + context);
 	const gutterWidth = String(end).length;
+	const ascii = settings.ascii === true || (
+		settings.ascii !== false && (process.env.NE_ASCII === "1" || process.env.TERM === "dumb")
+	);
+	const marker = ascii ? "> " : "› ";
+	const separator = ascii ? " | " : " │ ";
 	const maxWidth = Math.max(12, Math.min(100, terminalColumns(settings) - 10));
 	const visible = [];
 	for (let number = start; number <= end; number += 1) {
 		const sourceLine = expandTabs(lines[number - 1]);
-		const prefix = (number === lineNumber ? "› " : "  ") +
-			String(number).padStart(gutterWidth, " ") + " │ ";
+		const prefix = (number === lineNumber ? marker : "  ") +
+			String(number).padStart(gutterWidth, " ") + separator;
 		const available = Math.max(1, maxWidth - visibleWidth(prefix));
 		let shown = sourceLine;
 		let caretColumn = column - 1;
@@ -202,26 +208,55 @@ function renderCodeFrame(source, location, options) {
 	return visible.join("\n");
 }
 
+function extractSyntaxContext(error) {
+	if (!error || error.name !== "SyntaxError") return null;
+	const lines = String(error.stack || "").split(/\\r?\\n/);
+	for (let index = 0; index < lines.length; index += 1) {
+		const match = lines[index].match(/^(.+):(\\d+)(?::(\\d+))?$/);
+		if (!match) continue;
+		const sourceLine = lines[index + 1] && !/^\\s*at\\s/.test(lines[index + 1]) ? lines[index + 1] : "";
+		const markerLine = sourceLine && lines[index + 2] && /\\^/.test(lines[index + 2]) ? lines[index + 2] : "";
+		const caret = markerLine.indexOf("^");
+		let source = "";
+		let column = Number(match[3]) || (caret >= 0 ? caret + 1 : 1);
+		try {
+			source = require("node:fs").readFileSync(match[1], "utf8");
+		} catch {
+			source = sourceLine;
+		}
+		if (!source) continue;
+		return {
+			location: { file: match[1], line: Number(match[2]), column },
+			source,
+		};
+	}
+	return null;
+}
+
 function renderError(error, options) {
 	const failure = error || new Error("Unknown NE CLI failure.");
+	const inferred = extractSyntaxContext(failure);
+	const locationInfo = failure.neLocation
+		? { location: failure.neLocation, source: failure.neSource || "" }
+		: inferred;
 	const details = [];
-	if (failure.neLocation) {
-		const location = failure.neLocation;
+	if (locationInfo && locationInfo.location) {
+		const location = locationInfo.location;
 		const where = [location.file, location.line && ("line " + location.line), location.column && ("column " + location.column)]
 			.filter(Boolean).join(":");
 		if (where) details.push("at " + where);
 	}
 	if (failure.neSuggestion) details.push("Suggestion: " + failure.neSuggestion);
 	if (failure.neHint) details.push("Hint: " + failure.neHint);
-	if (failure.neSource && failure.neLocation) {
-		const frame = renderCodeFrame(failure.neSource, failure.neLocation, options);
+	if (locationInfo && locationInfo.source && locationInfo.location) {
+		const frame = renderCodeFrame(locationInfo.source, locationInfo.location, options);
 		if (frame) details.push({ preformatted: true, text: frame });
 	}
 	return renderBanner({
 		...(options || {}),
 		type: "error",
 		title: "ERROR",
-		code: failure.neCode || "NE CLI",
+		code: failure.neCode || (inferred ? "NE2001" : "NE CLI"),
 		message: failure.message || String(failure),
 		details,
 	});
@@ -232,5 +267,6 @@ module.exports = {
 	wrapText,
 	renderBanner,
 	renderCodeFrame,
+	extractSyntaxContext,
 	renderError,
 };
