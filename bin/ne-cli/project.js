@@ -69,7 +69,36 @@ function detectPackageManager(root) {
 }
 
 function managerCommand(manager) {
-	return process.platform === "win32" ? manager + ".cmd" : manager;
+	return manager;
+}
+
+function resolveProcessInvocation(command, args, options) {
+	const settings = options || {};
+	const platform = settings.platform === undefined ? process.platform : settings.platform;
+	if (platform !== "win32") return { command, args };
+	if (/\.(?:cmd|bat)$/i.test(command)) {
+		throw new Error("NE does not execute .cmd/.bat wrappers through a shell. Use the package manager name or a direct executable.");
+	}
+	const pathApi = path.win32;
+	const runtimePath = settings.execPath || process.execPath;
+	const existsSync = settings.existsSync || fs.existsSync;
+	const basename = pathApi.basename(command).replace(/\.exe$/i, "").toLowerCase();
+	const hasExplicitPath = /[\\/]/.test(command);
+	if (!hasExplicitPath && ["npm", "npx", "pnpm", "yarn"].includes(basename)) {
+		const runtimeDirectory = pathApi.dirname(runtimePath);
+		const candidates = {
+			npm: [pathApi.join(runtimeDirectory, "node_modules", "npm", "bin", "npm-cli.js")],
+			npx: [pathApi.join(runtimeDirectory, "node_modules", "npm", "bin", "npx-cli.js")],
+			pnpm: [pathApi.join(runtimeDirectory, "node_modules", "corepack", "dist", "pnpm.js")],
+			yarn: [pathApi.join(runtimeDirectory, "node_modules", "corepack", "dist", "yarn.js")],
+		}[basename];
+		const scriptPath = candidates.find((candidate) => existsSync(candidate));
+		if (!scriptPath) {
+			throw new Error("NE could not locate the JavaScript entry point for '" + basename + "' beside the active Node.js installation on Windows. Use a direct executable or install the package manager with Node.js.");
+		}
+		return { command: runtimePath, args: [scriptPath, ...args] };
+	}
+	return { command, args };
 }
 
 function appendTail(previous, chunk, limit) {
@@ -154,13 +183,14 @@ function runProcess(command, args, options) {
 		}
 
 		if (report && !canAnimate) process.stdout.write("[NE] RUNNING " + label + "\n");
-		const child = spawn(command, args, {
+		const invocation = resolveProcessInvocation(command, args, opts);
+		const child = spawn(invocation.command, invocation.args, {
 			cwd: opts.cwd || process.cwd(),
 			env,
 			stdio: captureOutput ? ["ignore", "pipe", "pipe"] :
 				canAnimate ? ["inherit", "pipe", "pipe"] : (opts.stdio || "inherit"),
 			windowsHide: true,
-			shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(command),
+			shell: false,
 		});
 
 		function receive(stream, chunk) {
@@ -951,6 +981,7 @@ async function runBuild(root) {
 module.exports = {
 	PACKAGE_NAME,
 	findProjectRoot,
+	resolveProcessInvocation,
 	readJson,
 	loadState,
 	saveState,
