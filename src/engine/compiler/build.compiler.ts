@@ -323,18 +323,6 @@ function releaseBanner(projectRoot) {
 	catch { /* Cleanup must not hide the build outcome. */ }
 }
 
-function installTypeScriptRequireHook() {
-	if (require.extensions[".ts"] && require.extensions[".ts"].__engineBuildHook) return;
-	const handler = function engineTypeScriptBuildHook(module, filename) {
-		const output = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
-			compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
-			fileName: filename,
-		}).outputText;
-		module._compile(output, filename);
-	};
-	handler.__engineBuildHook = true;
-	require.extensions[".ts"] = handler;
-}
 function readVersion(root) {
 	try { return JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version || "unknown"; }
 	catch { return "unknown"; }
