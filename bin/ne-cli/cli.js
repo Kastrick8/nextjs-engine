@@ -17,7 +17,7 @@ function project() {
 
 function packageVersion() {
 	try {
-		return require("../package.json").version || "unknown";
+		return require("../../package.json").version || "unknown";
 	} catch {
 		return "unknown";
 	}
