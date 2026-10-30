@@ -25,7 +25,6 @@ jobs:
       contents: read
       packages: read
       security-events: write
-      code-quality: read
     strategy:
       fail-fast: false
       matrix:
@@ -42,25 +41,3 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
-      - name: Report open CodeQL security alerts
-        if: matrix.language == 'actions'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Open CodeQL security alerts for ${GITHUB_REF} (number, rule, severity, path, start/end lines, message):"
-          gh api --paginate "/repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&ref=${GITHUB_REF}&per_page=100" \
-            --jq '.[] | [(.number | tostring), .rule.id, (.rule.security_severity_level // .rule.severity // "unknown"), (.most_recent_instance.location.path // "unknown-path"), ((.most_recent_instance.location.start_line // 0) | tostring), ((.most_recent_instance.location.end_line // .most_recent_instance.location.start_line // 0) | tostring), (.most_recent_instance.message.text // .rule.description // "")] | @tsv'
-      - name: Report open Code Quality findings
-        if: matrix.language == 'actions'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Open Code Quality findings for ${GITHUB_REF} (number, rule, title, severity, category, path, start/end lines, message):"
-          gh api --paginate -H "X-GitHub-Api-Version: 2026-03-10" "/repos/${GITHUB_REPOSITORY}/code-quality/findings?state=open&ref=${GITHUB_REF}&per_page=100" \
-            --jq '.[] | [(.number | tostring), .rule.id, .rule.title, .rule.severity, .rule.category, .location.path, ((.location.start_line // 0) | tostring), ((.location.end_line // .location.start_line // 0) | tostring), (.message.text // .rule.description // "")] | @tsv'
