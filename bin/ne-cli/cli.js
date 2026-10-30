@@ -97,7 +97,7 @@ function parseArgs(argv) {
 			const value = argument.slice(argument.indexOf("=") + 1);
 			const height = Number(value);
 			if (!Number.isInteger(height) || height < 1 || height > 100) {
-				throw new Error("and-terminal height must be an integer between 1 and 100.");
+				throw diagnostics().invalidOptionValue("-and-terminal", "an integer between 1 and 100");
 			}
 			options.andTerminal = height;
 			continue;
