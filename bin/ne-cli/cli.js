@@ -347,6 +347,7 @@ async function runDashboard(root, showWarning) {
 			version: installedVersion,
 			installedVersion: state.installedVersion || installedVersion,
 			channel: state.activeChannel || "not selected",
+			rollbackAvailable: Boolean(state.previous && state.previous.backup),
 			cacheStatus: cached.releases.length ? "cached" : "loading",
 			sourceStatus: cached.sourceStatus || {},
 			activity: "Preparing project dashboard",
