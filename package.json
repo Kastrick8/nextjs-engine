@@ -18,7 +18,8 @@
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
 		"three": "^0.184.0",
-		"two.js": "^0.8.23"
+		"two.js": "^0.8.23",
+		"tmp": "0.2.7"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.55.0",
