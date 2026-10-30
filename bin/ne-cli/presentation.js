@@ -233,12 +233,21 @@ function extractSyntaxContext(error) {
 	return null;
 }
 
+const ERROR_BOOK_URL = "https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/ne-cli-error-book.md";
+
+function errorBookUrl(code) {
+	const normalized = typeof code === "string" ? code.trim().toUpperCase() : "";
+	if (!/^NE\\d{4}$/.test(normalized)) return null;
+	return ERROR_BOOK_URL + "#" + normalized.toLowerCase();
+}
+
 function renderError(error, options) {
 	const failure = error || new Error("Unknown NE CLI failure.");
 	const inferred = extractSyntaxContext(failure);
 	const locationInfo = failure.neLocation
 		? { location: failure.neLocation, source: failure.neSource || "" }
 		: inferred;
+	const code = failure.neCode || (inferred ? "NE2001" : null);
 	const details = [];
 	if (locationInfo && locationInfo.location) {
 		const location = locationInfo.location;
@@ -249,6 +258,8 @@ function renderError(error, options) {
 	}
 	if (failure.neSuggestion) details.push("Suggestion: " + failure.neSuggestion);
 	if (failure.neHint) details.push("Hint: " + failure.neHint);
+	const helpUrl = errorBookUrl(code);
+	if (helpUrl) details.push("Help: " + helpUrl);
 	if (locationInfo && locationInfo.source && locationInfo.location) {
 		const frame = renderCodeFrame(locationInfo.source, locationInfo.location, options);
 		if (frame) details.push({ preformatted: true, text: frame });
@@ -257,7 +268,7 @@ function renderError(error, options) {
 		...(options || {}),
 		type: "error",
 		title: "ERROR",
-		code: failure.neCode || (inferred ? "NE2001" : "NE CLI"),
+		code: code || "NE CLI",
 		message: failure.message || String(failure),
 		details,
 	});
@@ -269,5 +280,6 @@ module.exports = {
 	renderBanner,
 	renderCodeFrame,
 	extractSyntaxContext,
+	errorBookUrl,
 	renderError,
 };
