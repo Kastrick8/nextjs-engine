@@ -21,6 +21,34 @@ The NE CLI gives projects one command interface for development, production buil
 | **ne rollback** | Restore the previous package manifest and lockfiles, then reinstall dependencies. |
 | **ne help** | Print command help. |
 
+## Live command task tree
+
+Build and check commands render a live hierarchical task tree instead of leaving the terminal blank or printing successful package-manager output:
+
+```text
+> ne build
+│
+├─> ne prepare:production                         ✓
+│   └─> npm run prepare:production                ✓
+│       └─> node scripts/gen3-prepare-production.js ✓
+│
+├─> ne check                                      ✓
+│   ├─> npm run type-check                        ✓
+│   │   └─> tsc --noEmit                          ✓
+│   └─> Gen 3 migration diagnostics               ✓
+│
+└─> next build                                    ●
+    └─> NENC compiler activity                    ●
+```
+
+Only steps that actually exist in the current project are shown. The prepare step is omitted when no `prepare:production` script exists. Check subtasks are nested beneath `ne check`. The Next.js build runs from the CLI main thread; safe package/check subprocesses can run through NE's bounded worker pool (up to three workers). NENC output is summarized inside the live build step instead of flooding the terminal.
+
+The task tree uses ANSI status colors: green for completed steps, cyan for running steps, yellow for pending steps, and red for failed steps. Branch connectors inherit their group status, so a completed `ne check` branch turns green while a pending `next build` branch remains yellow. The border animates while a task is active and settles to green on success. Set `NE_ASCII=1` for ASCII connectors.
+
+On failure, NE clears the live frame, preserves the original `> ne build` command header, and prints the failed subcommand's captured stdout/stderr. Successful npm output and routine notifier/fund notices stay hidden; diagnostics are not discarded on failure. Output capture is bounded to prevent a runaway command from consuming unbounded memory.
+
+NE does not run `npm install` or `npm audit fix` automatically on every build. Dependency installation and security remediation modify manifests, lockfiles, or package versions and must remain explicit operations.
+
 ## Installation forms
 
 The published npm package exposes **ne** through its `bin` entry. Install it once globally to use the commands directly from a project directory:
