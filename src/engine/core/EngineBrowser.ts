@@ -577,6 +577,93 @@ async function queryPermission(name: string): Promise<PermissionState | null> {
 	} catch { return null; }
 }
 
+const CLIPBOARD_HTML_TAGS = new Set([
+	"a", "abbr", "b", "bdi", "bdo", "blockquote", "br", "caption", "cite", "code", "dd", "del",
+	"div", "dl", "dt", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "ins", "kbd",
+	"li", "mark", "ol", "p", "pre", "q", "s", "samp", "small", "span", "strong", "sub", "sup",
+	"table", "tbody", "td", "tfoot", "th", "thead", "tr", "u", "ul", "var",
+]);
+const CLIPBOARD_DROP_TAGS = new Set([
+	"base", "button", "embed", "form", "iframe", "input", "link", "meta", "noscript", "object",
+	"option", "script", "select", "style", "template", "textarea",
+]);
+
+function safeClipboardHref(value: string): string | undefined {
+	const candidate = value.trim();
+	if (!candidate) return undefined;
+	if (candidate.startsWith("#")) return candidate;
+	try {
+		const parsed = new URL(candidate, "https://engine-clipboard.invalid/");
+		if (parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "mailto:") {
+			return candidate;
+		}
+	} catch {
+		// Invalid, script, data, and file URLs are excluded from clipboard HTML.
+	}
+	return undefined;
+}
+
+function sanitizeClipboardHtml(html: string): { html: string; plainText: string } {
+	const parsed = new DOMParser().parseFromString(html, "text/html");
+	const safeDocument = parsed.implementation.createHTMLDocument("");
+	const fragment = safeDocument.createDocumentFragment();
+	const safeHolder = safeDocument.createElement("div");
+
+	const copyNode = (source: Node, parent: Node): void => {
+		if (source.nodeType === Node.TEXT_NODE) {
+			parent.appendChild(safeDocument.createTextNode(source.nodeValue || ""));
+			return;
+		}
+		if (source.nodeType !== Node.ELEMENT_NODE) return;
+		const sourceElement = source as Element;
+		const tag = sourceElement.tagName.toLowerCase();
+		if (CLIPBOARD_DROP_TAGS.has(tag)) return;
+		if (!CLIPBOARD_HTML_TAGS.has(tag)) {
+			for (const child of Array.from(sourceElement.childNodes)) copyNode(child, parent);
+			return;
+		}
+
+		const target = safeDocument.createElement(tag);
+		for (const attribute of ["title", "lang", "dir"]) {
+			const value = sourceElement.getAttribute(attribute);
+			if (value !== null) target.setAttribute(attribute, value);
+		}
+		if (tag === "a") {
+			const href = sourceElement.getAttribute("href");
+			const safeHref = href === null ? undefined : safeClipboardHref(href);
+			if (safeHref !== undefined) target.setAttribute("href", safeHref);
+		}
+		if (tag === "td" || tag === "th") {
+			for (const attribute of ["colspan", "rowspan"]) {
+				const value = sourceElement.getAttribute(attribute);
+				if (value !== null && /^[0-9]{1,3}$/.test(value) && Number(value) >= 1) {
+					target.setAttribute(attribute, value);
+				}
+			}
+		}
+		if (tag === "th") {
+			const scope = sourceElement.getAttribute("scope");
+			if (scope === "row" || scope === "col" || scope === "rowgroup" || scope === "colgroup") {
+				target.setAttribute("scope", scope);
+			}
+		}
+		if (tag === "ol") {
+			const start = sourceElement.getAttribute("start");
+			if (start !== null && /^[0-9]{1,6}$/.test(start)) target.setAttribute("start", start);
+		}
+		parent.appendChild(target);
+		for (const child of Array.from(sourceElement.childNodes)) copyNode(child, target);
+	};
+
+	for (const child of Array.from(parsed.body.childNodes)) {
+		copyNode(child, fragment);
+		copyNode(child, safeHolder);
+	}
+	const serializer = new XMLSerializer();
+	const safeHtml = Array.from(fragment.childNodes).map((node) => serializer.serializeToString(node)).join("");
+	return { html: safeHtml, plainText: safeHolder.textContent || "" };
+}
+
 const clipboardImpl: BrowserClipboard = {
 	async copy(text) {
 		if (typeof navigator === "undefined") return false;
@@ -589,13 +676,16 @@ const clipboardImpl: BrowserClipboard = {
 
 	async copyHtml(html, plainText) {
 		if (typeof navigator === "undefined") return false;
-		if (plainText === undefined && typeof DOMParser === "undefined") return clipboardImpl.copy(html);
-		const plain = plainText ?? (new DOMParser()).parseFromString(html, "text/html").body.textContent ?? "";
+		if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
+			return typeof plainText === "string" ? clipboardImpl.copy(plainText) : false;
+		}
+		const sanitized = sanitizeClipboardHtml(html);
+		const plain = plainText ?? sanitized.plainText;
 		if (typeof ClipboardItem !== "undefined" && typeof navigator.clipboard?.write === "function") {
 			try {
 				await navigator.clipboard.write([
 					new ClipboardItem({
-						"text/html":  new Blob([html],  { type: "text/html" }),
+						"text/html": new Blob([sanitized.html], { type: "text/html" }),
 						"text/plain": new Blob([plain], { type: "text/plain" }),
 					}),
 				]);
