@@ -284,15 +284,18 @@ async function commandUpdater(root, showWarning) {
 		process.stdout.write("Run ne update --channel alpha|latest-green|stable to install without the interactive UI.\n");
 		return;
 	}
+	const projectManifest = project().readJson(path.join(root, "package.json"), {});
+	const projectTitle = projectManifest.name || path.basename(root);
+	const installedVersion = readInstalledVersion(root, projectManifest);
 	const result = await terminal().runTui({
 		initialScreen: "releases",
 		showWarning: Boolean(showWarning),
 		catalog: cached,
 		loadCatalog: (onSourceStatus) => channels().loadChannelCatalog(root, { onSourceStatus }),
 		context: {
-			projectName: project().projectName(root),
-			version: readInstalledVersion(root),
-			installedVersion: state.installedVersion || readInstalledVersion(root),
+			projectName: projectTitle,
+			version: installedVersion,
+			installedVersion: state.installedVersion || installedVersion,
 			channel: state.activeChannel || "not selected",
 			cacheStatus: cached.releases.length ? "cached" : "loading",
 			sourceStatus: cached.sourceStatus || {},
@@ -304,35 +307,29 @@ async function commandUpdater(root, showWarning) {
 	}
 }
 
-function readInstalledVersion(root) {
+function readInstalledVersion(root, projectManifest) {
 	const installedPath = path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json");
-	try {
-		const installed = JSON.parse(require("node:fs").readFileSync(installedPath, "utf8"));
-		if (installed.name === channels().PACKAGE_NAME) return installed.version || "unknown";
-	} catch {}
-	const pkg = require("node:fs").existsSync(path.join(root, "package.json"))
-		? require("node:fs").readFileSync(path.join(root, "package.json"), "utf8")
-		: "{}";
-	try {
-		const parsed = JSON.parse(pkg);
-		return parsed.name === "nextjs-engine" ? (parsed.version || "unknown") : "not installed";
-	} catch {
-		return "unknown";
-	}
+	const installed = project().readJson(installedPath, null);
+	if (installed && installed.name === channels().PACKAGE_NAME) return installed.version || "unknown";
+	const manifest = projectManifest || project().readJson(path.join(root, "package.json"), {});
+	return manifest.name === "nextjs-engine" ? (manifest.version || "unknown") : "not installed";
 }
 
 async function runDashboard(root, showWarning) {
 	const state = project().loadState(root);
 	const cached = channels().readCachedCatalog(root);
+	const projectManifest = project().readJson(path.join(root, "package.json"), {});
+	const projectTitle = projectManifest.name || path.basename(root);
+	const installedVersion = readInstalledVersion(root, projectManifest);
 	const result = await terminal().runTui({
 		initialScreen: "dashboard",
 		showWarning: Boolean(showWarning),
 		catalog: cached,
 		loadCatalog: (onSourceStatus) => channels().loadChannelCatalog(root, { onSourceStatus }),
 		context: {
-			projectName: project().projectName(root),
-			version: readInstalledVersion(root),
-			installedVersion: state.installedVersion || readInstalledVersion(root),
+			projectName: projectTitle,
+			version: installedVersion,
+			installedVersion: state.installedVersion || installedVersion,
 			channel: state.activeChannel || "not selected",
 			cacheStatus: cached.releases.length ? "cached" : "loading",
 			sourceStatus: cached.sourceStatus || {},
