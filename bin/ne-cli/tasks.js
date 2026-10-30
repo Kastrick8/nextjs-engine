@@ -288,16 +288,16 @@ class TaskTree {
 		const bottom = bottomLeft + horizontal.repeat(width - 2) + bottomRight;
 		const body = this.renderRows(inner).map((row) => {
 			const visibleLength = row.text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length;
-			return paint(vertical, "90") + " " + row.text +
-				" ".repeat(Math.max(0, inner - visibleLength)) + " " + paint(vertical, "90");
+			return vertical + " " + row.text +
+				" ".repeat(Math.max(0, inner - visibleLength)) + " " + vertical;
 		});
 		const maxBody = Math.max(1, panelHeight - 2);
 		if (body.length > maxBody) {
 			const tailCount = Math.max(0, maxBody - 2);
 			const omitted = body.length - tailCount - 1;
-			body.splice(1, body.length - tailCount - 1, paint(" … " + omitted + " earlier task row(s) hidden … ", "90"));
+			body.splice(1, body.length - tailCount - 1, " … " + omitted + " earlier task row(s) hidden … ");
 		}
-		const lines = [paint(top, "90"), ...body, paint(bottom, "90")];
+		const lines = [top, ...body, bottom];
 		while (lines.length < panelHeight) lines.splice(lines.length - 1, 0, "");
 		return lines.slice(0, panelHeight);
 	}
