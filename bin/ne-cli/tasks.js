@@ -259,7 +259,8 @@ class TaskTree {
 			const badge = statusBadge(node.status, this.frame);
 			const prefixWidth = prefix.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length;
 			const labelWidth = Math.max(1, width - prefixWidth - badge.text.length - 2);
-			const text = prefix + clip(node.label, labelWidth) + "  " + paint(badge.text, badge.color);
+			const text = prefix + paint(clip(node.label, labelWidth), this.branchColor(node.status)) +
+				"  " + paint(badge.text, badge.color);
 			rows.push({ text, color: this.branchColor(node.status) });
 
 			if (node.detail) {
