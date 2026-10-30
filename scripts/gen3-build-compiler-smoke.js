@@ -78,7 +78,7 @@ const dashboard = formatWorkerPanel([
 	{ operation: "Downloading", target: "fonts: Inter, JetBrains Mono", mode: "rate", bytesPerSecond: 239000 },
 ], 100, false);
 assert.equal(dashboard.length, 4, "the status panel has one header and exactly three CW rows");
-assert.ok(dashboard[0].startsWith("═ [NENC] ═"), "the dashboard has the bracketed Cargo-style NENC header");
+assert.ok(dashboard[0].startsWith("═ [NENC] ══"), "the dashboard has the bracketed Cargo-style NENC header without a gap in its divider");
 assert.match(dashboard[1], /^CW1\s+Compiling \/privacy-policy/);
 assert.match(dashboard[1], /34\.2%$/);
 assert.match(dashboard[2], /^CW2\s+Compiling \/.*21\.7%$/);
