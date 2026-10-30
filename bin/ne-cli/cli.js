@@ -9,6 +9,7 @@ const {
 	loadChannelCatalog,
 	resolveRelease,
 	channelLabel,
+	readCachedCatalog,
 } = require("./channels");
 const {
 	runTui,
@@ -216,7 +217,18 @@ async function askToInstall(release, options) {
 
 async function commandUpdate(root, options) {
 	const state = loadState(root);
-	const catalog = await loadChannelCatalog(root, { force: Boolean(options.force || options.check) });
+	const catalog = await loadChannelCatalog(root, {
+		force: Boolean(options.force || options.check),
+		onSourceStatus: (update) => {
+			if (options.quiet || process.env.CI === "true" || !process.stderr.isTTY) return;
+			if (update && update.status === "failed") {
+				process.stderr.write("[NE-UPDATER] " + update.source + " feed failed: " + update.message + "\n");
+			}
+		},
+	});
+	for (const warning of catalog.sourceErrors || []) {
+		process.stderr.write("[NE-UPDATER] " + warning.source + " feed warning: " + warning.message + "\n");
+	}
 	if (options.json) {
 		process.stdout.write(JSON.stringify({ cached: catalog.cached, releases: catalog.releases }, null, 2) + "\n");
 		if (options.check || (!options.channel && !options.version)) return;
@@ -246,23 +258,32 @@ async function commandUpdate(root, options) {
 }
 
 async function commandUpdater(root, showWarning) {
-	const catalog = await loadChannelCatalog(root);
 	const state = loadState(root);
+	const cached = readCachedCatalog(root);
 	if (!process.stdin.isTTY || !process.stdout.isTTY) {
+		const catalog = await loadChannelCatalog(root);
 		process.stdout.write(listChannels(catalog, state) + "\n");
+		if (catalog.sourceErrors && catalog.sourceErrors.length) {
+			for (const warning of catalog.sourceErrors) {
+				process.stderr.write("[NE-UPDATER] " + warning.source + " feed warning: " + warning.message + "\n");
+			}
+		}
 		process.stdout.write("Run ne update --channel alpha|latest-green|stable to install without the interactive UI.\n");
 		return;
 	}
 	const result = await runTui({
 		initialScreen: "releases",
 		showWarning: Boolean(showWarning),
-		catalog,
+		catalog: cached,
+		loadCatalog: (onSourceStatus) => loadChannelCatalog(root, { onSourceStatus }),
 		context: {
 			projectName: projectName(root),
 			version: readInstalledVersion(root),
 			installedVersion: state.installedVersion || readInstalledVersion(root),
 			channel: state.activeChannel || "not selected",
-			cacheStatus: "ready",
+			cacheStatus: cached.releases.length ? "cached" : "loading",
+			sourceStatus: cached.sourceStatus || {},
+			activity: "Opening release catalog",
 		},
 	});
 	if (result.action === "install" && result.release) {
@@ -289,18 +310,20 @@ function readInstalledVersion(root) {
 
 async function runDashboard(root, showWarning) {
 	const state = loadState(root);
-	let catalog = { releases: [], cached: true };
-	try { catalog = await loadChannelCatalog(root); } catch {}
+	const cached = readCachedCatalog(root);
 	const result = await runTui({
 		initialScreen: "dashboard",
 		showWarning: Boolean(showWarning),
-		catalog,
+		catalog: cached,
+		loadCatalog: (onSourceStatus) => loadChannelCatalog(root, { onSourceStatus }),
 		context: {
 			projectName: projectName(root),
 			version: readInstalledVersion(root),
 			installedVersion: state.installedVersion || readInstalledVersion(root),
 			channel: state.activeChannel || "not selected",
-			cacheStatus: catalog.cached ? "cached" : "ready",
+			cacheStatus: cached.releases.length ? "cached" : "loading",
+			sourceStatus: cached.sourceStatus || {},
+			activity: "Preparing project dashboard",
 		},
 	});
 	return result;
