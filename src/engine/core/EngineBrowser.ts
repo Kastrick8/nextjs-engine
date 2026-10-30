@@ -589,7 +589,8 @@ const clipboardImpl: BrowserClipboard = {
 
 	async copyHtml(html, plainText) {
 		if (typeof navigator === "undefined") return false;
-		const plain = plainText ?? html.replace(/<[^>]*>/g, "");
+		if (plainText === undefined && typeof DOMParser === "undefined") return clipboardImpl.copy(html);
+		const plain = plainText ?? (new DOMParser()).parseFromString(html, "text/html").body.textContent ?? "";
 		if (typeof ClipboardItem !== "undefined" && typeof navigator.clipboard?.write === "function") {
 			try {
 				await navigator.clipboard.write([
