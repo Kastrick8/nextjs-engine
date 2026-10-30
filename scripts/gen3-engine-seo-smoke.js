@@ -98,7 +98,7 @@ async function run() {
 	assert.equal(compileEngineSEORobots({ ...schema, robots: { index: false } }).rules.disallow, "/");
 	const jsonLd = compileEngineSEOJsonLd(schema);
 	assert.deepEqual(jsonLd.map((entry) => entry["@type"]), ["WebSite", "WebPage"]);
-	assert.doesNotMatch(serializeEngineSEOJsonLd([{ "@type": "WebPage", name: "</script><script>alert(1)</script>" }]), /<script>/);
+	assert.doesNotMatch(serializeEngineSEOJsonLd([{ "@type": "WebPage", name: "</script><script>alert(1)</script>" }]), /<script\\b/i);
 
 	const cyclicJsonLd = { "@type": "WebPage", name: "cyclic" };
 	cyclicJsonLd.self = cyclicJsonLd;
