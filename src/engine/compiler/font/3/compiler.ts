@@ -5,6 +5,7 @@ const crypto = require("node:crypto");
 const dns = require("node:dns").promises;
 const fs = require("node:fs");
 const path = require("node:path");
+const { readRegularFile, readRegularFileIfExists, writeFileAtomically } = require("../../../plugins/safeFileSystem.js");
 
 const GENERATED_BY = "NENC_ENGINE_THEME_FONTS";
 const FORMAT_VERSION = 1;
@@ -88,14 +89,7 @@ function ensureDirectory(root, target) {
 function atomicWrite(root, target, value) {
 	assertSafeChildPath(root, target);
 	ensureDirectory(root, path.dirname(target));
-	const temporary = target + "." + process.pid + "." + crypto.randomBytes(6).toString("hex") + ".tmp";
-	try {
-		fs.writeFileSync(temporary, value, { flag: "wx", mode: 0o600 });
-		fs.renameSync(temporary, target);
-	} catch (error) {
-		try { fs.rmSync(temporary, { force: true }); } catch { /* Preserve the original error. */ }
-		throw error;
-	}
+	writeFileAtomically(target, value);
 }
 
 function readJson(target) {
@@ -379,8 +373,8 @@ function validCachedFile(root, filename, expectedSha) {
 		|| typeof expectedSha !== "string" || !/^[a-f0-9]{64}$/.test(expectedSha)) return false;
 	const target = path.join(root, filename);
 	try {
-		const stat = fs.lstatSync(target);
-		return stat.isFile() && !stat.isSymbolicLink() && sha256(fs.readFileSync(target)) === expectedSha;
+		const contents = readRegularFileIfExists(target, null);
+		return contents !== undefined && sha256(contents) === expectedSha;
 	} catch {
 		return false;
 	}
@@ -432,22 +426,22 @@ function writePublicAssets(root, publicFontRoot, cacheAssetRoot, entry, previous
 		const cached = path.join(cacheAssetRoot, asset.cacheFileName);
 		const output = path.join(publicFontRoot, asset.fileName);
 		assertSafeChildPath(root, output);
-		ensureDirectory(root, path.dirname(output));
-		if (fs.existsSync(output)) {
-			const stat = fs.lstatSync(output);
-			if (!stat.isFile() || stat.isSymbolicLink() || sha256(fs.readFileSync(output)) !== asset.sha256) {
+		const cachedBytes = readRegularFile(cached, null);
+		const existingBytes = readRegularFileIfExists(output, null);
+		if (existingBytes !== undefined) {
+			if (sha256(existingBytes) !== asset.sha256) {
 				throw new Error("[EngineTheme fonts] Refusing to overwrite a non-generated font asset: " + path.relative(root, output));
 			}
 		} else {
-			atomicWrite(root, output, fs.readFileSync(cached));
+			atomicWrite(root, output, cachedBytes);
 		}
 		assetRecords.push({ sourceUrl: asset.sourceUrl, sha256: asset.sha256, fileName: asset.fileName, cacheFileName: asset.cacheFileName, bytes: asset.bytes });
 	}
 	const cssPath = path.join(publicFontRoot, entry.cssFileName);
 	assertSafeChildPath(root, cssPath);
-	if (fs.existsSync(cssPath)) {
-		const stat = fs.lstatSync(cssPath);
-		const currentHash = stat.isFile() && !stat.isSymbolicLink() ? sha256(fs.readFileSync(cssPath)) : "";
+	const existingCss = readRegularFileIfExists(cssPath, "utf8");
+	if (existingCss !== undefined) {
+		const currentHash = sha256(Buffer.from(existingCss, "utf8"));
 		const ownedHash = previousEntry && previousEntry.cssSha256;
 		if (currentHash !== entry.cssSha256 && currentHash !== ownedHash) {
 			throw new Error("[EngineTheme fonts] Refusing to overwrite a CSS file not owned by NENC: " + path.relative(root, cssPath));
@@ -676,9 +670,9 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 		const cssPath = path.join(publicFontRoot, cssFileName);
 		assertSafeChildPath(root, cssPath);
 		ensureDirectory(root, path.dirname(cssPath));
-		if (fs.existsSync(cssPath)) {
-			const stat = fs.lstatSync(cssPath);
-			const currentHash = stat.isFile() && !stat.isSymbolicLink() ? sha256(fs.readFileSync(cssPath)) : "";
+		const existingCss = readRegularFileIfExists(cssPath, "utf8");
+		if (existingCss !== undefined) {
+			const currentHash = sha256(Buffer.from(existingCss, "utf8"));
 			const ownedHash = previous && previous.cssSha256;
 			if (currentHash !== cssSha256 && currentHash !== ownedHash) {
 				throw new Error("[EngineTheme fonts] Refusing to overwrite a CSS file not owned by NENC: " + path.relative(root, cssPath));
