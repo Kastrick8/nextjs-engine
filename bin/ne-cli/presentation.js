@@ -132,7 +132,11 @@ function renderBanner(options) {
 	}
 	for (const item of Array.isArray(settings.details) ? settings.details : []) {
 		if (item == null || item === "") continue;
-		rows.push(...wrapText(String(item), contentWidth));
+		if (item && typeof item === "object" && item.preformatted) {
+			rows.push(...String(item.text || "").split(/\\r?\\n/));
+		} else {
+			rows.push(...wrapText(String(item), contentWidth));
+		}
 	}
 	if (!rows.length) rows.push("");
 	const pad = (value) => {
@@ -211,7 +215,7 @@ function renderError(error, options) {
 	if (failure.neHint) details.push("Hint: " + failure.neHint);
 	if (failure.neSource && failure.neLocation) {
 		const frame = renderCodeFrame(failure.neSource, failure.neLocation, options);
-		if (frame) details.push("", frame);
+		if (frame) details.push({ preformatted: true, text: frame });
 	}
 	return renderBanner({
 		...(options || {}),
