@@ -180,7 +180,7 @@ check(scrollPoints.includes("private static releaseObserverIfUnused()")
 
 const model = read("src/engine/core/EngineModel.ts");
 for (const api of ["get<", "set<", "update<", "computed<", "action<", "watch<", "subscribe("]) {
-	check(model.includes(api), `EngineModel exposes ${api.replace("<", "")}`);
+	check(model.includes(api), `EngineModel exposes ${api.replaceAll("<", "")}`);
 }
 
 const page = read("src/engine/createPage.tsx");
