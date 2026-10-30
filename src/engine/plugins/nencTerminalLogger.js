@@ -821,7 +821,7 @@ function installNextBuildOutputBridge(options = {}) {
 			let changed = false;
 			for (const segment of splitLogSegments(raw)) {
 				const hasTerminator = /(?:\r\n|\r|\n)$/.test(segment);
-				const event = hasTerminator ? classifyNextBuildLine(segment.replace(/(?:\r\n|\r|\n)+$/, "")) : null;
+				const event = hasTerminator ? classifyNextBuildLine(segment.replace(/[\r\n]+$/, "")) : null;
 				if (!event) {
 					output += segment;
 					continue;
