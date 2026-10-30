@@ -12,12 +12,51 @@ const cli = require("../bin/ne-cli/cli");
 const project = require("../bin/ne-cli/project");
 const presentation = require("../bin/ne-cli/presentation");
 const diagnostics = require("../bin/ne-cli/diagnostics");
+const { EventEmitter } = require("node:events");
+const tmp = require("tmp");
+const fileSystem = require("../bin/ne-cli/file-system");
 
 async function main() {
 	const { spawnSync } = require("node:child_process");
 	const executable = path.resolve(__dirname, "../bin/ne.js");
 	const repoRoot = path.resolve(__dirname, "..");
 
+	const idleInput = new EventEmitter();
+	const inputCalls = [];
+	idleInput.setRawMode = (value) => inputCalls.push("raw:" + value);
+	idleInput.pause = () => inputCalls.push("pause");
+	idleInput.resume = () => inputCalls.push("resume");
+	idleInput.ref = () => inputCalls.push("ref");
+	idleInput.unref = () => inputCalls.push("unref");
+	const tuiInputListener = () => {};
+	idleInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(idleInput, false, false, tuiInputListener);
+	assert.deepEqual(inputCalls, ["raw:false", "pause", "unref"], "idle TUI input is released after closing");
+	assert.equal(idleInput.listenerCount("data"), 0);
+	const sharedInput = new EventEmitter();
+	const sharedCalls = [];
+	sharedInput.setRawMode = (value) => sharedCalls.push("raw:" + value);
+	sharedInput.pause = () => sharedCalls.push("pause");
+	sharedInput.resume = () => sharedCalls.push("resume");
+	sharedInput.ref = () => sharedCalls.push("ref");
+	sharedInput.unref = () => sharedCalls.push("unref");
+	const otherReader = () => {};
+	sharedInput.on("data", otherReader);
+	sharedInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(sharedInput, false, false, tuiInputListener);
+	assert.deepEqual(sharedCalls, ["raw:false", "ref", "resume"], "other stdin readers remain active");
+	assert.equal(sharedInput.listenerCount("data"), 1);
+	const pausedInput = new EventEmitter();
+	const pausedCalls = [];
+	pausedInput.setRawMode = (value) => pausedCalls.push("raw:" + value);
+	pausedInput.pause = () => pausedCalls.push("pause");
+	pausedInput.resume = () => pausedCalls.push("resume");
+	pausedInput.ref = () => pausedCalls.push("ref");
+	pausedInput.unref = () => pausedCalls.push("unref");
+	pausedInput.on("data", otherReader);
+	pausedInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(pausedInput, true, true, tuiInputListener);
+	assert.deepEqual(pausedCalls, ["raw:true", "pause", "unref"], "a previously paused input stream remains paused and unreferenced");
 	assert.equal(presentation.visibleWidth("\x1b[31mERROR\x1b[0m"), 5);
 	const warningBanner = presentation.renderBanner({
 		type: "warning",
@@ -349,7 +388,20 @@ async function main() {
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
 	assert.match(cli.getHelp(), /ne update --channel/);
+	assert.match(cli.getHelp(), /npx ne --help/);
 	assert.match(cli.getHelp(), /Shell operators are rejected/);
+	const dashboardDirectory = tmp.dirSync({ prefix: "ne-dashboard-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	let dashboardInstall = null;
+	const fixtureRelease = { version: "3.0.0-alpha.2", track: "alpha" };
+	try {
+		await cli.runDashboardAction(dashboardDirectory.name, { action: "install", release: fixtureRelease }, {
+			installRelease: async (...args) => { dashboardInstall = args; },
+		});
+		assert.equal(dashboardInstall[1], fixtureRelease, "dashboard forwards selected release to installer");
+		assert.equal(dashboardInstall[2], "alpha");
+	} finally {
+		dashboardDirectory.removeCallback();
+	}
 
 	const dashboard = terminal.renderDashboard(2, {
 		projectName: "demo",
@@ -359,6 +411,8 @@ async function main() {
 	});
 	assert.match(dashboard, /Production Build/);
 	assert.match(dashboard, /Channel Updater/);
+	assert.match(terminal.renderDashboard(0, { rollbackAvailable: false }), /Rollback is unavailable until a channel install creates a snapshot/,
+		"rollback is visibly unavailable before a snapshot exists");
 	assert.doesNotMatch(dashboard, /[\u{1F300}-\u{1FAFF}]/u);
 	assert.match(terminal.renderReleaseList(0, { releases: [rollingRelease], cached: false }, {}), /ALPHA/);
 	const manyReleases = Array.from({ length: 40 }, (_, index) => ({
@@ -375,8 +429,17 @@ async function main() {
 	assert.ok(Number(pageIndicator[1]) >= 4, "release list can navigate past the first 24 entries");
 	assert.match(laterPage, /of 40/, "release list reports the full release inventory size");
 
-	const temp = fs.mkdtempSync(path.join(os.tmpdir(), "ne-cli-smoke-"));
+	const tempDirectory = tmp.dirSync({ prefix: "ne-cli-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	const temp = tempDirectory.name;
 	try {
+		const atomicFile = path.join(temp, "atomic-state.json");
+		fileSystem.writeFileAtomically(atomicFile, "{\"revision\":1}\n", { mode: 0o600 });
+		fileSystem.writeFileAtomically(atomicFile, "{\"revision\":2}\n", { mode: 0o600 });
+		assert.equal(fs.readFileSync(atomicFile, "utf8"), "{\"revision\":2}\n", "atomic writer replaces existing files");
+		assert.deepEqual(fs.readdirSync(temp), ["atomic-state.json"], "atomic writer removes its private staging directory");
+		const privateDirectory = fileSystem.createPrivateTempDirectory(temp, "backup-test-");
+		if (process.platform !== "win32") assert.equal(fs.statSync(privateDirectory.name).mode & 0o777, 0o700, "rollback temp directories are private");
+		privateDirectory.removeCallback();
 		fs.writeFileSync(path.join(temp, "package.json"), JSON.stringify({
 			name: "fixture",
 			version: "1.0.0",
@@ -527,7 +590,7 @@ async function main() {
 			global.fetch = previousFetch;
 		}
 	} finally {
-		fs.rmSync(temp, { recursive: true, force: true });
+		tempDirectory.removeCallback();
 	}
 	process.stdout.write("NE CLI smoke assertions passed.\n");
 }

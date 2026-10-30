@@ -151,6 +151,13 @@ function getHelp() {
 		"  -q, --quiet   Suppress the NE CLI introduction notice",
 		"  --no-color    Disable ANSI colors in CLI output",
 		"",
+		"Local project install (not a global shell command):",
+		"  npx ne --help           Run the locally installed executable",
+		"  npm exec -- ne --help   Equivalent npm exec form",
+		"",
+		"Development checkout:",
+		"  npm link                Expose this source checkout as a global development command",
+		"",
 		"One-shot invocation before a local installation:",
 		"  npx --yes --package=@kastrick/nextjs-engine ne updater",
 		"",
@@ -309,13 +316,21 @@ async function runDashboard(root, showWarning) {
 			version: readInstalledVersion(root),
 			installedVersion: state.installedVersion || readInstalledVersion(root),
 			channel: state.activeChannel || "not selected",
+			rollbackAvailable: Boolean(state.previous && state.previous.backup),
 			cacheStatus: catalog.cached ? "cached" : "ready",
 		},
 	});
 	return result;
 }
 
-async function runDashboardAction(root, action) {
+async function runDashboardAction(root, result, dependencies) {
+	const action = typeof result === "string" ? result : result && result.action;
+	const install = dependencies && typeof dependencies.installRelease === "function"
+		? dependencies.installRelease
+		: installRelease;
+	if (action === "install" && result && result.release) {
+		return install(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+	}
 	if (action === "dev") return runNext(root, ["dev"]);
 	if (action === "build") return runBuild(root);
 	if (action === "start") return runNext(root, ["start"]);
@@ -325,7 +340,7 @@ async function runDashboardAction(root, action) {
 	if (action === "help") return process.stdout.write(getHelp());
 	if (action === "updater") return commandUpdater(root, false);
 	if (action === "quit") return;
-	throw new Error("Unknown dashboard action: " + action);
+	throw new Error("Unknown dashboard action: " + (action || "none"));
 }
 
 function tokenizeCommand(command) {
@@ -451,7 +466,7 @@ async function executeCommand(root, command, subArgs, options, showWarning) {
 			return;
 		}
 		const result = await runDashboard(root, showWarning);
-		await runDashboardAction(root, result.action);
+		await runDashboardAction(root, result);
 		return;
 	}
 	if (command === "updater") return commandUpdater(root, showWarning);
@@ -490,4 +505,5 @@ module.exports = {
 	runChainedCommands,
 	tokenizeCommand,
 	resolveChainedCommand,
+	runDashboardAction,
 };
