@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { commandWorkers, TaskTree } = require("./tasks");
 function loadGen3MigrationDiagnostics() {
 	for (const candidate of [
 		path.resolve(__dirname, "../../src/engine/plugins/gen3MigrationDiagnostics.js"),
@@ -71,18 +72,65 @@ function managerCommand(manager) {
 	return process.platform === "win32" ? manager + ".cmd" : manager;
 }
 
+function appendTail(previous, chunk, limit) {
+	const next = Buffer.concat([previous, Buffer.from(chunk)]);
+	return next.length <= limit ? next : next.subarray(next.length - limit);
+}
+
+function processError(command, result) {
+	const reason = result.error || result.signal || ("exit " + result.code);
+	const error = new Error(command + " failed (" + reason + ").");
+	error.command = command;
+	error.stdout = result.stdout || "";
+	error.stderr = result.stderr || "";
+	error.output = [error.stdout, error.stderr ? "[stderr]\n" + error.stderr : ""]
+		.filter(Boolean).join("\n");
+	error.outputTruncated = Boolean(result.outputTruncated);
+	return error;
+}
+
+function childEnvironment(options) {
+	const env = { ...process.env, ...(options.env || {}) };
+	if (options.quietNpmNotices) {
+		env.NO_UPDATE_NOTIFIER = "1";
+		env.npm_config_update_notifier = "false";
+		env.NPM_CONFIG_UPDATE_NOTIFIER = "false";
+		env.npm_config_fund = "false";
+		env.NPM_CONFIG_FUND = "false";
+	}
+	return env;
+}
+
 function runProcess(command, args, options) {
+	const opts = options || {};
+	const env = childEnvironment(opts);
+	const captureOutput = Boolean(opts.captureOutput);
+	const maxOutputBytes = Number.isFinite(opts.maxOutputBytes)
+		? Math.max(1024, Math.min(opts.maxOutputBytes, 2 * 1024 * 1024))
+		: 256 * 1024;
+
+	if (opts.worker) {
+		return commandWorkers.run(command, args, {
+			cwd: opts.cwd || process.cwd(),
+			env,
+		}).then((result) => {
+			if (result.error || result.code !== 0) throw processError(command, result);
+			return result;
+		});
+	}
+
 	return new Promise((resolve, reject) => {
-		const opts = options || {};
 		const startedAt = Date.now();
 		const label = typeof opts.label === "string" && opts.label.trim() ? opts.label.trim() : "";
-		const canAnimate = Boolean(label && process.stdout.isTTY && process.stderr.isTTY &&
+		const canAnimate = Boolean(label && !captureOutput && process.stdout.isTTY && process.stderr.isTTY &&
 			process.env.CI !== "true" && process.env.NE_NO_PROGRESS !== "1" && process.env.NO_COLOR === undefined);
-		const report = Boolean(label && !opts.quiet);
+		const report = Boolean(label && !opts.quiet && !opts.taskTree);
 		const spinnerFrames = ["|", "/", "-", "\\"];
 		let frame = 0;
 		let timer = null;
 		let finished = false;
+		let stdout = Buffer.alloc(0);
+		let stderr = Buffer.alloc(0);
 
 		function elapsed() {
 			return ((Date.now() - startedAt) / 1000).toFixed(1) + "s";
@@ -108,23 +156,44 @@ function runProcess(command, args, options) {
 		if (report && !canAnimate) process.stdout.write("[NE] RUNNING " + label + "\n");
 		const child = spawn(command, args, {
 			cwd: opts.cwd || process.cwd(),
-			env: opts.env || process.env,
-			stdio: canAnimate ? ["inherit", "pipe", "pipe"] : (opts.stdio || "inherit"),
+			env,
+			stdio: captureOutput ? ["ignore", "pipe", "pipe"] :
+				canAnimate ? ["inherit", "pipe", "pipe"] : (opts.stdio || "inherit"),
 			windowsHide: true,
 			shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(command),
 		});
 
-		function forward(stream, destination) {
-			return (chunk) => {
-				if (canAnimate) clearStatus();
-				destination.write(chunk);
-				if (canAnimate && !chunk.toString("utf8").endsWith("\n")) destination.write("\n");
-				if (canAnimate) renderStatus();
-			};
+		function receive(stream, chunk) {
+			if (captureOutput) {
+				if (stream === "stdout") stdout = appendTail(stdout, chunk, maxOutputBytes);
+				else stderr = appendTail(stderr, chunk, maxOutputBytes);
+			}
+			if (typeof opts.onOutput === "function") {
+				try { opts.onOutput(stream, chunk.toString("utf8")); } catch {}
+			}
+		}
+
+		if (captureOutput || canAnimate || typeof opts.onOutput === "function") {
+			child.stdout.on("data", (chunk) => {
+				receive("stdout", chunk);
+				if (!captureOutput && canAnimate) {
+					clearStatus();
+					process.stdout.write(chunk);
+					if (!chunk.toString("utf8").endsWith("\n")) process.stdout.write("\n");
+					renderStatus();
+				}
+			});
+			child.stderr.on("data", (chunk) => {
+				receive("stderr", chunk);
+				if (!captureOutput && canAnimate) {
+					clearStatus();
+					process.stderr.write(chunk);
+					if (!chunk.toString("utf8").endsWith("\n")) process.stderr.write("\n");
+					renderStatus();
+				}
+			});
 		}
 		if (canAnimate) {
-			child.stdout.on("data", forward(child.stdout, process.stdout));
-			child.stderr.on("data", forward(child.stderr, process.stderr));
 			renderStatus();
 			timer = setInterval(renderStatus, 140);
 			if (typeof timer.unref === "function") timer.unref();
@@ -136,22 +205,34 @@ function runProcess(command, args, options) {
 			if (timer) clearInterval(timer);
 		}
 
-		child.once("error", (error) => {
+		child.once("error", (cause) => {
 			if (finished) return;
 			finish();
+			const error = new Error(cause.message || String(cause));
+			error.command = command;
+			error.stdout = stdout.toString("utf8");
+			error.stderr = stderr.toString("utf8");
+			error.output = [error.stdout, error.stderr ? "[stderr]\n" + error.stderr : ""].filter(Boolean).join("\n");
 			completeLine(false, error.message);
 			reject(error);
 		});
 		child.once("close", (code, signal) => {
 			if (finished) return;
 			finish();
+			const result = {
+				code,
+				signal: signal || null,
+				stdout: stdout.toString("utf8"),
+				stderr: stderr.toString("utf8"),
+				outputTruncated: stdout.length === maxOutputBytes || stderr.length === maxOutputBytes,
+			};
 			if (code === 0) {
 				completeLine(true);
-				resolve();
+				resolve(result);
 			} else {
-				const reason = signal || ("code " + code);
-				completeLine(false, reason);
-				reject(new Error(command + " exited with " + reason + "."));
+				const error = processError(command, { ...result, signal: signal || null });
+				completeLine(false, signal || ("code " + code));
+				reject(error);
 			}
 		});
 	});
@@ -162,11 +243,17 @@ function packageScript(root, name) {
 	return Boolean(pkg.scripts && typeof pkg.scripts[name] === "string");
 }
 
-async function runPackageScript(root, name) {
+async function runPackageScript(root, name, options) {
+	const settings = options || {};
 	const manager = detectPackageManager(root);
-	await runProcess(managerCommand(manager), ["run", name], {
+	return runProcess(managerCommand(manager), ["run", name], {
 		cwd: root,
 		label: manager + " run " + name,
+		worker: Boolean(settings.worker),
+		captureOutput: Boolean(settings.captureOutput),
+		quietNpmNotices: true,
+		taskTree: Boolean(settings.taskTree),
+		onOutput: settings.onOutput,
 	});
 }
 
@@ -190,13 +277,18 @@ function nextCli(root) {
 	return null;
 }
 
-async function runNext(root, args) {
+async function runNext(root, args, options) {
+	const settings = options || {};
 	const cli = nextCli(root);
 	if (!cli) throw new Error("Next.js CLI was not found in this project. Install the project's dependencies first.");
 	const action = Array.isArray(args) && args.length ? args[0] : "command";
-	await runProcess(process.execPath, [cli, ...args], {
+	return runProcess(process.execPath, [cli, ...args], {
 		cwd: root,
 		label: "Next.js " + action,
+		captureOutput: Boolean(settings.captureOutput),
+		taskTree: Boolean(settings.tree),
+		onOutput: settings.onOutput,
+		worker: false,
 	});
 }
 
