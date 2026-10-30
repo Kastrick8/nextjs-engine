@@ -1267,7 +1267,7 @@ async function testPublicThemeApi() {
 			const localCssPath = path.join(fontRoot, "public", "nextjs-engine", "fonts", "font-smoke.css");
 			const localCss = fs.readFileSync(localCssPath, "utf8");
 			assert.ok(localCss.includes("/nextjs-engine/fonts/font-"), "generated CSS points at a local content-addressed font");
-			assert.ok(!localCss.includes("fonts.gstatic.com"), "generated CSS no longer points at the external font host");
+			assert.doesNotMatch(localCss, /url\(\s*["']?https?:\/\//i, "generated CSS contains no external HTTP(S) font URL");
 			const emittedFont = fs.readdirSync(path.dirname(localCssPath)).find((name) => /^font-[a-f0-9]{64}\.woff2$/.test(name));
 			assert.ok(emittedFont, "font file names use a content hash rather than source names");
 			assert.equal(fs.readFileSync(path.join(path.dirname(localCssPath), emittedFont)).toString(), fakeFontBytes.toString());
@@ -1343,7 +1343,7 @@ async function testPublicThemeApi() {
 				assert.equal(providerBuild.downloadedFonts, 1, "explicitly allowed non-Google CSS/font origins are compiled locally");
 				const providerLocalCss = fs.readFileSync(path.join(fontRoot, "public", "nextjs-engine", "fonts", "provider-font.css"), "utf8");
 				assert.ok(providerLocalCss.includes("/nextjs-engine/fonts/font-"));
-				assert.ok(!providerLocalCss.includes("fixture.example.com"), "provider CSS emits only local font URLs");
+				assert.doesNotMatch(providerLocalCss, /url\(\s*["']?https?:\/\//i, "provider CSS emits only local font URLs");
 			} finally {
 				if (previousProviderCssOrigins === undefined) delete process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
 				else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousProviderCssOrigins;
@@ -1378,7 +1378,7 @@ async function testPublicThemeApi() {
 				assert.equal(bunnyFixtureBuild.downloadedFonts, 1, "Bunny Fonts-style same-origin assets compile to local files");
 				const bunnyCssPath = path.join(fontRoot, "public", "nextjs-engine", "fonts", "bunny-fixture.css");
 				const bunnyCss = fs.readFileSync(bunnyCssPath, "utf8");
-				assert.ok(!bunnyCss.includes("fonts.bunny.net"), "Bunny fixture output contains only local font URLs");
+				assert.doesNotMatch(bunnyCss, /url\(\s*["']?https?:\/\//i, "Bunny fixture output contains only local font URLs");
 			} finally {
 				if (previousBunnyCssOrigins === undefined) delete process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
 				else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousBunnyCssOrigins;
