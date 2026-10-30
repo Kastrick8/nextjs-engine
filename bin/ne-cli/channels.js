@@ -222,9 +222,9 @@ function packageTagToRelease(value) {
 
 function githubTagToRelease(value) {
 	const rawName = typeof value === "string"
-		? value.replace(/^refs\\/tags\\//, "")
+		? value.replace(/^refs\/tags\//, "")
 		: value && typeof value.ref === "string"
-			? value.ref.replace(/^refs\\/tags\\//, "")
+			? value.ref.replace(/^refs\/tags\//, "")
 			: value && typeof value.name === "string"
 				? value.name
 				: "";
