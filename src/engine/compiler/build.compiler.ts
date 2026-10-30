@@ -368,7 +368,7 @@ function formatSchemaSourcePath(sourcePath) {
 function formatCompiledSchemaLine(job, page, metadata = {}, moduleCount) {
 	const pieces = [];
 	const modules = Number(moduleCount);
-	if (Number.isFinite(modules) && modules > 0) pieces.push(formatCount(modules, "Engine module"));
+	if (Number.isFinite(modules) && modules > 0) pieces.push(formatCount(modules, "module"));
 	if (Number.isFinite(metadata.durationMs) && metadata.durationMs >= 0) pieces.push(metadata.durationMs + "ms");
 	const summary = page && page.summary && typeof page.summary === "object" ? page.summary : {};
 	const islands = formatCount(summary.clientIslands, "client island");
@@ -376,7 +376,7 @@ function formatCompiledSchemaLine(job, page, metadata = {}, moduleCount) {
 	if (islands) pieces.push(islands);
 	if (assets) pieces.push(assets);
 	const sourcePath = typeof job.sourcePath === "string" && job.sourcePath ? formatSchemaSourcePath(job.sourcePath) : job.pageId;
-	return "compiled " + sourcePath + " -> " + job.pageId + (pieces.length ? " · " + pieces.join(" · ") : "");
+	return "Compiled " + sourcePath + " -> " + job.pageId + (pieces.length ? " " + pieces.join(" · ") : "");
 }
 
 function planThemeFontWork(artifacts) {
