@@ -49,7 +49,7 @@ async function main() {
 		"const names = ['channels', 'terminal', 'project', 'tasks'];",
 		"const eager = names.filter((name) => require.cache[require.resolve(path.join(root, name + '.js'))]);",
 		"if (eager.length) { process.stderr.write('Eager CLI imports: ' + eager.join(', ')); process.exitCode = 1; }",
-	].join("\\n");
+	].join("\n");
 	const lazyResult = spawnSync(process.execPath, ["-e", lazyProbe], {
 		cwd: os.tmpdir(),
 		encoding: "utf8",
@@ -57,7 +57,7 @@ async function main() {
 	});
 	assert.equal(lazyResult.status, 0, "loading the CLI router does not load command-specific modules");
 	assert.equal(lazyResult.stderr, "");
-	process.stdout.write("[NE-CLI] Fast startup paths: version " + versionElapsedMs.toFixed(1) + "ms; lazy command imports verified.\\n");
+	process.stdout.write("[NE-CLI] Fast startup paths: version " + versionElapsedMs.toFixed(1) + "ms; lazy command imports verified.\n");
 	const windowsNode = "C:\\Program Files\\nodejs\\node.exe";
 	const windowsNpmScript = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
 	assert.deepEqual(project.resolveProcessInvocation("npm", ["install", "--save-exact", "next"], {
