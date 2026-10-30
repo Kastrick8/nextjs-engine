@@ -35,6 +35,8 @@ ne clean
 
 From a source checkout, `npm link` exposes the repository's `ne` executable on `PATH`.
 
+A normal local `npm install` places the executable shim in `node_modules/.bin`; it does not add `ne` to a new PowerShell/CMD session's global `PATH`. From the project directory, run `npx ne --help` or `npm exec -- ne --help`. Use `npm install --global` for a global command, or `npm link` from this repository checkout for development.
+
 The package declares the executable through npm's `bin` field and its `#!/usr/bin/env node` entry point. npm creates the appropriate command link/shim during installation: a POSIX executable link or a Windows `.cmd` shim. PowerShell can invoke `ne` (or `ne.cmd`) once npm's global binary directory is on `PATH`; no separately maintained `.ps1` or `.sh` launcher is required.
 
 ## Terminal banners and diagnostics
