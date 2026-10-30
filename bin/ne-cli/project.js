@@ -733,6 +733,7 @@ async function runCheck(root, options) {
 	const parentId = checkTaskId || settings.parentId || "root";
 	const errors = [];
 	if (checkTaskId) tree.add(checkTaskId, "ne check", settings.parentId || "root");
+	if (checkTaskId) tree.start(checkTaskId);
 
 	try {
 		if (packageScript(root, "type-check")) {
