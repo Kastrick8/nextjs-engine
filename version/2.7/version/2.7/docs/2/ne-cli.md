@@ -35,6 +35,8 @@ ne clean
 
 From a source checkout, `npm link` exposes the repository's `ne` executable on `PATH`.
 
+The package declares the executable through npm's `bin` field and its `#!/usr/bin/env node` entry point. npm creates the appropriate command link/shim during installation: a POSIX executable link or a Windows `.cmd` shim. PowerShell can invoke `ne` (or `ne.cmd`) once npm's global binary directory is on `PATH`; no separately maintained `.ps1` or `.sh` launcher is required.
+
 ## Terminal banners and diagnostics
 
 All NE CLI notices and errors use the shared adaptive renderer. It measures visible character width rather than raw string length (ANSI color sequences do not count), wraps long messages to fit the terminal, and falls back to ASCII box drawing when `NE_ASCII=1` or `TERM=dumb` is set.
@@ -66,4 +68,6 @@ ne --verison
 # Suggests: --version
 ~~~
 
-Suggestions never execute commands automatically.
+Suggestions never execute commands automatically. Coded failures include a code-specific `Help:` link to the [NE CLI Error Book](./ne-cli-error-book.md).
+
+For the separate Generation 3 compiler/runtime migration diagnostics, see [Migrating from Generation 2 to Generation 3](./migrating-to-3.md). Gen 2 CLI codes and Gen 3 migration diagnostic codes are different namespaces; do not treat them as interchangeable.
