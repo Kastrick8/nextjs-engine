@@ -73,6 +73,18 @@ The executable keeps its initial loader small. `ne --version` / `ne -v` reads th
 
 This keeps common shell actions off the dashboard/updater code path while preserving the same command interface.
 
+## Chained commands
+
+Use `--and` to run additional commands after the selected NE action:
+
+```sh
+ne check --and "npm run lint" --and "node scripts/verify.js" --and-terminal 10
+```
+
+Each chained value is parsed into one executable and its arguments, then started without a shell. Quote arguments that contain spaces. Shell operators, redirects, pipes, command substitutions, and environment expansions are rejected; put multi-step shell logic in a script file and invoke that script directly. On Windows, known package-manager commands are resolved to their Node.js entry points, while `.cmd` and `.bat` wrappers are not passed through a shell.
+
+`--and-terminal` controls how many trailing output rows are displayed for each chained command.
+
 ## Installation forms
 
 The published npm package exposes **ne** through its `bin` entry. Install it once globally to use the commands directly from a project directory:
