@@ -741,11 +741,34 @@ async function main() {
 			const bytes = Buffer.from([0x1f, 0x8b, 0x08, 0x00]);
 			const release = {
 				version: "3.0.0-alpha.2",
-				artifactUrl: "https://example.invalid/ne-test.tgz",
+				artifactName: "nextjs-engine-3.0.0-alpha.2.tgz",
+				artifactUrl: "https://github.com/Kastrick8/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/nextjs-engine-3.0.0-alpha.2.tgz",
 				sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
 			};
-			global.fetch = async () => new Response(bytes, { status: 200 });
+			let rejectedExternalFetch = false;
+			global.fetch = async () => { rejectedExternalFetch = true; return new Response(bytes, { status: 200 }); };
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, { ...release, artifactUrl: "https://evil.invalid/ne-test.tgz" }),
+				/official Nextjs Engine GitHub releases/
+			);
+			assert.equal(rejectedExternalFetch, false, "untrusted artifact URLs are rejected before making an HTTP request");
+
+			const requests = [];
+			global.fetch = async (url, options = {}) => {
+				requests.push({ url: String(url), redirect: options.redirect });
+				if (requests.length === 1) {
+					return new Response(null, {
+						status: 302,
+						headers: { location: "https://release-assets.githubusercontent.com/github-production-release-asset/fixture" },
+					});
+				}
+				return new Response(bytes, { status: 200 });
+			};
 			const downloaded = await project.downloadVerifiedArtifact(temp, release);
+			assert.deepEqual(requests, [
+				{ url: release.artifactUrl, redirect: "manual" },
+				{ url: "https://release-assets.githubusercontent.com/github-production-release-asset/fixture", redirect: "error" },
+			], "artifact downloads only follow a validated GitHub release-assets redirect");
 			assert.deepEqual(fs.readFileSync(downloaded.file), bytes);
 			assert.equal(downloaded.sha512, crypto.createHash("sha512").update(bytes).digest("base64"));
 
@@ -756,6 +779,15 @@ async function main() {
 			await assert.rejects(
 				() => project.downloadVerifiedArtifact(temp, { ...release, sha256: "a".repeat(64) }),
 				/larger than 100 MiB/
+			);
+
+			global.fetch = async () => new Response(null, {
+				status: 302,
+				headers: { location: "https://evil.invalid/redirected.tgz" },
+			});
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, release),
+				/redirect outside GitHub's release asset hosts/
 			);
 
 			global.fetch = async () => new Response(bytes, { status: 200 });
