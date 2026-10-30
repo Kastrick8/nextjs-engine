@@ -68,13 +68,13 @@ async function main() {
 	const nativeSyntaxError = new SyntaxError("Unexpected token ')'.");
 	nativeSyntaxError.stack = [
 		"SyntaxError: Unexpected token ')'.",
-		path.resolve(__dirname, "gen3-ne-cli-smoke.js") + ":2:7",
+		path.resolve(__dirname, "gen3-ne-cli-smoke.js") + ":3:7",
 		"const syntaxFixture = );",
 		"      ^",
 	].join("\n");
 	const inferredSyntaxBanner = presentation.renderError(nativeSyntaxError, { width: 72, color: false });
 	assert.match(inferredSyntaxBanner, /NE2001/);
-	assert.match(inferredSyntaxBanner, /smoke\.js:2:line 2:column 7/);
+	assert.match(inferredSyntaxBanner, /smoke\.js:line 3:column 7/);
 	assert.match(inferredSyntaxBanner, /\^/);
 
 	const commandTypo = diagnostics.unknownCommand("bulid", [
