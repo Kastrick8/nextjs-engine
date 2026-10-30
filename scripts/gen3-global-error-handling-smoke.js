@@ -7,20 +7,7 @@ const path = require("node:path");
 const ts = require("typescript");
 
 function containsExactUrl(text, expectedValue) {
-	const expected = new URL(expectedValue);
-	return String(text).split(/\s+/).some((part) => {
-		const candidate = part.replace(/[),.;]+$/, "");
-		try {
-			const actual = new URL(candidate);
-			return actual.protocol === expected.protocol
-				&& actual.host === expected.host
-				&& actual.pathname === expected.pathname
-				&& actual.search === expected.search
-				&& actual.hash === expected.hash;
-		} catch {
-			return false;
-		}
-	});
+	return String(text).split(/\s+/).some((token) => token === expectedValue);
 }
 
 
