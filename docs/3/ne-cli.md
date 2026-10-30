@@ -49,6 +49,12 @@ On failure, NE clears the live frame, preserves the original `> ne build` comman
 
 NE does not run `npm install` or `npm audit fix` automatically on every build. Dependency installation and security remediation modify manifests, lockfiles, or package versions and must remain explicit operations.
 
+## Startup behavior
+
+The executable keeps its initial loader small. `ne --version` / `ne -v` reads the installed package version directly without loading the CLI router, dashboard, updater feeds, or worker pool. `ne --help` loads only the lightweight command router; command-specific modules are required after argument routing. The project runner loads the task worker runtime only for check/build/worker-backed operations, not for `ne clean`, `ne dev`, or `ne start`.
+
+This keeps common shell actions off the dashboard/updater code path while preserving the same command interface.
+
 ## Installation forms
 
 The published npm package exposes **ne** through its `bin` entry. Install it once globally to use the commands directly from a project directory:
