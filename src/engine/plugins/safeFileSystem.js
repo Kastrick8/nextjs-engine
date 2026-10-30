@@ -25,8 +25,23 @@ function resolveSafeOutputPath(filename) {
 	return path.join(realDirectory, fileName);
 }
 
+function resolveSafeReadPath(filename) {
+	if (typeof filename !== "string" || !filename.trim()) {
+		throw new TypeError("A non-empty input file path is required.");
+	}
+	const absolute = path.resolve(filename);
+	const fileName = path.basename(absolute);
+	if (!SAFE_FILE_NAME.test(fileName) || fileName === "." || fileName === "..") {
+		throw new Error("Refusing an unsafe input file name.");
+	}
+	const directory = path.dirname(absolute);
+	const realDirectory = fs.realpathSync(directory);
+	return path.join(realDirectory, fileName);
+}
+
 function readRegularFile(filename, encoding = "utf8") {
-	const descriptor = fs.openSync(filename, fs.constants.O_RDONLY | NO_FOLLOW);
+	const safeFilename = resolveSafeReadPath(filename);
+	const descriptor = fs.openSync(safeFilename, fs.constants.O_RDONLY | NO_FOLLOW);
 	try {
 		const stat = fs.fstatSync(descriptor);
 		if (!stat.isFile()) {
@@ -96,6 +111,7 @@ function writeFileExclusively(filename, data, options = {}) {
 module.exports = {
 	readRegularFile,
 	readRegularFileIfExists,
+	resolveSafeReadPath,
 	resolveSafeOutputPath,
 	writeFileAtomically,
 	writeFileExclusively,
