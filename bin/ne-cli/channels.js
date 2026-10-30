@@ -530,11 +530,18 @@ async function loadChannelCatalog(rootDir, options) {
 	};
 	for (const source of Object.keys(sourceStatus)) notify(source);
 
-	const results = await Promise.allSettled([
-		fetchJson(NPM_PACKUMENT_URL, "npm Registry full version catalog"),
-		fetchJsonPages(GITHUB_RELEASES_URL, "GitHub Releases"),
-		fetchJson(GITHUB_LATEST_ALPHA_URL, "GitHub latest Alpha release"),
-		fetchJsonPages(GITHUB_PACKAGE_TAGS_URL, "GitHub repository tags"),
+	const observeRequest = (source, promise) => promise.then((value) => {
+		setStatus(source, "received", "Response received; validating feed data");
+		return { status: "fulfilled", value };
+	}).catch((reason) => {
+		setStatus(source, "failed", reason && reason.message || String(reason));
+		return { status: "rejected", reason };
+	});
+	const results = await Promise.all([
+		observeRequest("npm", fetchJson(NPM_PACKUMENT_URL, "npm Registry full version catalog")),
+		observeRequest("github", fetchJsonPages(GITHUB_RELEASES_URL, "GitHub Releases")),
+		observeRequest("alpha", fetchJson(GITHUB_LATEST_ALPHA_URL, "GitHub latest Alpha release")),
+		observeRequest("tags", fetchJsonPages(GITHUB_PACKAGE_TAGS_URL, "GitHub repository tags")),
 	]);
 
 	let npm = [];
