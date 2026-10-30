@@ -310,6 +310,7 @@ async function commandUpdater(root, showWarning) {
 			version: installedVersion,
 			installedVersion: state.installedVersion || installedVersion,
 			channel: state.activeChannel || "not selected",
+			rollbackAvailable: Boolean(state.previous && state.previous.backup),
 			cacheStatus: cached.releases.length ? "cached" : "loading",
 			sourceStatus: cached.sourceStatus || {},
 			activity: "Opening release catalog",
@@ -352,7 +353,11 @@ async function runDashboard(root, showWarning) {
 	return result;
 }
 
-async function runDashboardAction(root, action) {
+async function runDashboardAction(root, result) {
+	const action = typeof result === "string" ? result : result && result.action;
+	if (action === "install" && result && result.release) {
+		return project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+	}
 	if (action === "dev") return project().runNext(root, ["dev"]);
 	if (action === "build") return project().runBuild(root);
 	if (action === "start") return project().runNext(root, ["start"]);
@@ -362,7 +367,7 @@ async function runDashboardAction(root, action) {
 	if (action === "help") return process.stdout.write(getHelp());
 	if (action === "updater") return commandUpdater(root, false);
 	if (action === "quit") return;
-	throw new Error("Unknown dashboard action: " + action);
+	throw new Error("Unknown dashboard action: " + (action || "none"));
 }
 
 async function runChainedCommands(root, options) {
@@ -411,7 +416,7 @@ async function executeCommand(root, command, subArgs, options, showWarning) {
 			return;
 		}
 		const result = await runDashboard(root, showWarning);
-		await runDashboardAction(root, result.action);
+		await runDashboardAction(root, result);
 		return;
 	}
 	if (command === "updater") return commandUpdater(root, showWarning);
