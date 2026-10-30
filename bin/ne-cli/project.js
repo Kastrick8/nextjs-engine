@@ -682,75 +682,216 @@ async function rollback(root) {
 	}
 }
 
-async function runCheck(root) {
-	let errors = 0;
-	if (packageScript(root, "type-check")) {
-		try { await runPackageScript(root, "type-check"); }
-		catch (error) {
-			errors += 1;
-			process.stderr.write("[NE-CHECK] Type-check failed: " + error.message + "\n");
-		}
-	} else if (fs.existsSync(path.join(root, "tsconfig.json"))) {
-		const cli = typeScriptCli(root);
-		if (!cli) {
-			errors += 1;
-			process.stderr.write("[NE-CHECK] tsconfig.json exists but TypeScript is not installed.\n");
-		} else {
-			try {
-				await runProcess(process.execPath, [cli, "--noEmit"], {
-					cwd: root,
-					label: "TypeScript type-check",
-				});
-			}
-			catch (error) {
-				errors += 1;
-				process.stderr.write("[NE-CHECK] Type-check failed: " + error.message + "\n");
-			}
-		}
-	} else {
-		process.stdout.write("[NE-CHECK] No TypeScript project was detected; skipping tsc.\n");
+async function runTrackedTask(tree, id, label, parentId, action) {
+	tree.add(id, label, parentId || "root");
+	tree.start(id);
+	try {
+		const result = await action();
+		tree.succeed(id);
+		return result;
+	} catch (error) {
+		const failure = error instanceof Error ? error : new Error(String(error));
+		if (!failure.neTaskId) failure.neTaskId = id;
+		if (!failure.taskLabel) failure.taskLabel = label;
+		tree.setStatus(id, "failed", failure.message);
+		throw failure;
 	}
+}
 
-	const runGen3MigrationDiagnostics = loadGen3MigrationDiagnostics();
-	if (typeof runGen3MigrationDiagnostics === "function") {
-		process.stdout.write("[NE-CHECK] Running Generation 3 migration diagnostics...\n");
-		const pkg = readJson(path.join(root, "package.json"), {});
-		const isEngineSource = pkg.name === "nextjs-engine" && fs.existsSync(path.join(root, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"));
-		if (!isEngineSource) {
-			const warnings = [];
-			const errorsFound = [];
-			const originalWarn = console.warn;
-			const originalError = console.error;
-			let diagnostics = [];
-			console.warn = (...args) => warnings.push(args.join(" "));
-			console.error = (...args) => errorsFound.push(args.join(" "));
+function commandDisplayPath(root, file) {
+	const relative = path.relative(root, file).split(path.sep).join("/");
+	return relative.startsWith(".") ? relative : "./" + relative;
+}
+
+async function runCheck(root, options) {
+	const settings = options || {};
+	const ownsTree = !settings.tree;
+	const tree = settings.tree || new TaskTree("ne check");
+	const checkTaskId = settings.taskId || null;
+	const parentId = checkTaskId || settings.parentId || "root";
+	const errors = [];
+	if (checkTaskId) tree.add(checkTaskId, "ne check", settings.parentId || "root");
+
+	try {
+		if (packageScript(root, "type-check")) {
+			const manager = detectPackageManager(root);
+			const label = manager + " run type-check";
 			try {
-				diagnostics = runGen3MigrationDiagnostics({ rootDir: root, development: true }) || [];
-			} finally {
-				console.warn = originalWarn;
-				console.error = originalError;
+				await runTrackedTask(tree, "check-type-check", label, parentId, () =>
+					runPackageScript(root, "type-check", {
+						worker: true,
+						captureOutput: true,
+						taskTree: true,
+					})
+				);
+			} catch (error) {
+				errors.push(error);
 			}
-			for (const line of [...warnings, ...errorsFound]) process.stdout.write(line + "\n");
-			const fatal = diagnostics.filter((item) => item && item.severity === "error");
-			errors += fatal.length;
-			if (fatal.length) process.stderr.write("[NE-CHECK] " + fatal.length + " migration error(s) must be fixed.\n");
-			if (!diagnostics.length) process.stdout.write("[NE-CHECK] No Generation 3 migration diagnostics were found.\n");
+		} else if (fs.existsSync(path.join(root, "tsconfig.json"))) {
+			const cli = typeScriptCli(root);
+			if (!cli) {
+				const error = new Error("tsconfig.json exists but TypeScript is not installed.");
+				error.neTaskId = "check-type-check";
+				error.taskLabel = "TypeScript type-check";
+				await runTrackedTask(tree, "check-type-check", "TypeScript type-check", parentId, () => Promise.reject(error))
+					.catch((failure) => errors.push(failure));
+			} else {
+				const label = "node " + commandDisplayPath(root, cli) + " --noEmit";
+				try {
+					await runTrackedTask(tree, "check-type-check", label, parentId, () =>
+						runProcess(process.execPath, [cli, "--noEmit"], {
+							cwd: root,
+							label,
+							worker: true,
+							captureOutput: true,
+							quietNpmNotices: true,
+							taskTree: true,
+						})
+					);
+				} catch (error) {
+					errors.push(error);
+				}
+			}
 		} else {
-			process.stdout.write("[NE-CHECK] Running inside the NE source repository; skipping self-scanning migration rules.\n");
+			tree.add("check-type-check", "TypeScript check (no tsconfig.json)", parentId);
+			tree.skip("check-type-check", "No TypeScript project detected");
 		}
+
+		const runGen3MigrationDiagnostics = loadGen3MigrationDiagnostics();
+		if (typeof runGen3MigrationDiagnostics === "function") {
+			try {
+				await runTrackedTask(tree, "check-migration", "Gen 3 migration diagnostics (NE main thread)", parentId, async () => {
+					const pkg = readJson(path.join(root, "package.json"), {});
+					const isEngineSource = pkg.name === "nextjs-engine" &&
+						fs.existsSync(path.join(root, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"));
+					if (isEngineSource) {
+						tree.update("check-migration", "Self-scan skipped for the engine source repository");
+						return;
+					}
+
+					const warnings = [];
+					const errorsFound = [];
+					const originalWarn = console.warn;
+					const originalError = console.error;
+					let diagnostics = [];
+					console.warn = (...args) => warnings.push(args.join(" "));
+					console.error = (...args) => errorsFound.push(args.join(" "));
+					try {
+						diagnostics = runGen3MigrationDiagnostics({ rootDir: root, development: true }) || [];
+					} finally {
+						console.warn = originalWarn;
+						console.error = originalError;
+					}
+
+					const fatal = diagnostics.filter((item) => item && item.severity === "error");
+					tree.update("check-migration", diagnostics.length
+						? diagnostics.length + " diagnostic(s), " + fatal.length + " error(s)"
+						: "No migration diagnostics found");
+					if (fatal.length) {
+						const failure = new Error(fatal.length + " migration error(s) must be fixed.");
+						failure.output = [...warnings, ...errorsFound, ...fatal.map((item) =>
+							[item.code, item.message, item.file, item.line].filter(Boolean).join(" · ")
+						)].filter(Boolean).join("\n");
+						throw failure;
+					}
+					return diagnostics;
+				});
+			} catch (error) {
+				errors.push(error);
+			}
+		} else {
+			tree.add("check-migration", "Gen 3 migration diagnostics", parentId);
+			tree.skip("check-migration", "Diagnostics module is not included in this package");
+		}
+
+		if (errors.length) {
+			const failure = errors[0];
+			failure.message = "ne check failed with " + errors.length + " error(s). " + failure.message;
+			throw failure;
+		}
+		if (ownsTree) tree.complete();
+		return { ok: true };
+	} catch (error) {
+		if (ownsTree) tree.fail(error && error.neTaskId || "root", error);
+		throw error;
 	}
-	if (errors) throw new Error("ne check failed with " + errors + " error(s).");
-	process.stdout.write("[NE-CHECK] Checks passed.\n");
+}
+
+function buildOutputObserver(tree, taskId) {
+	let pending = "";
+	let nencAdded = false;
+	return (stream, chunk) => {
+		pending += chunk;
+		const lines = pending.split(/\r?\n/);
+		pending = lines.pop() || "";
+		for (const raw of lines) {
+			const line = raw.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").trim();
+			if (!line) continue;
+			if (line.includes("[NENC]")) {
+				if (!nencAdded) {
+					tree.add("build-nenc", "NENC compiler activity", taskId);
+					tree.start("build-nenc");
+					nencAdded = true;
+				}
+				tree.update("build-nenc", line.slice(-180));
+			} else if (/creating an optimized production build|compiling|collecting page data|generating static pages|finalizing page optimization/i.test(line)) {
+				tree.update(taskId, line.slice(-180));
+			}
+		}
+	};
 }
 
 async function runBuild(root) {
-	if (packageScript(root, "prepare:production")) {
-		process.stdout.write("[NE] Preparing production artifacts...\n");
-		await runPackageScript(root, "prepare:production");
+	const tree = new TaskTree("ne build");
+	try {
+		if (packageScript(root, "prepare:production")) {
+			const pkg = readJson(path.join(root, "package.json"), {});
+			const script = String(pkg.scripts["prepare:production"] || "").trim();
+			await runTrackedTask(tree, "build-prepare", "ne prepare:production", "root", async () => {
+				const childId = "build-prepare-command";
+				await runTrackedTask(tree, childId, "npm run prepare:production", "build-prepare", () =>
+					runPackageScript(root, "prepare:production", {
+						worker: true,
+						captureOutput: true,
+						taskTree: true,
+					})
+				);
+				if (/^(node|node.exe)\s+/.test(script)) {
+					const nodeCommand = script.replace(/^(node|node.exe)\s+/, "node ");
+					tree.add("build-prepare-script", nodeCommand, childId);
+					tree.succeed("build-prepare-script", "Executed by the package script");
+				}
+			});
+		}
+
+		await runCheck(root, {
+			tree,
+			parentId: "root",
+			taskId: "build-check",
+		});
+
+		const nextCliPath = nextCli(root);
+		const nextLabel = "next build";
+		await runTrackedTask(tree, "build-next", nextLabel, "root", () => {
+			if (!nextCliPath) {
+				throw new Error("Next.js CLI was not found in this project. Install the project's dependencies first.");
+			}
+			const observer = buildOutputObserver(tree, "build-next");
+			return runNext(root, ["build"], {
+				tree,
+				captureOutput: true,
+				onOutput: observer,
+			});
+		});
+		if (tree.byId.has("build-nenc")) {
+			tree.succeed("build-nenc", "NENC output completed");
+		}
+		tree.complete();
+		return { ok: true };
+	} catch (error) {
+		tree.fail(error && error.neTaskId || "root", error);
+		throw error;
 	}
-	await runCheck(root);
-	process.stdout.write("[NE] Running the Next.js production build...\n");
-	await runNext(root, ["build"]);
 }
 
 module.exports = {
