@@ -442,9 +442,9 @@ async function downloadVerifiedArtifact(root, release) {
 	const version = typeof release?.version === "string" ? release.version : "";
 	const digest = typeof release?.sha256 === "string" ? release.sha256 : "";
 	const assetName = typeof release?.artifactName === "string" ? release.artifactName : "";
-	if (!/^\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta)\\.\\d+)?$/.test(version)
+	if (!/^\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?$/.test(version)
 		|| !/^[a-f0-9]{64}$/.test(digest)
-		|| !/^nextjs-engine-[A-Za-z0-9._+-]+\\.tgz$/.test(assetName)
+		|| !/^nextjs-engine-[A-Za-z0-9._+-]+\.tgz$/.test(assetName)
 		|| typeof release.artifactUrl !== "string") {
 		throw new Error("This channel has no verified GitHub package artifact.");
 	}
