@@ -4,6 +4,25 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const Module = require("node:module");
+
+function containsExactUrl(text, expectedValue) {
+	const expected = new URL(expectedValue);
+	return String(text).split(/\\s+/).some((part) => {
+		const candidate = part.replace(/[),.;]+$/, "");
+		try {
+			const actual = new URL(candidate);
+			return actual.protocol === expected.protocol
+				&& actual.host === expected.host
+				&& actual.pathname === expected.pathname
+				&& actual.search === expected.search
+				&& actual.hash === expected.hash;
+		} catch {
+			return false;
+		}
+	});
+}
+
+
 const root = path.resolve(__dirname, "..");
 const catalog = JSON.parse(fs.readFileSync(path.join(root, "docs/3/error-codes/catalog.json"), "utf8"));
 const ts = require("typescript");
@@ -219,7 +238,7 @@ assert.ok(reporter.formatEngineErrorReport(themeReport, { color: false }).includ
 const failure = logger.formatFailedLine("compile failed");
 assert.match(failure, /\[NENC\] FAILED \[NENC4000\]/);
 assert.ok(failure.includes(catalog.publicBaseUrl + "/nenc#nenc4000"));
-assert.ok(failure.includes("https://kastrick.vercel.app/project/nextjs-engine"), "NENC failures link to the project website"); assert.match(failure, /\n  Help:/);
+assert.ok(containsExactUrl(failure, "https://kastrick.vercel.app/project/nextjs-engine"), "NENC failures link to the exact project website URL"); assert.match(failure, /\n  Help:/);
 const book = source("docs/3/error-codes/README.md");
 assert.ok(book.includes("catalog.json") && book.includes("Emitted") && book.includes("Assigned") && book.includes("Reserved"));
 assert.ok(source("docs/3/index.md").includes("./error-codes/README.md"));
