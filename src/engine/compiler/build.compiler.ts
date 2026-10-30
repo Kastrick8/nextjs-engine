@@ -10,6 +10,7 @@ const { createSchemaOutputCache } = require("./schema-cache.compiler.js");
 const { compileEngineThemeArtifacts } = require("./theme/3/compiler.ts");
 const { compileEngineThemeFonts } = require("./font/3/compiler.ts");
 const nencLogger = require("../plugins/nencTerminalLogger");
+const { resolveSafeOutputPath } = require("../plugins/safeFileSystem.js");
 
 const BUILTIN_NODE_TYPES = new Set([
 	"box", "stack", "grid", "text", "heading", "markdown", "image", "video",
@@ -260,9 +261,8 @@ const ASCII_WORDMARK = Object.freeze(readBannerAsset("wordmark.txt"));
 const BOTTOM_TEXT = Object.freeze(readBannerAsset("bottom-text.txt"));
 
 function bannerMarkerPath(projectRoot) {
-	const resolvedRoot = path.resolve(projectRoot);
-	const key = require("node:crypto").createHash("sha256").update(resolvedRoot).digest("hex").slice(0, 24);
-	return path.join(require("node:os").tmpdir(), "nextjs-engine-gen3-banner-" + key + ".lock");
+	const resolvedRoot = fs.realpathSync(path.resolve(projectRoot || process.cwd()));
+	return resolveSafeOutputPath(path.join(resolvedRoot, ".nextjs-engine", ".cache", "gen3", "build-banner.lock"));
 }
 
 function renderBannerLines(wordmark = ASCII_WORDMARK, bottomText = BOTTOM_TEXT) {
