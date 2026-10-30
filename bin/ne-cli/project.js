@@ -118,6 +118,7 @@ function runProcess(command, args, options) {
 			return (chunk) => {
 				if (canAnimate) clearStatus();
 				destination.write(chunk);
+				if (canAnimate && !chunk.toString("utf8").endsWith("\n")) destination.write("\n");
 				if (canAnimate) renderStatus();
 			};
 		}
@@ -136,11 +137,13 @@ function runProcess(command, args, options) {
 		}
 
 		child.once("error", (error) => {
+			if (finished) return;
 			finish();
 			completeLine(false, error.message);
 			reject(error);
 		});
 		child.once("close", (code, signal) => {
+			if (finished) return;
 			finish();
 			if (code === 0) {
 				completeLine(true);
@@ -236,17 +239,17 @@ function cleanTargets(root) {
 
 async function runClean(root, dryRun) {
 	const removed = [];
-	for (const relative of cleanTargets(root)) {
+	const targets = cleanTargets(root);
+	process.stdout.write("[NE] Scanning " + targets.length + " safe generated target(s)...\n");
+	for (const relative of targets) {
 		const target = safeRelativeTarget(root, relative);
 		if (!fs.existsSync(target)) continue;
+		process.stdout.write("[NE] " + (dryRun ? "Would remove: " : "Removing: ") + relative + "\n");
 		removed.push(relative);
 		if (!dryRun) fs.rmSync(target, { recursive: true, force: true });
 	}
 	if (!removed.length) process.stdout.write("[NE] No generated build artifacts were found.\n");
-	else {
-		process.stdout.write("[NE] " + (dryRun ? "Previewing" : "Cleaning") + " " + removed.length + " generated target(s)...\n");
-		for (const item of removed) process.stdout.write((dryRun ? "[NE] Would remove: " : "[NE] Removed: ") + item + "\n");
-	}
+	else process.stdout.write("[NE] " + (dryRun ? "Cleanup preview complete." : "Cleanup complete.") + " " + removed.length + " target(s).\n");
 	process.stdout.write("[NE] Channel rollback backups are preserved.\n");
 }
 
@@ -613,6 +616,7 @@ async function runCheck(root) {
 
 	const runGen3MigrationDiagnostics = loadGen3MigrationDiagnostics();
 	if (typeof runGen3MigrationDiagnostics === "function") {
+		process.stdout.write("[NE-CHECK] Running Generation 3 migration diagnostics...\n");
 		const pkg = readJson(path.join(root, "package.json"), {});
 		const isEngineSource = pkg.name === "nextjs-engine" && fs.existsSync(path.join(root, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"));
 		if (!isEngineSource) {
