@@ -581,10 +581,9 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 			const started = Date.now();
 			const routeLabel = route.kind === "app-metadata-route" ? "METADATA"
 				: route.kind === "app-route-handler" || route.kind === "pages-api-route" ? "ROUTE" : "PAGE";
-			const completedBeforeRoute = routeIndex;
-			const percentBeforeRoute = totalRoutes ? Math.round((completedBeforeRoute / totalRoutes) * 1000) / 10 : 100;
-			log("COMPILING " + routeLabel + " : " + route.sourcePath + " — NENC ROUTES "
-				+ completedBeforeRoute + "/" + totalRoutes + " complete (" + percentBeforeRoute + "%)");
+			// Module analysis is a single indexing pass, not a completed-route counter.
+			// Keep the live task label, and leave task progress to the actual CW workers.
+			log("INDEXING " + routeLabel + " : " + route.sourcePath);
 			scanProjectFile(route.file, route.routePath);
 			for (const frameworkFile of route.frameworkFiles || []) {
 				scanProjectFile(frameworkFile, route.routePath);
@@ -616,12 +615,9 @@ function createModuleAnalyzer(projectRoot, options = {}) {
 				schemaCandidateCount: Number(options.schemaCandidateCountsByFile?.get(route.file) || 0),
 				analyzedInMilliseconds: Date.now() - started,
 			});
-			const completedRoutes = routeIndex + 1;
-			const completedPercent = totalRoutes ? Math.round((completedRoutes / totalRoutes) * 1000) / 10 : 100;
-			log("DONE COMPILED " + routeLabel + " : " + route.sourcePath
-				+ " — route " + route.routePath + "; NENC ROUTES " + completedRoutes + "/" + totalRoutes
-				+ " complete (" + completedPercent + "%), " + moduleNames.length + " Engine modules indexed in "
-				+ formatMilliseconds(Date.now() - started) + "; Next.js retains JS/TSX emission");
+			// This pass indexes dependencies; it does not compile or emit the route.
+			// The schema CW emits the single user-facing Compiled ... completion record.
+
 		}
 		for (const source of schemaSources) {
 			routeVisited.clear();
