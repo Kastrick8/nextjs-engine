@@ -165,12 +165,14 @@ function getHelp() {
 		"  ne clean              Clean generated build files",
 		"",
 		"Development checkout:",
-		"  npm link              Expose this checkout's ne executable on PATH",
+		"  npm link                Expose this checkout's ne executable on PATH",
+		"",
+		"Local project install (not a global shell command):",
+		"  npx ne --help           Run the locally installed executable",
+		"  npm exec -- ne --help   Equivalent npm exec form",
 		"",
 		"One-shot invocation without a global install:",
 		"  npx --yes --package=@kastrick/nextjs-engine ne updater",
-		"  npx ne --help           Use the locally installed package from this project",
-		"  npm link                Expose this source checkout as a global development command",
 		"",
 	].join("\n");
 }
