@@ -12,6 +12,11 @@ Use these pages for the code maintained on `main-2`. Generation 3 is a separate 
 
 | Goal | Guide |
 |---|---|
+| Use the newly introduced v2.7.0 command-line interface | [NE CLI](./ne-cli.md) |
+
+
+| Goal | Guide |
+|---|---|
 | Learn the schema and page APIs | [Getting Started](./readme.md) |
 | Use styling props | [Styling — simple guide](./styling.md) |
 | Understand styling internals | [Styling — detailed reference](./styling-detailed.md) |
