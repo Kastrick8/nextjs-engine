@@ -57,7 +57,7 @@ async function main() {
 	const syntaxError = diagnostics.createCliError("Unexpected token ')'.", {
 		code: "NE1004",
 		location: { file: "app/page.tsx", line: 12, column: 18 },
-		source: "const placeholder = 0;\\n".repeat(11) + "const value = );\\n",
+		source: "const placeholder = 0;\n".repeat(11) + "const value = );\n",
 		suggestion: "Check the expression before this token.",
 	});
 	const syntaxBanner = presentation.renderError(syntaxError, { width: 72, color: false });
