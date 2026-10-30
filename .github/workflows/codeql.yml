@@ -41,3 +41,14 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
+      - name: Report open CodeQL security alerts
+        if: matrix.language == 'actions'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Open CodeQL alerts currently recorded by this repository:"
+          gh api --paginate "/repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&per_page=100" \
+            --jq '.[] | [(.number | tostring), .rule.id, (.rule.security_severity_level // .rule.severity // "unknown"), (.most_recent_instance.ref // "unknown-ref"), (.most_recent_instance.location.path // "unknown-path"), ((.most_recent_instance.location.start_line // 0) | tostring)] | @tsv'
