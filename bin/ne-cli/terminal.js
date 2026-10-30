@@ -29,8 +29,10 @@ function restoreTerminalInput(stream, oldRaw, oldPaused, onData) {
 	const hasOtherReaders = typeof stream.listenerCount === "function" &&
 		(stream.listenerCount("data") > 0 || stream.listenerCount("readable") > 0);
 	if (hasOtherReaders) {
-		if (oldPaused) stream.pause();
-		else {
+		if (oldPaused) {
+			stream.pause();
+			stream.unref?.();
+		} else {
 			stream.ref?.();
 			stream.resume();
 		}
