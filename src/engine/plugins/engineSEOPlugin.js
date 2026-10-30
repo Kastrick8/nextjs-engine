@@ -249,9 +249,8 @@ function providerFileSetting(schema, provider) {
 	if (!configured || typeof configured !== "object") return null;
 	const setting = configured[provider];
 	if (setting === true) return {};
-	if (!setting || setting === false) return null;
-	if (typeof setting === "object" && setting.enabled !== false) return setting;
-	return null;
+	if (typeof setting !== "object" || setting === null || setting.enabled === false) return null;
+	return setting;
 }
 
 function resolveProviderSitemapFiles(schema, appDirectory) {
