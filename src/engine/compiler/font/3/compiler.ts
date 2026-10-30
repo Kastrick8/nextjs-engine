@@ -710,7 +710,6 @@ async function compileEngineThemeFonts(projectRoot, artifacts, options = {}) {
 
 	const root = fs.realpathSync(path.resolve(projectRoot));
 	const cacheRoot = path.join(root, ".nextjs-engine", ".cache", "gen3", "fonts");
-	const cacheAssetRoot = path.join(cacheRoot, "assets");
 	const manifestPath = path.join(cacheRoot, "manifest.json");
 	const themeRoot = path.join(root, ".nextjs-engine", "gen3", "theme");
 	const publicFontRoot = path.join(root, "public", "nextjs-engine", "fonts");
