@@ -18,9 +18,9 @@ function reportError(error) {
 		process.stderr.write("\n" + rendered + "\n");
 		if (error && error.output && !error.neOutputDisplayed) {
 			if (error.outputTruncated) {
-				process.stderr.write("[NE-CLI] Earlier command output was truncated; showing the final captured lines.\\n");
+				process.stderr.write("[NE-CLI] Earlier command output was truncated; showing the final captured lines.\n");
 			}
-			process.stderr.write("[NE-CLI] Captured command output:\\n");
+			process.stderr.write("[NE-CLI] Captured command output:\n");
 			process.stderr.write(error.output.replace(/\s+$/, "") + "\n");
 		}
 	}
