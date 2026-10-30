@@ -660,9 +660,17 @@ async function main() {
 			const bytes = Buffer.from([0x1f, 0x8b, 0x08, 0x00]);
 			const release = {
 				version: "3.0.0-alpha.2",
-				artifactUrl: "https://example.invalid/ne-test.tgz",
+				artifactName: "nextjs-engine-3.0.0-alpha.2.tgz",
+				artifactUrl: "https://github.com/Kastrick8/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/nextjs-engine-3.0.0-alpha.2.tgz",
 				sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
 			};
+			let rejectedExternalFetch = false;
+			global.fetch = async () => { rejectedExternalFetch = true; return new Response(bytes, { status: 200 }); };
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, { ...release, artifactUrl: "https://evil.invalid/nextjs-engine.tgz" }),
+				/official Nextjs Engine GitHub releases/
+			);
+			assert.equal(rejectedExternalFetch, false, "untrusted artifact URLs are rejected before making an HTTP request");
 			global.fetch = async () => new Response(bytes, { status: 200 });
 			const downloaded = await project.downloadVerifiedArtifact(temp, release);
 			assert.deepEqual(fs.readFileSync(downloaded.file), bytes);
