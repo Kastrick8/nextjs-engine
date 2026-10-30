@@ -388,17 +388,13 @@ async function main() {
 	assert.match(cli.getHelp(), /ne update --channel/);
 	assert.match(cli.getHelp(), /npx ne --help/);
 	assert.match(cli.getHelp(), /Shell operators are rejected/);
-	const originalInstallRelease = project.installRelease;
 	let dashboardInstall = null;
-	project.installRelease = async (...args) => { dashboardInstall = args; };
-	try {
-		const fixtureRelease = { version: "3.0.0-alpha.2", track: "alpha" };
-		await cli.runDashboardAction(os.tmpdir(), { action: "install", release: fixtureRelease });
-		assert.equal(dashboardInstall[1], fixtureRelease, "dashboard forwards selected release to installer");
-		assert.equal(dashboardInstall[2], "alpha");
-	} finally {
-		project.installRelease = originalInstallRelease;
-	}
+	const fixtureRelease = { version: "3.0.0-alpha.2", track: "alpha" };
+	await cli.runDashboardAction(os.tmpdir(), { action: "install", release: fixtureRelease }, {
+		installRelease: async (...args) => { dashboardInstall = args; },
+	});
+	assert.equal(dashboardInstall[1], fixtureRelease, "dashboard forwards selected release to installer");
+	assert.equal(dashboardInstall[2], "alpha");
 
 	const dashboard = terminal.renderDashboard(2, {
 		projectName: "demo",
