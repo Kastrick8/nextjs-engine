@@ -539,7 +539,7 @@ async function main() {
 		sourceStatus: { npm: { status: "loading" }, github: { status: "loading" }, alpha: { status: "loading" }, tags: { status: "loading" } },
 	});
 	assert.match(dashboard, /Production Build/);
-	assert.match(terminal.renderDashboard(0, { rollbackAvailable: false }), /Rollback Build \\[no snapshot\\]/,
+	assert.match(terminal.renderDashboard(0, { rollbackAvailable: false }), /Rollback Build \[no snapshot\]/,
 		"rollback is visibly unavailable before a snapshot exists");
 	assert.match(dashboard, /Channel Updater/);
 	assert.match(dashboard, /Activity.*Fetching release inventory/);
