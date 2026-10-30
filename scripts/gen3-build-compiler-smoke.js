@@ -31,6 +31,7 @@ const {
 	formatWorkerOperation,
 	renderProgressDots,
 	colorizeLogLine,
+	supportsColor,
 	formatErroredLine,
 } = require("../src/engine/plugins/nencTerminalLogger");
 const { schemaOutputCachePath } = require("../src/engine/plugins/gen3SchemaCache");
@@ -61,14 +62,14 @@ assert.equal(formatCompiledSchemaLine(
 	{ summary: { clientIslands: 1, assetCount: 2 } },
 	{ durationMs: 19 },
 	58,
-), "compiled app/work/page.tsx -> /work · 58 Engine modules · 19ms · 1 client island · 2 assets",
+), "Compiled app/work/page.tsx -> /work 58 modules · 19ms · 1 client island · 2 assets",
 "schema completion combines real module count, elapsed time, client islands, and assets");
 assert.equal(formatCompiledSchemaLine(
 	{ sourcePath: "app/about/page.tsx", pageId: "/about" },
 	{ summary: { clientIslands: 0, assetCount: 0 } },
 	{ durationMs: 22 },
 	0,
-), "compiled app/about/page.tsx -> /about · 22ms",
+), "Compiled app/about/page.tsx -> /about 22ms",
 "zero modules, client islands, and assets are omitted rather than printed as noise");
 
 const dashboard = formatWorkerPanel([
@@ -77,14 +78,37 @@ const dashboard = formatWorkerPanel([
 	{ operation: "Downloading", target: "fonts: Inter, JetBrains Mono", mode: "rate", bytesPerSecond: 239000 },
 ], 100, false);
 assert.equal(dashboard.length, 4, "the status panel has one header and exactly three CW rows");
-assert.ok(dashboard[0].startsWith("════ NENC"), "the dashboard has a Cargo-style NENC header");
+assert.ok(dashboard[0].startsWith("═ [NENC] ═"), "the dashboard has the bracketed Cargo-style NENC header");
 assert.match(dashboard[1], /^CW1\s+Compiling \/privacy-policy/);
 assert.match(dashboard[1], /34\.2%$/);
 assert.match(dashboard[2], /^CW2\s+Compiling \/.*21\.7%$/);
 assert.match(dashboard[3], /^CW3\s+Downloading: fonts: Inter, JetBrains Mono/);
 assert.ok(dashboard[3].endsWith("239 KB/s"), "download row uses the measured KB/s rate");
 assert.ok(renderProgressDots(50, 10, true).includes("\u001b["), "progress dots support ANSI contrast");
-assert.ok(colorizeLogLine("[NENC] DONE compiled /work", true).includes("\u001b["), "completion lines support ANSI colors");
+assert.ok(colorizeLogLine("[NENC] DONE Compiled /work", true).includes("\u001b["), "completion lines support ANSI colors");
+const savedColorEnv = {
+	NO_COLOR: process.env.NO_COLOR,
+	FORCE_COLOR: process.env.FORCE_COLOR,
+	TERM: process.env.TERM,
+	CI: process.env.CI,
+};
+try {
+	delete process.env.NO_COLOR;
+	process.env.FORCE_COLOR = "0";
+	process.env.TERM = "xterm-256color";
+	delete process.env.CI;
+	assert.equal(supportsColor({ isTTY: true }), false,
+		"FORCE_COLOR=0 disables ANSI even on a TTY");
+	process.env.FORCE_COLOR = "1";
+	process.env.CI = "true";
+	assert.equal(supportsColor({ isTTY: false }), true,
+		"an explicit FORCE_COLOR override enables ANSI in CI");
+} finally {
+	for (const [key, value] of Object.entries(savedColorEnv)) {
+		if (value === undefined) delete process.env[key];
+		else process.env[key] = value;
+	}
+}
 assert.equal(formatErroredLine("COMPONENT ERRORED app/broken/page.tsx -> /broken"),
 	"[NENC] ERRORED COMPONENT ERRORED app/broken/page.tsx -> /broken");
 const redErroredLine = colorizeLogLine("[NENC] ERRORED COMPONENT ERRORED app/broken/page.tsx -> /broken", true);
@@ -241,14 +265,12 @@ try {
 	assert.equal(manifest.pages[0].id, "/about", "App Router route groups do not leak into route identifiers");
 	assert.ok(manifest.pages[0].customComponents.includes("notice"), "custom schema nodes appear in the page manifest");
 	assert.ok(manifest.pages[0].compiledNodes.some((node) => node.type === "notice" && node.customComponent), "the emitted compiler graph includes custom-component classification");
-	assert.ok(logs.some((line) => line.includes("COMPILING PAGE : app/(marketing)/about/page.tsx")),
-		"route analysis reports the source path in Next.js-style progress output");
-	assert.ok(logs.some((line) => line.includes("DONE compiled app/about/page.tsx -> /about")),
+	assert.ok(logs.some((line) => line.includes("INDEXING PAGE : app/(marketing)/about/page.tsx")),
+		"module analysis reports its current route-indexing task");
+	assert.ok(logs.some((line) => line.includes("DONE Compiled app/about/page.tsx -> /about")),
 		"schema completion reports the source path and URL route id");
-	assert.ok(logs.some((line) => /NENC ROUTES 0\/3 complete \(0%\)/.test(line)),
-		"route analysis starts at an actual 0 of 3 routes completed");
-	assert.ok(logs.some((line) => /NENC ROUTES 3\/3 complete \(100%\)/.test(line)),
-		"route analysis ends at the actual 3 of 3 routes completed");
+	assert.ok(!logs.some((line) => /NENC ROUTES|routes? \d+\/\d+ complete \(\d+(?:\.\d+)?%\)/i.test(line)),
+		"route-analysis snapshots never leak into permanent compiler logs");
 	assert.ok(logs.some((line) => line.includes("COMPILING CUSTOM COMPONENT : notice")),
 		"custom components get a dedicated progress status");
 	assert.ok(logs.some((line) => line.startsWith("DONE SCHEMA CACHE — 3 compile misses, 3 outputs persisted")),
@@ -269,7 +291,7 @@ try {
 	assert.equal(cachedManifest.summary.schemaCompilerWorkerCount, 0, "a full cache hit does not start idle worker threads");
 	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /about")),
 		"cache hits are visible as reuse, not mislabeled as new compilation");
-	assert.ok(!logs.some((line) => line.includes("DONE compiled app/about/page.tsx -> /about")),
+	assert.ok(!logs.some((line) => line.includes("DONE Compiled app/about/page.tsx -> /about")),
 		"an unchanged page is not recompiled on a warm pass");
 
 	const aboutSource = path.join(pageDirectory, "page.tsx");
@@ -282,7 +304,7 @@ try {
 	assert.equal(partialManifest.summary.schemaCompilerWorkerCount, 1, "only one worker is started for one invalidated schema job");
 	assert.ok(partialManifest.pages.find((page) => page.id === "/about").compiledNodes.some((node) => node.type === "text"),
 		"the changed page output reflects its new schema");
-	assert.ok(logs.some((line) => line.includes("DONE compiled app/about/page.tsx -> /about")),
+	assert.ok(logs.some((line) => line.includes("DONE Compiled app/about/page.tsx -> /about")),
 		"the changed page is compiled again");
 	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /emd")),
 		"the unchanged EMD schema is reused");
@@ -335,7 +357,7 @@ try {
 	assert.ok(recoveryLogs.some((line) => line.includes("ERRORED COMPONENT app/b-broken/page.tsx -> /b-broken · box at root")),
 		"the failed component log names its source, route and component path");
 	for (const route of ["/a-good", "/c-good", "/d-good"]) {
-		assert.ok(recoveryLogs.some((line) => line.includes("DONE compiled app/" + route.slice(1) + "/page.tsx -> " + route)),
+		assert.ok(recoveryLogs.some((line) => line.includes("DONE Compiled app/" + route.slice(1) + "/page.tsx -> " + route)),
 			"successful CW work is logged for " + route);
 	}
 	const failedCacheFile = schemaOutputCachePath(recoveryRoot, "app/b-broken/page.tsx", "/b-broken");
@@ -415,8 +437,8 @@ try {
 		"other CW jobs finish and their valid schema plans remain in the manifest");
 	assert.ok(failureLogs.some((line) => line.includes("ERRORED COMPONENT app/error-case/page.tsx -> /error-case")),
 		"the failing component is logged as an explicit error line");
-	assert.ok(failureLogs.some((line) => line.includes("DONE compiled app/good-one/page.tsx -> /good-one"))
-		&& failureLogs.some((line) => line.includes("DONE compiled app/good-two/page.tsx -> /good-two")),
+	assert.ok(failureLogs.some((line) => line.includes("DONE Compiled app/good-one/page.tsx -> /good-one"))
+		&& failureLogs.some((line) => line.includes("DONE Compiled app/good-two/page.tsx -> /good-two")),
 		"successful concurrent tasks still emit completion lines");
 	assert.equal(fs.existsSync(errorCachePath), false, "a failed task never writes a cache artifact");
 	for (const [sourcePath, pageId] of [
