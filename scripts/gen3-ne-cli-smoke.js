@@ -88,6 +88,12 @@ async function main() {
 	assert.equal(optionTypo.neCode, "NE1002");
 	assert.match(optionTypo.neSuggestion, /--version/);
 	assert.equal(diagnostics.missingOptionValue("--channel").neCode, "NE1003");
+	assert.deepEqual(cli.parseChainedCommand('npm run "type check" -- --pretty false'),
+		["npm", "run", "type check", "--", "--pretty", "false"]);
+	assert.throws(() => cli.parseChainedCommand("npm test && curl https://invalid.example"),
+		/shell operators or expansions/, "chained CLI commands must never pass shell operators to a shell");
+	assert.throws(() => cli.parseChainedCommand("npm test $(whoami)"),
+		/shell operators or expansions/, "command substitutions are rejected before spawning");
 
 	const typoResult = spawnSync(process.execPath, [neExecutable, "bulid"], {
 		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
