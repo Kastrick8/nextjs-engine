@@ -59,7 +59,8 @@ async function main() {
 	const rollingTag = channels.githubTagToRelease({ ref: "refs/tags/channel-alpha-latest" });
 	assert.equal(rollingTag.version, "channel-alpha-latest");
 	assert.equal(rollingTag.installable, false, "channel pointer tags are visible but never directly installable");
-	assert.equal(channels.githubTagToRelease({ ref: "refs/tags/package.latest" }), null);
+	assert.equal(channels.githubTagToRelease({ ref: "refs/tags/package.latest" }).tagName, "package.latest");
+	assert.equal(channels.githubTagToRelease({ ref: "refs/tags/package.latest" }).installable, false);
 	assert.equal(channels.githubTagToRelease({ ref: "refs/tags/Release-v2.6.2" }).tagName, "Release-v2.6.2");
 
 	const freeformGitHubRelease = channels.catalogOnlyGitHubRelease({
@@ -372,12 +373,12 @@ async function main() {
 		fs.writeFileSync(path.join(buildRoot, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"),
 			"module.exports = {};\n");
 		fs.writeFileSync(path.join(buildRoot, "node_modules", "next", "dist", "bin", "next"),
-			"process.stdout.write('[NENC] Compiling app/page.tsx -> /\\\\n');\n");
+			"require('node:fs').writeFileSync('next-build.marker', 'main-thread-build'); process.stdout.write('[NENC] Compiling app/page.tsx -> /\\n');\n");
 		await project.runBuild(buildRoot);
 		assert.equal(fs.readFileSync(path.join(buildRoot, "prepare.marker"), "utf8"), "prepared",
 			"ne build executes prepare:production before checking");
-		assert.ok(fs.existsSync(path.join(buildRoot, "node_modules", "next", "dist", "bin", "next")),
-			"the Next.js production build runs after ne check");
+		assert.equal(fs.readFileSync(path.join(buildRoot, "next-build.marker"), "utf8"), "main-thread-build",
+			"next build runs on the CLI main process after ne check");
 
 
 		const backup = project.captureDependencyFiles(temp);
