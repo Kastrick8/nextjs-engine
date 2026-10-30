@@ -49,7 +49,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Open CodeQL alerts currently recorded by this repository:"
-          gh api --paginate "/repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&per_page=100" \
-            --jq '.[] | [(.number | tostring), .rule.id, (.rule.security_severity_level // .rule.severity // "unknown"), (.most_recent_instance.ref // "unknown-ref"), (.most_recent_instance.location.path // "unknown-path"), ((.most_recent_instance.location.start_line // 0) | tostring)] | @tsv'
+          for ref in refs/heads/main-2 refs/heads/main-3 refs/pull/79/merge; do
+            echo "Open CodeQL alerts for $ref:"
+            gh api --paginate "/repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&per_page=100&ref=$ref" \
+              --jq '.[] | [(.number | tostring), .rule.id, (.rule.security_severity_level // .rule.severity // "unknown"), (.most_recent_instance.ref // "unknown-ref"), (.most_recent_instance.location.path // "unknown-path"), ((.most_recent_instance.location.start_line // 0) | tostring)] | @tsv' || true
+          done
 
