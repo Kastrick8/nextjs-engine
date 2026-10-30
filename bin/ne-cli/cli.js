@@ -440,7 +440,7 @@ async function main(argv) {
 		return;
 	}
 	if (command && !["updater", "update", "dev", "build", "start", "check", "clean", "rollback"].includes(command)) {
-				throw diagnostics().unknownCommand(command, [
+		throw diagnostics().unknownCommand(command, [
 			"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
 		]);
 	}
