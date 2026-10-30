@@ -648,11 +648,15 @@ async function testPublicThemeApi() {
 				styles: {
 					panel: { background: "#222222", color: "#f8fafc" },
 					title: { fontSize: "1.5rem" },
+					actionGhost: { color: "#facc15" },
 				},
 				variants: {
 					danger: {
 						defaults: { duration: 260 },
-						styles: { panel: { background: "#7f1d1d" } },
+						styles: {
+							panel: { background: "#7f1d1d" },
+							actionGhost: { color: "#fde68a" },
+						},
 					},
 				},
 			},
@@ -690,6 +694,8 @@ async function testPublicThemeApi() {
 			background: "#7f1d1d",
 			color: "#f8fafc",
 		}, "shared overlay slots and component-variant slots merge with component values taking precedence");
+		assert.deepEqual(themedDialog.props.engineOverlayTheme.styles.actionGhost, { color: "#fde68a" },
+			"the ghost action slot resolves and merges component variant styling independently");
 		assert.equal(themedDialog.props.style.color, "#ffffff", "explicit local style remains untouched and wins at render time");
 		assert.equal(themedDrawer.props.engineOverlayTheme.defaults.side, "left");
 		assert.equal(themedDrawer.props.engineOverlayTheme.defaults.size, "28rem");
