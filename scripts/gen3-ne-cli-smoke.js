@@ -62,7 +62,7 @@ async function main() {
 	});
 	const syntaxBanner = presentation.renderError(syntaxError, { width: 72, color: false });
 	assert.match(syntaxBanner, /NE1004/);
-	assert.match(syntaxBanner, /app\/page\.tsx:line 12:column 18/);
+	assert.match(syntaxBanner, /app\/page\.tsx:12:18/);
 	assert.match(syntaxBanner, /\^/);
 
 	const nativeSyntaxError = new SyntaxError("Unexpected token ')'.");
@@ -74,7 +74,7 @@ async function main() {
 	].join("\n");
 	const inferredSyntaxBanner = presentation.renderError(nativeSyntaxError, { width: 72, color: false });
 	assert.match(inferredSyntaxBanner, /NE2001/);
-	assert.match(inferredSyntaxBanner, /smoke\.js:line 3:column 7/);
+	assert.match(inferredSyntaxBanner, /smoke\.js:3:7/);
 	assert.match(inferredSyntaxBanner, /\^/);
 
 	const commandTypo = diagnostics.unknownCommand("bulid", [
