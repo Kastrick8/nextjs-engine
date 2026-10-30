@@ -8,7 +8,7 @@ const GITHUB_RELEASES_URL = "https://api.github.com/repos/Kastrick8/nextjs-engin
 const GITHUB_LATEST_ALPHA_URL = "https://api.github.com/repos/Kastrick8/nextjs-engine/releases/tags/channel-alpha-latest";
 const NPM_LATEST_URL = "https://registry.npmjs.org/@kastrick%2fnextjs-engine/latest";
 const NPM_PACKUMENT_URL = "https://registry.npmjs.org/@kastrick%2fnextjs-engine";
-const GITHUB_PACKAGE_TAGS_URL = "https://api.github.com/repos/Kastrick8/nextjs-engine/git/matching-refs/tags/package?per_page=100";
+const GITHUB_PACKAGE_TAGS_URL = "https://api.github.com/repos/Kastrick8/nextjs-engine/git/matching-refs/tags/?per_page=100";
 const CACHE_RELATIVE_PATH = path.join(".nextjs-engine", "cache", "ne-channels-cache.json");
 const CACHE_TTL_MS = 2 * 60 * 1000;
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -217,6 +217,42 @@ function packageTagToRelease(value) {
 		installSpec: null,
 		installable: false,
 		description: "Versioned package archive Git tag. Listed for discovery; NE needs a published npm package or verified GitHub Release artifact to install it.",
+	};
+}
+
+function githubTagToRelease(value) {
+	const rawName = typeof value === "string"
+		? value.replace(/^refs\\/tags\\//, "")
+		: value && typeof value.ref === "string"
+			? value.ref.replace(/^refs\\/tags\\//, "")
+			: value && typeof value.name === "string"
+				? value.name
+				: "";
+	if (!rawName || rawName === "package.latest") return null;
+	const packageRelease = packageTagToRelease(rawName);
+	if (packageRelease) return packageRelease;
+	const tagUrl = "https://github.com/Kastrick8/nextjs-engine/tree/" + encodeURIComponent(rawName);
+	return {
+		version: rawName,
+		track: "tag",
+		channel: "tag",
+		source: "git-tag",
+		sourceLabel: SOURCE_LABELS["git-tag"],
+		sourceBranch: "package/main",
+		sourceCommit: null,
+		sha256: null,
+		artifactName: null,
+		artifactUrl: null,
+		publishedAt: "",
+		releaseUrl: tagUrl,
+		tagName: rawName,
+		tagUrl,
+		gitTags: [rawName],
+		npmDistTags: [],
+		installSpec: null,
+		catalogOnly: true,
+		installable: false,
+		description: "GitHub repository tag. Listed for discovery; tags are never treated as verified installation artifacts.",
 	};
 }
 
@@ -449,16 +485,56 @@ function writeCache(rootDir, catalog) {
 	fs.writeFileSync(temporary, JSON.stringify({
 		cachedAt: Date.now(),
 		releases: catalog.releases,
+		sourceStatus: catalog.sourceStatus || {},
 	}, null, 2) + "\n", "utf8");
 	fs.renameSync(temporary, file);
 }
 
+function readCachedCatalog(rootDir) {
+	const cached = readCache(rootDir);
+	return cached
+		? { releases: cached.releases, cached: true, fetchedAt: cached.cachedAt, sourceStatus: cached.sourceStatus || {} }
+		: { releases: [], cached: true, fetchedAt: null, sourceStatus: {} };
+}
+
 async function loadChannelCatalog(rootDir, options) {
-	const force = Boolean(options && options.force);
+	const settings = options || {};
+	const force = Boolean(settings.force);
 	const cached = readCache(rootDir);
 	if (!force && cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
-		return { releases: cached.releases, cached: true, fetchedAt: cached.cachedAt };
+		return {
+			releases: cached.releases,
+			cached: true,
+			fetchedAt: cached.cachedAt,
+			sourceStatus: cached.sourceStatus || {},
+			sourceErrors: [],
+		};
 	}
+
+	const sourceStatus = {
+		npm: { status: "loading", message: "Fetching the complete npm version index" },
+		github: { status: "loading", message: "Fetching GitHub Releases" },
+		alpha: { status: "loading", message: "Resolving the rolling Alpha channel" },
+		tags: { status: "loading", message: "Fetching repository Git tags" },
+	};
+	const notify = (source) => {
+		if (typeof settings.onSourceStatus !== "function") return;
+		try {
+			settings.onSourceStatus({ source, ...sourceStatus[source], sources: { ...sourceStatus } });
+		} catch {}
+	};
+	const setStatus = (source, status, message) => {
+		sourceStatus[source] = { status, message: message || "" };
+		notify(source);
+	};
+	for (const source of Object.keys(sourceStatus)) notify(source);
+
+	const results = await Promise.allSettled([
+		fetchJson(NPM_PACKUMENT_URL, "npm Registry full version catalog"),
+		fetchJsonPages(GITHUB_RELEASES_URL, "GitHub Releases"),
+		fetchJson(GITHUB_LATEST_ALPHA_URL, "GitHub latest Alpha release"),
+		fetchJsonPages(GITHUB_PACKAGE_TAGS_URL, "GitHub repository tags"),
+	]);
 
 	let npm = [];
 	let github = [];
@@ -468,18 +544,20 @@ async function loadChannelCatalog(rootDir, options) {
 	let tagsSucceeded = false;
 	let rollingAlphaSucceeded = false;
 	let packageLatestTag = false;
-	const results = await Promise.allSettled([
-		fetchJson(NPM_PACKUMENT_URL, "npm Registry package catalog"),
-		fetchJsonPages(GITHUB_RELEASES_URL, "GitHub Releases"),
-		fetchJson(GITHUB_LATEST_ALPHA_URL, "GitHub latest Alpha release"),
-		fetchJsonPages(GITHUB_PACKAGE_TAGS_URL, "GitHub package version tags"),
-	]);
+	const sourceErrors = [];
 
 	if (results[0].status === "fulfilled") {
 		try {
 			npm = npmReleasesFromPackument(results[0].value);
 			npmSucceeded = true;
-		} catch {}
+			setStatus("npm", "ready", "Loaded " + npm.length + " npm versions and dist-tags");
+		} catch (error) {
+			setStatus("npm", "partial", error.message);
+			sourceErrors.push({ source: "npm", message: error.message });
+		}
+	} else {
+		const error = results[0].reason;
+		sourceErrors.push({ source: "npm", message: error && error.message || String(error) });
 	}
 	if (!npmSucceeded) {
 		try {
@@ -487,33 +565,82 @@ async function loadChannelCatalog(rootDir, options) {
 			if (fallback) {
 				npm = [fallback];
 				npmSucceeded = true;
+				setStatus("npm", "partial", "Full npm version index unavailable; showing latest stable fallback only");
+			} else {
+				setStatus("npm", "failed", "npm did not return a valid stable release or full version index");
 			}
-		} catch {}
+		} catch (error) {
+			setStatus("npm", "failed", error.message || String(error));
+		}
 	}
+
 	if (results[1].status === "fulfilled" && Array.isArray(results[1].value)) {
 		githubSucceeded = true;
 		github = results[1].value
 			.map((release) => validateReleaseManifest(parseManifestFromBody(release.body), release)
 				|| catalogOnlyGitHubRelease(release))
 			.filter(Boolean);
+		setStatus("github", "ready", "Loaded " + github.length + " GitHub releases");
+	} else {
+		const error = results[1].reason || new Error("GitHub Releases returned an unexpected response.");
+		setStatus("github", "failed", error.message || String(error));
+		sourceErrors.push({ source: "github", message: error.message || String(error) });
 	}
+
+	let rolling = null;
 	if (results[2].status === "fulfilled") {
-		rollingAlphaSucceeded = true;
-		const rolling = validateReleaseManifest(parseManifestFromBody(results[2].value.body), results[2].value);
-		if (rolling && rolling.floating) github.push(rolling);
+		rolling = validateReleaseManifest(parseManifestFromBody(results[2].value.body), results[2].value);
+		if (!rolling) {
+			const fromList = (results[1].status === "fulfilled" ? results[1].value : [])
+				.find((release) => release && release.tag_name === "channel-alpha-latest");
+			if (fromList) rolling = validateReleaseManifest(parseManifestFromBody(fromList.body), fromList);
+		}
+		if (rolling && rolling.floating) {
+			rollingAlphaSucceeded = true;
+			github.push(rolling);
+			setStatus("alpha", "ready", "Verified rolling Alpha " + rolling.version + " from " + rolling.sourceCommit.slice(0, 8));
+		} else {
+			setStatus("alpha", "partial", "The Alpha tag was reached, but its manifest or artifact did not pass validation");
+		}
+	} else {
+		const error = results[2].reason;
+		const fromList = (results[1].status === "fulfilled" ? results[1].value : [])
+			.find((release) => release && release.tag_name === "channel-alpha-latest");
+		if (fromList) rolling = validateReleaseManifest(parseManifestFromBody(fromList.body), fromList);
+		if (rolling && rolling.floating) {
+			rollingAlphaSucceeded = true;
+			github.push(rolling);
+			setStatus("alpha", "partial", "Loaded rolling Alpha from the releases index; the direct channel lookup failed");
+		} else {
+			setStatus("alpha", "failed", error && error.message || String(error));
+			sourceErrors.push({ source: "alpha", message: error && error.message || String(error) });
+		}
 	}
+
 	if (results[3].status === "fulfilled" && Array.isArray(results[3].value)) {
 		tagsSucceeded = true;
 		packageLatestTag = results[3].value.some((tag) => tag && (tag.ref === "refs/tags/package.latest" || tag.name === "package.latest"));
-		tags = results[3].value.map(packageTagToRelease).filter(Boolean);
+		tags = results[3].value.map(githubTagToRelease).filter(Boolean);
+		setStatus("tags", "ready", "Loaded " + tags.length + " Git tags");
+	} else {
+		const error = results[3].reason || new Error("GitHub tags returned an unexpected response.");
+		setStatus("tags", "failed", error.message || String(error));
+		sourceErrors.push({ source: "tags", message: error.message || String(error) });
 	}
 
 	const anyFreshSource = npmSucceeded || githubSucceeded || tagsSucceeded || rollingAlphaSucceeded;
 	if (!anyFreshSource) {
 		if (cached && Date.now() - cached.cachedAt <= CACHE_MAX_AGE_MS) {
-			return { releases: cached.releases, cached: true, fetchedAt: cached.cachedAt };
+			return {
+				releases: cached.releases,
+				cached: true,
+				fetchedAt: cached.cachedAt,
+				sourceStatus,
+				sourceErrors,
+			};
 		}
-		throw new Error("The release catalog could not be reached and no recent cached catalog is available. Check your connection and retry.");
+		throw new Error("The release catalog could not be reached and no recent cached catalog is available. " +
+			sourceErrors.map((item) => item.source + ": " + item.message).join("; "));
 	}
 
 	const records = [...npm, ...github, ...tags];
@@ -529,8 +656,14 @@ async function loadChannelCatalog(rootDir, options) {
 			latestTaggedStable.isGitTagged = true;
 		}
 	}
-	writeCache(rootDir, catalog);
-	return { releases: catalog.releases, cached: false, fetchedAt: Date.now() };
+	writeCache(rootDir, { ...catalog, sourceStatus });
+	return {
+		releases: catalog.releases,
+		cached: false,
+		fetchedAt: Date.now(),
+		sourceStatus,
+		sourceErrors,
+	};
 }
 
 function resolveRelease(catalog, options) {
@@ -586,6 +719,8 @@ module.exports = {
 	trackForVersion,
 	npmReleasesFromPackument,
 	packageTagToRelease,
+	githubTagToRelease,
+	readCachedCatalog,
 	parseManifestFromBody,
 	validateReleaseManifest,
 	catalogOnlyGitHubRelease,
