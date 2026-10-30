@@ -9,12 +9,17 @@ const {
 	ASCII_WORDMARK,
 	BOTTOM_TEXT,
 	compileProject,
+	createWorkerTaskPlan,
 	emitArtifacts,
 	printBanner,
 	printBannerOnce,
 	releaseBanner,
 	renderBannerLines,
 	summarizeNextOutputs,
+	formatCompiledSchemaLine,
+	formatSchemaSourcePath,
+	formatFontBuildSummary,
+	planThemeFontWork,
 } = require("../src/engine/compiler/gen3-build-compiler");
 
 const {
@@ -22,6 +27,12 @@ const {
 	formatStatusLine,
 	formatWorkerStatus,
 	formatBytesPerSecond,
+	formatWorkerPanel,
+	formatWorkerOperation,
+	renderProgressDots,
+	colorizeLogLine,
+	supportsColor,
+	formatErroredLine,
 } = require("../src/engine/plugins/nencTerminalLogger");
 const { schemaOutputCachePath } = require("../src/engine/plugins/gen3SchemaCache");
 
@@ -38,9 +49,95 @@ assert.equal(formatWorkerStatus([
 assert.equal(formatWorkerStatus([
 	{ operation: "Compiling", target: "/guide", mode: "percent", progress: 33.3 },
 	{ operation: "Downloading", target: "ICON:google.com", mode: "rate", bytesPerSecond: 8202 },
-]), "Compiling /guide (33.3%) · Downloading ICON:google.com (8202 B/s)",
+]), "Compiling /guide (33.3%) · Downloading: ICON:google.com (8 KB/s)",
 "mixed compilation and icon-download jobs show the correct metric for each worker");
-assert.equal(formatBytesPerSecond(8202), "8202 B/s");
+assert.equal(formatWorkerOperation("Downloading"), "Downloading:");
+assert.equal(formatWorkerOperation("Downloading: fonts: Inter"), "Downloading:");
+assert.equal(formatBytesPerSecond(8202), "8 KB/s");
+assert.equal(formatBytesPerSecond(239000), "239 KB/s");
+assert.equal(formatSchemaSourcePath("app/(marketing)/about/page.tsx"), "app/about/page.tsx",
+	"route group folders are omitted from human-facing completion paths");
+assert.equal(formatCompiledSchemaLine(
+	{ sourcePath: "app/work/page.tsx", pageId: "/work" },
+	{ summary: { clientIslands: 1, assetCount: 2 } },
+	{ durationMs: 19 },
+	58,
+), "Compiled app/work/page.tsx -> /work 58 modules · 19ms · 1 client island · 2 assets",
+"schema completion combines real module count, elapsed time, client islands, and assets");
+assert.equal(formatCompiledSchemaLine(
+	{ sourcePath: "app/about/page.tsx", pageId: "/about" },
+	{ summary: { clientIslands: 0, assetCount: 0 } },
+	{ durationMs: 22 },
+	0,
+), "Compiled app/about/page.tsx -> /about 22ms",
+"zero modules, client islands, and assets are omitted rather than printed as noise");
+
+const dashboard = formatWorkerPanel([
+	{ operation: "Compiling", target: "/privacy-policy", mode: "percent", progress: 34.2 },
+	{ operation: "Compiling", target: "/", mode: "percent", progress: 21.7 },
+	{ operation: "Downloading", target: "fonts: Inter, JetBrains Mono", mode: "rate", bytesPerSecond: 239000 },
+], 100, false);
+assert.equal(dashboard.length, 4, "the status panel has one header and exactly three CW rows");
+assert.ok(dashboard[0].startsWith("═ [NENC] ══"), "the dashboard has the bracketed Cargo-style NENC header without a gap in its divider");
+assert.match(dashboard[1], /^CW1\s+Compiling \/privacy-policy/);
+assert.match(dashboard[1], /34\.2%$/);
+assert.match(dashboard[2], /^CW2\s+Compiling \/.*21\.7%$/);
+assert.match(dashboard[3], /^CW3\s+Downloading: fonts: Inter, JetBrains Mono/);
+assert.ok(dashboard[3].endsWith("239 KB/s"), "download row uses the measured KB/s rate");
+assert.ok(renderProgressDots(50, 10, true).includes("\u001b["), "progress dots support ANSI contrast");
+assert.ok(colorizeLogLine("[NENC] DONE Compiled /work", true).includes("\u001b["), "completion lines support ANSI colors");
+const savedColorEnv = {
+	NO_COLOR: process.env.NO_COLOR,
+	FORCE_COLOR: process.env.FORCE_COLOR,
+	TERM: process.env.TERM,
+	CI: process.env.CI,
+};
+try {
+	delete process.env.NO_COLOR;
+	process.env.FORCE_COLOR = "0";
+	process.env.TERM = "xterm-256color";
+	delete process.env.CI;
+	assert.equal(supportsColor({ isTTY: true }), false,
+		"FORCE_COLOR=0 disables ANSI even on a TTY");
+	process.env.FORCE_COLOR = "1";
+	process.env.CI = "true";
+	assert.equal(supportsColor({ isTTY: false }), true,
+		"an explicit FORCE_COLOR override enables ANSI in CI");
+} finally {
+	for (const [key, value] of Object.entries(savedColorEnv)) {
+		if (value === undefined) delete process.env[key];
+		else process.env[key] = value;
+	}
+}
+assert.equal(formatErroredLine("COMPONENT ERRORED app/broken/page.tsx -> /broken"),
+	"[NENC] ERRORED COMPONENT ERRORED app/broken/page.tsx -> /broken");
+const redErroredLine = colorizeLogLine("[NENC] ERRORED COMPONENT ERRORED app/broken/page.tsx -> /broken", true);
+assert.ok(redErroredLine.includes("\u001b[31m") && redErroredLine.includes("COMPONENT ERRORED"),
+	"component error records render their full status message in red");
+assert.equal(colorizeLogLine("[NENC] DONE compiled /work", false), "[NENC] DONE compiled /work");
+
+const fontPlan = planThemeFontWork([{
+	id: "studio",
+	content: JSON.stringify({
+		format: "nextjs-engine-theme",
+		content: {
+			scope: "global",
+			fonts: ["https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@400"],
+		},
+	}),
+}]);
+assert.equal(fontPlan.label, "fonts: Inter, JetBrains Mono", "font work is listed before it is dispatched to a CW");
+assert.equal(formatFontBuildSummary({
+	themeCount: 1, downloadedFonts: 1, fontAssetsReused: 0, fontAssetsWritten: 1,
+	fallbackThemes: 0, downloadedBytes: 184 * 1024,
+}), "1 theme, 1 font downloaded, 184 KB transferred", "font summaries omit zero-valued details");
+const workerTaskPlan = createWorkerTaskPlan(
+	[{ taskId: "schema-work", pageId: "/work" }, { taskId: "schema-about", pageId: "/about" }],
+	[{ taskId: "font-download", operation: "Downloading", target: "Inter.woff2" }],
+);
+assert.deepEqual(workerTaskPlan.map((task) => task.taskType + ":" + task.taskId), [
+	"schema:schema-work", "external:font-download", "schema:schema-about",
+], "one interleaved static queue schedules downloads and schemas through the same available CW slots");
 
 async function main() {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-gen3-build-smoke-"));
@@ -168,17 +265,15 @@ try {
 	assert.equal(manifest.pages[0].id, "/about", "App Router route groups do not leak into route identifiers");
 	assert.ok(manifest.pages[0].customComponents.includes("notice"), "custom schema nodes appear in the page manifest");
 	assert.ok(manifest.pages[0].compiledNodes.some((node) => node.type === "notice" && node.customComponent), "the emitted compiler graph includes custom-component classification");
-	assert.ok(logs.some((line) => line.includes("COMPILING PAGE : app/(marketing)/about/page.tsx")),
-		"route analysis reports the source path in Next.js-style progress output");
-	assert.ok(logs.some((line) => line.includes("DONE COMPILED /about —")),
-		"schema completion reports the URL route id");
-	assert.ok(logs.some((line) => /NENC ROUTES 0\/3 complete \(0%\)/.test(line)),
-		"route analysis starts at an actual 0 of 3 routes completed");
-	assert.ok(logs.some((line) => /NENC ROUTES 3\/3 complete \(100%\)/.test(line)),
-		"route analysis ends at the actual 3 of 3 routes completed");
+	assert.ok(logs.some((line) => line.includes("INDEXING PAGE : app/(marketing)/about/page.tsx")),
+		"module analysis reports its current route-indexing task");
+	assert.ok(logs.some((line) => line.includes("DONE Compiled app/about/page.tsx -> /about")),
+		"schema completion reports the source path and URL route id");
+	assert.ok(!logs.some((line) => /NENC ROUTES|routes? \d+\/\d+ complete \(\d+(?:\.\d+)?%\)/i.test(line)),
+		"route-analysis snapshots never leak into permanent compiler logs");
 	assert.ok(logs.some((line) => line.includes("COMPILING CUSTOM COMPONENT : notice")),
 		"custom components get a dedicated progress status");
-	assert.ok(logs.some((line) => line.startsWith("DONE SCHEMA CACHE — 0 hit(s), 3 compile miss(es), 3 output(s) persisted")),
+	assert.ok(logs.some((line) => line.startsWith("DONE SCHEMA CACHE — 3 compile misses, 3 outputs persisted")),
 		"the cold-build cache summary reports actual misses and written outputs");
 	assert.ok(!logs.some((line) => line.includes("nextjs-engine |")),
 		"compiler progress must not use the old product-name pipe prefix");
@@ -196,7 +291,7 @@ try {
 	assert.equal(cachedManifest.summary.schemaCompilerWorkerCount, 0, "a full cache hit does not start idle worker threads");
 	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /about")),
 		"cache hits are visible as reuse, not mislabeled as new compilation");
-	assert.ok(!logs.some((line) => line.startsWith("DONE COMPILED /about —")),
+	assert.ok(!logs.some((line) => line.includes("DONE Compiled app/about/page.tsx -> /about")),
 		"an unchanged page is not recompiled on a warm pass");
 
 	const aboutSource = path.join(pageDirectory, "page.tsx");
@@ -209,7 +304,7 @@ try {
 	assert.equal(partialManifest.summary.schemaCompilerWorkerCount, 1, "only one worker is started for one invalidated schema job");
 	assert.ok(partialManifest.pages.find((page) => page.id === "/about").compiledNodes.some((node) => node.type === "text"),
 		"the changed page output reflects its new schema");
-	assert.ok(logs.some((line) => line.startsWith("DONE COMPILED /about —")),
+	assert.ok(logs.some((line) => line.includes("DONE Compiled app/about/page.tsx -> /about")),
 		"the changed page is compiled again");
 	assert.ok(logs.some((line) => line.startsWith("DONE REUSED CACHED COMPILED /emd")),
 		"the unchanged EMD schema is reused");
@@ -221,6 +316,66 @@ try {
 	assert.deepEqual(changedCacheFiles, [
 		path.basename(schemaOutputCachePath(root, "app/(marketing)/about/page.tsx", "/about")),
 	], "only the edited /about cache entry changes; /emd and /ec cache files remain byte-for-byte unchanged");
+
+	// A component error should fail only its own schema task. The CWs doing
+	// valid work finish, and a freed CW takes the next task from the shared queue.
+	const recoveryRoot = path.join(root, "worker-error-isolation");
+	const recoveryRoutes = [
+		["a-good", "Good A", false],
+		["b-broken", "Broken", true],
+		["c-good", "Good C", false],
+		["d-good", "Good D", false],
+	];
+	for (const [route, title, broken] of recoveryRoutes) {
+		const directory = path.join(recoveryRoot, "app", route);
+		fs.mkdirSync(directory, { recursive: true });
+		if (!broken) {
+			writeSimplePage(directory, title, "text");
+			continue;
+		}
+		fs.writeFileSync(path.join(directory, "page.tsx"), [
+			'import { createPage, defineSchema } from "nextjs-engine";',
+			'const pageSchema = defineSchema({',
+			'\tmeta: { title: "Broken component" },',
+			'\troot: { type: "box", props: { apiKey: "literal-secret-must-not-compile" }, children: [{ type: "text", props: { content: "child compiles first" } }] },',
+			'});',
+			'export default createPage({ schema: pageSchema });',
+			"",
+		].join("\n"));
+	}
+	const recoveryLogs = [];
+	const recoveryManifest = await compileProject(recoveryRoot, { log: (line) => recoveryLogs.push(line) });
+	assert.equal(recoveryManifest.summary.failedSchemaCount, 1, "one schema failure is isolated instead of aborting the compiler pass");
+	assert.equal(recoveryManifest.summary.failedTaskCount, 1, "the compiler pass reports the failed task");
+	assert.equal(recoveryManifest.summary.compiledPageCount, 3, "all successful pages remain in the output manifest");
+	assert.deepEqual(recoveryManifest.pages.map((page) => page.id).sort(), ["/a-good", "/c-good", "/d-good"],
+		"the failed schema is excluded while unrelated schema results remain available");
+	assert.equal(recoveryManifest.errors.length, 1, "the failed component remains as structured manifest diagnostics");
+	assert.equal(recoveryManifest.errors[0].pageId, "/b-broken", "the error identifies the failed route");
+	assert.equal(recoveryManifest.errors[0].componentType, "box", "the error identifies the actual component with the invalid property, not the last processed sibling");
+	assert.equal(recoveryManifest.errors[0].nodePath, "root", "the error identifies the component path");
+	assert.ok(recoveryLogs.some((line) => line.includes("ERRORED COMPONENT app/b-broken/page.tsx -> /b-broken · box at root")),
+		"the failed component log names its source, route and component path");
+	for (const route of ["/a-good", "/c-good", "/d-good"]) {
+		assert.ok(recoveryLogs.some((line) => line.includes("DONE Compiled app/" + route.slice(1) + "/page.tsx -> " + route)),
+			"successful CW work is logged for " + route);
+	}
+	const failedCacheFile = schemaOutputCachePath(recoveryRoot, "app/b-broken/page.tsx", "/b-broken");
+	assert.ok(!fs.existsSync(failedCacheFile), "a failed schema never writes a partial cache entry");
+	for (const route of ["a-good", "c-good", "d-good"]) {
+		assert.ok(fs.existsSync(schemaOutputCachePath(recoveryRoot, "app/" + route + "/page.tsx", "/" + route)),
+			"successful route cache survives adjacent component failure: " + route);
+	}
+	const recoveryInput = path.join(recoveryRoot, "worker-manifest.json");
+	fs.writeFileSync(recoveryInput, JSON.stringify(recoveryManifest));
+	const recoveryOutput = emitArtifacts(recoveryRoot, recoveryInput, "dist", {
+		nextVersion: "16.4.2",
+		buildId: "worker-error-recovery",
+		outputs: { appPages: [{ pathname: "/a-good" }, { pathname: "/c-good" }, { pathname: "/d-good" }], prerenders: [], staticFiles: [] },
+	});
+	const parsedRecovery = JSON.parse(fs.readFileSync(recoveryOutput, "utf8"));
+	assert.equal(parsedRecovery.pages.length, 3, "the post-build artifact remains valid and excludes only the failed schema");
+	assert.equal(parsedRecovery.errors.length, 1, "the valid artifact retains the error diagnostic for inspection");
 
 	const inputPath = path.join(root, "worker-manifest.json");
 	fs.writeFileSync(inputPath, JSON.stringify(manifest));
@@ -245,6 +400,66 @@ try {
 	assert.deepEqual(parsedOutput.nextBuild.paths.appPages, ["/", "/about"], "the manifest includes route paths from the Next adapter");
 	const output = fs.readFileSync(emitted, "utf8");
 	assert.ok(!output.includes("DO_NOT_EMIT_SCHEMA_CONTENT"), "compiler manifest contains summaries, not the source schema or arbitrary prop values");
+
+	// A schema-level component/security error should be isolated to that task.
+	// The other CW jobs must finish, and only successful outputs may be cached/emitted.
+	const errorDirectory = path.join(root, "app", "error-case");
+	const goodOneDirectory = path.join(root, "app", "good-one");
+	const goodTwoDirectory = path.join(root, "app", "good-two");
+	for (const directory of [errorDirectory, goodOneDirectory, goodTwoDirectory]) {
+		fs.mkdirSync(directory, { recursive: true });
+	}
+	fs.writeFileSync(path.join(errorDirectory, "page.tsx"), [
+		'import { createPage, defineSchema } from "nextjs-engine";',
+		'const pageSchema = defineSchema({',
+		'\tmeta: { title: "Errored component fixture" },',
+		'\troot: { type: "text", props: { content: "safe text", password: "literal-secret-for-test" } },',
+		'});',
+		'export default createPage({ schema: pageSchema });',
+		"",
+	].join("\n"));
+	writeSimplePage(goodOneDirectory, "CW success one", "text");
+	writeSimplePage(goodTwoDirectory, "CW success two", "box");
+	const errorCachePath = schemaOutputCachePath(root, "app/error-case/page.tsx", "/error-case");
+	assert.equal(fs.existsSync(errorCachePath), false, "the failed route has no prior schema-cache artifact");
+	const failureLogs = [];
+	const erroredManifest = await compileProject(root, { log: (line) => failureLogs.push(line) });
+	assert.equal(erroredManifest.summary.failedSchemaCount, 1, "one component-level schema failure is recorded without aborting the compiler pass");
+	assert.equal(erroredManifest.errors.length, 1, "the partial manifest retains the failed route's error details");
+	assert.equal(erroredManifest.errors[0].pageId, "/error-case");
+	assert.match(erroredManifest.errors[0].message, /Security compilation failed/);
+	assert.match(erroredManifest.errors[0].message, /root\.props\.password/,
+		"the error identifies the schema component property that caused the failure without echoing its value");
+	assert.ok(!erroredManifest.pages.some((page) => page.id === "/error-case"),
+		"the failed route is omitted rather than represented by a corrupt/partial schema plan");
+	assert.ok(erroredManifest.pages.some((page) => page.id === "/good-one")
+		&& erroredManifest.pages.some((page) => page.id === "/good-two"),
+		"other CW jobs finish and their valid schema plans remain in the manifest");
+	assert.ok(failureLogs.some((line) => line.includes("ERRORED COMPONENT app/error-case/page.tsx -> /error-case")),
+		"the failing component is logged as an explicit error line");
+	assert.ok(failureLogs.some((line) => line.includes("DONE Compiled app/good-one/page.tsx -> /good-one"))
+		&& failureLogs.some((line) => line.includes("DONE Compiled app/good-two/page.tsx -> /good-two")),
+		"successful concurrent tasks still emit completion lines");
+	assert.equal(fs.existsSync(errorCachePath), false, "a failed task never writes a cache artifact");
+	for (const [sourcePath, pageId] of [
+		["app/(marketing)/about/page.tsx", "/about"],
+		["app/emd/page.tsx", "/emd"],
+		["app/ec/page.tsx", "/ec"],
+	]) {
+		const cachePath = schemaOutputCachePath(root, sourcePath, pageId);
+		const cacheName = path.basename(cachePath);
+		assert.equal(fs.readFileSync(cachePath, "utf8"), finalCacheEntries.get(cacheName),
+			"failed work does not alter an already-valid cached artifact: " + pageId);
+	}
+	const partialInputPath = path.join(root, "partial-worker-manifest.json");
+	fs.writeFileSync(partialInputPath, JSON.stringify(erroredManifest));
+	const partialOutputFile = emitArtifacts(root, partialInputPath, "dist-partial", nextBuildContext);
+	assert.ok(fs.existsSync(partialOutputFile), "the partial-success manifest is safely emitted after the Next.js build");
+	const emittedPartial = JSON.parse(fs.readFileSync(partialOutputFile, "utf8"));
+	assert.equal(emittedPartial.errors.length, 1, "the emitted manifest preserves diagnostics for the failed component");
+	assert.ok(emittedPartial.pages.some((page) => page.id === "/good-one")
+		&& emittedPartial.pages.some((page) => page.id === "/good-two"),
+		"valid artifacts survive emission when a different schema component errors");
 
 	const unsafeRoot = path.join(root, "outside");
 	fs.mkdirSync(unsafeRoot);

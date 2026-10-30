@@ -172,7 +172,10 @@ async function downloadFavicon(target: FaviconTarget): Promise<CachedFavicon> {
 				throw new Error("provider image size was outside the allowed range");
 			}
 
+			const transferStartedAt = Date.now();
 			const bytes = await readFaviconBytes(response, workerSlot);
+			const transferElapsedMs = Math.max(1, Date.now() - transferStartedAt);
+			const transferBytesPerSecond = bytes.byteLength * 1000 / transferElapsedMs;
 			if (bytes.byteLength === 0 || bytes.byteLength > MAX_ICON_BYTES) {
 				throw new Error("provider image size was outside the allowed range");
 			}
@@ -189,7 +192,12 @@ async function downloadFavicon(target: FaviconTarget): Promise<CachedFavicon> {
 			}
 			faviconCache.set(target.key, asset);
 			if (process.env.NODE_ENV !== "production") {
-				const message = "downloaded icon:" + target.domain + " (" + formatDownloadedBytes(bytes.byteLength) + ")";
+				const transferDetails = [
+					formatDownloadedBytes(bytes.byteLength),
+					transferElapsedMs + "ms",
+					nencTerminalLogger.formatBytesPerSecond(transferBytesPerSecond),
+				];
+				const message = "downloaded icon:" + target.domain + " (" + transferDetails.join(" · ") + ")";
 				if (workerSlot !== null) nencTerminalLogger.finishWorkerTask(workerSlot, message);
 				else nencTerminalLogger.done(message);
 			}

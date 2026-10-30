@@ -151,6 +151,9 @@ async function main() {
 	assert.match(faviconRouteSource, /readFaviconBytes/);
 	assert.match(faviconRouteSource, /bytesPerSecond/);
 	assert.match(faviconRouteSource, /finishWorkerTask/);
+	assert.match(faviconRouteSource, /Downloading/);
+	assert.match(faviconRouteSource, /transferElapsedMs/);
+	assert.match(faviconRouteSource, /formatBytesPerSecond\(transferBytesPerSecond\)/);
 	assert.match(faviconRouteSource, /downloaded icon:/);
 	assert.match(faviconRouteSource, /nencTerminalLogger\.done/);
 	assert.match(faviconRouteSource, /nencTerminalLogger\.failed/);

@@ -22,6 +22,9 @@ const nencLogger = require("../src/engine/plugins/nencTerminalLogger");
 assert.equal(nencLogger.formatRouteProgress(0, 3), "0/3 routes completed (0%)");
 assert.equal(nencLogger.formatRouteProgress(1, 3), "1/3 routes completed (33.3%)");
 assert.equal(nencLogger.formatRouteProgress(3, 3), "3/3 routes completed (100%)");
+const compilerAdapterSource = fs.readFileSync(path.join(__dirname, "..", "src", "engine", "compiler", "nextjs.compiler.ts"), "utf8");
+assert.match(compilerAdapterSource, /event\.level === "errored"\) nencLogger\.errored\(event\.message\)/,
+	"the parent Next.js adapter must forward the worker ERRORED record over IPC");
 
 const defaultCacheConfig = plugin.withEngineTurbopackCache({ experimental: { keepUserSetting: true } });
 assert.equal(defaultCacheConfig.experimental.turbopackFileSystemCacheForDev, true,

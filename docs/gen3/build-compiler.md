@@ -12,32 +12,40 @@ NENC's Engine schema compiler uses **three actual Node.js worker threads**. Stat
 
 NENC also keeps persistent schema-plan outputs under `.nextjs-engine/.cache/gen3/schema-output/`. Each schema job has its own cache file keyed by source path and route/schema ID; the entry fingerprint includes the canonical static schema, only the registered custom component types used by that schema, the TypeScript version, and the compiler source fingerprint. An unchanged job reads its compiled page record from disk without starting a worker. Editing one schema rewrites only that job's cache file; unchanged route entries remain byte-for-byte untouched. A compiler/runtime source change changes the compiler fingerprint and safely forces stale entries to rebuild. Cache writes use a temporary file and replacement step, and a missing/corrupt/unwritable cache entry falls back to compilation rather than failing the build.
 
+A schema/component error is isolated to its own CW task. NENC writes a red `[NENC] ERRORED COMPONENT <source> -> <route>` line with the failure message, marks that task as an error in the compiler manifest, and continues scheduling queued work on the available CWs. Other active tasks can finish normally. A failed page is excluded from the generated schema-plan list; successful pages and their cache entries are preserved, and the failed task never writes or replaces a cache artifact. This allows the NENC metadata pass to finish without corrupting unrelated output. Next.js still performs its own build, so independent syntax/type/build errors reported by Next.js can still fail that build.
+
 The cache intentionally stores schema compiler outputs, not the entire Next.js/Turbopack output. NENC still scans the project and analyzes route/import relationships to rebuild the dependency manifest, while Next.js remains responsible for transforming and bundling application code.
 
-In an interactive terminal, the shared `[NENC]` status line is pinned to the bottom row of the terminal viewport. Normal output is constrained to the rows above it, and finished tasks are written to scrollback as `[NENC] DONE ...` lines. When active tasks share an operation, their targets and per-worker metrics are compacted into one line. For example, the three schema workers can display `Compiling /guide, emd, ec · (43% - 57% - 80%)`. Different kinds of work keep their own metrics, such as `Compiling /guide (33.3%) · Downloading ICON:google.com (8202 B/s)`.
+In an interactive terminal, a four-row `[NENC]` dashboard is pinned to the bottom of the viewport: one header plus `CW1`, `CW2`, and `CW3`. Normal output scrolls above it, and completed tasks remain in scrollback as `[NENC] DONE ...` lines. ANSI colors are enabled when the terminal supports them and can be disabled with `NO_COLOR`. When active tasks share an operation, their targets and per-worker metrics are compacted into one line. For example, the three schema workers can display `Compiling /guide, emd, ec · (43% - 57% - 80%)`. Different kinds of work keep their own metrics, such as `Compiling /guide (33.3%) · Downloading: ICON:google.com (8 KB/s)`.
 
 The Next.js development-output bridge remains separate from the three NENC schema workers. If Next.js prints `Compiling /a, /b, /c`, NENC tracks those observed development route targets, then finishes them only from a real `Compiled /route` event or request log with an actual compile duration. That route percentage is not a claim about Turbopack's internal work. When Next.js emits a real count (for example, static pages 3/8), that exact count drives the displayed percentage. During `next build`, NENC instead reports recognized build phases and the durations/counters that Next.js actually supplies; it does not fabricate route-by-route production-build progress.
 
-The same three-slot logger supports streaming EngineMarkdown favicon downloads. The EMD favicon endpoint measures bytes read and elapsed time from the response body and shows the measured byte rate (B/s) for that slot. On completion it logs the actual downloaded byte size, for example `[NENC] DONE downloaded icon:github.com (76 KB)`. Icon responses remain capped at 256 KiB. The download status uses the normalized hostname only, not the source link's path or query.
+The same three-slot logger labels every active download task as `Downloading:`, whether it is an EngineTheme font transfer or an EngineMarkdown favicon. A task takes whichever CW slot is next available; downloads are not pinned to CW3. Font stylesheet/file downloads report measured throughput from the response stream. The EMD favicon endpoint measures bytes read and elapsed time from the response body and shows the measured byte rate for the assigned slot. On completion it logs the measured transfer size, duration, and average rate, for example `[NENC] DONE downloaded icon:github.com (76 KB · 84ms · 905 KB/s)`. These figures are an illustrative format; emitted values come from the transfer. Icon responses remain capped at 256 KiB. The download status uses the normalized hostname only, not the source link's path or query.
 
 Next.js 16 does not reliably expose `dev` in `process.argv` while evaluating `next.config.js`; the development bridge also checks `NODE_ENV` and the development phase. Without an interactive TTY, terminal-cursor pinning is unavailable; CI/redirected output keeps completion and failure lines rather than pretending to maintain a viewport row.
 
 ```text
-[NENC] Compiling /guide, emd, ec · (43% - 57% - 80%)
-[NENC] DONE compiled /request (1050ms, 434 modules)
-[NENC] DONE downloaded icon:github.com (76 KB)
-[NENC] Compiling /guide (33.3%) · Downloading ICON:google.com (8202 B/s)
+[NENC] DONE Compiled app/work/page.tsx -> /work 58 modules · 19ms · 1 client island · 2 assets
+[NENC] DONE Downloaded font: Inter.woff2 184 KB · 768ms · 239 KB/s
+[NENC] DONE downloaded icon:github.com (76 KB · 84ms · 905 KB/s)
+
+═ [NENC] ═══════════════════════════════════════════════════════════════════════
+CW1  Compiling /privacy-policy ················· 34.2%
+CW2  Compiling / ····························· 21.7%
+CW3  Downloading: fonts: Inter, JetBrains Mono  239 KB/s
 ```
 
-A resolved Engine import logs its source path. An Engine symbol coming from an installed package or an unresolved source alias uses a stable import name such as `@engine/EngineCanvas`. Module completion means Engine's dependency/usage metadata is ready; it does **not** mean Engine emits a replacement JS chunk. The imported code continues through Next.js as usual. Schema jobs are the work that NENC parallelizes; Next.js remains the owner of JS/TSX transformation, React Server Component boundaries, bundling, and final JavaScript/CSS output.
+The sample numbers above illustrate the output format; the logger prints real node progress, byte counts, elapsed times, and transfer rates from the active work. Failed tasks use a red `[NENC] ERRORED ...` line and do not suppress other CW completion records.
+
+A resolved Engine import logs its source path. An Engine symbol coming from an installed package or an unresolved source alias uses a stable import name such as `@engine/EngineCanvas`. Module completion means Engine's dependency/usage metadata is ready; it does **not** mean Engine emits a replacement JS chunk. The imported code continues through Next.js as usual. Schema-compilation jobs run on Node worker threads; download/fetch jobs share the same three CW scheduling slots and report live transfer metrics while using async I/O. Next.js remains the owner of JS/TSX transformation, React Server Component boundaries, bundling, and final JavaScript/CSS output.
 
 ## Mirroring Next.js build activity
 
-During `next build`, the Engine adapter also watches Next.js's terminal output for recognizable phase messages. Messages such as optimized-build compilation, type checking, page-data collection, static-page generation, and build-trace collection update the same bottom status row. Recognized one-line progress/completion messages are normalized to the NENC display; successful milestones become `[NENC] DONE ...` lines. Unrecognized output—including detailed diagnostics—is passed through without rewriting.
+During `next build`, the Engine adapter also watches Next.js's terminal output for recognizable phase messages. Messages such as optimized-build compilation, type checking, page-data collection, static-page generation, and build-trace collection update the dashboard header while its three CW slots remain available for task-specific work. Recognized one-line progress/completion messages are normalized to the NENC display; successful milestones become `[NENC] DONE ...` lines. Unrecognized output—including detailed diagnostics—is passed through without rewriting.
 
 The adapter currently has only configuration and build-completion lifecycle hooks; it does not expose a supported per-file Turbopack compile callback. This bridge therefore parses known CLI messages as a best-effort display feature, not as a stable Next.js internal API. New or changed Next.js wording can simply remain ordinary output until the parser is updated.
 
-The Generation 3 worker sends structured status/completion messages to the parent adapter over IPC. The parent adapter owns the terminal cursor and reapplies the pinned row after Next.js writes to the terminal, preventing two processes from fighting over the same row. Redirected logs and CI cannot pin a cursor, so only completion/failure events are printed there.
+The Generation 3 worker sends structured status/completion messages to the parent adapter over IPC. The parent adapter owns the terminal cursor and reapplies the pinned dashboard after Next.js writes to the terminal, preventing two processes from fighting over the same rows. Redirected logs and CI cannot pin a cursor, so only completion/failure events are printed there.
 
 ## Helping Next.js compile faster
 

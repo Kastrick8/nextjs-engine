@@ -77,5 +77,7 @@ export function compileEngineSecurityDiagnostics(root: EngineCompiledNode): read
 export function assertEngineSecurityDiagnostics(diagnostics: readonly EngineCompilerDiagnostic[]): void {
 	const errors = diagnostics.filter((entry) => entry.level === "error" && entry.code.startsWith("G3-S"));
 	if (errors.length === 0) return;
-	throw new Error(`[Next.js Engine] Security compilation failed with ${errors.length} serious diagnostic(s): ${errors.map(({ code }) => code).join(", ")}.`);
+	const details = errors.map(({ code, path, message }) =>
+		code + (path ? " at " + path : "") + ": " + message);
+	throw new Error(`[Next.js Engine] Security compilation failed with ${errors.length} serious diagnostic(s): ${details.join("; ")}.`);
 }

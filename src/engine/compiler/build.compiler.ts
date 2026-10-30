@@ -229,9 +229,15 @@ function logEvent(event, logger = dispatchTerminalLog) {
 	} else if (event.phase === "page-cache-hit") {
 		logger("DONE REUSING CACHED ENGINE SCHEMA : " + (event.sourcePath || event.pageId));
 	} else if (event.phase === "page-complete" && event.summary) {
-		const s = event.summary;
-		logger("DONE COMPILED " + (event.pageId || event.sourcePath) + " — " + s.totalNodes
-			+ " nodes, " + s.clientIslands + " client islands, " + s.assetCount + " assets");
+		const summary = event.summary;
+		const details = [];
+		if (summary.totalNodes > 0) details.push(formatCount(summary.totalNodes, "node"));
+		const clientIslands = formatCount(summary.clientIslands, "client island");
+		const assets = formatCount(summary.assetCount, "asset");
+		if (clientIslands) details.push(clientIslands);
+		if (assets) details.push(assets);
+		logger("DONE COMPILED " + (event.pageId || event.sourcePath)
+			+ (details.length ? " — " + details.join(" · ") : ""));
 	}
 }
 function readBannerAsset(fileName) {
@@ -346,54 +352,305 @@ function serializeWorkerValue(value) {
 	return value;
 }
 
+function formatCount(value, singular, plural = singular + "s") {
+	const count = Number(value);
+	if (!Number.isFinite(count) || count <= 0) return "";
+	return String(count) + " " + (count === 1 ? singular : plural);
+}
+
+function formatSchemaSourcePath(sourcePath) {
+	const value = String(sourcePath || "").replace(/\\/g, "/");
+	const segments = value.split("/");
+	// Next.js route groups affect layout/route resolution but are not URL segments.
+	return segments.filter((segment) => !(segment.length > 1 && segment.startsWith("(") && segment.endsWith(")"))).join("/");
+}
+
+function formatCompiledSchemaLine(job, page, metadata = {}, moduleCount) {
+	const pieces = [];
+	const modules = Number(moduleCount);
+	if (Number.isFinite(modules) && modules > 0) pieces.push(formatCount(modules, "module"));
+	if (Number.isFinite(metadata.durationMs) && metadata.durationMs >= 0) pieces.push(metadata.durationMs + "ms");
+	const summary = page && page.summary && typeof page.summary === "object" ? page.summary : {};
+	const islands = formatCount(summary.clientIslands, "client island");
+	const assets = formatCount(summary.assetCount, "asset");
+	if (islands) pieces.push(islands);
+	if (assets) pieces.push(assets);
+	const sourcePath = typeof job.sourcePath === "string" && job.sourcePath ? formatSchemaSourcePath(job.sourcePath) : job.pageId;
+	return "Compiled " + sourcePath + " -> " + job.pageId + (pieces.length ? " " + pieces.join(" · ") : "");
+}
+
+function planThemeFontWork(artifacts) {
+	const families = new Set();
+	const themes = [];
+	for (const artifact of Array.isArray(artifacts) ? artifacts : []) {
+		if (!artifact || typeof artifact.content !== "string") continue;
+		let document;
+		try { document = JSON.parse(artifact.content); } catch { continue; }
+		const content = document && document.content;
+		if (!content || content.scope === "remote" || !Array.isArray(content.fonts)) continue;
+		const urls = content.fonts.filter((value) => typeof value === "string" && value.length > 0);
+		if (!urls.length) continue;
+		themes.push(artifact.id);
+		for (const value of urls) {
+			try {
+				const url = new URL(value);
+				for (const family of url.searchParams.getAll("family")) {
+					const name = family.split(":")[0].replace(/\+/g, " ").trim();
+					if (name) families.add(name);
+				}
+			} catch { /* The font compiler validates the URL before requesting it. */ }
+		}
+	}
+	const names = [...families];
+	return {
+		themes,
+		families: names,
+		target: names.length ? names.join(", ") : themes.join(", "),
+		label: names.length ? "fonts: " + names.join(", ") : "theme fonts: " + themes.join(", "),
+	};
+}
+
+function formatFontBytes(value) {
+	const bytes = Number.isFinite(value) ? Math.max(0, value) : 0;
+	if (bytes >= 1024 * 1024) return (Math.round((bytes / (1024 * 1024)) * 10) / 10) + " MB";
+	if (bytes >= 1024) return Math.round(bytes / 1024) + " KB";
+	return Math.round(bytes) + " B";
+}
+
+function formatFontBuildSummary(stats) {
+	const pieces = [];
+	const themes = formatCount(stats.themeCount, "theme");
+	if (themes) pieces.push(themes);
+	const downloaded = formatCount(stats.downloadedFonts, "font") + " downloaded";
+	if (stats.downloadedFonts > 0) pieces.push(downloaded);
+	const reused = formatCount(stats.fontAssetsReused, "font asset") + " reused";
+	if (stats.fontAssetsReused > 0) pieces.push(reused);
+	const fallbacks = formatCount(stats.fallbackThemes, "stylesheet fallback");
+	if (fallbacks) pieces.push(fallbacks);
+	const bytes = Number(stats.downloadedBytes) || 0;
+	if (bytes > 0) pieces.push(formatFontBytes(bytes) + " transferred");
+	return pieces.join(", ");
+}
+
+function createWorkerTaskPlan(schemaJobs, externalJobs = []) {
+	// Build a deterministic, interleaved queue before any worker starts.
+	// Dynamic dispatch still sends the next task to whichever CW frees up first;
+	// neither schema work nor downloads are reserved for a specific CW number.
+	const schemas = (Array.isArray(schemaJobs) ? schemaJobs : [])
+		.map((job) => ({ ...job, taskType: "schema" }));
+	const external = (Array.isArray(externalJobs) ? externalJobs : []).map((job, index) => ({
+		...job,
+		taskType: "external",
+		taskId: job.taskId || "external-" + index,
+	}));
+	const queue = [];
+	for (let index = 0; index < Math.max(schemas.length, external.length); index += 1) {
+		if (schemas[index]) queue.push(schemas[index]);
+		if (external[index]) queue.push(external[index]);
+	}
+	return queue;
+}
+
+function schemaNodeAtPath(schema, nodePath) {
+	let node = schema && schema.root;
+	const segments = String(nodePath || "").split(".").slice(1);
+	for (const segment of segments) {
+		if (segment === "fallback") node = node && node.props && node.props.fallback;
+		else if (/^\d+$/.test(segment)) node = node && Array.isArray(node.children) ? node.children[Number(segment)] : undefined;
+		else return undefined;
+		if (!node || typeof node !== "object") return undefined;
+	}
+	return node;
+}
+
+function failureNodeContext(job, slot, errorMessage) {
+	// Security diagnostics include a schema node path such as root.0.props.href.
+	// Prefer that exact source over the last progress event, which may belong to
+	// a later sibling because security checks run after the complete tree walk.
+	const match = String(errorMessage || "").match(/\bat (root(?:\.(?:\d+|fallback))*)\.props(?:\.|:|;|$)/);
+	if (match) {
+		const nodePath = match[1];
+		const node = schemaNodeAtPath(job.schema, nodePath);
+		return {
+			nodePath,
+			componentType: node && typeof node.type === "string" ? node.type : (slot && slot.lastNodeType) || undefined,
+		};
+	}
+	return {
+		nodePath: slot && slot.lastNodePath ? slot.lastNodePath : undefined,
+		componentType: slot && slot.lastNodeType ? slot.lastNodeType : undefined,
+	};
+}
+
 function compileSchemaJobs(jobs, options = {}) {
-	if (!jobs.length) return Promise.resolve([]);
-	const workerCount = Math.min(3, jobs.length);
+	const externalJobs = Array.isArray(options.externalJobs) ? options.externalJobs : [];
+	const queue = createWorkerTaskPlan(jobs, externalJobs);
+	const totalTasks = queue.length;
+	if (!totalTasks) return Promise.resolve({ pages: [], errors: [] });
+	const workerCount = Math.min(3, totalTasks);
 	const log = typeof options.log === "function" ? options.log : dispatchTerminalLog;
 	const showWorkerStatus = options.showWorkerStatus !== false;
 
 	return new Promise((resolve, reject) => {
-		const queue = [...jobs];
+		// Dispatch the fixed plan to whichever worker slot becomes available next.
 		const results = new Array(jobs.length);
+		const taskErrors = [];
 		const workers = Array.from({ length: workerCount }, () => new Worker(path.join(__dirname, "schema-worker.compiler.js")));
-		const slots = workers.map((worker, index) => ({ worker, index, job: null, online: false }));
+		const slots = workers.map((worker, index) => ({
+			worker,
+			index,
+			job: null,
+			online: false,
+			failed: false,
+			lastNodeType: "",
+			lastNodePath: "root",
+		}));
 		let completed = 0;
 		let settled = false;
+		let fatalTaskFailure = null;
 
 		function stopWorkers() {
 			return Promise.all(workers.map((worker) => worker.terminate().catch(() => undefined)));
 		}
 
-		function settleSuccess() {
-			if (settled || completed !== jobs.length) return;
-			settled = true;
-			if (showWorkerStatus) nencLogger.clearStatus("workers");
-			stopWorkers().then(() => resolve(results));
+		function completeTask(slot) {
+			slot.job = null;
+			slot.lastNodeType = "";
+			slot.lastNodePath = "root";
+			completed += 1;
+			if (completed === totalTasks) settleSuccess();
+			else if (slot.failed) drainUnserviceableQueue();
+			else dispatch(slot);
 		}
 
-		function fail(error, failedSlot) {
-			if (settled) return;
+		function settleSuccess() {
+			if (settled || completed !== totalTasks) return;
 			settled = true;
-			for (const slot of slots) {
-				if (!slot.job || !showWorkerStatus) continue;
-				const label = slot.job.pageId;
-				if (slot === failedSlot) {
-					nencLogger.failWorkerTask(slot.index, "compile " + label + " — " + (error instanceof Error ? error.message : String(error)));
-				} else {
-					nencLogger.failWorkerTask(slot.index, "compile " + label + " — worker pool stopped");
-				}
+			if (showWorkerStatus) nencLogger.clearStatus("workers");
+			stopWorkers().then(() => {
+				// Explicitly fatal tasks still allow all other active CW jobs to drain.
+				if (fatalTaskFailure) reject(fatalTaskFailure);
+				else resolve({ pages: results, errors: taskErrors });
+			});
+		}
+
+		function recordTaskError(job, error, slot, kind = "task") {
+			const taskType = job.taskType === "external" ? "external" : "schema";
+			const sourcePath = job.sourcePath ? formatSchemaSourcePath(job.sourcePath) : undefined;
+			const message = error instanceof Error ? error.message : String(error);
+			const nodeContext = taskType === "schema" ? failureNodeContext(job, slot, message) : {};
+			const nodeType = nodeContext.componentType;
+			const nodePath = nodeContext.nodePath;
+			const failure = {
+				taskId: job.taskId,
+				taskType,
+				...(job.pageId ? { pageId: job.pageId } : {}),
+				...(sourcePath ? { sourcePath } : {}),
+				...(job.target ? { target: job.target } : {}),
+				name: error instanceof Error ? error.name : "Error",
+				message,
+				...(job.fatalOnError ? { fatal: true } : {}),
+				...(nodeType ? { componentType: nodeType } : {}),
+				...(nodePath ? { nodePath } : {}),
+			};
+			taskErrors.push(failure);
+			if (job.fatalOnError && !fatalTaskFailure) {
+				fatalTaskFailure = new Error(message);
+				fatalTaskFailure.name = failure.name;
 			}
-			stopWorkers().then(() => reject(error instanceof Error ? error : new Error(String(error))));
+			let detail;
+			if (taskType === "schema") {
+				const component = nodeType ? " · " + nodeType + " at " + (nodePath || "root") : "";
+				const prefix = kind === "worker" ? "WORKER " : "COMPONENT ";
+				detail = prefix + (sourcePath || job.pageId) + " -> " + job.pageId + component + " — " + message;
+			} else {
+				detail = (kind === "worker" ? "WORKER " : "TASK ")
+					+ (job.operation || "work") + " " + (job.target || job.pageId || job.taskId) + " — " + message;
+			}
+			if (showWorkerStatus && slot && slot.job) nencLogger.failWorkerTask(slot.index, detail);
+			else if (showWorkerStatus) nencLogger.errored(detail);
+			else log("ERRORED " + detail);
+			return failure;
+		}
+
+		function drainUnserviceableQueue() {
+			if (!slots.every((slot) => slot.failed)) return;
+			while (queue.length > 0) {
+				const job = queue.shift();
+				const error = new Error("No NENC compile workers remain; task was not started.");
+				recordTaskError(job, error, null, "worker");
+				completed += 1;
+			}
+			if (completed === totalTasks) settleSuccess();
+		}
+
+		function workerFailed(error, slot) {
+			if (settled || slot.failed) return;
+			slot.failed = true;
+			slot.online = false;
+			const activeJob = slot.job;
+			if (activeJob && activeJob.taskType === "schema") {
+				recordTaskError(activeJob, error, slot, "worker");
+				completeTask(slot);
+			} else {
+				const message = error instanceof Error ? error.message : String(error);
+				const context = activeJob
+					? " while " + (activeJob.operation || "working on") + " " + (activeJob.target || activeJob.pageId || activeJob.taskId)
+					: " while idle";
+				const detail = "WORKER CW" + (slot.index + 1) + context + " — " + message;
+				if (showWorkerStatus) nencLogger.errored(detail);
+				else log("ERRORED " + detail);
+			}
+			// Do not terminate the other CWs. They keep their current tasks and
+			// continue pulling the shared queue; successful results remain valid.
+			if (slot.worker) slot.worker.terminate().catch(() => undefined);
+			drainUnserviceableQueue();
 		}
 
 		function dispatch(slot) {
-			if (settled || !slot.online || slot.job) return;
+			if (settled || slot.failed || !slot.online || slot.job) return;
 			const job = queue.shift();
 			if (!job) {
 				settleSuccess();
 				return;
 			}
 			slot.job = job;
+			slot.lastNodeType = "";
+			slot.lastNodePath = "root";
+			if (job.taskType === "external") {
+				if (showWorkerStatus) {
+					nencLogger.startWorkerTask(slot.index, {
+						operation: job.operation || "Working",
+						target: job.target || job.pageId || job.taskId,
+						mode: job.mode === "rate" ? "rate" : "percent",
+						progress: Number.isFinite(job.progress) ? job.progress : 0,
+						bytesPerSecond: Number.isFinite(job.bytesPerSecond) ? job.bytesPerSecond : 0,
+					});
+				}
+				Promise.resolve().then(() => job.run({
+					workerIndex: slot.index,
+					update: (update) => showWorkerStatus && nencLogger.updateWorkerTask(slot.index, update),
+					log,
+				})).then((result) => {
+					if (settled) return;
+					const doneMessage = typeof job.formatDone === "function"
+						? job.formatDone(result) : (result && result.doneMessage) || job.doneMessage;
+					if (doneMessage) {
+						if (showWorkerStatus) nencLogger.finishWorkerTask(slot.index, doneMessage);
+						if (typeof options.log === "function") log("DONE " + doneMessage);
+					} else if (showWorkerStatus) {
+						nencLogger.clearWorkerTask(slot.index);
+					}
+					if (typeof job.onComplete === "function") job.onComplete(result);
+					completeTask(slot);
+				}, (error) => {
+					if (settled) return;
+					recordTaskError(job, error, slot, "task");
+					completeTask(slot);
+				});
+				return;
+			}
+
 			if (showWorkerStatus) {
 				nencLogger.startWorkerTask(slot.index, {
 					operation: "Compiling",
@@ -412,7 +669,8 @@ function compileSchemaJobs(jobs, options = {}) {
 					customComponentTypes: job.customComponentTypes,
 				});
 			} catch (error) {
-				fail(error, slot);
+				recordTaskError(job, error, slot, "task");
+				completeTask(slot);
 			}
 		}
 
@@ -422,9 +680,12 @@ function compileSchemaJobs(jobs, options = {}) {
 				dispatch(slot);
 			});
 			slot.worker.on("message", (message) => {
-				if (settled || !slot.job || !message || message.taskId !== slot.job.taskId) return;
+				if (settled || slot.failed || !slot.job || slot.job.taskType !== "schema"
+					|| !message || message.taskId !== slot.job.taskId) return;
 				const job = slot.job;
 				if (message.type === "progress") {
+					slot.lastNodeType = typeof message.nodeType === "string" ? message.nodeType : slot.lastNodeType;
+					slot.lastNodePath = typeof message.nodePath === "string" ? message.nodePath : slot.lastNodePath;
 					if (showWorkerStatus) nencLogger.updateWorkerTask(slot.index, { progress: message.progress });
 					if (message.customComponent) {
 						const status = "COMPILING CUSTOM COMPONENT : " + message.nodeType
@@ -438,7 +699,9 @@ function compileSchemaJobs(jobs, options = {}) {
 					const error = new Error(message.error && message.error.message || "NENC schema worker failed");
 					error.name = message.error && message.error.name || "Error";
 					if (message.error && message.error.stack) error.stack = message.error.stack;
-					fail(error, slot);
+					// A component error belongs to this task only: other CWs keep working.
+					recordTaskError(job, error, slot, "task");
+					completeTask(slot);
 					return;
 				}
 				if (message.type !== "result") return;
@@ -454,22 +717,22 @@ function compileSchemaJobs(jobs, options = {}) {
 						// A cache callback is an optimization and must not fail the compilation.
 					}
 				}
-				if (showWorkerStatus) {
-					nencLogger.finishWorkerTask(slot.index, "compiled " + job.pageId
-						+ " (" + message.durationMs + "ms, " + message.nodeCount + " nodes)");
-				}
-				if (typeof options.log === "function") {
-					log("DONE COMPILED " + job.pageId + " — " + message.nodeCount + " nodes in " + message.durationMs + "ms");
-				}
-				slot.job = null;
-				completed += 1;
-				if (completed === jobs.length) settleSuccess();
-				else dispatch(slot);
+				const moduleCount = options.moduleCountByRoute instanceof Map
+					? options.moduleCountByRoute.get(job.pageId) : undefined;
+				const doneMessage = formatCompiledSchemaLine(job, message.page, { durationMs: message.durationMs }, moduleCount);
+				if (showWorkerStatus) nencLogger.finishWorkerTask(slot.index, doneMessage);
+				if (typeof options.log === "function") log("DONE " + doneMessage);
+				completeTask(slot);
 			});
-			slot.worker.on("error", (error) => fail(error, slot));
+			slot.worker.on("error", (error) => workerFailed(error, slot));
 			slot.worker.on("exit", (code) => {
-				if (!settled && code !== 0) fail(new Error("NENC schema worker exited with code " + code), slot);
-				else if (!settled && slot.job) fail(new Error("NENC schema worker exited before completing " + slot.job.pageId), slot);
+				if (settled || slot.failed) return;
+				if (code !== 0) workerFailed(new Error("NENC schema worker exited with code " + code), slot);
+				else if (slot.job && slot.job.taskType === "schema") {
+					workerFailed(new Error("NENC schema worker exited before completing " + slot.job.pageId), slot);
+				} else {
+					workerFailed(new Error("NENC schema worker exited unexpectedly with code 0"), slot);
+				}
 			});
 		}
 	});
@@ -516,19 +779,14 @@ async function compileProject(projectRoot, options = {}) {
 		sourceFile: sourceByPath.get(file),
 	})));
 	if (themeBuild.artifacts.length > 0 || themeBuild.removedCount > 0) {
-		log("DONE ENGINE THEME ARTIFACTS — " + themeBuild.artifacts.length
-			+ " theme group(s), " + themeBuild.createdCount + " created, " + themeBuild.updatedCount
-			+ " updated, " + themeBuild.unchangedCount + " unchanged, " + themeBuild.removedCount + " stale removed");
-	}
-
-	const themeFontBuild = await compileEngineThemeFonts(resolvedRoot, themeBuild.artifacts);
-	if (!themeFontBuild.skipped && themeFontBuild.themeCount > 0) {
-		log("DONE ENGINE THEME FONTS — " + themeFontBuild.themeCount + " theme(s), "
-			+ themeFontBuild.downloadedFonts + " downloaded, " + themeFontBuild.fontAssetsReused + " reused, "
-			+ themeFontBuild.fallbackThemes + " stylesheet fallback(s)");
-		for (const warning of themeFontBuild.warnings) {
-			log("WARN ENGINE THEME FONT " + warning.themeId + " — " + warning.warning);
-		}
+		const details = [];
+		const themeGroups = formatCount(themeBuild.artifacts.length, "theme group");
+		if (themeGroups) details.push(themeGroups);
+		if (themeBuild.createdCount > 0) details.push(themeBuild.createdCount + " created");
+		if (themeBuild.updatedCount > 0) details.push(themeBuild.updatedCount + " updated");
+		if (themeBuild.unchangedCount > 0) details.push(themeBuild.unchangedCount + " unchanged");
+		if (themeBuild.removedCount > 0) details.push(themeBuild.removedCount + " stale removed");
+		if (details.length) log("DONE ENGINE THEME ARTIFACTS — " + details.join(", "));
 	}
 
 	const moduleAnalysis = analyzeProjectModules(resolvedRoot, {
@@ -601,9 +859,61 @@ async function compileProject(projectRoot, options = {}) {
 		});
 	}
 
-	const workerPages = await compileSchemaJobs(workerJobs, {
+	const moduleCountByRoute = new Map(moduleAnalysis.routes.map((route) => [route.routePath, route.engineModuleCount]));
+	const externalJobs = [];
+	let themeFontBuild;
+	const fontPlan = planThemeFontWork(themeBuild.artifacts);
+	if (process.env.NODE_ENV === "production" && fontPlan.themes.length > 0) {
+		externalJobs.push({
+			taskId: "engine-theme-fonts",
+			fatalOnError: process.env.ENGINE_THEME_FONT_FAILURE_POLICY === "error",
+			pageId: fontPlan.label,
+			operation: "Preparing fonts",
+			target: fontPlan.target,
+			mode: "percent",
+			progress: 0,
+			run: async ({ update }) => {
+				themeFontBuild = await compileEngineThemeFonts(resolvedRoot, themeBuild.artifacts, {
+					onTaskProgress(event) {
+						update({
+							operation: event.operation || "Preparing fonts",
+							target: event.target || fontPlan.target,
+							mode: "percent",
+							progress: event.progress,
+						});
+					},
+					onDownloadProgress(event) {
+						update({
+							operation: "Downloading",
+							target: event.target || fontPlan.label,
+							mode: "rate",
+							bytesPerSecond: event.bytesPerSecond,
+						});
+					},
+					onDownloadDone(event) {
+						const parts = [formatFontBytes(event.bytes), event.elapsedMs + "ms"];
+						if (event.bytesPerSecond > 0) parts.push(nencLogger.formatBytesPerSecond(event.bytesPerSecond));
+						const fileLabel = event.family + (event.extension ? "." + event.extension : "");
+						const message = "Downloaded font: " + fileLabel + " " + parts.join(" · ");
+						if (typeof options.log === "function") log("DONE " + message);
+						else nencLogger.done(message);
+					},
+				});
+				if (!themeFontBuild.skipped && themeFontBuild.themeCount > 0) {
+					for (const warning of themeFontBuild.warnings) {
+						log("WARN ENGINE THEME FONT " + warning.themeId + " — " + warning.warning);
+					}
+					return { doneMessage: "EngineTheme fonts — " + formatFontBuildSummary(themeFontBuild) };
+				}
+				return { doneMessage: "" };
+			},
+		});
+	}
+	const workerResult = await compileSchemaJobs(workerJobs, {
 		log,
 		showWorkerStatus: typeof options.log !== "function",
+		externalJobs,
+		moduleCountByRoute,
 		onResult(job, page, metadata) {
 			if (schemaOutputCache.write(job, job.fingerprint, page, metadata)) {
 				schemaCacheWriteCount += 1;
@@ -613,8 +923,13 @@ async function compileProject(projectRoot, options = {}) {
 		},
 	});
 	for (let index = 0; index < workerJobs.length; index++) {
-		pages[workerJobs[index].outputOrder] = workerPages[index];
+		pages[workerJobs[index].outputOrder] = workerResult.pages[index];
 	}
+	const taskErrors = workerResult.errors;
+	const schemaErrors = taskErrors.filter((error) => error.taskType === "schema");
+	// Only successful compiler records enter the manifest. A failed job never
+	// overwrites its cache entry; existing valid cache artifacts stay untouched.
+	const compiledPages = pages.filter((page) => page && typeof page === "object");
 
 	const candidateCount = schemaJobs.length;
 	const schemaCacheMissCount = workerJobs.length;
@@ -637,18 +952,38 @@ async function compileProject(projectRoot, options = {}) {
 		themeArtifactCreatedCount: themeBuild.createdCount,
 		themeArtifactUpdatedCount: themeBuild.updatedCount,
 		themeArtifactUnchangedCount: themeBuild.unchangedCount,
-		compiledPageCount: pages.length,
-		compiledSchemaPageCount: pages.length,
+		compiledPageCount: compiledPages.length,
+		compiledSchemaPageCount: compiledPages.length,
+		failedSchemaCount: schemaErrors.length,
+		failedTaskCount: taskErrors.length,
 		skippedPageCount: skipped.length,
-		customComponentTypeCount: new Set(registered.concat(...pages.map((page) => page.customComponents))).size,
+		customComponentTypeCount: new Set(registered.concat(...compiledPages.map((page) => page.customComponents))).size,
 		compilerPassTimeMs: Date.now() - passStartedAt,
 	};
-	log("DONE SCHEMA CACHE — " + schemaCacheHitCount + " hit(s), " + schemaCacheMissCount
-		+ " compile miss(es), " + schemaCacheWriteCount + " output(s) persisted at "
-		+ path.relative(resolvedRoot, schemaOutputCache.cacheDirectory).split(path.sep).join("/"));
-	log("DONE COMPILER PASS — " + summary.analyzedRouteCount + " route entries analyzed, "
-		+ summary.compiledSchemaPageCount + " Engine schema plans, " + summary.engineModuleCount + " Engine modules in "
-		+ summary.compilerPassTimeMs + "ms");
+	const cacheDetails = [];
+	if (schemaCacheHitCount > 0) cacheDetails.push(formatCount(schemaCacheHitCount, "cache hit"));
+	if (schemaCacheMissCount > 0) cacheDetails.push(formatCount(schemaCacheMissCount, "compile miss", "compile misses"));
+	if (schemaCacheWriteCount > 0) {
+		cacheDetails.push(formatCount(schemaCacheWriteCount, "output", "outputs") + " persisted at "
+			+ path.relative(resolvedRoot, schemaOutputCache.cacheDirectory).split(path.sep).join("/"));
+	}
+	if (cacheDetails.length) log("DONE SCHEMA CACHE — " + cacheDetails.join(", "));
+	const passDetails = [];
+	const sourceFilesScanned = summary.scannedSourceFileCount > 0
+		? formatCount(summary.scannedSourceFileCount, "source file", "source files") + " scanned" : "";
+	const routeEntries = summary.analyzedRouteCount > 0
+		? formatCount(summary.analyzedRouteCount, "route entry", "route entries") + " analyzed" : "";
+	const schemaPlans = formatCount(summary.compiledSchemaPageCount, "Engine schema plan");
+	const engineModules = formatCount(summary.engineModuleCount, "Engine module");
+	if (sourceFilesScanned) passDetails.push(sourceFilesScanned);
+	if (routeEntries) passDetails.push(routeEntries);
+	if (schemaPlans) passDetails.push(schemaPlans);
+	if (engineModules) passDetails.push(engineModules);
+	const failedTasks = formatCount(taskErrors.length, "task error");
+	if (failedTasks) passDetails.push(failedTasks);
+	if (passDetails.length) {
+		log("DONE COMPILER PASS — " + passDetails.join(", ") + " in " + summary.compilerPassTimeMs + "ms");
+	}
 
 	return {
 		schemaVersion: 2,
@@ -661,8 +996,9 @@ async function compileProject(projectRoot, options = {}) {
 		themes: themeBuild.artifacts,
 		modules: moduleAnalysis.modules,
 		registeredCustomComponents: registered,
-		pages,
+		pages: compiledPages,
 		skipped,
+		errors: taskErrors,
 		summary,
 	};
 }
@@ -757,10 +1093,14 @@ function emitArtifacts(projectRoot, inputPath, distDir, buildContext = {}) {
 			["staticFiles", "static files"],
 		];
 		const parts = labels
-			.filter(([key]) => Number.isInteger(nextBuild.counts[key]))
+			.filter(([key]) => Number.isInteger(nextBuild.counts[key]) && nextBuild.counts[key] > 0)
 			.map(([key, label]) => nextBuild.counts[key] + " " + label);
-		if (parts.length) nencLogger.done("INDEXED NEXT.JS BUILD OUTPUTS — "
-			+ nextBuild.routeOutputCount + " unique route paths; " + parts.join(", "));
+		if (nextBuild.routeOutputCount > 0 || parts.length) {
+			const summaryParts = [];
+			if (nextBuild.routeOutputCount > 0) summaryParts.push(nextBuild.routeOutputCount + " unique route paths");
+			summaryParts.push(...parts);
+			nencLogger.done("INDEXED NEXT.JS BUILD OUTPUTS — " + summaryParts.join("; "));
+		}
 	}
 	return outputFile;
 }
@@ -795,8 +1135,12 @@ async function runCLI(argv = process.argv.slice(2)) {
 			const manifest = await compileProject(root);
 			nencLogger.setStatus("WRITING COMPILER MANIFEST");
 			atomicWriteJson(path.resolve(args.output), manifest);
-			nencLogger.done("COMPILER MANIFEST WRITTEN — " + manifest.summary.compiledPageCount
-				+ " pages, " + manifest.summary.customComponentTypeCount + " custom component types");
+			const manifestDetails = [];
+			const compiledPages = formatCount(manifest.summary.compiledPageCount, "page");
+			const customTypes = formatCount(manifest.summary.customComponentTypeCount, "custom component type");
+			if (compiledPages) manifestDetails.push(compiledPages);
+			if (customTypes) manifestDetails.push(customTypes);
+			nencLogger.done("COMPILER MANIFEST WRITTEN" + (manifestDetails.length ? " — " + manifestDetails.join(", ") : ""));
 		} else {
 			if (!args.input) throw new Error("--emit requires --input <compiler-manifest>");
 			emitArtifacts(root, path.resolve(args.input), args.distDir);
@@ -819,6 +1163,12 @@ if (require.main === module) {
 module.exports = {
 	BUILTIN_NODE_TYPES,
 	compileProject,
+	createWorkerTaskPlan,
+	formatSchemaSourcePath,
+	formatCompiledSchemaLine,
+	formatFontBuildSummary,
+	formatFontBytes,
+	planThemeFontWork,
 	emitArtifacts,
 	logEvent,
 	ASCII_WORDMARK,
