@@ -11,10 +11,83 @@ const terminal = require("../bin/ne-cli/terminal");
 const cli = require("../bin/ne-cli/cli");
 const project = require("../bin/ne-cli/project");
 const tasks = require("../bin/ne-cli/tasks");
+const presentation = require("../bin/ne-cli/presentation");
+const diagnostics = require("../bin/ne-cli/diagnostics");
 const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
 
 async function main() {
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
+
+	assert.equal(presentation.visibleWidth("\x1b[31mERROR\x1b[0m"), 5,
+		"ANSI escape sequences do not affect calculated terminal width");
+	const adaptiveBanner = presentation.renderBanner({
+		type: "warning",
+		title: "NE CLI · EXPERIMENTAL",
+		message: "The NE CLI is experimental and may change or be removed in a future version.",
+		details: ["Review the selected channel before applying updates."],
+		width: 58,
+		color: true,
+	});
+	const bannerWidths = adaptiveBanner.split("\n").map(presentation.visibleWidth);
+	assert.equal(new Set(bannerWidths).size, 1, "every adaptive banner row aligns to the same visible width");
+	assert.ok(bannerWidths[0] <= 58, "adaptive banners stay within the requested terminal width");
+	assert.match(adaptiveBanner, /NE CLI · EXPERIMENTAL/);
+	const asciiBanner = presentation.renderBanner({
+		type: "error",
+		title: "ERROR",
+		code: "NE1001",
+		message: "Unknown command.",
+		width: 48,
+		ascii: true,
+		color: false,
+	});
+	assert.match(asciiBanner, /^\+/);
+	assert.ok(asciiBanner.split("\n").every((line) => !/[╭╮╰╯│─]/.test(line)),
+		"ASCII mode contains no Unicode box drawing characters");
+
+	const codeFrame = presentation.renderCodeFrame(
+		"const first = true;\nconst value = );\nconst last = false;",
+		{ line: 2, column: 15 },
+		{ width: 72 }
+	);
+	assert.match(codeFrame, /›\s+2 │ const value = \);/);
+	assert.match(codeFrame, /\^/);
+	const syntaxError = diagnostics.createCliError("Unexpected token ')'.", {
+		code: "NE1004",
+		location: { file: "app/page.tsx", line: 12, column: 18 },
+		source: "const value = );\n",
+		suggestion: "Check the expression before this token.",
+	});
+	const syntaxBanner = presentation.renderError(syntaxError, { width: 72, color: false });
+	assert.match(syntaxBanner, /NE1004/);
+	assert.match(syntaxBanner, /app\/page\.tsx:line 12:column 18/);
+	assert.match(syntaxBanner, /\^/);
+
+	const commandTypo = diagnostics.unknownCommand("bulid", [
+		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+	]);
+	assert.equal(commandTypo.neCode, "NE1001");
+	assert.match(commandTypo.neSuggestion, /ne build/);
+	const optionTypo = diagnostics.unknownOption("--verison", [
+		"--channel", "--version", "--and", "--yes", "--check", "--json", "--dry-run", "--force",
+	]);
+	assert.equal(optionTypo.neCode, "NE1002");
+	assert.match(optionTypo.neSuggestion, /--version/);
+	assert.equal(diagnostics.missingOptionValue("--channel").neCode, "NE1003");
+
+	const typoResult = spawnSync(process.execPath, [executable, "bulid"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(typoResult.status, 1);
+	assert.match(typoResult.stderr, /NE1001/);
+	assert.match(typoResult.stderr, /Did you mean "ne build"/);
+
+	const typoOptionResult = spawnSync(process.execPath, [executable, "--verison"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(typoOptionResult.status, 1);
+	assert.match(typoOptionResult.stderr, /NE1002/);
+	assert.match(typoOptionResult.stderr, /--version/);
 
 	const { spawnSync } = require("node:child_process");
 	const executable = path.resolve(__dirname, "../bin/ne.js");
