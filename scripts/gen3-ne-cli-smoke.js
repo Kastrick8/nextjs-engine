@@ -17,6 +17,8 @@ const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
 
 async function main() {
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
+	const { spawnSync } = require("node:child_process");
+	const neExecutable = path.resolve(__dirname, "../bin/ne.js");
 
 	assert.equal(presentation.visibleWidth("\x1b[31mERROR\x1b[0m"), 5,
 		"ANSI escape sequences do not affect calculated terminal width");
@@ -55,7 +57,7 @@ async function main() {
 	const syntaxError = diagnostics.createCliError("Unexpected token ')'.", {
 		code: "NE1004",
 		location: { file: "app/page.tsx", line: 12, column: 18 },
-		source: "const value = );\n",
+		source: "const placeholder = 0;\\n".repeat(11) + "const value = );\\n",
 		suggestion: "Check the expression before this token.",
 	});
 	const syntaxBanner = presentation.renderError(syntaxError, { width: 72, color: false });
@@ -75,22 +77,21 @@ async function main() {
 	assert.match(optionTypo.neSuggestion, /--version/);
 	assert.equal(diagnostics.missingOptionValue("--channel").neCode, "NE1003");
 
-	const typoResult = spawnSync(process.execPath, [executable, "bulid"], {
+	const typoResult = spawnSync(process.execPath, [neExecutable, "bulid"], {
 		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
 	});
 	assert.equal(typoResult.status, 1);
 	assert.match(typoResult.stderr, /NE1001/);
 	assert.match(typoResult.stderr, /Did you mean "ne build"/);
 
-	const typoOptionResult = spawnSync(process.execPath, [executable, "--verison"], {
+	const typoOptionResult = spawnSync(process.execPath, [neExecutable, "--verison"], {
 		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
 	});
 	assert.equal(typoOptionResult.status, 1);
 	assert.match(typoOptionResult.stderr, /NE1002/);
 	assert.match(typoOptionResult.stderr, /--version/);
 
-	const { spawnSync } = require("node:child_process");
-	const executable = path.resolve(__dirname, "../bin/ne.js");
+	const executable = neExecutable;
 	const startupPackageManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
 	const versionStarted = process.hrtime.bigint();
 	const versionResult = spawnSync(process.execPath, [executable, "--version"], {
