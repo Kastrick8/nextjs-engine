@@ -43,7 +43,7 @@ async function main() {
 		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
 	]), { width: 58, ascii: true, color: false });
 	assert.match(errorBanner, /NE1001/);
-	assert.match(errorBanner, /ne-cli-error-book\\.md#ne1001/);
+	assert.ok(errorBanner.replace(/\\s+/g, "").includes((errorBookBase + "#ne1001").replace(/\\s+/g, "")), "the wrapped Help URL remains complete");
 	assert.ok(errorBanner.split("\n").every((line) => !/[╭╮╰╯│─]/.test(line)));
 
 	const errorBook = fs.readFileSync(path.join(repoRoot, "docs/2/ne-cli-error-book.md"), "utf8");
