@@ -604,7 +604,12 @@ async function runCheck(root) {
 			errors += 1;
 			process.stderr.write("[NE-CHECK] tsconfig.json exists but TypeScript is not installed.\n");
 		} else {
-			try { await runProcess(process.execPath, [cli, "--noEmit"], { cwd: root }); }
+			try {
+				await runProcess(process.execPath, [cli, "--noEmit"], {
+					cwd: root,
+					label: "TypeScript type-check",
+				});
+			}
 			catch (error) {
 				errors += 1;
 				process.stderr.write("[NE-CHECK] Type-check failed: " + error.message + "\n");
