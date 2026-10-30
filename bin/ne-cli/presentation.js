@@ -237,7 +237,7 @@ const ERROR_BOOK_URL = "https://github.com/Kastrick8/nextjs-engine/blob/main-2/d
 
 function errorBookUrl(code) {
 	const normalized = typeof code === "string" ? code.trim().toUpperCase() : "";
-	if (!/^NE\\d{4}$/.test(normalized)) return null;
+	if (!/^NE\d{4}$/.test(normalized)) return null;
 	return ERROR_BOOK_URL + "#" + normalized.toLowerCase();
 }
 
