@@ -234,8 +234,8 @@ async function main() {
 		assert.match(coloredRows[5].text, /\x1b\[33;1m└─> \x1b\[0m/,
 			"pending child branches are yellow");
 		const panelLines = treeFixture.buildPanelLines(80, 12);
-		assert.doesNotMatch(panelLines[0], /\x1b\[(?:31|32|36);1m/, "task-tree frame stays neutral");
-		assert.doesNotMatch(panelLines[panelLines.length - 1], /\x1b\[(?:31|32|36);1m/, "bottom frame stays neutral");
+		assert.doesNotMatch(panelLines[0], /\x1b\[/, "task-tree top frame has no ANSI color painting");
+		assert.doesNotMatch(panelLines[panelLines.length - 1], /\x1b\[/, "task-tree bottom frame has no ANSI color painting");
 		assert.match(panelLines[4], /\x1b\[32;1m├─>/, "completed progress is green inside the task tree");
 		const originalWrite = process.stdout.write;
 		const drawOutput = [];
@@ -527,6 +527,7 @@ async function main() {
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
 	assert.match(cli.getHelp(), /ne update --channel/);
+	assert.match(cli.getHelp(), /npx ne --help/);
 	const originalInstallRelease = project.installRelease;
 	let dashboardInstall = null;
 	project.installRelease = async (...args) => { dashboardInstall = args; };
