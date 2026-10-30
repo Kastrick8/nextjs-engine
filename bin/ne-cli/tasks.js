@@ -262,6 +262,7 @@ class TaskTree {
 		this.finished = true;
 		this.lastTaskId = id || "root";
 		this.lastError = error || new Error("Task failed.");
+		if (error && typeof error === "object") error.neOutputDisplayed = true;
 		this.stopTimer();
 
 		if (this.interactive) process.stdout.write("\x1b[2J\x1b[H\x1b[?25h");
