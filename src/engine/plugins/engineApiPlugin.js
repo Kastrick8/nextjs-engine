@@ -216,7 +216,7 @@ function writeAPIStaticManifest(projectRoot, staticOutputDir, staticManifestFile
 		fs.renameSync(temporaryPath, manifestPath);
 		installed = true;
 	} catch (reason) {
-		if (!installed && backedUp && !fs.existsSync(manifestPath) && fs.existsSync(backupPath)) {
+		if (backedUp && !fs.existsSync(manifestPath) && fs.existsSync(backupPath)) {
 			fs.renameSync(backupPath, manifestPath);
 			backedUp = false;
 		}
