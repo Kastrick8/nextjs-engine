@@ -305,6 +305,15 @@ class TaskTree {
 		}
 	}
 
+	complete() {
+		if (this.finished || this.failed) return;
+		this.root.status = "success";
+		this.finished = true;
+		this.stopTimer();
+		if (this.interactive) this.drawFinal();
+		else process.stdout.write("[NE] DONE " + this.command + "\n");
+	}
+
 	drawFinal() {
 		if (!this.interactive) return;
 		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
