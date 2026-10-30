@@ -298,6 +298,13 @@ class TaskTree {
 		rows.push(paint(bottom, color));
 		process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + rows.join("\n") + "\x1b[?25h");
 	}
+	stopTimer() {
+		if (this.timer) {
+			clearInterval(this.timer);
+			this.timer = null;
+		}
+	}
+
 	drawFinal() {
 		if (!this.interactive) return;
 		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
