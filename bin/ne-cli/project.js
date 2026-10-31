@@ -521,7 +521,7 @@ async function downloadVerifiedArtifact(root, release) {
 	let totalBytes = 0;
 	let header = Buffer.alloc(0);
 	const { Transform } = require("node:stream");
-	const { pipeline } = require("node:stream/promises");
+	const { pipeline } = require("node:stream");
 
 	try {
 		const boundedHash = new Transform({
@@ -541,7 +541,12 @@ async function downloadVerifiedArtifact(root, release) {
 				callback(null, bytes);
 			},
 		});
-		await pipeline(response.body, boundedHash, fs.createWriteStream(temporary, { flags: "wx" }));
+		await new Promise((resolve, reject) => {
+			pipeline(response.body, boundedHash, fs.createWriteStream(temporary, { flags: "wx" }), (error) => {
+				if (error) reject(error);
+				else resolve();
+			});
+		});
 		if (header.length < 2 || header[0] !== 0x1f || header[1] !== 0x8b) {
 			throw new Error("The channel artifact is not a gzip package archive.");
 		}
