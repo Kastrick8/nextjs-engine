@@ -1,64 +1,76 @@
-# Configure APIStatic
+# Configure APIStatic — Generation 2
 
-APIStatic compiles .route files into static JavaScript modules that execute in the browser. It is not a hidden Next.js Route Handler.
+APIStatic compiles `.route` declarations into static JavaScript modules that execute in the browser. It is not a private Next.js Route Handler.
 
-## 1. Source files
+## 1. Create route source files
 
 ~~~text
 data/
 └── endpoint/
     ├── math.route
-    └── user/
-        └── profile.route
+    └── catalog/
+        └── lookup.route
 ~~~
 
-Relative file paths become logical route names (math, user/profile). The compiler generates hashed JavaScript files under public/_static/endpoint and a manifest.json discovery file.
+The relative file path becomes the logical route name. Generated hash-named JavaScript modules and a `manifest.json` are written under `public/_static/endpoint`.
 
-## 2. Declare operations
+## 2. Declare an operation
 
 ~~~ts
-function add(a: number, b: number) {
-  return { total: a + b };
+function calculateTotal(price: number, quantity: number) {
+  const subtotal = price * quantity;
+  return {
+    subtotal,
+    tax: subtotal * 0.18,
+    total: subtotal * 1.18
+  };
 }
 
 createEndpoint([
   {
-    name: "add",
-    query: { a: "number", b: "number" },
-    run.query(add[query.a, query.b])
+    name: "calculate",
+    query: {
+      price: "number",
+      quantity: "number=1"
+    },
+    run.query(return calculateTotal[query.price, query.quantity])
   }
 ]);
 ~~~
 
-Supported input types include string, number, boolean, array, object and any. Optional fields use ? and defaults use =. A route can declare multiple named operations.
+This is Engine's special `.route` syntax, not a module to import as ordinary TypeScript. A route may declare multiple operations. Supported run sources are `query`, `body`, `input` and `proxy`. Input types include string, number, boolean, array, object and any; `?` marks optional values and `=` declares defaults.
 
-## 3. Call an endpoint
+## 3. Call the endpoint
 
 ~~~ts
 import { APIStatic, EngineAPIResolver } from "nextjs-engine";
 
-const response = await APIStatic.resolve("math", "add", { a: 20, b: 30 });
+const result = await APIStatic.resolve("catalog/lookup", "search", {
+  query: "keyboard"
+});
 
 const resolver = new EngineAPIResolver({
-  endpoint: APIStatic.endpoint("math", "add")
+  endpoint: APIStatic.endpoint("catalog/lookup", "search")
 });
-const alsoWorks = await resolver.resolveRequest({ input: { a: 10, b: 15 } });
+
+const response = await resolver.resolveRequest({
+  input: { query: "keyboard" }
+});
 ~~~
 
-Use logical route names and operation IDs; never hardcode generated hashes.
+For a static endpoint descriptor, EngineAPIResolver forwards `input` into APIStatic. For a normal URL endpoint, Generation 2 supplies its HTTP request body via `formData`.
 
-## Build options
+## Defaults and security
 
-| Setting | Default |
-|---|---|
-| Source | data/endpoint |
-| Static output | public/_static/endpoint |
-| Manifest | manifest.json |
-| Runtime base path | /_static/endpoint |
+- Source: `data/endpoint`
+- Output: `public/_static/endpoint`
+- Manifest: `manifest.json`
+- Runtime base: `/_static/endpoint`
+- Load timeout: 10 seconds
 
-Override through plugin options: endpointDir, staticOutputDir and staticManifestFile. Existing source files are watched during next dev.
+The plugin compiles route files at Next.js config evaluation and watches them in development. Compiled routes are downloadable browser code.
 
 > [!CAUTION]
-> Route programs are downloadable by the browser. Never put secrets, private environment values, database credentials, filesystem operations or privileged server-session logic inside a .route file. Use a server endpoint or a server-side proxy with validation and authorization.
+> Never place API keys, private env values, database credentials, filesystem operations or private session logic inside a `.route` file. Use a server endpoint or tightly constrained proxy with independent target validation and authorization.
 
-See [APIStatic module](../module/apistatic.md) and [EngineAPIResolver](./engine-api.md).
+See [APIStatic module](../module/apistatic.md), [Networking APIs](../api/networking.md) and [EngineAPI configuration](./engine-api.md).
