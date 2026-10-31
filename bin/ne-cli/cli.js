@@ -165,7 +165,11 @@ function getHelp() {
 		"  ne clean              Clean generated build files",
 		"",
 		"Development checkout:",
-		"  npm link              Expose this checkout's ne executable on PATH",
+		"  npm link                Expose this checkout's ne executable on PATH",
+		"",
+		"Local project install (not a global shell command):",
+		"  npx ne --help           Run the locally installed executable",
+		"  npm exec -- ne --help   Equivalent npm exec form",
 		"",
 		"One-shot invocation without a global install:",
 		"  npx --yes --package=@kastrick/nextjs-engine ne updater",
@@ -310,6 +314,7 @@ async function commandUpdater(root, showWarning) {
 			version: installedVersion,
 			installedVersion: state.installedVersion || installedVersion,
 			channel: state.activeChannel || "not selected",
+			rollbackAvailable: Boolean(state.previous && state.previous.backup),
 			cacheStatus: cached.releases.length ? "cached" : "loading",
 			sourceStatus: cached.sourceStatus || {},
 			activity: "Opening release catalog",
@@ -344,6 +349,7 @@ async function runDashboard(root, showWarning) {
 			version: installedVersion,
 			installedVersion: state.installedVersion || installedVersion,
 			channel: state.activeChannel || "not selected",
+			rollbackAvailable: Boolean(state.previous && state.previous.backup),
 			cacheStatus: cached.releases.length ? "cached" : "loading",
 			sourceStatus: cached.sourceStatus || {},
 			activity: "Preparing project dashboard",
@@ -352,7 +358,11 @@ async function runDashboard(root, showWarning) {
 	return result;
 }
 
-async function runDashboardAction(root, action) {
+async function runDashboardAction(root, result) {
+	const action = typeof result === "string" ? result : result && result.action;
+	if (action === "install" && result && result.release) {
+		return project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+	}
 	if (action === "dev") return project().runNext(root, ["dev"]);
 	if (action === "build") return project().runBuild(root);
 	if (action === "start") return project().runNext(root, ["start"]);
@@ -362,7 +372,55 @@ async function runDashboardAction(root, action) {
 	if (action === "help") return process.stdout.write(getHelp());
 	if (action === "updater") return commandUpdater(root, false);
 	if (action === "quit") return;
-	throw new Error("Unknown dashboard action: " + action);
+	throw new Error("Unknown dashboard action: " + (action || "none"));
+}
+
+function parseChainedCommand(command) {
+	if (typeof command !== "string" || command.length === 0 || command.length > 4096) {
+		throw new Error("A chained command must be a non-empty command line under 4096 characters.");
+	}
+	const tokens = [];
+	let token = "";
+	let quote = "";
+	let escaped = false;
+	const pushToken = () => {
+		if (token) tokens.push(token);
+		token = "";
+	};
+	for (const character of command) {
+		if (escaped) {
+			token += character;
+			escaped = false;
+			continue;
+		}
+		if (quote) {
+			if (character === "\\" && quote === '"') {
+				escaped = true;
+			} else if (character === quote) {
+				quote = "";
+			} else {
+				token += character;
+			}
+			continue;
+		}
+		if (character === "'" || character === '"') {
+			quote = character;
+			continue;
+		}
+		const code = character.charCodeAt(0);
+		if (code === 10 || code === 13 || code === 96 || ";&|<>()$".includes(character)) {
+			throw new Error("NE --and accepts one executable and arguments, not shell operators or expansions. Run shell scripts from a script file.");
+		}
+		if (/\s/.test(character)) {
+			pushToken();
+			continue;
+		}
+		token += character;
+	}
+	if (escaped || quote) throw new Error("NE --and contains an unterminated quote or escape.");
+	pushToken();
+	if (!tokens.length) throw new Error("NE --and did not contain an executable.");
+	return tokens;
 }
 
 async function runChainedCommands(root, options) {
@@ -370,15 +428,16 @@ async function runChainedCommands(root, options) {
 	const height = options.andTerminal || 5;
 	for (let index = 0; index < commands.length; index += 1) {
 		const command = commands[index];
-		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + command + " [viewport: " + height + " rows]\n");
+		const tokens = parseChainedCommand(command);
+		const invocation = project().resolveProcessInvocation(tokens[0], tokens.slice(1));
+		const label = tokens.map((token) => JSON.stringify(token)).join(" ");
+		process.stdout.write("\n[NE CHAIN " + (index + 1) + "/" + commands.length + "] " + label + " [viewport: " + height + " rows]\n");
 		await new Promise((resolve, reject) => {
-			const isWindows = process.platform === "win32";
-			const executable = isWindows ? (process.env.ComSpec || "cmd.exe") : "/bin/sh";
-			const args = isWindows ? ["/d", "/s", "/c", command] : ["-lc", command];
-			const child = require("node:child_process").spawn(executable, args, {
+			const child = require("node:child_process").spawn(invocation.command, invocation.args, {
 				cwd: root,
 				env: process.env,
 				windowsHide: true,
+				shell: false,
 				stdio: ["inherit", "pipe", "pipe"],
 			});
 			let output = "";
@@ -411,7 +470,7 @@ async function executeCommand(root, command, subArgs, options, showWarning) {
 			return;
 		}
 		const result = await runDashboard(root, showWarning);
-		await runDashboardAction(root, result.action);
+		await runDashboardAction(root, result);
 		return;
 	}
 	if (command === "updater") return commandUpdater(root, showWarning);
@@ -453,8 +512,10 @@ async function main(argv) {
 
 module.exports = {
 	parseArgs,
+	parseChainedCommand,
 	getHelp,
 	listChannels,
 	main,
 	runChainedCommands,
+	runDashboardAction,
 };

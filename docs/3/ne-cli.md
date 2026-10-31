@@ -61,9 +61,9 @@ Build and check commands render a live hierarchical task tree instead of leaving
 
 Only steps that actually exist in the current project are shown. The prepare step is omitted when no `prepare:production` script exists. Check subtasks are nested beneath `ne check`. The Next.js build runs from the CLI main thread; safe package/check subprocesses can run through NE's bounded worker pool (up to three workers). NENC output is summarized inside the live build step instead of flooding the terminal.
 
-The task tree uses ANSI status colors: green for completed steps, cyan for running steps, yellow for pending steps, and red for failed steps. Branch connectors inherit their group status, so a completed `ne check` branch turns green while a pending `next build` branch remains yellow. The border animates while a task is active and settles to green on success. Set `NE_ASCII=1` for ASCII connectors.
+The task tree uses ANSI status colors only inside the progress tree: green for completed steps, cyan for running steps, yellow for pending steps, and red for failed steps. Branch connectors inherit their group status, so a completed `ne check` branch turns green while a pending `next build` branch remains yellow. The outer frame stays neutral. In interactive terminals the tree is pinned in a reserved bottom panel while command logs scroll above it; updates rewrite that panel only when task state/detail changes, without a timed full-screen repaint. Set `NE_ASCII=1` for ASCII connectors.
 
-On failure, NE clears the live frame, preserves the original `> ne build` command header, and prints the failed subcommand's captured stdout/stderr. Successful npm output and routine notifier/fund notices stay hidden; diagnostics are not discarded on failure. Output capture is bounded to prevent a runaway command from consuming unbounded memory.
+On failure, NE releases the reserved task-tree panel, preserves the last task status and original `> ne build` command header, and prints the failed subcommand's captured stdout/stderr. Successful npm output and routine notifier/fund notices stay hidden; diagnostics are not discarded on failure. Output capture is bounded to prevent a runaway command from consuming unbounded memory.
 
 NE does not run `npm install` or `npm audit fix` automatically on every build. Dependency installation and security remediation modify manifests, lockfiles, or package versions and must remain explicit operations.
 
@@ -72,6 +72,18 @@ NE does not run `npm install` or `npm audit fix` automatically on every build. D
 The executable keeps its initial loader small. `ne --version` / `ne -v` reads the installed package version directly without loading the CLI router, dashboard, updater feeds, or worker pool. `ne --help` loads only the lightweight command router; command-specific modules are required after argument routing. The project runner loads the task worker runtime only for check/build/worker-backed operations, not for `ne clean`, `ne dev`, or `ne start`.
 
 This keeps common shell actions off the dashboard/updater code path while preserving the same command interface.
+
+## Chained commands
+
+Use `--and` to run additional commands after the selected NE action:
+
+```sh
+ne check --and "npm run lint" --and "node scripts/verify.js" --and-terminal 10
+```
+
+Each chained value is parsed into one executable and its arguments, then started without a shell. Quote arguments that contain spaces. Shell operators, redirects, pipes, command substitutions, and environment expansions are rejected; put multi-step shell logic in a script file and invoke that script directly. On Windows, known package-manager commands are resolved to their Node.js entry points, while `.cmd` and `.bat` wrappers are not passed through a shell.
+
+`--and-terminal` controls how many trailing output rows are displayed for each chained command.
 
 ## Installation forms
 
@@ -84,7 +96,7 @@ ne build
 ne clean
 ```
 
-For local development from a source checkout, run **npm link** at the repository root; npm then places this checkout's **ne** executable on the shell PATH. In a project with a local package install, npm scripts can also call **ne** directly because npm adds `node_modules/.bin` to the script PATH.
+For local development from a source checkout, run **npm link** at the repository root; npm then places this checkout's **ne** executable on the shell PATH. In a project with a local package install, npm scripts can also call **ne** directly because npm adds `node_modules/.bin` to the script PATH. A local `npm install` does not add that shim to a separate PowerShell/CMD session's global PATH; run `npx ne --help` or `npm exec -- ne --help` from the project directory.
 
 A one-shot invocation without a global installation remains available:
 

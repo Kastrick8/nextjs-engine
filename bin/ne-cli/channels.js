@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { writeFileAtomically } = require("./file-system");
 
 const PACKAGE_NAME = "@kastrick/nextjs-engine";
 const GITHUB_RELEASES_URL = "https://api.github.com/repos/Kastrick8/nextjs-engine/releases?per_page=100";
@@ -481,14 +482,11 @@ function readCache(rootDir) {
 
 function writeCache(rootDir, catalog) {
 	const file = cachePath(rootDir);
-	fs.mkdirSync(path.dirname(file), { recursive: true });
-	const temporary = file + ".tmp";
-	fs.writeFileSync(temporary, JSON.stringify({
+	writeFileAtomically(file, JSON.stringify({
 		cachedAt: Date.now(),
 		releases: catalog.releases,
 		sourceStatus: catalog.sourceStatus || {},
-	}, null, 2) + "\n", "utf8");
-	fs.renameSync(temporary, file);
+	}, null, 2) + "\n", { mode: 0o600 });
 }
 
 function readCachedCatalog(rootDir) {
