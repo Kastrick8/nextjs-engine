@@ -1,32 +1,24 @@
-# Configure APIStatic
+# Configure APIStatic — Generation 3
 
-APIStatic compiles small TypeScript-like `.route` source files into JavaScript modules loaded by the browser. It is separate from external provider configuration in `.EngineAPIConfig/*.api`.
+APIStatic compiles `.route` declarations into static JavaScript modules that execute in the browser. It is separate from external provider configuration in `.EngineAPIConfig/*.api`.
 
-## 1. Create an endpoint file
+## 1. Create route source
 
-The default source directory is:
-
-```text
+~~~text
 data/
 └── endpoint/
     ├── math.route
-    └── account/
-        └── profile.route
-```
+    └── catalog/
+        └── lookup.route
+~~~
 
-The relative path is the logical endpoint name:
+The relative file path is the logical route name. Generated hashed JavaScript modules and a `manifest.json` are written under `public/_static/endpoint`.
 
-| File | Logical route |
-|---|---|
-| `data/endpoint/math.route` | `math` |
-| `data/endpoint/account/profile.route` | `account/profile` |
+## 2. Declare an operation
 
-## 2. Define operations
-
-```ts
+~~~ts
 function calculateTotal(price: number, quantity: number) {
   const subtotal = price * quantity;
-
   return {
     subtotal,
     tax: subtotal * 0.18,
@@ -41,78 +33,44 @@ createEndpoint([
       price: "number",
       quantity: "number=1"
     },
-    run.query(
-      calculateTotal[query.price, query.quantity]
-    )
+    run.query(return calculateTotal[query.price, query.quantity])
   }
 ]);
-```
+~~~
 
-Supported input schema types include `string`, `number`, `boolean`, `array`, `object` and `any`. A `?` marks an optional value and `=` declares a default. A route can expose one or multiple named operations.
+This is Engine's `.route` compiler syntax, not an ordinary module import. A route can declare multiple operations. Supported run sources are `query`, `body`, `input` and `proxy`. Input types include `string`, `number`, `boolean`, `array`, `object` and `any`; `?` marks optional fields and `=` declares a default.
 
-## 3. Build integration and output
+## 3. Call the endpoint
 
-The Engine Next.js plugin compiles route files automatically using these defaults:
-
-| Setting | Default |
-|---|---|
-| Source directory | `data/endpoint` |
-| Output directory | `public/_static/endpoint` |
-| Manifest | `manifest.json` |
-| Runtime base path | `/_static/endpoint` |
-
-The plugin compiles during Next.js configuration evaluation and watches route files during development. Generated endpoint filenames include a stable route hash. Reference endpoints by logical name; never hardcode the generated filename.
-
-## 4. Call an endpoint
-
-```ts
+~~~ts
 import { APIStatic, EngineAPIResolver } from "nextjs-engine";
 
-const response = await APIStatic.resolve("math", "calculate", {
-  price: 25,
-  quantity: 3
+const result = await APIStatic.resolve("catalog/lookup", "search", {
+  query: "keyboard"
 });
 
 const resolver = new EngineAPIResolver({
-  endpoint: APIStatic.endpoint("math", "calculate")
+  endpoint: APIStatic.endpoint("catalog/lookup", "search")
 });
 
-const secondResponse = await resolver.resolveRequest({
-  input: { price: 10, quantity: 2 }
+const response = await resolver.resolveRequest({
+  input: { query: "keyboard" }
 });
-```
+~~~
 
-For a single-operation route, the operation name can be omitted. For multi-operation routes, select the operation explicitly.
+The runtime reads the manifest, resolves the logical route/operation to its hash-named module, injects it in the browser and runs the validated operation. Use logical route names, not generated hashes.
 
-## 5. Use a backend proxy when needed
+## Defaults and security
 
-A route may use the injected `proxy` function to call a configured backend bridge. Configure the runtime with `configureAPIStatic({ proxy })` when the application requires a custom proxy handler.
+- Source: `data/endpoint`
+- Output: `public/_static/endpoint`
+- Manifest: `manifest.json`
+- Runtime base: `/_static/endpoint`
+- Load timeout: 10 seconds
 
-```ts
-import { configureAPIStatic } from "nextjs-engine";
-
-configureAPIStatic({
-  proxy: async (target, input, init) => {
-    const response = await fetch("/api/proxy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target, input, init })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Proxy failed: ${response.status}`);
-    }
-
-    return response.json();
-  }
-});
-```
-
-This is an application integration example: the server endpoint at `/api/proxy` must independently validate the target, authorize the request and protect credentials. Do not turn the proxy into an unrestricted open proxy.
+The plugin compiles on Next.js config evaluation and watches route files in development. Use `configureAPIStatic({ proxy })` only with a dedicated server proxy that validates target URLs, authorization and credentials.
 
 > [!CAUTION]
-> A `.route` file is browser-executable and downloadable. Never put private API keys, database credentials, server filesystem operations, private cookies or privileged authorization logic inside it. Keep confidential work in a server-owned route or NENC handler.
+> Static route programs are downloadable browser code. Never put private API keys, database credentials, filesystem operations, private session data or privileged logic in a `.route` file. Use a server endpoint or NENC for privileged operations.
 
-## Runtime configuration
-
-The public API also exposes `configureAPIStatic()`, `staticEndpoint()`, `getAPIStaticRouteURL()` and `getAPIStaticRouteHash()`. Runtime options include `basePath`, `loadTimeoutMs`, `proxy`, `cacheBust` and `manifestFile`. See [APIStatic module](../module/apistatic.md) for endpoint discovery and execution details.
+See [APIStatic module](../module/apistatic.md), [Networking APIs](../api/networking.md) and [EngineAPI configuration](./engine-api.md).

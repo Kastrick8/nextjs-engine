@@ -1,38 +1,71 @@
 # Server-only API
 
-Generation 3 exposes a separate server entrypoint. Import request-aware helpers from `nextjs-engine/server`; do not pull server-only APIs into a client component or a browser bundle.
+Import request-aware APIs from `nextjs-engine/server`. These exports depend on the Next.js server/request runtime and must not be bundled into client components.
+
+## EngineServer
 
 ```ts
-import {
-  EngineServer,
-  getServerDevice,
-  EngineCORS
-} from "nextjs-engine/server";
+import { EngineServer } from "nextjs-engine/server";
 
-const server = await EngineServer.open();
-const device = await getServerDevice();
+export default EngineServer.page(async (server) => {
+  const userAgent = server.headers.get("user-agent");
+  const sessionCookie = server.cookies.get("session");
+  const status = await server.fetchJSON<{ ok: boolean }>("/api/status");
 
-const cors = EngineCORS.create({
-  allow: ["https://app.example.com"],
-  methods: ["GET", "POST"]
+  return <p>{status.ok ? "Ready" : "Unavailable"}</p>;
 });
 ```
 
-## Export families
+The `EngineServerSession` exposes:
+- `device` — shared device information.
+- `headers` — read-only `get`, `has` and `entries` methods.
+- `cookies` — read-only `get`, `has` and `all` methods.
+- `fetch()` and `fetchJSON<T>()`.
+- `redirect(url)` and `notFound()` wrappers.
 
-| Family | Exports |
-|---|---|
-| Request/session | `EngineServer`, `EngineServerSession` |
-| Device | `getServerDevice()`, `detectDevice()` |
-| CORS | `EngineCORS`, `EngineCORSRuleSet` |
-| NENC commands | command lookup, validation, execution and inspection |
-| NENC dispatch | dispatcher and command API resolver factories |
-| Device proof | device-signature verifier factory |
-| Session policy | NENC account session policy and token hashing |
-| Security | command security policy, rate limiter and memory stores |
-| Replay | replay guard and memory replay store |
+`EngineServer.open()` manually opens a session. `EngineServer.page(handler)` creates an async page component and passes a fresh request-scoped session to the handler.
 
-The detailed feature contracts belong in [EngineServer](../module/engine-server.md), [EngineCORS](../module/engine-cors.md), [EngineCookies](../module/engine-cookies.md) and [NENC](../module/nenc.md).
+## Device helpers
+
+`getServerDevice()` reads request-aware device details. `detectDevice(userAgent)` is a pure shared helper; `DESKTOP_DEVICE` is the desktop fallback. The matching type family is `DeviceBrand`, `DeviceInfo` and `DeviceOS`.
+
+## EngineCORS
+
+```ts
+import { EngineCORS } from "nextjs-engine/server";
+
+const cors = EngineCORS.create({
+  allow: ["https://app.example.com"],
+  credentials: true,
+  methods: ["GET", "POST"],
+  headers: ["Content-Type", "Authorization"],
+  maxAge: 600
+});
+
+export function OPTIONS(request: Request) {
+  return cors.preflight(request) ?? new Response(null, { status: 405 });
+}
+
+export function GET(request: Request) {
+  return new Response("ok", {
+    headers: cors.headersFor(request.headers.get("Origin"))
+  });
+}
+```
+
+`EngineCORSRuleSet` provides `isAllowed(origin)`, `headersFor(origin)` and `preflight(request)`. Credentialed CORS cannot use a wildcard allowed origin. CORS controls browser cross-origin access; it does not authenticate or authorize users.
+
+## NENC server exports
+
+The server entrypoint also exports the server-owned command runtime:
+- Command inspection/validation/execution: `getRegisteredEngineCommand()`, `getEngineCommandBuildDescriptors()`, `inspectEngineCommands()`, `validateEngineCommandInput()`, `executeRegisteredEngineCommand()`.
+- Dispatch and API resolution: `createNENCDispatcher()`, `createNENCCommandAPIResolverFactory()`.
+- Origin and device proof: `resolveNENCRequestOrigin()`, `resolveNENCRequestDestinationOrigin()`, `createNENCDeviceSignatureVerifier()`.
+- Session policy: `createNENCAccountSessionPolicy()`, `hashNENCSessionToken()`.
+- Command security: `NENCCommandSecurityPolicy`, `NENCRateLimiter`, `NENCMemoryRateLimitStore`.
+- Replay protection: `NENCReplayGuard`, `NENCMemoryReplayStore`.
+
+The full server export and type names are in the [public export inventory](./exports.md). For plugin setup see [NENC configuration](../configuration/nenc.md).
 
 > [!WARNING]
-> These APIs depend on the Next.js request/server runtime and Web Crypto. Do not import the server entrypoint from a `"use client"` module.
+> Treat server handlers, credentials, signing keys and database access as server-owned. Never import the server entrypoint from a module marked `"use client"`.

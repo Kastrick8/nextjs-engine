@@ -1,20 +1,18 @@
 # NE — Next.js Engine Internals
 
-This section explains how the Engine is assembled and operated. It is intentionally separate from [Modules](../module/index.md), which describe the developer-facing capabilities.
+[Modules](../module/index.md) describe developer-facing features; [API](../api/index.md) owns public imports and signatures.
 
 | Area | Reference |
 |---|---|
 | Architecture and lifecycle | [Architecture](./architecture.md) |
-| Compiler, execution plans and artifacts | [Compiler](./compiler/index.md) |
-| Scheduling, model, viewport and rendering lifecycle | [Runtime](./runtime.md) |
-| Browser support and fallback policy | [Compatibility and hardening](./compatibility.md) |
-| EngineDebug workbench | [Debugging](./debug/index.md) |
-| NENC server command boundary | [Security](./security/index.md) |
-| Error reporting and error code book | [Errors](./errors/index.md) |
-| NE-CLI executable and updater | [NE-CLI](./cli/index.md) |
+| Source ownership | [Source map](./source-map.md) |
+| Module relationships | [Module relationships](./module-relationships.md) |
+| Compiler and artifact plans | [Compiler](./compiler/index.md) |
+| Runtime/scheduler/model/viewport | [Runtime](./runtime.md) |
+| Browser fallbacks | [Compatibility](./compatibility.md) |
+| EngineDebug | [Debugging](./debug/index.md) |
+| NENC security | [Security](./security/index.md) |
+| Errors and diagnostic codes | [Errors](./errors/index.md) |
+| NE-CLI | [CLI](./cli/index.md) |
 
-## Reading the internals
-
-Public API signatures live in [API](../api/index.md). A module's public behavior lives in its module guide. NE pages explain the implementation pipeline, ownership boundaries, runtime orchestration and operational behavior.
-
-Internal source files are grouped by subsystem. A source file does not automatically receive a separate documentation page.
+Internal source files are grouped by subsystem; a source file does not automatically become a public API or a separate docs page.
