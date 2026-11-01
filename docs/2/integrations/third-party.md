@@ -35,12 +35,12 @@ These dependencies are Engine implementation dependencies; applications do not n
 
 Auth.js, Clerk, Supabase Auth, and similar products are not included in the Gen 2 manifest as Engine authentication adapters. They can continue to own account login and sessions. Connect them to application-owned Route Handlers and perform authorization server-side; see [Authentication and authorization](./authentication-and-authorization.md).
 
-Official references: [Next.js App Router authentication tutorial](https://nextjs.org/learn/dashboard-app/adding-authentication) · [Auth.js](https://authjs.dev/getting-started) · [Clerk for Next.js](https://clerk.com/docs/nextjs/getting-started/quickstart) · [Supabase Auth SSR](https://supabase.com/docs/guides/auth/server-side).
+Official references: [Next.js App Router authentication tutorial](https://nextjs.org/docs/app/guides/authentication) · [Auth.js](https://authjs.dev/getting-started) · [Clerk for Next.js](https://clerk.com/docs/nextjs/getting-started/quickstart) · [Supabase Auth SSR](https://supabase.com/docs/guides/auth/server-side).
 
 ## Related framework references
 
 - [Next.js documentation](https://nextjs.org/docs)
-- [Next.js Server and Client Components](https://nextjs.org/learn/react-foundations/server-and-client-components)
+- [Next.js Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components)
 - [React Server Components](https://react.dev/reference/rsc/server-components)
 - [React documentation](https://react.dev/)
 
