@@ -41,32 +41,51 @@ When `EngineAPIResolver` receives an `APIStatic.endpoint(...)` descriptor, it re
 
 ## NENC: server-side command authentication and authorization
 
-NENC is opt-in through the Generation 3 Next.js plugin. A command declaration contains a logical name, runtime, auth mode, permissions, input schema, and an execution function:
+NENC is opt-in through the Generation 3 Next.js plugin. A command declaration includes its runtime, auth mode, permissions and input schema:
 
 ```ts
 import { EngineCommand } from "nextjs-engine/network";
 
-export const privateSearch = EngineCommand.create("catalog.privateSearch", {
+type SearchInput = { search: string };
+
+// Login is intentionally anonymous at the NENC layer.
+// The server command still verifies credentials with your identity/backend service.
+export const loginCommand = EngineCommand.create<
+  { email: string; password: string },
+  Response
+>("account.login", {
   run: "server",
-  auth: "account",
-  permissions: ["catalog.read"],
-  input: { search: "string" },
-  async execute({ input, api, principal }) {
-    // The API resolver was selected on the server after policy checks.
+  auth: "anonymous",
+  input: {
+    email: { type: "string", maxLength: 254 },
+    password: { type: "string", maxLength: 1024 },
+  },
+  async execute({ input, api }) {
     return api.resolveRequest({ input });
   },
 });
+
+// Private account operation: require an account session and a permission.
+export const privateSearch = EngineCommand.create<SearchInput, Response>(
+  "catalog.privateSearch",
+  {
+    run: "server",
+    auth: "account",
+    permissions: ["catalog.read"],
+    input: { search: { type: "string", maxLength: 120 } },
+    async execute({ input, api, principal }) {
+      return api.resolveRequest({
+        input: {
+          search: input.search,
+          accountId: (principal as { subject: string }).subject,
+        },
+      });
+    },
+  },
+);
 ```
 
-**Defaults matter:** `EngineCommand` defaults `auth` to `"anonymous"` and `permissions` to an empty array. A command left at those defaults is not automatically an account-protected operation. Set `auth: "account"` and declare each permission required by the command.
-
-The dispatcher fails closed:
-- a non-anonymous command without an `authenticate` callback returns 401;
-- an authentication callback that rejects the request returns 401;
-- a command with permissions but no `authorize` callback returns 403;
-- a failed permission check returns 403.
-
-The default dispatcher creates a timestamp/nonce replay guard. Cross-origin requests require configured CORS and Trust List permission. Signature verification is an explicit hook; it is not automatically required for every command. Command-specific rate limits are configured separately through `NENCCommandSecurityPolicy`.
+The declaration is scanned during build; `execute()` runs on the server. Keep command declarations out of client bundles. The login example above only shows the transport contract: the server implementation must verify the submitted credentials with your identity provider and create the session. The default auth mode for a command is `"anonymous"`; it does not become account-protected unless you explicitly set `auth: "account"`. Declaring an empty permissions array also means no permission callback is required for that command.
 
 ## Standard account-session policy
 
@@ -99,7 +118,7 @@ export default function createHandler(manifest) {
 The standard policy:
 - reads one session cookie (default name `__Host-engine-session`) and rejects missing, duplicate, malformed, or out-of-range tokens;
 - SHA-256 hashes the opaque token before calling `resolveSession`, so the lookup receives the hash rather than the raw cookie value;
-- validates the returned session's `id`, `subject`, expiry, optional `notBefore`, and revocation flag;
+- validates the returned session's `id`, `subject`, expiry, optional `notBefore`, and revocation flag; `expiresAt` and `notBefore` are Unix epoch milliseconds (matching `Date.now()`);
 - can restrict a session to allowed `commands` and `origins`;
 - can require a previously verified device proof when the session has `deviceKeyId`;
 - creates a credential-free principal with subject, session ID, permissions, and optional claims;
