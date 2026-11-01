@@ -118,7 +118,6 @@ function writeVerifiedFontAssetAtomically(root, target, bytes, extension, digest
 		descriptor = fs.openSync(temporary, "wx", 0o600);
 		// Intentional: only a size-limited, signature-checked, SHA-256-addressed font
 		// from an allowlisted public HTTPS provider is persisted in this fixed cache.
-		// codeql[js/http-to-file-access]
 		fs.writeFileSync(descriptor, bytes);
 		fs.fsyncSync(descriptor);
 		fs.closeSync(descriptor);
