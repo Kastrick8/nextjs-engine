@@ -210,20 +210,80 @@ function captureDependencyFiles(root) {
 	}
 }
 
+function pathIsWithin(parent, target) {
+	const relative = path.relative(parent, target);
+	return relative !== "" && relative !== ".." &&
+		!relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
+}
+
+function resolveManagedBackupDirectory(root, backupPath) {
+	if (typeof backupPath !== "string" || !backupPath.trim()) return null;
+	const projectRoot = path.resolve(root);
+	const backupRoot = path.resolve(projectRoot, BACKUP_RELATIVE_PATH);
+	const directory = path.resolve(projectRoot, backupPath);
+	if (!pathIsWithin(backupRoot, directory)) return null;
+	try {
+		const realProjectRoot = fs.realpathSync(projectRoot);
+		const realBackupRoot = fs.realpathSync(backupRoot);
+		const realDirectory = fs.realpathSync(directory);
+		if (!pathIsWithin(realProjectRoot, realBackupRoot) || !pathIsWithin(realBackupRoot, realDirectory)) return null;
+		const directoryStats = fs.lstatSync(directory);
+		if (!directoryStats.isDirectory() || directoryStats.isSymbolicLink()) return null;
+		return realDirectory;
+	} catch {
+		return null;
+	}
+}
+
+function hasManagedRollbackSnapshot(root, backupPath) {
+	const directory = resolveManagedBackupDirectory(root, backupPath);
+	if (!directory) return false;
+	try {
+		const metadataPath = path.join(directory, "backup.json");
+		const metadataStats = fs.lstatSync(metadataPath);
+		if (!metadataStats.isFile() || metadataStats.isSymbolicLink()) return false;
+		const metadata = readJson(metadataPath, null);
+		const details = metadata && metadata.files;
+		if (!details || typeof details !== "object" || Array.isArray(details)) return false;
+		return DEPENDENCY_FILES.every((relative) => {
+			const info = details[relative];
+			if (!info || typeof info.exists !== "boolean") return false;
+			if (!info.exists) return true;
+			const sourceStats = fs.lstatSync(path.join(directory, relative));
+			return sourceStats.isFile() && !sourceStats.isSymbolicLink();
+		});
+	} catch {
+		return false;
+	}
+}
+
 function restoreDependencyFiles(root, backup) {
-	const directory = path.resolve(root, backup.directory || path.join(root, backup.relative || ""));
-	const allowed = path.resolve(root, BACKUP_RELATIVE_PATH) + path.sep;
-	if (!directory.startsWith(allowed)) throw new Error("Rollback backup path is outside the NE backup directory.");
+	const backupPath = backup && (backup.directory || backup.relative);
+	const directory = resolveManagedBackupDirectory(root, backupPath);
+	if (!directory) throw new Error("Rollback backup path is outside the managed NE backup directory or is unavailable.");
 	const details = backup.files || readJson(path.join(directory, "backup.json"), {}).files;
-	if (!details) throw new Error("Rollback backup metadata is missing.");
+	if (!details || typeof details !== "object" || Array.isArray(details)) {
+		throw new Error("Rollback backup metadata is missing or invalid.");
+	}
 	for (const relative of DEPENDENCY_FILES) {
 		const target = path.join(root, relative);
-		const info = details[relative] || { exists: false };
+		const info = details[relative];
+		if (!info || typeof info.exists !== "boolean") {
+			throw new Error("Rollback backup metadata is invalid for " + relative + ".");
+		}
 		if (info.exists) {
 			const source = path.join(directory, relative);
-			if (!fs.existsSync(source)) throw new Error("Rollback backup is missing " + relative + ".");
+			let sourceStats;
+			try {
+				sourceStats = fs.lstatSync(source);
+			} catch {
+				throw new Error("Rollback backup is missing " + relative + ".");
+			}
+			if (!sourceStats.isFile() || sourceStats.isSymbolicLink()) {
+				throw new Error("Rollback backup contains an unsafe file for " + relative + ".");
+			}
 			fs.mkdirSync(path.dirname(target), { recursive: true });
-			fs.copyFileSync(source, target);
+			writeFileAtomically(target, fs.readFileSync(source), { mode: sourceStats.mode & 0o777 });
 		} else {
 			fs.rmSync(target, { force: true });
 		}
@@ -520,17 +580,13 @@ async function installRelease(root, release, requestedChannel) {
 
 async function rollback(root) {
 	const state = loadState(root);
-	if (!state.previous || !state.previous.backup) {
-		throw new Error("No NE rollback snapshot is available. Install a channel with ne update first.");
+	if (!state.previous || !hasManagedRollbackSnapshot(root, state.previous.backup)) {
+		throw new Error("No valid NE rollback snapshot is available. Install a channel with ne update first.");
 	}
-	const backupRoot = path.resolve(root, BACKUP_RELATIVE_PATH);
 	const backupDirectory = path.resolve(root, state.previous.backup);
-	if (!backupDirectory.startsWith(backupRoot + path.sep)) {
-		throw new Error("Rollback state points outside the managed NE backup directory.");
-	}
 	const currentBackup = captureDependencyFiles(root);
 	try {
-		restoreDependencyFiles(root, { directory: backupDirectory, files: state.previous.files });
+		restoreDependencyFiles(root, { directory: backupDirectory });
 		await runProcess(managerCommand(detectPackageManager(root)), ["install"], { cwd: root });
 		const restored = readInstalledPackage(root);
 		if (state.previous.installedVersion && (!restored || restored.version !== state.previous.installedVersion)) {
@@ -618,6 +674,7 @@ module.exports = {
 	cleanTargets,
 	runClean,
 	captureDependencyFiles,
+	hasManagedRollbackSnapshot,
 	restoreDependencyFiles,
 	downloadVerifiedArtifact,
 	validateReleaseArtifactUrl,
