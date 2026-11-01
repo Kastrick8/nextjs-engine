@@ -324,3 +324,16 @@ The input remains `.EngineAPIConfig/*.api` for compatibility, but the compiled p
 This JSON is generated output, not a new hand-authored source format. It can contain environment-expanded credentials, so Git ignores it. The combined plugin removes a stale root `.engine-api-compiled.json` only after the default Gen 3 artifact is generated successfully. An explicit `api.outputFile` overrides the default and disables that cleanup.
 
 Generation 2 remains unchanged: the standalone `withEngineAPI()` plugin uses root `.engine-api-compiled.json` by default.
+
+
+## Authentication is not account authorization
+
+The auth table above describes credentials attached to a normal outgoing Engine-to-provider HTTP request. It is not a visitor login/session framework and does not itself check which account, tenant, record, or dashboard the caller may access. JWT mode forwards a Bearer token; it does not locally decode/validate JWT claims. The destination service must verify credentials/signatures and enforce its authorization policy.
+
+APIStatic descriptors are a separate path: `EngineAPIResolver` dispatches a static descriptor before applying ordinary HTTP auth headers. A bearer/JWT/HMAC/PNP setting on an APIStatic descriptor does not protect the static operation. APIStatic is browser-executed and public; see [APIStatic](./apistatic.md).
+
+For private account/dashboard operations, use a server-owned Route Handler or NENC. With NENC, authentication and permissions run before the server-selected resolver factory is invoked. Keep private backend credentials in that server-side factory, not in command declarations or client code. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
+
+## Gen 2 compatibility
+
+Gen 3 adds `input` as the preferred body field for HTTP and APIStatic calls. Legacy `formData` remains a compatibility fallback when `input` is `undefined`; when both are supplied, `input` wins. Gen 2 uses `formData` for ordinary HTTP request bodies. See [Migrating from Gen 2](../guides/migrating-from-gen2.md).
