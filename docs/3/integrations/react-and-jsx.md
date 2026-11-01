@@ -55,7 +55,7 @@ export const EngineSummary = createComponent({
 });
 ```
 
-Generation 3's default eligible path compiles and renders this component through the server-first engine renderer. It can be used as a child of a normal server or client tree, subject to the usual React/Next.js serialization rules. A component with named `handlers` uses the compatibility renderer; an explicit scoped registry requires server-first rendering and will throw if the page/component is forced onto the legacy renderer.
+Generation 3's default eligible path compiles and renders this component through the server-first engine renderer. Use it from a normal **Server Component** tree, such as an App Router page. Do not import it directly into a `"use client"` module: the server-first implementation belongs on the server side of the React Server Component boundary. When a Client Component needs to display or surround the result, compose it in a Server Component and pass the rendered element through a supported `children`/slot prop, following Next.js Server/Client Component rules. A component with named `handlers` uses the compatibility renderer; an explicit scoped registry requires server-first rendering and will throw if the page/component is forced onto the legacy renderer.
 
 Use `createPage()` when the complete route should be schema-driven. Use `createComponent()` when the schema should be one component inside a normal application route.
 
@@ -141,4 +141,4 @@ See [Next.js integration](./nextjs.md), [Third-party libraries](./third-party.md
 | Existing trusted React component represented as a schema node | `createComponent({ mode: "custom" })` plus registration |
 | Public Engine React feature such as Canvas or Overlay | Its root export and module-specific JSX/client guidance |
 
-Framework references: [Next.js Server and Client Components](https://nextjs.org/learn/react-foundations/server-and-client-components) · [React Server Components](https://react.dev/reference/rsc/server-components)
+Framework references: [Next.js Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components) · [React Server Components](https://react.dev/reference/rsc/server-components)
