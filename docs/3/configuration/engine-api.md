@@ -72,20 +72,24 @@ if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
 const result = await response.json();
 ~~~
 
-`ensureAPIConfig()` reads the `.EngineAPIConfig/*.api` directory directly when no compiled configuration is injected. The plugin's `.apiconfig.json` is a separate build artifact, not the direct source file read by `ensureAPIConfig()`. Call it from server/build code only.
+`ensureAPIConfig()` reads the `.EngineAPIConfig/*.api` directory directly when no compiled configuration is injected. The plugin's `.apiconfig.json` is a separate build artifact, not the direct file source read by `ensureAPIConfig()`. Call it from server/build code only.
 
-## Authentication
+## Authentication to an upstream service
 
 | Type | Required values | Behavior |
 |---|---|---|
 | `none` | None | No auth header |
 | `ak` | `key` | API-key header; optional destination header |
-| `bearer` / `jwt` | `token` | Bearer authorization |
+| `bearer` / `jwt` | `token` | Bearer authorization; JWT is forwarded and not locally decoded/validated by the resolver |
 | `basic` | `username`, `password` | Basic authorization |
 | `hmac` | `secret` | Timestamped HMAC signature |
 | `pnp` | `privateKey` | Timestamped asymmetric signature |
 
 HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. Required credentials fail closed. Signed auth rejects multipart FormData bodies; use JSON or a non-signing mode.
+
+> **Authentication is not authorization.** These modes authenticate an outgoing Engine-to-provider request. They do not establish the signed-in website user, validate an account session, prove resource ownership, or check whether a user may access a dashboard. The upstream service must verify the credential/signature and enforce its own authorization. For visitor/account security, use a server Route Handler or the optional NENC path described in [Authentication and authorization](../integrations/authentication-and-authorization.md).
+
+> **APIStatic bypasses the HTTP-auth path:** when an `APIStatic.endpoint(...)` descriptor is configured, EngineAPIResolver dispatches directly to APIStatic before creating the ordinary HTTP request and applying auth headers. A bearer/JWT/HMAC/PNP setting on that static descriptor does not protect the operation. APIStatic is public browser-executed code; use a server endpoint or NENC for privileged operations.
 
 > [!WARNING]
 > Keep secrets in environment variables available to trusted build/server code. Do not commit credentials or expose them to client components.
@@ -96,4 +100,4 @@ HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. Required credentials 
 global provider config → pageOverrides → nodeOverrides
 ```
 
-Nested objects merge; endpoint values replace atomically. Version macros replace `&NAME&` tokens. See [Networking APIs](../api/networking.md), [API relationships](../api/relationships.md) and [APIStatic configuration](./api-static.md).
+Nested objects merge; endpoint values replace atomically. Version macros replace `&NAME&` tokens. See [Networking APIs](../api/networking.md), [API relationships](../api/relationships.md), [APIStatic configuration](./api-static.md), and [Gen 2 → Gen 3 migration](../guides/migrating-from-gen2.md).
