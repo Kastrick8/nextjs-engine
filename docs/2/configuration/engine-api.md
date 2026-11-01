@@ -74,18 +74,20 @@ const result = await response.json();
 
 Important: `ensureAPIConfig()` reads the `.EngineAPIConfig/*.api` directory itself when no compiled config is injected. The plugin's `.engine-api-compiled.json` is a separate build artifact, not the direct file input for `ensureAPIConfig()`. Call it from server/build code only.
 
-## Authentication
+## Authentication to an upstream service
 
 | Type | Required values | Behavior |
 |---|---|---|
 | `none` | None | No auth header |
 | `ak` | `key` | API-key header; configurable destination header |
-| `bearer` / `jwt` | `token` | Bearer authorization |
+| `bearer` / `jwt` | `token` | Bearer authorization; JWT is forwarded as a token and not decoded/validated by the resolver |
 | `basic` | `username`, `password` | Basic authorization |
 | `hmac` | `secret` | Timestamped HMAC signature |
 | `pnp` | `privateKey` | Timestamped asymmetric signature |
 
 HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. Required credentials fail closed. Signed auth rejects multipart FormData bodies; use JSON where supported by the request API or a non-signing auth mode.
+
+> **Authentication is not authorization.** These settings authenticate an outgoing Engine-to-provider request. They do not log in the current website visitor, validate an account session, establish ownership of a resource, or check whether a user may access a dashboard. The upstream service must verify the credential/signature and apply its own authorization policy. For account-facing operations, enforce the user's session and permissions on an application-owned server endpoint. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
 
 > [!WARNING]
 > Keep secrets in environment variables available only to trusted build/server code. Do not commit credentials or expose them to browser components.
@@ -97,3 +99,5 @@ global provider config → pageOverrides → nodeOverrides
 ```
 
 Nested objects merge; endpoint values replace atomically. Version macros replace `&NAME&` tokens. See [Networking APIs](../api/networking.md), [API relationships](../api/relationships.md) and [APIStatic configuration](./api-static.md).
+
+> **Gen 3 migration notice:** Gen 3 introduces `input` as the preferred `resolveRequest()` body field. Gen 2 uses `formData`; do not copy a Gen 3 call blindly. Gen 3 retains `formData` as a fallback when `input` is `undefined`, and `input` wins when both are supplied. Gen 3 also changes the canonical compiled config output to `.nextjs-engine/config/.apiconfig.json`. See the [migration guide](../migration-to-gen3.md).
