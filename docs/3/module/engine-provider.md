@@ -5,6 +5,8 @@ EngineProvider supplies the React context and per-boundary style collector used 
 ## Typical context usage
 
 ```tsx
+"use client";
+
 import type { ReactNode } from "react";
 import { EngineProvider, useEngineContext } from "nextjs-engine";
 
