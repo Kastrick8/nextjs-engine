@@ -53,3 +53,9 @@ The Generation 2 registry is global and does not expose the scoped `EngineCompon
 - [Create API](./create.md)
 - [Custom components](../module/engine-custom-components.md)
 - [Schema reference](./schema.md)
+
+
+
+## Generation 2 compatibility
+
+Generation 2 exposes only the process-global registry. The `EngineComponentRegistry` class and `createEngineComponentRegistry()` factory are Generation 3-only exports; imports fail against Gen 2 with missing-export errors. In Gen 3, an explicit scoped registry requires the server-first renderer. See [Migrating from Gen 2](../guides/migrating-from-gen2.md).
