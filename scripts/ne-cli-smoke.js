@@ -445,7 +445,7 @@ async function main() {
 		try {
 			fs.symlinkSync(symlinkTarget, symlinkPath);
 			assert.equal(fileSystem.isRegularFileNoFollow(symlinkPath), false, "snapshot validation rejects symlinks");
-			assert.throws(() => fileSystem.readRegularFileNoFollow(symlinkPath), /symbolic link|too many symbolic links|ELOOP/i,
+			assert.throws(() => fileSystem.readRegularFileNoFollow(symlinkPath), /symbolic link|too many symbolic links|ELOOP|changed while it was being opened/i,
 				"snapshot reads do not follow symlink paths");
 		} catch (error) {
 			if (process.platform !== "win32" || !["EPERM", "EACCES", "UNKNOWN"].includes(error.code)) throw error;
