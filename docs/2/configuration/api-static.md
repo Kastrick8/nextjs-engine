@@ -74,3 +74,8 @@ The plugin compiles route files at Next.js config evaluation and watches them in
 > Never place API keys, private env values, database credentials, filesystem operations or private session logic inside a `.route` file. Use a server endpoint or tightly constrained proxy with independent target validation and authorization.
 
 See [APIStatic module](../module/apistatic.md), [Networking APIs](../api/networking.md) and [EngineAPI configuration](./engine-api.md).
+
+> **Security boundary:** APIStatic compiles downloadable browser-side JavaScript. It validates input shape; it does not authenticate a visitor, validate an account session, or authorize access to an account/tenant/resource. Never put secrets, database credentials, private session logic, or privileged operations in a `.route` file. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
+
+> **Important:** If an `EngineAPIResolver` uses an `APIStatic.endpoint(...)` descriptor, it dispatches into APIStatic before the normal HTTP-auth path. Setting `auth: { type: "bearer", ... }` on that descriptor does **not** protect the static operation. `configureAPIStatic({ proxy })` only supplies a callback; a server endpoint behind that callback must independently authenticate and authorize the user.
+
