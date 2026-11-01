@@ -25,6 +25,7 @@ const {
 	rollback,
 	runCheck,
 	runBuild,
+	hasManagedRollbackSnapshot,
 } = require("./project");
 
 function parseArgs(argv) {
@@ -316,7 +317,7 @@ async function runDashboard(root, showWarning) {
 			version: readInstalledVersion(root),
 			installedVersion: state.installedVersion || readInstalledVersion(root),
 			channel: state.activeChannel || "not selected",
-			rollbackAvailable: Boolean(state.previous && state.previous.backup),
+			rollbackAvailable: hasManagedRollbackSnapshot(root, state.previous && state.previous.backup),
 			cacheStatus: catalog.cached ? "cached" : "ready",
 		},
 	});
