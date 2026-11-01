@@ -133,13 +133,10 @@ class TaskTree {
 		};
 		this.byId.set("root", this.root);
 		if (this.interactive) {
+			this.panelHeight = 0;
+			this.scrollBottomRow = 0;
+			this.scrollRegionActive = false;
 			this.draw();
-			this.timer = setInterval(() => {
-				if (this.finished) return;
-				this.frame += 1;
-				this.draw();
-			}, 120);
-			if (typeof this.timer.unref === "function") this.timer.unref();
 		} else {
 			process.stdout.write("> " + this.command + "\n");
 			process.stdout.write("[NE] RUNNING " + this.command + "\n");
@@ -180,7 +177,10 @@ class TaskTree {
 		const node = this.byId.get(id);
 		if (!node) return;
 		node.detail = String(detail || "");
-		if (this.interactive) this.draw();
+		if (this.interactive) {
+			this.frame += 1;
+			this.draw();
+		}
 	}
 
 	succeed(id, detail) {
@@ -193,6 +193,7 @@ class TaskTree {
 
 	renderChange(node, action) {
 		if (this.finished || this.failed) return;
+		this.frame += 1;
 		if (this.interactive) this.draw();
 		else if (action === "RUNNING" || action === "SUCCESS" || action === "SKIPPED" || action === "FAILED") {
 			process.stdout.write("[NE] " + action + " " + node.label +
@@ -273,37 +274,61 @@ class TaskTree {
 		}
 		return rows;
 	}
-	draw() {
-		if (!this.interactive) return;
-		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
+	buildPanelLines(width, panelHeight) {
 		const inner = width - 4;
 		const glyphs = unicodeEnabled();
-		const borderChars = glyphs ? ["─", "━", "═", "━"] : ["-", "=", "#", "="];
-		const border = borderChars[this.frame % borderChars.length];
+		const horizontal = glyphs ? "─" : "-";
 		const left = glyphs ? "╭" : "+";
 		const right = glyphs ? "╮" : "+";
 		const bottomLeft = glyphs ? "╰" : "+";
 		const bottomRight = glyphs ? "╯" : "+";
 		const vertical = glyphs ? "│" : "|";
-		const color = this.root.status === "failed" ? "31;1" : this.root.status === "success" ? "32;1" : "36;1";
 		const title = " NE TASK TREE · " + this.command + " ";
-		const top = left + border + title + border.repeat(Math.max(1, width - title.length - 3)) + right;
-		const bottom = bottomLeft + border.repeat(width - 2) + bottomRight;
-		const rows = [paint(top, color)];
-		for (const row of this.renderRows(inner)) {
+		const top = left + horizontal + title + horizontal.repeat(Math.max(1, width - title.length - 3)) + right;
+		const bottom = bottomLeft + horizontal.repeat(width - 2) + bottomRight;
+		const body = this.renderRows(inner).map((row) => {
 			const visibleLength = row.text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length;
-			rows.push(paint(vertical, row.color) + " " + row.text +
-				" ".repeat(Math.max(0, inner - visibleLength)) + " " + paint(vertical, row.color));
+			return vertical + " " + row.text +
+				" ".repeat(Math.max(0, inner - visibleLength)) + " " + vertical;
+		});
+		const maxBody = Math.max(1, panelHeight - 2);
+		if (body.length > maxBody) {
+			const tailCount = Math.max(0, maxBody - 2);
+			const omitted = body.length - tailCount - 1;
+			body.splice(1, body.length - tailCount - 1, " … " + omitted + " earlier task row(s) hidden … ");
 		}
-		rows.push(paint(bottom, color));
-		process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + rows.join("\n") + "\x1b[?25h");
+		const lines = [top, ...body, bottom];
+		while (lines.length < panelHeight) lines.splice(lines.length - 1, 0, "");
+		return lines.slice(0, panelHeight);
 	}
-	stopTimer() {
-		if (this.timer) {
-			clearInterval(this.timer);
-			this.timer = null;
+	draw() {
+		if (!this.interactive) return;
+		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
+		const terminalRows = Math.max(12, Number(process.stdout.rows) || 24);
+		const maxPanelHeight = Math.max(8, Math.min(18, terminalRows - 4));
+		const desiredHeight = Math.min(maxPanelHeight, Math.max(8, this.renderRows(width - 4).length + 2));
+		this.panelHeight = Math.max(this.panelHeight, desiredHeight);
+		const panelStartRow = terminalRows - this.panelHeight + 1;
+		const scrollBottom = Math.max(2, panelStartRow - 1);
+		const lines = this.buildPanelLines(width, this.panelHeight);
+		const output = ["\x1b7", "\x1b[?25l"];
+		if (!this.scrollRegionActive || this.scrollBottomRow !== scrollBottom) {
+			output.push("\x1b[1;" + scrollBottom + "r");
+			this.scrollRegionActive = true;
+			this.scrollBottomRow = scrollBottom;
 		}
+		for (let index = 0; index < this.panelHeight; index += 1) {
+			output.push("\x1b[" + (panelStartRow + index) + ";1H\x1b[2K" + (lines[index] || ""));
+		}
+		output.push("\x1b8", "\x1b[0m", "\x1b[?25h");
+		process.stdout.write(output.join(""));
 	}
+	releaseStickyPanel() {
+		if (!this.scrollRegionActive) return;
+		this.scrollRegionActive = false;
+		process.stdout.write("\x1b[r\x1b[0m\x1b[?25h\r\n");
+	}
+	stopTimer() {}
 
 	complete() {
 		if (this.finished || this.failed) return;
@@ -316,26 +341,8 @@ class TaskTree {
 
 	drawFinal() {
 		if (!this.interactive) return;
-		const width = Math.max(52, Math.min(Number(process.stdout.columns) || 80, 112));
-		const inner = width - 4;
-		const glyphs = unicodeEnabled();
-		const border = glyphs ? "═" : "=";
-		const left = glyphs ? "╭" : "+";
-		const right = glyphs ? "╮" : "+";
-		const bottomLeft = glyphs ? "╰" : "+";
-		const bottomRight = glyphs ? "╯" : "+";
-		const vertical = glyphs ? "│" : "|";
-		const title = " NE TASK TREE · " + this.command + " ";
-		const top = left + border + title + border.repeat(Math.max(1, width - title.length - 3)) + right;
-		const bottom = bottomLeft + border.repeat(width - 2) + bottomRight;
-		const rows = [paint(top, "32;1")];
-		for (const row of this.renderRows(inner)) {
-			const visibleLength = row.text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").length;
-			rows.push(paint(vertical, row.color) + " " + row.text +
-				" ".repeat(Math.max(0, inner - visibleLength)) + " " + paint(vertical, row.color));
-		}
-		rows.push(paint(bottom, "32;1"));
-		process.stdout.write("\x1b[2J\x1b[H" + rows.join("\n") + "\n\x1b[?25h");
+		this.draw();
+		this.releaseStickyPanel();
 	}
 	fail(id, error) {
 		if (this.failed) return;
@@ -353,8 +360,8 @@ class TaskTree {
 		this.stopTimer();
 
 		if (this.interactive) {
-			process.stdout.write("\x1b[2J\x1b[H\x1b[?25h");
-			process.stdout.write("> " + this.command + "\n");
+			this.draw();
+			this.releaseStickyPanel();
 		}
 		process.stderr.write("[NE] FAILED " + node.label + "\n");
 		if (error && error.message) process.stderr.write(error.message + "\n");
