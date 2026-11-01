@@ -1,3 +1,5 @@
+> **Generation 3 compatibility warning:** Gen 3-only imports such as `nextjs-engine/network`, `nextjs-engine/seo`, `createTheme()`, `createEngineComponentRegistry()`, and the expanded NENC/server exports do not exist in Gen 2. Copying those examples into a 2.x project produces TypeScript missing-export or module-resolution errors. Check this exact inventory before importing a symbol. See the [Gen 2 → Gen 3 migration guide](../migration-to-gen3.md).
+
 # Complete Public Export Inventory — Generation 2
 
 Source of truth: the named export barrels on `main-2`, package version `2.7.0`. Private exports in implementation files are deliberately excluded.
