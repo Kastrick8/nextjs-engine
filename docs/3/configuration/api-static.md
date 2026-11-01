@@ -74,3 +74,10 @@ The plugin compiles on Next.js config evaluation and watches route files in deve
 > Static route programs are downloadable browser code. Never put private API keys, database credentials, filesystem operations, private session data or privileged logic in a `.route` file. Use a server endpoint or NENC for privileged operations.
 
 See [APIStatic module](../module/apistatic.md), [Networking APIs](../api/networking.md) and [EngineAPI configuration](./engine-api.md).
+
+> **Authentication boundary:** APIStatic route modules are downloadable browser-side JavaScript. Input schema validation is not account authentication, session validation, role checking or resource authorization. Never place backend credentials or private account logic in a `.route` file.
+>
+> **Resolver auth does not protect static descriptors:** EngineAPIResolver dispatches an `APIStatic.endpoint(...)` descriptor directly into APIStatic before applying the ordinary HTTP auth-header path. A `bearer`, `jwt`, `hmac` or `pnp` setting on a static descriptor does not secure it. `configureAPIStatic({ proxy })` is a bridge callback, not an authentication policy. The server endpoint behind the bridge must independently authenticate the user and authorize the operation/resource.
+>
+> Use a Next.js Route Handler or opt-in NENC for private dashboard/account operations. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
+
