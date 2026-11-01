@@ -4,7 +4,7 @@
 
 Generation 2 and Generation 3 are separate API generations. Gen 2 is the stable 2.x contract; Gen 3 is a compiler-first/server-first alpha line with additional APIs and changed behavior. Do not copy Gen 3 imports or examples into a Gen 2 application and assume they exist there.
 
-For the Gen 2 reference, see the [Gen 2 documentation index](../2/index.md) and its [migration notes](../2/migration-to-gen3.md).
+For the Gen 2 reference, see the [Gen 2 documentation index](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main2/docs/2/index.md) and its [migration notes](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main2/docs/2/migration-to-gen3.md).
 
 ## Before you migrate
 
