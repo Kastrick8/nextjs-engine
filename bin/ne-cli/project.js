@@ -4,7 +4,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { createPrivateTempDirectory, writeFileAtomically } = require("./file-system");
+const {
+	createPrivateTempDirectory,
+	readRegularFileNoFollow,
+	isRegularFileNoFollow,
+	writeFileAtomically,
+} = require("./file-system");
 const PACKAGE_NAME = "@kastrick/nextjs-engine";
 const STATE_RELATIVE_PATH = path.join(".nextjs-engine", "config", "ne.config.json");
 const BACKUP_RELATIVE_PATH = path.join(".nextjs-engine", "cache", "ne-backups");
@@ -240,17 +245,14 @@ function hasManagedRollbackSnapshot(root, backupPath) {
 	if (!directory) return false;
 	try {
 		const metadataPath = path.join(directory, "backup.json");
-		const metadataStats = fs.lstatSync(metadataPath);
-		if (!metadataStats.isFile() || metadataStats.isSymbolicLink()) return false;
-		const metadata = readJson(metadataPath, null);
+		const metadata = JSON.parse(readRegularFileNoFollow(metadataPath).content.toString("utf8"));
 		const details = metadata && metadata.files;
 		if (!details || typeof details !== "object" || Array.isArray(details)) return false;
 		return DEPENDENCY_FILES.every((relative) => {
 			const info = details[relative];
 			if (!info || typeof info.exists !== "boolean") return false;
 			if (!info.exists) return true;
-			const sourceStats = fs.lstatSync(path.join(directory, relative));
-			return sourceStats.isFile() && !sourceStats.isSymbolicLink();
+			return isRegularFileNoFollow(path.join(directory, relative));
 		});
 	} catch {
 		return false;
@@ -261,7 +263,7 @@ function restoreDependencyFiles(root, backup) {
 	const backupPath = backup && (backup.directory || backup.relative);
 	const directory = resolveManagedBackupDirectory(root, backupPath);
 	if (!directory) throw new Error("Rollback backup path is outside the managed NE backup directory or is unavailable.");
-	const details = backup.files || readJson(path.join(directory, "backup.json"), {}).files;
+	const details = backup.files || JSON.parse(readRegularFileNoFollow(path.join(directory, "backup.json")).content.toString("utf8")).files;
 	if (!details || typeof details !== "object" || Array.isArray(details)) {
 		throw new Error("Rollback backup metadata is missing or invalid.");
 	}
@@ -273,17 +275,14 @@ function restoreDependencyFiles(root, backup) {
 		}
 		if (info.exists) {
 			const source = path.join(directory, relative);
-			let sourceStats;
+			let snapshotFile;
 			try {
-				sourceStats = fs.lstatSync(source);
+				snapshotFile = readRegularFileNoFollow(source);
 			} catch {
-				throw new Error("Rollback backup is missing " + relative + ".");
-			}
-			if (!sourceStats.isFile() || sourceStats.isSymbolicLink()) {
-				throw new Error("Rollback backup contains an unsafe file for " + relative + ".");
+				throw new Error("Rollback backup is missing or unsafe for " + relative + ".");
 			}
 			fs.mkdirSync(path.dirname(target), { recursive: true });
-			writeFileAtomically(target, fs.readFileSync(source), { mode: sourceStats.mode & 0o777 });
+			writeFileAtomically(target, snapshotFile.content, { mode: snapshotFile.mode });
 		} else {
 			fs.rmSync(target, { force: true });
 		}
