@@ -92,8 +92,10 @@ The declaration is scanned during build; `execute()` runs on the server. Keep co
 `createNENCAccountSessionPolicy()` supplies a fail-closed policy for commands whose `auth` is `"account"`. Your application still owns login, session issuance, session persistence, logout/revocation, and the backing store.
 
 ```ts
+import { EngineAPIResolver } from "nextjs-engine";
 import {
   createNENCAccountSessionPolicy,
+  createNENCCommandAPIResolverFactory,
   createNENCDispatcher,
 } from "nextjs-engine/server";
 
@@ -105,10 +107,28 @@ const accountSessions = createNENCAccountSessionPolicy({
   },
 });
 
+// Select the private resolver on the server, after auth/authz succeeds.
+const api = createNENCCommandAPIResolverFactory({
+  resolve({ commandName }) {
+    if (commandName !== "catalog.privateSearch") {
+      throw new Error("No backend is configured for this command.");
+    }
+    return new EngineAPIResolver({
+      endpoint: process.env.PRIVATE_BACKEND_URL + "/search",
+      method: "POST",
+      cache: "no-store",
+      auth: {
+        type: "bearer",
+        token: process.env.PRIVATE_BACKEND_TOKEN!,
+      },
+    });
+  },
+});
+
 export default function createHandler(manifest) {
   return createNENCDispatcher({
     manifest,
-    api: serverAPI,
+    api,
     authenticate: accountSessions.authenticate,
     authorize: accountSessions.authorize,
   });
