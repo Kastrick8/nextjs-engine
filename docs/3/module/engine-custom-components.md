@@ -86,3 +86,8 @@ See [EngineTheme](./enginetheme.md) for custom-component theme bindings and [Com
 - Do not pass server handlers or private secrets into client component props.
 - Choose stable node IDs and keep their registration consistent across the app.
 - Prefer schema-composition createComponent() when a reusable schema subtree is sufficient; use custom mode for a trusted React component with a declared prop contract.
+
+
+## Generation 2 compatibility
+
+Generation 2 supports direct trusted React component registration through the global `registerComponent()` registry. The Gen 3 adapter overload `createComponent({ mode: "custom", ... })` and scoped `EngineComponentRegistry` APIs are not in the Gen 2 export contract. Copying the Gen 3 custom-mode example into a Gen 2 project produces a TypeScript overload/missing-export error. See [Migrating from Gen 2](../guides/migrating-from-gen2.md) and the [Gen 2 Custom Components reference](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main2/docs/2/module/engine-custom-components.md).
