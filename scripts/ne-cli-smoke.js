@@ -452,14 +452,32 @@ async function main() {
 		fs.writeFileSync(path.join(temp, ".nextjs-engine", "cache", "ne-backups", "keep.txt"), "keep");
 
 		const backup = project.captureDependencyFiles(temp);
+		assert.equal(project.hasManagedRollbackSnapshot(temp, backup.relative), true, "a complete managed snapshot enables rollback");
+		const backupPackageMode = fs.statSync(path.join(backup.directory, "package.json")).mode & 0o777;
 		fs.writeFileSync(path.join(temp, "package.json"), "{\"name\":\"changed\"}\n");
-		project.restoreDependencyFiles(temp, backup);
+		project.restoreDependencyFiles(temp, { directory: backup.directory });
 		assert.equal(JSON.parse(fs.readFileSync(path.join(temp, "package.json"), "utf8")).name, "fixture");
+		if (process.platform !== "win32") {
+			assert.equal(fs.statSync(path.join(temp, "package.json")).mode & 0o777, backupPackageMode,
+				"atomic rollback restoration preserves the manifest permissions");
+		}
+		assert.deepEqual(fs.readdirSync(temp).filter((name) => name.startsWith(".ne-write-")), [],
+			"atomic rollback restoration removes its private staging directory");
 		assert.ok(project.cleanTargets(temp).includes("dist"));
 
 		await project.runClean(temp, false);
 		assert.equal(fs.existsSync(path.join(temp, "dist")), false);
 		assert.equal(fs.existsSync(path.join(temp, ".nextjs-engine", "cache", "ne-backups", "keep.txt")), true);
+		assert.equal(project.hasManagedRollbackSnapshot(temp, backup.relative), true,
+			"ne clean preserves a valid rollback snapshot");
+		project.saveState(temp, { previous: { backup: backup.relative } });
+		fs.rmSync(backup.directory, { recursive: true, force: true });
+		assert.equal(project.hasManagedRollbackSnapshot(temp, backup.relative), false,
+			"a stale snapshot path does not enable rollback");
+		assert.equal(project.hasManagedRollbackSnapshot(temp, path.join(temp, "outside-backup")), false,
+			"rollback paths outside the managed directory are rejected");
+		await assert.rejects(() => project.rollback(temp), /No valid NE rollback snapshot is available/,
+			"rollback rejects a stale snapshot before modifying dependency files");
 
 		const previousFetch = global.fetch;
 		try {
