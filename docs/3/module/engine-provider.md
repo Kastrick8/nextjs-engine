@@ -1,35 +1,37 @@
 # EngineProvider
 
-EngineProvider supplies the React context and collected-style integration used by provider-backed Engine hooks and rendering features.
+EngineProvider supplies the React context and per-boundary style collector used by provider-backed Engine hooks and rendering features. It is not, by itself, the component that emits the provider's collected stylesheet.
 
-## Typical use
+## Typical context usage
 
 ```tsx
-import { EngineProvider } from "nextjs-engine";
+import type { ReactNode } from "react";
+import { EngineProvider, useEngineContext } from "nextjs-engine";
 
-export default function RootLayout({ children }) {
+function ContextReadout() {
+  const { config } = useEngineContext();
+  return <p>Content width: {config.contentMaxWidth}</p>;
+}
+
+export function EngineContextBoundary({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body>
-        <EngineProvider>{children}</EngineProvider>
-      </body>
-    </html>
+    <EngineProvider config={{ contentMaxWidth: "1100px" }}>
+      {children}
+      <ContextReadout />
+    </EngineProvider>
   );
 }
 ```
 
-Use the provider where the relevant Engine APIs require context. Do not add nested providers indiscriminately; a provider boundary can establish a distinct context and style collection scope.
+Use the provider when an API needs Engine context or when the application intentionally establishes a distinct config/handler/slot boundary. Do not add nested providers indiscriminately; each provider can establish a separate style-collection scope.
 
 ## Related hooks
 
 The public API includes `useEngineContext()`, `useBreakpoint()` and `useMinBreakpoint()`. Other hooks are owned by EngineScroll, EngineBrowser, EngineModel, EngineScheduler and EngineViewport.
 
-See [Hooks API](../api/hooks.md) and [Styling](./styling.md).
-
-
 ## Provider and generated styles
 
-`EngineProvider` exposes React context/config/handlers/slots and owns a `StyleCollector`, but the provider alone does not emit the collected CSS. The internal `EngineCollectedStyles` helper is not a public `nextjs-engine` root export. The built-in `createPage()` and schema-backed `createComponent()` paths manage their own provider/style emission.
+The provider owns a `StyleCollector`, but the provider alone does not emit the collected CSS. The internal `EngineCollectedStyles` helper is not a public `nextjs-engine` root export. The built-in `createPage()` and schema-backed `createComponent()` paths manage their own provider/style emission.
 
 For custom React composition, do not import internal source paths just to gain access to `EngineCollectedStyles`. Use the schema-backed factory for a self-contained Engine region, or follow [detailed styling](../styling-detailed.md) for the public style helpers and collector responsibilities.
 
