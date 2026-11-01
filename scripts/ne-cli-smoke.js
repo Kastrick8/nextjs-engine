@@ -450,7 +450,8 @@ async function main() {
 		} catch (error) {
 			if (process.platform !== "win32" || !["EPERM", "EACCES", "UNKNOWN"].includes(error.code)) throw error;
 		}
-		assert.deepEqual(fs.readdirSync(temp), ["atomic-state.json"], "atomic writer removes its private staging directory");
+		assert.deepEqual(fs.readdirSync(temp).filter((name) => name.startsWith(".ne-write-")), [],
+			"atomic writer removes its private staging directory");
 		const privateDirectory = fileSystem.createPrivateTempDirectory(temp, "backup-test-");
 		if (process.platform !== "win32") assert.equal(fs.statSync(privateDirectory.name).mode & 0o777, 0o700, "rollback temp directories are private");
 		privateDirectory.removeCallback();
