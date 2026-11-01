@@ -517,3 +517,16 @@ Callable discovery for compact `helper[...]` syntax only uses helpers visible fr
 The root `createEndpoint([...])` search is top-level aware, so nested functions/calls named `createEndpoint` are not mistaken for the route declaration.
 
 TypeScript is required by the package plugin because `.route` files may contain TypeScript annotations and the compiler uses the TypeScript parser for runtime-scope analysis.
+
+
+## Authentication and authorization boundary
+
+APIStatic does not provide account authentication, session validation, roles, permissions, or per-resource authorization. Its schema checks the shape of caller-supplied input; a required `accountId: "string"` field is not proof that the caller owns that account. The generated JavaScript is downloaded and executed in the browser, so treat every route and every caller-supplied value as public/untrusted.
+
+> **Resolver auth does not protect APIStatic:** EngineAPIResolver dispatches `APIStatic.endpoint(...)` descriptors directly into the static runtime before constructing an HTTP request and applying auth headers. A `bearer`, `jwt`, `hmac`, or `pnp` setting on that descriptor does not secure the operation. `configureAPIStatic({ proxy })` only provides a backend bridge callback; it is not an authenticator or authorization policy. Authenticate and authorize inside the server endpoint behind that bridge.
+
+For privileged account/dashboard operations, use a server Route Handler or the optional NENC server-command path. See [Authentication and authorization](../integrations/authentication-and-authorization.md) and [NENC security architecture](../networking-credentials-security.md).
+
+## Generation 2 compatibility
+
+APIStatic remains browser-executed in both generations and remains unsuitable as a private account API. Gen 3 adds NENC for server-side commands; it does not silently make existing `.route` programs private. Gen 2 has no `nextjs-engine/network` subpath or NENC exports, so those Gen 3 imports fail in Gen 2. See [Migrating from Gen 2](../guides/migrating-from-gen2.md).
