@@ -289,3 +289,16 @@ module.exports = withEngineAPI(nextConfig, {
 The plugin runs during `next.config` evaluation so the compiler is available with Turbopack as well as webpack. During `next dev`, existing `.api` and `.route` source directories are watched for changes.
 
 For all APIStatic authoring/runtime details, continue with [`APIStatic`](./apistatic.md).
+
+
+## Account authentication and authorization boundary
+
+The auth modes above authenticate an **outgoing request from Engine to an upstream service**. They do not identify the signed-in website visitor, validate an account session, or decide whether a user may read another user's dashboard. JWT mode forwards a bearer token; it does not decode or validate JWT claims locally. The provider must verify the token/signature and apply its authorization policy.
+
+**APIStatic is a separate path:** an `APIStatic.endpoint(...)` descriptor is dispatched before EngineAPIResolver constructs the normal HTTP request. Therefore resolver `auth` headers do not protect a static endpoint. APIStatic input schemas are shape validation, not account/role/resource authorization.
+
+For dashboard/account operations, perform the user's session check and permission/ownership check in an application-owned server endpoint or private backend, then use EngineAPIResolver there with server-only provider credentials. See [Authentication and authorization](../integrations/authentication-and-authorization.md) and [APIStatic](./apistatic.md).
+
+## Generation 3 compatibility
+
+Generation 3 introduces `input` as the preferred request body field. Generation 2 uses `formData` for ordinary HTTP bodies. Do not assume that a Gen 3 `input`-only example is the Gen 2 contract. Gen 3 still accepts `formData` as a fallback only when `input` is undefined; if both values are supplied, `input` wins. See the [Gen 2 → Gen 3 migration guide](../migration-to-gen3.md).
