@@ -133,3 +133,13 @@ defineSchema() preserves the PageSchema type and returns the schema value; it do
 - [Hooks](./hooks.md)
 - [EngineTheme](../module/enginetheme.md)
 - [Generation 3 compiler](../ne/compiler/index.md)
+
+
+
+## React and Next.js interoperability
+
+The Create API is additive to React, not a replacement for ordinary JSX. Use normal Next.js pages and components where application-owned state/data/forms are more suitable, `createComponent()` to embed a schema region inside JSX, and `createPage()` when the route itself should be schema-driven. Browser hooks, events and browser APIs still require the appropriate Client Component boundary. See [React and JSX integration](../integrations/react-and-jsx.md).
+
+## Generation 2 compatibility
+
+Gen 2 supports schema-backed `createPage()` and `createComponent()`, but it does not have the Generation 3 `createComponent({ mode: "custom", ... })` adapter overload, `createTheme()`, or compiler/server-first options. Copying those imports/options into Gen 2 produces TypeScript missing-export or type-checking errors. See [Migrating from Gen 2](../guides/migrating-from-gen2.md).
