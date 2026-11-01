@@ -21,7 +21,7 @@ These are the ranges declared by this source branch, not a blanket compatibility
 
 Keep normal Next.js layouts, Server Components, Client Components, route handlers, server data access, native HTML, hooks, and third-party React components. Use `createPage()` for a fully Engine-schema route and `createComponent()` to embed schema-driven content in an ordinary JSX tree. Generation 3's `createComponent({ mode: "custom" })` also adapts a trusted local React component to a schema node contract.
 
-Do not cross the server/client boundary with private credentials, non-serializable values, or server-only functions. Hooks, state, browser APIs, and event handlers belong in Client Components. See [React/JSX integration](./react-and-jsx.md), [Next.js Server and Client Components](https://nextjs.org/learn/react-foundations/server-and-client-components), and [React Server Components](https://react.dev/reference/rsc/server-components).
+Do not cross the server/client boundary with private credentials, non-serializable values, or server-only functions. Hooks, state, browser APIs, and event handlers belong in Client Components. See [React/JSX integration](./react-and-jsx.md), [Next.js Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components), and [React Server Components](https://react.dev/reference/rsc/server-components).
 
 ## Engine-owned dependencies
 
