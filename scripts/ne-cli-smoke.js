@@ -436,6 +436,20 @@ async function main() {
 		fileSystem.writeFileAtomically(atomicFile, "{\"revision\":1}\n", { mode: 0o600 });
 		fileSystem.writeFileAtomically(atomicFile, "{\"revision\":2}\n", { mode: 0o600 });
 		assert.equal(fs.readFileSync(atomicFile, "utf8"), "{\"revision\":2}\n", "atomic writer replaces existing files");
+		assert.equal(fileSystem.readRegularFileNoFollow(atomicFile).content.toString("utf8"), "{\"revision\":2}\n",
+			"regular-file reads use the validated descriptor");
+		assert.equal(fileSystem.isRegularFileNoFollow(atomicFile), true);
+		const symlinkTarget = path.join(temp, "symlink-target.txt");
+		const symlinkPath = path.join(temp, "symlink-source.txt");
+		fs.writeFileSync(symlinkTarget, "outside snapshot");
+		try {
+			fs.symlinkSync(symlinkTarget, symlinkPath);
+			assert.equal(fileSystem.isRegularFileNoFollow(symlinkPath), false, "snapshot validation rejects symlinks");
+			assert.throws(() => fileSystem.readRegularFileNoFollow(symlinkPath), /symbolic link|too many symbolic links|ELOOP/i,
+				"snapshot reads do not follow symlink paths");
+		} catch (error) {
+			if (process.platform !== "win32" || !["EPERM", "EACCES", "UNKNOWN"].includes(error.code)) throw error;
+		}
 		assert.deepEqual(fs.readdirSync(temp), ["atomic-state.json"], "atomic writer removes its private staging directory");
 		const privateDirectory = fileSystem.createPrivateTempDirectory(temp, "backup-test-");
 		if (process.platform !== "win32") assert.equal(fs.statSync(privateDirectory.name).mode & 0o777, 0o700, "rollback temp directories are private");
