@@ -504,3 +504,16 @@ Callable discovery for compact `helper[...]` syntax only uses helpers visible fr
 The root `createEndpoint([...])` search is top-level aware, so nested functions/calls named `createEndpoint` are not mistaken for the route declaration.
 
 TypeScript is required by the package plugin because `.route` files may contain TypeScript annotations and the compiler uses the TypeScript parser for runtime-scope analysis.
+
+
+## Authentication and authorization
+
+APIStatic is a **public browser-executed program system**, not an authenticated server API. Its schema validates the types/presence of request inputs. It does not authenticate an account, validate a session, authorize a user/role, or verify that a caller owns a resource. Never interpret a required `accountId` field as proof of identity or ownership.
+
+> **Important:** A static endpoint descriptor passed to EngineAPIResolver is dispatched directly into APIStatic before the resolver's HTTP auth-header logic. Adding `auth: { type: "bearer", ... }` to an `APIStatic.endpoint(...)` resolver config does not protect the operation. `configureAPIStatic({ proxy })` is only a callback hook; the server endpoint behind it must independently validate the target, authenticate the user, authorize the requested action/resource, and keep credentials server-side.
+
+For private dashboard/account operations, use an application-owned Next.js Route Handler or private backend with session and permission checks. Gen 2 does not include NENC or the Gen 3 account-session policy. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
+
+## Generation 3 migration
+
+The Gen 3 APIStatic runtime still executes downloaded browser-side route modules; it does not turn `.route` files into private handlers. Gen 3 adds the optional NENC server-command path for private operations. It is not part of Gen 2, and Gen 3-only `nextjs-engine/network` or NENC server imports will fail in a Gen 2 project. See the [Gen 2 → Gen 3 migration guide](../migration-to-gen3.md).
