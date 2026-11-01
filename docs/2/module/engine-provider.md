@@ -2,7 +2,7 @@
 
 > **Generation 2 · Stable 2.x** · This page describes the public provider contract on `main-2`.
 
-`EngineProvider` supplies the React context used by Engine hooks and provider-aware components. Its props include:
+`EngineProvider` supplies the React context consumed by Engine hooks and provider-aware components. Its props include:
 
 - `config`: Engine breakpoints and layout defaults;
 - `handlers`: named callbacks referenced by schema nodes;
@@ -13,20 +13,31 @@
 The provider is exported from `nextjs-engine`:
 
 ```tsx
-import { EngineProvider } from "nextjs-engine";
+import type { ReactNode } from "react";
+import { EngineProvider, useEngineContext } from "nextjs-engine";
 
-export function AppRegion({ children }: { children: React.ReactNode }) {
-  return <EngineProvider>{children}</EngineProvider>;
+function ContextReadout() {
+  const { config } = useEngineContext();
+  return <p>Content width: {config.contentMaxWidth}</p>;
+}
+
+export function EngineContextBoundary({ children }: { children: ReactNode }) {
+  return (
+    <EngineProvider config={{ contentMaxWidth: "1100px" }}>
+      {children}
+      <ContextReadout />
+    </EngineProvider>
+  );
 }
 ```
 
-The context is available through public hooks such as `useEngineContext()`, `useBreakpoint()`, and `useMinBreakpoint()`. The default context allows some low-level APIs to work outside an explicit provider, but provider boundaries can establish distinct config, handlers, slots and style-collection scopes.
+The context is available through public hooks such as `useEngineContext()`, `useBreakpoint()`, and `useMinBreakpoint()`. A provider boundary can establish distinct config, handlers, slots and style-collection scopes.
 
 ## Style collection is not automatic for arbitrary provider usage
 
 The provider owns a `StyleCollector`, but `EngineProvider` alone does not render the collected CSS. The internal `EngineCollectedStyles` helper is not a public root export of the installed package. The built-in `createPage()` and schema-backed `createComponent()` factories manage the provider and collected-style emission for their own rendering boundary.
 
-For a schema-rendered component embedded in normal JSX, use `createComponent()` instead of importing a private `src/engine/providers/EngineProvider` path to access internal helpers. See [React and JSX integration](../integrations/react-and-jsx.md) and [Styling](./styling.md).
+For a schema-rendered component embedded in normal JSX, use `createComponent()` instead of importing a private `src/engine/providers/EngineProvider` path to access internal helpers. Do not assume that wrapping an arbitrary application tree in `EngineProvider` alone completes SSR style emission. See [React and JSX integration](../integrations/react-and-jsx.md) and [Styling](./styling.md).
 
 ## Generation 3 migration
 
