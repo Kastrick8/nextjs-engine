@@ -1,3 +1,5 @@
+> **Generation boundary:** This is the Generation 3 export inventory. The `nextjs-engine/network`, `nextjs-engine/seo`, expanded `nextjs-engine/server` exports, `createTheme()`, compiler APIs and scoped registry are not part of the Gen 2 package contract. Importing these Gen 3-only subpaths/names from a Gen 2 install causes module-resolution or TypeScript missing-export errors. See [Migrating from Gen 2](../guides/migrating-from-gen2.md) and the [Gen 2 export inventory](../../2/api/exports.md).
+
 # Complete Public Export Inventory — Generation 3
 
 > Source of truth: package export barrels on `main-3`, package version `3.0.0-alpha.1`. Every named value/type re-exported by the entrypoints is listed below. Private implementation exports are excluded.
