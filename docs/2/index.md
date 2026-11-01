@@ -16,6 +16,9 @@ This reference describes the implementation maintained on main-2. Generation 2 i
 | Configure page-level Engine settings | [Engine configuration](./configuration/engine-config.md) |
 | Understand runtime behavior | [NE runtime](./ne/runtime.md) |
 | Run the newly introduced CLI | [NE-CLI](./ne/cli/index.md) |
+| Use Engine alongside ordinary React/JSX | [React and JSX integration](./integrations/react-and-jsx.md) |
+| Understand account security boundaries | [Authentication and authorization](./integrations/authentication-and-authorization.md) |
+| Keep third-party libraries | [Third-party integrations](./integrations/third-party.md) |
 
 ## Documentation categories
 
@@ -24,8 +27,10 @@ This reference describes the implementation maintained on main-2. Generation 2 i
 - [NE](./ne/index.md) — architecture, runtime, diagnostics and command-line tooling.
 - [Configuration](./configuration/index.md) — practical project setup, file formats and environment values.
 - [Guides](./guides/index.md) — task-oriented instructions.
-- [Integrations](./integrations/index.md) — Next.js project integration.
+- [Integrations](./integrations/index.md) — Next.js, React/JSX, authentication, and third-party integration.
 
 Generation 2 does not include the Generation 3 compiler, EngineTheme runtime/factory, EngineSEO, EngineDebug, NENC, EngineCookies, EngineCORS, EngineScheduler, EngineModel or EngineViewport.
+
+> **Generation 3 migration notice:** These pages describe the Gen 2 contract. Some APIs and behaviors change in Gen 3; some Gen 3 imports will produce TypeScript missing-export or module-resolution errors when used in a Gen 2 project. Read the [Gen 2 → Gen 3 migration guide](./migration-to-gen3.md) before copying Gen 3 code. The matching [Gen 3 authentication/authorization guide](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/integrations/authentication-and-authorization.md) documents NENC and account-session security, which are not Gen 2 features.
 
 Existing migration and release materials remain in the repository for maintenance and website use; they are not part of this navigation. The existing examples directory is unchanged.
