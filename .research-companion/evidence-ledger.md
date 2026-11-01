@@ -11,4 +11,12 @@
 | Gen 2 Engine plugin composes API and shader plugins. | `src/engine/plugins/enginePlugin.js` | Verified | Exclude Gen 3 plugin options. |
 | Gen 2 page rendering is provider/schema renderer based. | `src/engine/createPage.tsx`, `src/engine/core/SchemaRenderer.tsx` | Verified | Do not claim server-first compiler behavior. |
 
+| EngineAPIResolver auth modes are `none`, `ak`, `bearer`, `jwt`, `basic`, `hmac`, and `pnp`; they authenticate the outgoing provider request. | `src/engine/core/EngineAPIResolver.ts`, `src/engine/core/EngineAPIConfigParser.ts`, `src/engine/schema/types.ts` | Verified | Document credential requirements and distinguish upstream request authentication from user/account authorization. |
+| APIStatic compiles browser-loaded route modules and exposes schema validation/proxy execution, not a built-in account session or authorization engine. | `src/engine/core/APIStatic.ts` | Verified | Treat route code/input as public; put account/tenant/permission checks in an application-owned server endpoint. |
+| EngineAPIResolver dispatches static endpoint descriptors before building the ordinary HTTP request/auth headers. | `src/engine/core/EngineAPIResolver.ts` | Verified | A resolver auth mode does not secure an APIStatic descriptor. |
+| The `APIStaticOptions.proxy` callback defaults to an unconfigured handler. | `src/engine/core/APIStatic.ts` | Verified | Describe proxy as an integration hook, not a security policy. |
+| Gen 2 has no NENC command/session/permission APIs. | `src/engine/server.ts`, `src/engine/index.ts` | Verified | Private operations use application-owned Route Handlers/backends in Gen 2. |
+| EngineProvider exposes context but collected-style emission is performed by the internal `EngineCollectedStyles` helper within factory-rendered trees. | `src/engine/providers/EngineProvider.tsx`, `src/engine/createPage.tsx` | Verified | Warn against treating EngineProvider alone as the full SSR style integration. |
+| Gen 2 schema-backed `createComponent()` returns a regular React component and wraps Engine context/style collection. | `src/engine/createPage.tsx` | Verified | Document JSX composition without requiring an all-schema app. |
+
 No secrets, environment values or private user data are stored.
