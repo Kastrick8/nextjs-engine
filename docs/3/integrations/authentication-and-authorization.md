@@ -159,6 +159,6 @@ For non-account auth modes, pass `authenticateOther` and `authorizeOther` into t
 
 Auth.js, Clerk, Supabase Auth, and custom identity systems can continue to own account identity. They are not automatically installed as NENC adapters. Connect your login/session layer to the NENC session store or adapt the policy callbacks so that the request is resolved to an application principal and permissions before command execution. Keep the identity provider's server credentials and private tokens out of browser code.
 
-Official references: [Next.js authentication tutorial](https://nextjs.org/learn/dashboard-app/adding-authentication) · [Auth.js](https://authjs.dev/getting-started) · [Clerk App Router auth](https://clerk.com/docs/reference/nextjs/app-router/auth) · [Supabase Auth SSR](https://supabase.com/docs/guides/auth/server-side).
+Official references: [Next.js authentication tutorial](https://nextjs.org/docs/app/guides/authentication) · [Auth.js](https://authjs.dev/getting-started) · [Clerk App Router auth](https://clerk.com/docs/reference/nextjs/app-router/auth) · [Supabase Auth SSR](https://supabase.com/docs/guides/auth/server-side).
 
 See [Networking, credentials, and command security](../networking-credentials-security.md), [NENC configuration](../configuration/nenc.md), and the [private-search example](https://github.com/Kastrick8/nextjs-engine/tree/main-3/examples/gen3-private-search).
