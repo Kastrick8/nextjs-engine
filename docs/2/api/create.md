@@ -63,3 +63,9 @@ export const pageSchema = defineSchema({
 ~~~
 
 Generation 2 has no createTheme() factory or compiler-first page option family. Page-level theme data remains part of PageSchema. See [Schema Types](./schema.md), [Component Registry](./component-registry.md) and [Getting Started](../guides/getting-started.md).
+
+
+
+## Generation 3 migration boundary
+
+Generation 3 adds compiler-first/server-first rendering for eligible pages and adds `createComponent({ mode: "custom", ... })` for adapting trusted local React components into schema nodes. The `mode: "custom"` overload is not part of Gen 2; copying that call into a 2.x project will fail type checking. Gen 3 also adds the root `createTheme()` export. See [React/JSX integration](../integrations/react-and-jsx.md), the [Gen 2 → Gen 3 migration guide](../migration-to-gen3.md), and the [Gen 3 Create API](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/api/create.md).
