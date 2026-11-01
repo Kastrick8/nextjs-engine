@@ -13,6 +13,8 @@
 The provider is exported from `nextjs-engine`:
 
 ```tsx
+"use client";
+
 import type { ReactNode } from "react";
 import { EngineProvider, useEngineContext } from "nextjs-engine";
 
