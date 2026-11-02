@@ -61,3 +61,14 @@ Research Companion skills guided the audit and note format. This host session di
 - Attempted `git ls-remote https://github.com/Kastrick8/nextjs-engine.git` before cloning; the shell failed with `Could not resolve host: github.com`. Direct container network/DNS access is therefore unavailable in this session and no local repository clone/download was created.
 - The connected GitHub repository integration remains available for reading/writing the public PR branches. No local `npm install`, TypeScript check, build or local documentation-site preview was run.
 - Next: recheck latest-head CI after these documentation-only commits, continue checking signature-level API examples against source, and run full local checks once a shell with GitHub network access is available.
+
+## Extended component/API audit — 2026-11-03
+- Added source-matched EngineForms input/textarea/checkbox prop tables and clarified that EngineForm's named submit/reset handlers are not native React callback props; direct React consumers can use an ordinary HTML form.
+- Added EngineLink prop contracts, Gen 3 EngineUrlIcon component/helper signatures, EngineNav item favicon fields, the EngineNavLogo shape and renderEngineAnchor(cfg): ReactElement.
+- Expanded EngineImage/EngineVideo lifecycle and media props, including Gen 3 EngineScheduler-backed image controls; added a standalone EngineVideo prop table.
+- Added Overlay overlayStyle, direct action callback semantics and the explicit Gen 2/Gen 3 trigger boundary; gave the Overlay quick-start subsections distinct anchors.
+- Documented EngineTransitionLink props and its Next.js Link inheritance in Gen 3; added local Markdown prettyPlease and themeTemplates props with links to the detailed EngineTheme guides.
+- Expanded CustomSelect's direct React contract with controlled value, callback overload, accessibility/search/empty-state labels and Gen 3 theme slots.
+- Source note: Gen 3 CustomSelect currently defaults emptyLabel to the literal string {emptyLabel} whereas Gen 2 defaults to No options found. The docs advise explicitly setting the Gen 3 prop; runtime code was intentionally not changed in these documentation PRs.
+- Structural validation on the changed module pages found balanced Markdown code fences and no duplicate real section headings after correcting the accidental joined headings; the duplicate ## API sample in EngineMarkdown is fenced content demonstrating generated heading suffixes.
+- No local type-check, production build, or docs-site preview was run because the container cannot resolve GitHub DNS. The current PR workflow checks must pass before merging.
