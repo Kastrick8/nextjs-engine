@@ -48,7 +48,7 @@ Nested plain objects are merged. The `endpoint` property is replaced atomically 
 
 `resolveRequest({ input })` uses JSON for ordinary object inputs and creates multipart FormData when binary values are present. `formData` remains the compatibility input field. GET/HEAD requests do not receive a body.
 
-Supported auth modes are `none`, `ak`, `bearer`, `jwt`, `basic`, `hmac` and `pnp`. HMAC uses SHA-256 or SHA-512; PNP uses Ed25519 or RS256. Signing modes reject multipart FormData because the browser-generated body is not available deterministically before fetch.
+Supported auth modes are `none`, `ak`, `bearer`, `jwt`, `basic`, `hmac` and `pnp`. When `auth` is omitted, it defaults to `{ type: "none" }` and no authentication header is sent. HMAC uses SHA-256 or SHA-512; PNP uses Ed25519 or RS256. Signing modes reject multipart FormData because the browser-generated body is not available deterministically before fetch.
 
 > [!WARNING]
 > Authentication material belongs in a server/build-controlled configuration environment. Never embed a private API key or signing secret in a browser component or a downloadable APIStatic route.
@@ -123,3 +123,6 @@ This syntax belongs in a `.route` file; it is not ordinary TypeScript to import 
 ## Security model
 
 A compiled route module is public browser code. It can call only what is embedded in that program or delegated through the configured proxy. The proxy must be a constrained server endpoint with explicit target allowlisting, authentication, authorization, rate limiting and secret protection. Do not put private credentials, filesystem/database work or privileged session logic in a `.route` file.
+
+
+These modes authenticate a normal Engine-to-provider request; they do not validate the signed-in application user or authorize access to an account/resource. APIStatic remains public browser code, and resolver auth settings do not protect an `APIStatic.endpoint(...)` descriptor. Use a Route Handler or NENC for privileged operations. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
