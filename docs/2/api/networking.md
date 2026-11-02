@@ -24,7 +24,7 @@ const response = await resolver.resolveRequest({
 
 Resolver config merges constructor/global → `pageOverrides` → `nodeOverrides`. Nested plain objects merge, but endpoint values replace atomically. For normal HTTP endpoints, `formData` supplies the request body. For a static endpoint descriptor, `input` is forwarded to APIStatic; `formData` is used as its fallback when `input` is omitted.
 
-Auth modes are `none`, `ak`, `bearer`, `jwt`, `basic`, `hmac` and `pnp`. HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. Signing modes reject multipart FormData because the browser-generated body cannot be signed deterministically before fetch.
+Auth modes are `none`, `ak`, `bearer`, `jwt`, `basic`, `hmac` and `pnp`. When `auth` is omitted, the resolver defaults to `{ type: "none" }` and sends no authentication header. HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. Signing modes reject multipart FormData because the browser-generated body cannot be signed deterministically before fetch.
 
 > [!WARNING]
 > Keep private credentials in trusted server/build config. Do not bundle them into browser code or static routes.
@@ -78,3 +78,8 @@ This special syntax belongs in a `.route` file. Supported run sources are `query
 
 > [!CAUTION]
 > A compiled route is public browser code. Never include secrets, database access, filesystem operations or private session logic. Use a server endpoint or a constrained proxy with independent target validation and authorization.
+
+
+The resolver auth modes authenticate an outgoing request to an upstream provider; they do not authenticate the signed-in website user or authorize access to an account/resource. APIStatic input validation is not a session or permission check. For account/dashboard operations, enforce identity and authorization in an application-owned server endpoint. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
+
+> **Generation 3 migration warning:** Gen 3 adds `nextjs-engine/network` and NENC's optional server-side command authentication/authorization. That subpath and those NENC exports do not exist in Gen 2; importing them produces module-resolution or missing-export errors. See the [Gen 2 → Gen 3 migration guide](../migration-to-gen3.md).
