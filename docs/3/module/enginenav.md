@@ -131,3 +131,34 @@ Nav structural classes are generated during the initial render rather than being
 | `--engine-nav-blur` | `blur(12px)` | Sticky backdrop filter |
 | `--engine-nav-dropdown-bg` | `#1a1a1a` | Dropdown background |
 | `--engine-nav-dropdown-border` | `rgba(255,255,255,0.1)` | Dropdown border |
+
+
+## `renderEngineAnchor()` helper
+
+The package also exports `renderEngineAnchor(cfg)` for integrations that need
+Engine's shared anchor-routing behavior without rendering the full navigation
+shell. Its signature is:
+
+```ts
+renderEngineAnchor(cfg: EngineAnchorConfig): ReactElement;
+```
+
+`EngineAnchorConfig` accepts:
+
+| Field | Type | Notes |
+|---|---|---|
+| `href` | `string` | Required destination. |
+| `target` | `string` | Optional native target. |
+| `transition` | `EngineTransitionInput` | Optional page transition for internal links. |
+| `children` | `ReactNode` | Anchor contents. |
+| `className` / `style` | `string` / `CSSProperties` | Anchor styling. |
+| `onClick` | `React.MouseEventHandler<HTMLAnchorElement>` | Native click callback. |
+| `ref` | `React.Ref<HTMLAnchorElement>` | Forwarded anchor ref. |
+| `aria-label` / `aria-current` | React ARIA attribute types | Accessible name and current-page state. |
+| `emd_show-url-icon` | `boolean` | Opts an external URL into a leading favicon. |
+| `emd_url-icon-size` | `EngineUrlIconSize` | Favicon size; `"auto"` or a number clamped to 8–64 px. |
+
+Gen 3 also supports the two favicon fields above for external links. External/scheme URLs use a native anchor; internal URLs use `next/link`, and
+animated internal destinations use the lazy transition-link component with
+`next/link` as the fallback.
+
