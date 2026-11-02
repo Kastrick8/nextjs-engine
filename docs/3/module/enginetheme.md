@@ -45,6 +45,33 @@ EngineOverlay uses shared `overlay` styles plus the component-specific `dialog`,
 
 Built-in theme namespaces are supported for `box`, `stack`, `grid`, `text`, `heading`, `section`, `card`, `button`, `link`, `nav`, `hero`, `image`, `video`, `manim`, `manim3d`, `spacer`, `divider`, `canvas`, `scroll`, `custom-select`, `suspense`, `option`, `optgroup`, `form`, `input`, `textarea`, `checkbox`, `label`, and `slot`. Most components use the `root` style slot. Hero, Nav, Image, Video, and CustomSelect expose additional slots. A slot with no theme/style/class/id remains a fragment; a styled slot receives a wrapper so the root theme has a DOM target. A node-level qualified `theme` selects a variant in the same group and matching component namespace; unresolved namespaces, unknown slots/properties, and unsafe CSS values fail closed.
 
+### Built-in component coverage
+
+The built-in resolver contract is aligned with the default component registry. Each listed component receives a validated `root` style declaration; named slots are delivered to the component that owns them.
+
+| Default component(s) | Supported style slots |
+| --- | --- |
+| `box`, `stack`, `grid` | `root` |
+| `text` | `root`, `part`, `partLink` |
+| `heading` | `root`, `subheading` |
+| `section` | `root`, `inner` |
+| `card` | `root`, `cover`, `coverImage`, `content` |
+| `hero` | `root`, `inner`, `overlay` |
+| `button`, `link` | `root` |
+| `nav` | `root`, `inner`, `items`, `item`, `activeItem`, `dropdown`, `logo`, `mobileToggle`, `mobileMenu` |
+| `image` | `root`, `image`, `placeholder`, `caption` |
+| `video` | `root`, `video`, `poster` |
+| `canvas`, `manim`, `manim3d` | `root` |
+| `spacer`, `divider`, `scroll`, `suspense` | `root` |
+| `slot` | `root` |
+| `option`, `optgroup` | `root` |
+| `custom-select` | `root`, `label`, `trigger`, `clearButton`, `dropdown`, `list`, `searchInput`, `option`, `emptyMessage` |
+| `form`, `input`, `textarea`, `checkbox`, `label` | `root` |
+
+The `EngineLink`, `EngineNav`, `EngineManim`, and `EngineManim3D` registry aliases use the lowercase namespace above; they do not create a second theme definition. Markdown has its own `markdown` configuration contract, and EngineOverlay uses the shared `overlay` plus `dialog`, `drawer`, or `popover` namespaces.
+
+The resolver smoke matrix checks every default built-in namespace. Runtime render smoke additionally verifies that themed styles reach the DOM for native form controls and CustomSelect's root and named slots. Resolution and render-boundary coverage are treated as separate checks.
+
 For components without a named slot, place CSS declarations in `defaults`, `props`, or `styles.root`. These declarations set visual defaults only; use ordinary schema props to configure behavior such as media source, autoplay, navigation items, select options, and layout mode. Page-level `vars` remain available for shared design tokens.
 
 ## Module layout
