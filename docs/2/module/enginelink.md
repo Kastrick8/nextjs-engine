@@ -44,7 +44,20 @@ export function ProductLink() {
 }
 ```
 
-## Click handlers and styles
+
+## Props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `href` | `string` | Destination URL. `cprop.link.href`, when supplied, takes precedence. |
+| `target` | `string` | Optional native anchor target. External destinations default to a new tab when no target is supplied. |
+| `content` | `string` | Schema label content. In direct JSX, prefer normal `children`. |
+| `children` | `ReactNode` | Direct React link contents. |
+| `onClick` | handler name or `React.MouseEventHandler<HTMLAnchorElement>` | A string resolves through EngineProvider; a function is called as a React click handler. |
+| `cprop` | Engine CPROP/link config | Supports link-level `href`, `transition`, and `styles`, plus general state styling. |
+| `id` / `point` / `className` / `style` | inherited Engine node props | Identity and styling props from `BaseNodeProps`. |
+
+## Click handlers and styles## Click handlers and styles
 
 `onClick` accepts either a React mouse handler (direct React use) or a string handler name resolved from the nearest `EngineProvider` handlers map. Schema links normally use a name registered in `createPage({ handlers })`.
 
