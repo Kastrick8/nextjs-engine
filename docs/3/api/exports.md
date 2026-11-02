@@ -1,4 +1,4 @@
-> **Generation boundary:** This is the Generation 3 export inventory. The `nextjs-engine/network`, `nextjs-engine/seo`, expanded `nextjs-engine/server` exports, `createTheme()`, compiler APIs and scoped registry are not part of the Gen 2 package contract. Importing these Gen 3-only subpaths/names from a Gen 2 install causes module-resolution or TypeScript missing-export errors. See [Migrating from Gen 2](../guides/migrating-from-gen2.md) and the [Gen 2 export inventory](../../2/api/exports.md).
+> **Generation boundary:** This is the Generation 3 export inventory. The `nextjs-engine/network`, `nextjs-engine/seo`, expanded `nextjs-engine/server` exports, `createTheme()`, compiler APIs and scoped registry are not part of the Gen 2 package contract. Importing these Gen 3-only subpaths/names from a Gen 2 install causes module-resolution or TypeScript missing-export errors. See [Migrating from Gen 2](../guides/migrating-from-gen2.md) and the [Gen 2 export inventory](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main2/docs/2/api/exports.md).
 
 # Complete Public Export Inventory — Generation 3
 
@@ -645,4 +645,4 @@ The SEO subpath is not merely a duplicate of the root barrel: it also exposes `n
 
 ## Generation boundary
 
-See the [Generation 2 inventory](../../2/api/exports.md) for the separate stable 2.7 contract.
+See the [Generation 2 inventory](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main2/docs/2/api/exports.md) for the separate stable 2.7 contract.
