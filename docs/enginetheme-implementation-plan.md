@@ -713,7 +713,7 @@ A third-party package should integrate through a small public adapter rather tha
 
 ## 16. Gen 3 first-release status: EngineTheme and EngineOverlay
 
-**Reviewed against `main-3` on 2026-10-30.** This section records the implementation visible in the source and tests, and separates automated evidence from performance or assistive-technology claims that still need independent validation.
+**Reviewed against `main-3` on 2026-11-02.** This section records the implementation visible in the source and tests, and separates automated evidence from performance or assistive-technology claims that still need independent validation.
 
 ### Current implementation status
 
@@ -730,7 +730,7 @@ EngineTheme's group/variant model and `.etr` pipeline were established by PR #45
 - [x] **Popover role boundary:** `EnginePopover` advertises dialog semantics only. Menu/listbox roles remain unavailable until arrow-key movement, active-item semantics, and the corresponding accessibility behavior are implemented.
 - [ ] **Final release verification:** complete runtime/type-check/build, EngineTheme/EngineOverlay smoke tests, and Chromium/Firefox/WebKit checks on the final post-merge `main-3` commit.
 - [ ] **Manual accessibility review:** validate screen-reader announcements and focus behavior with assistive technologies, including dialog naming/descriptions, reduced-motion settings, and nested modal/non-modal combinations.
-- [ ] **Exit lifecycle edge:** add a browser regression for rapid close/reopen while an exit transition is pending; verify no stale registration, body lock, inert state, or focus callback survives.
+- [x] **Automated exit lifecycle:** Playwright now closes and reopens the controlled Dialog before its exit timer expires, then waits beyond the old deadline and verifies the reopened panel, focus, body-scroll lock, and modal inertness remain active before final cleanup.
 - [ ] **Performance evidence:** collect repeatable measurements for zero overlays, mounted-but-closed overlays, one active Popover, and nested overlays on a constrained device profile. The per-document scheduling/observer structure is source-backed; do not claim a low-end performance improvement until measurements exist.
 
 ### Source and test evidence
@@ -740,17 +740,17 @@ EngineTheme's group/variant model and `.etr` pipeline were established by PR #45
 - `src/engine/core/engineoverlay/EngineOverlayRuntime.ts` — per-document stack, inertness, z-index, frame scheduling, viewport subscriptions, and resize observers.
 - `scripts/gen3-theme-compiler-smoke.js` — local/global/remote theme resolution, variants, precedence, and unsafe-style rejection.
 - `scripts/engine-overlay-smoke.js` — document isolation, stack restoration, modal inertness, multi-root Drawer, and scheduling.
-- `tests/browser/engine-overlay.spec.ts` — nested overlays, Escape/outside-pointer handling, controlled state, focus fallback, scroll-lock restoration, and reduced-motion behavior.
+- `tests/browser/engine-overlay.spec.ts` — nested overlays, Escape/outside-pointer handling, controlled state, focus fallback, scroll-lock restoration, reduced-motion behavior, and rapid close/reopen during an exit transition.
 
 These checks establish implementation and automated coverage. They do not replace a manual assistive-technology audit or repeatable constrained-device performance measurements.
 
 ### PR #55 disposition
 
-Do not merge the old draft branch wholesale. It is based on an earlier `main-3` revision and is 30 commits behind the current branch; several overlapping files still use the superseded `themeStyles` component contract. The required theme resolver/runtime behavior was landed and extended by PR #48 and subsequent `main-3` commits. Carry over only a discrete improvement that current source confirms is missing and that receives its own regression coverage; otherwise mark the draft as superseded rather than reintroducing old files.
+Do not merge the old draft branch wholesale. It is based on an earlier `main-3` revision and was 33 commits behind at this 2026-11-02 review; several overlapping files still use the superseded `themeStyles` component contract. The required theme resolver/runtime behavior was landed and extended by PR #48 and subsequent `main-3` commits. Carry over only a discrete improvement that current source confirms is missing and that receives its own regression coverage; otherwise mark the draft as superseded rather than reintroducing old files.
 
 ### Remaining recommendation
 
-Keep the first-release scope on correctness: finish the dedicated ghost-action theme slot, run the final automated matrix, add the close/reopen regression, and complete manual accessibility/performance review. Do not add Tooltip, Toast, context-menu, or other new overlay primitives before the existing Dialog/Drawer/Popover contract is fully verified.
+Keep the first-release scope on correctness: finish the dedicated ghost-action theme slot, rerun the final automated matrix after the feature PRs merge, and complete manual accessibility/performance review. Do not add Tooltip, Toast, context-menu, or other new overlay primitives before the existing Dialog/Drawer/Popover contract is fully verified.
 
 ### P1 — Other carry-over API contracts worth reviewing
 
