@@ -26,6 +26,7 @@ For the Gen 2 reference, see the [Gen 2 documentation index](https://github.com/
 | Network/SEO imports | Root APIs and small `/server` surface | Adds `nextjs-engine/network`, `nextjs-engine/seo`, expanded `/server` APIs | Update imports and keep server-only exports on the server. |
 | API config output | `.engine-api-compiled.json` | `.nextjs-engine/config/.apiconfig.json` | Update plugin options and confirm the generated artifact path. |
 | Account security | Application-owned server auth for private operations | Adds optional NENC command auth/permissions and standard account-session policy | Adopt NENC deliberately; it does not create login or a session database. |
+| LazyMount / LazySection | One-shot `useInView()` activation; once mounted, the subtree stays mounted | Uses `useEngineSchedule()` / EngineScheduler; near-but-not-visible work can wait under frame pressure | Component props remain similar, but activation timing/admission changes; see [LazyMount](../module/lazy-mount.md). |
 | CLI | Experimental Gen 2 NE-CLI | Expanded Gen 3 NE-CLI | Review the Gen 3 CLI reference rather than assuming command parity. |
 
 ## Imports that do not exist in Gen 2
