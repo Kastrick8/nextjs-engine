@@ -109,6 +109,7 @@ export default function EngineOverlayTestPage() {
 				closeOnEscape
 				trapFocus={false}
 				restoreFocus
+				initialFocus="#controlled-dialog-action"
 				duration={260}
 			>
 				<button type="button" data-testid="controlled-dialog-action">Controlled action</button>
