@@ -31,4 +31,8 @@
 | EngineCookieVault validates device binding registrations and requires device proof for every non-`none` mode; environment-bound modes require a matching environment hash. | `src/engine/core/enginecookies/EngineCookieVault.ts`, `EngineCookies.ts`, `types.ts` | Verified | Describe device/environment binding as opt-in vault-entry protection, not user login. |
 | EngineCookieVault generates a non-exportable AES-GCM 256-bit key by default; a supplied key must be non-exportable AES-GCM with encrypt/decrypt usages. | `src/engine/core/enginecookies/EngineCookieVault.ts` | Verified | Distinguish generated default key from caller-supplied key requirements. |
 
+| Gen 3 `LazyMount` uses `useEngineSchedule()`; the default 600px near margin, eager/critical priority, visibility and frame-pressure state gate child activation. | `src/engine/components/LazyMount.tsx`, `src/engine/hooks/useEngineScheduler.ts`, `src/engine/core/enginescheduler/EngineScheduler.ts` | Verified | Document scheduler-backed near/visible activation and deferral under frame pressure. |
+| Gen 3 `LazyMount` stores an activated state and does not unmount children when they leave the viewport; without IntersectionObserver, EngineScheduler falls back to visible. | `src/engine/components/LazyMount.tsx`, `src/engine/core/enginescheduler/EngineScheduler.ts` | Verified | Clarify persistent mount state and unsupported-browser fallback behavior. |
+| Gen 3 public root barrel exports both `LazyMount` and `LazySection`. | `src/engine/index.ts` | Verified | Keep both names in the public export inventory and module catalog. |
+
 No credentials, environment values or private user data are stored in this ledger.
