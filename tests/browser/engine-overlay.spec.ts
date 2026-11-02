@@ -150,12 +150,12 @@ test("controlled dialog can reopen during its exit transition without stale clea
 	await expect(modal).toHaveAttribute("data-state", "closed");
 	await expect(page.getByTestId("controlled-changes")).toHaveText("1");
 
-	// The closing surface is still mounted but is fading out above the page.
-	// Dispatch the controlled state-change event directly before the exit timer
-	// expires; a physical pointer click is intentionally intercepted by that surface.
+	// The closing surface is still mounted and animating. Keep a real pointer
+	// activation (so browser focus behavior is exercised) while bypassing only
+	// Playwright's animation-stability wait for this intentional mid-exit click.
 	const reopen = page.getByTestId("reopen-controlled-dialog");
 	await expect(reopen).toBeAttached();
-	await reopen.dispatchEvent("click");
+	await reopen.click({ force: true });
 
 	await expect(modal).toHaveAttribute("data-state", "open");
 	await expect(page.getByTestId("controlled-dialog-action")).toBeFocused();
