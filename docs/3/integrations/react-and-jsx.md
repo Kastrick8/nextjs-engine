@@ -77,9 +77,10 @@ export function AnimatedSurface() {
       mode="2d"
       style={{ width: "100%", height: 320 }}
       onSetup={(context) => {
-        context.fillStyle = "#0f172a";
+        if ("fillStyle" in context) context.fillStyle = "#0f172a";
       }}
       onDraw={(context, canvas) => {
+        if (!("fillRect" in context)) return false;
         context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
         context.fillRect(20, 20, 120, 80);
         return false;
