@@ -22,4 +22,6 @@
 | APIStaticOptions/APIStaticOperation define route execution, input and proxy contracts but no auth/session/role/permission fields. | `src/engine/core/APIStatic.ts` and APIStatic public types | Verified | Explicitly distinguish input validation/proxy integration from account authentication/authorization. |
 | Gen 2 `nextjs-engine/server` exposes only device helpers/types and has no EngineServerSession, EngineCookies vault or NENC session policy. | `src/engine/server.ts` | Verified | These APIs are Gen 3-only; Gen 2 account checks remain application/backend owned. |
 
+| LazyMount and LazySection are public client-side exports; LazyMount uses one-shot intersection mounting with a 600px default root margin, and LazySection adds `content-visibility: auto` by default. | `src/engine/components/LazyMount.tsx`, `src/engine/index.ts`, `src/engine/hooks/useInView.ts` | Verified | Document the real Gen 2 props/defaults and the client/browser boundary; avoid pointing to missing grouped pages. |
+
 No secrets, environment values or private user data are stored.
