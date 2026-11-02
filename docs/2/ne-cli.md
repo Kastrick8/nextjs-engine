@@ -39,6 +39,33 @@ A normal local `npm install` places the executable shim in `node_modules/.bin`; 
 
 The package declares the executable through npm's `bin` field and its `#!/usr/bin/env node` entry point. npm creates the appropriate command link/shim during installation: a POSIX executable link or a Windows `.cmd` shim. PowerShell can invoke `ne` (or `ne.cmd`) once npm's global binary directory is on `PATH`; no separately maintained `.ps1` or `.sh` launcher is required.
 
+## Update and automation options
+
+| Option | Purpose |
+| --- | --- |
+| `--channel <stable|alpha|beta|latest-green>` | Select a release channel. |
+| `--version <version>` | Select a specific version from the verified release catalog. |
+| `--check` | Refresh the catalog and inspect availability without installing. |
+| `--dry-run` | Resolve a selected release and show the planned install without changing the project. |
+| `--json` | Print the release catalog as JSON. Combine with `--check` for a read-only refresh. |
+| `--force` | Bypass the cached catalog and refresh release information. |
+| `--yes` | Skip the install confirmation. In CI or another non-interactive session, this flag is required before an install can proceed. |
+| `-q`, `--quiet` | Suppress the introductory v2.7.0 notice. |
+| `--no-color` | Disable ANSI color for this invocation. |
+
+For example, inspect the Alpha channel without installing, or preview a selected version:
+
+~~~sh
+ne update --channel alpha --check
+ne update --version 3.0.0-alpha.2 --dry-run
+~~~
+
+Use `--and` to run an additional executable after the selected NE command completes. Repeat the option to run multiple commands. NE launches the executable directly rather than through a shell, so shell operators such as `&&` and `|` are not supported. `--and-terminal` controls how many trailing output lines are shown for each chained command (default: 5; allowed: 1–100).
+
+~~~sh
+ne check --and "node --version" --and-terminal 8
+~~~
+
 ## Terminal banners and diagnostics
 
 All NE CLI notices and errors use the shared adaptive renderer. It measures visible character width rather than raw string length (ANSI color sequences do not count), wraps long messages to fit the terminal, and falls back to ASCII box drawing when `NE_ASCII=1` or `TERM=dumb` is set.
