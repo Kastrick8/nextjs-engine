@@ -85,7 +85,7 @@ Important: `ensureAPIConfig()` reads the `.EngineAPIConfig/*.api` directory itse
 | `hmac` | `secret` | Timestamped HMAC signature |
 | `pnp` | `privateKey` | Timestamped asymmetric signature |
 
-HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. Required credentials fail closed. Signed auth rejects multipart FormData bodies; use JSON where supported by the request API or a non-signing auth mode.
+HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. **When `auth` is omitted, the resolver defaults to `{ type: "none" }` and sends no auth header.** Required credentials for an explicitly selected mode fail closed. Signed auth rejects multipart FormData bodies; use JSON where supported by the request API or a non-signing auth mode.
 
 > **Authentication is not authorization.** These settings authenticate an outgoing Engine-to-provider request. They do not log in the current website visitor, validate an account session, establish ownership of a resource, or check whether a user may access a dashboard. The upstream service must verify the credential/signature and apply its own authorization policy. For account-facing operations, enforce the user's session and permissions on an application-owned server endpoint. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
 
