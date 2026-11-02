@@ -26,6 +26,8 @@ Use **one** of those rendering paths for a canvas. EngineCanvas still owns the c
 ## Quick start: callback mode
 
 ```tsx
+"use client";
+
 import { EngineCanvas } from "nextjs-engine";
 
 export function DemoCanvas() {
@@ -34,9 +36,10 @@ export function DemoCanvas() {
 			mode="2d"
 			style={{ height: 420 }}
 			onSetup={(context) => {
-				context.fillStyle = "#0f172a";
+				if ("fillStyle" in context) context.fillStyle = "#0f172a";
 			}}
 			onDraw={(context, canvas) => {
+				if (!("clearRect" in context) || !("fillRect" in context)) return false;
 				context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 				context.fillRect(20, 20, 120, 80);
 				return false;
@@ -45,6 +48,11 @@ export function DemoCanvas() {
 	);
 }
 ```
+
+This example passes callbacks to a browser-driven component, so place it in a
+Client Component. TypeScript sees the callback context as a Canvas 2D/WebGL/
+WebGL2 union; the mode prop does not narrow that callback parameter. Guard
+Canvas 2D-only methods before calling them, as shown above.
 
 `return false` from `onDraw` when the callback has finished producing frames. EngineCanvas then stops requesting animation frames instead of running an idle RAF forever.
 
