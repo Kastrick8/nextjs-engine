@@ -324,30 +324,72 @@ jobs:
           PACKAGE_SHA="$(git rev-parse HEAD)"
           git cat-file -e "$PACKAGE_SHA:$CHANNEL_DIR/package.json"
           git cat-file -e "$PACKAGE_SHA:$CHANNEL_DIR/index.ts"
-          export PACKAGE_SHA MANIFEST
+
+          # Build a second, root-level package commit for GitHub's source archive.
+          # A tag on package/main itself would still expose the archive repository
+          # layout rather than an installable package at the repository root.
+          TAG_REPO="$RUNNER_TEMP/ne-alpha-channel-tag"
+          rm -rf "$TAG_REPO"
+          mkdir -p "$TAG_REPO"
+          git init "$TAG_REPO"
+          cp -a "$PACKAGE_DIR/." "$TAG_REPO/"
+          rm -rf "$TAG_REPO/node_modules"
+          cat > "$TAG_REPO/UPSTREAM.md" <<EOF
+          # Latest Alpha package provenance
+
+          - Package: @kastrick/nextjs-engine
+          - Version: $VERSION
+          - Source branch: main-3
+          - Source commit: $SOURCE_SHA
+          - Package archive branch: package/main
+          - Package archive commit: $PACKAGE_SHA
+          - Package archive path: alpha/channel/latest
+          - Git channel tag: channel-alpha-latest
+
+          This tag points to a package-root snapshot. package.json, index.ts, tsconfig.json, and engine/ are at the repository root.
+          EOF
+          git -C "$TAG_REPO" config user.name "github-actions[bot]"
+          git -C "$TAG_REPO" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$TAG_REPO" add --all
+          git -C "$TAG_REPO" commit -m "Package @kastrick/nextjs-engine $VERSION for latest Alpha"
+          git -C "$TAG_REPO" branch -M channel-package
+          TAG_SHA="$(git -C "$TAG_REPO" rev-parse HEAD)"
+          git -C archive fetch "$TAG_REPO" +refs/heads/channel-package:refs/remotes/channel-alpha-package
+          for file in package.json index.ts tsconfig.json engine/index.ts UPSTREAM.md; do
+            git -C archive cat-file -e "$TAG_SHA:$file"
+          done
+          git -C archive show "$TAG_SHA:index.ts" | grep -Fqx 'export * from "./engine";'
+
+          export PACKAGE_SHA TAG_SHA MANIFEST
           node --input-type=module <<'NODE'
           import fs from "node:fs";
-          const {PACKAGE_SHA,MANIFEST}=process.env;
+          const {PACKAGE_SHA,TAG_SHA,MANIFEST}=process.env;
           const manifest=JSON.parse(fs.readFileSync(MANIFEST,"utf8"));
           manifest.packageBranch="package/main";
           manifest.packagePath="alpha/channel/latest";
           manifest.packageCommit=PACKAGE_SHA;
+          manifest.tagCommit=TAG_SHA;
+          manifest.tagLayout="package-root";
           fs.writeFileSync(MANIFEST,JSON.stringify(manifest,null,2)+"\n");
           NODE
           echo "package_sha=$PACKAGE_SHA" >> "$GITHUB_OUTPUT"
-          echo "Committed curated package snapshot: package/main@$PACKAGE_SHA"
+          echo "tag_sha=$TAG_SHA" >> "$GITHUB_OUTPUT"
+          echo "Committed package archive: package/main@$PACKAGE_SHA"
+          echo "Prepared root-level channel-tag package commit: $TAG_SHA"
 
-      - name: Move rolling channel tag to the packaged snapshot
+      - name: Move rolling channel tag to package-root commit
         if: steps.final-gate.outputs.publish == 'true'
         working-directory: archive
         env:
-          PACKAGE_SHA: ${{ steps.package-snapshot.outputs.package_sha }}
+          TAG_SHA: ${{ steps.package-snapshot.outputs.tag_sha }}
         run: |
           set -euo pipefail
-          test -n "$PACKAGE_SHA"
-          git cat-file -e "$PACKAGE_SHA:alpha/channel/latest/package.json"
-          git cat-file -e "$PACKAGE_SHA:alpha/channel/latest/index.ts"
-          git tag -f channel-alpha-latest "$PACKAGE_SHA"
+          test -n "$TAG_SHA"
+          for file in package.json index.ts tsconfig.json engine/index.ts UPSTREAM.md; do
+            git cat-file -e "$TAG_SHA:$file"
+          done
+          git show "$TAG_SHA:index.ts" | grep -Fqx 'export * from "./engine";'
+          git tag -f -a channel-alpha-latest -m "Installable @kastrick/nextjs-engine Alpha package root" "$TAG_SHA"
           git push --force origin refs/tags/channel-alpha-latest
 
       - name: Create or update GitHub latest Alpha release
@@ -359,6 +401,7 @@ jobs:
           SHA256: ${{ steps.prepare.outputs.sha256 }}
           SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
           PACKAGE_SHA: ${{ steps.package-snapshot.outputs.package_sha }}
+          TAG_SHA: ${{ steps.package-snapshot.outputs.tag_sha }}
           ARTIFACT_DIR: ${{ steps.prepare.outputs.artifact_dir }}
           MANIFEST: ${{ steps.prepare.outputs.manifest }}
           GH_TOKEN: ${{ github.token }}
@@ -397,7 +440,7 @@ jobs:
               --title "Nextjs Engine Latest Alpha ($VERSION)" \
               --notes-file "$NOTES" \
               --prerelease \
-              --target "$PACKAGE_SHA"
+              --target "$TAG_SHA"
           fi
 
       - name: Summarize rolling Alpha
