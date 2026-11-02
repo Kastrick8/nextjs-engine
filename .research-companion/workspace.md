@@ -46,3 +46,18 @@ Research Companion skills guided the audit and note format. This host session di
 - Consolidated the Gen 3 EngineCanvas low-level hook reference into a single section; removed its superseded duplicate copy (`3f202fa`).
 - Completed the EngineScroll facade method map with `initialize()` and corrected the literal hash target type (`d8a9731`).
 - Final content pass rechecked the Canvas, Scroll, Theme, NENC and React/JSX headings and examples for duplicate sections and source-contract mismatches.
+
+## Additional documentation pass — 2026-11-03
+- Corrected the dedicated EngineTheme API page and the Create API page to show `createTheme(definition, options?)`, its `CreateEngineThemeOptions.registry`, `EngineThemeDefinition` generic and readonly return contract. `registry` is runtime-only and is not serialized in `.etr` data.
+- Expanded the public EngineScheduler guide with `EngineSchedulePolicy` defaults, snapshot states, `useEngineSchedule()` / `useEngineVisible()` behavior, imperative observe/cleanup, frame-pressure subscriptions, idle scheduling and IntersectionObserver fallback.
+- Expanded EngineModel with typed usage, key-level versus full-state hooks, public methods, action/computed behavior, shallow update semantics and development-only inspection caveats.
+- Expanded EngineViewport with the complete snapshot fields, visual/layout viewport distinctions, SSR snapshot, React hook and measurement lifecycle.
+- Expanded EngineSEO API with the generic resolver/builder contract, setter families, Next.js metadata/sitemap/robots results, `EngineSEO.generate()` and Open Graph ImageResponse options.
+- Additional Gen 2 correction: `docs/2/module/enginecanvas.md` no longer references an undeclared `finished` variable; its low-level hook example now narrows the WebGL context and performs a bounded one-frame draw.
+- Connector-only edits are committed directly to the existing documentation PR branches. No runtime source files or website repository files were changed in this pass.
+
+## Local clone attempt — 2026-11-03
+- Container tools available: Git 2.47.3, Node.js 22.16.0 and npm 10.9.2.
+- Attempted `git ls-remote https://github.com/Kastrick8/nextjs-engine.git` before cloning; the shell failed with `Could not resolve host: github.com`. Direct container network/DNS access is therefore unavailable in this session and no local repository clone/download was created.
+- The connected GitHub repository integration remains available for reading/writing the public PR branches. No local `npm install`, TypeScript check, build or local documentation-site preview was run.
+- Next: recheck latest-head CI after these documentation-only commits, continue checking signature-level API examples against source, and run full local checks once a shell with GitHub network access is available.
