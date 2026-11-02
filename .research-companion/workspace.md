@@ -42,3 +42,13 @@ Research Companion skills guided the audit and note structure. This host did not
 - Corrected the Gen 2 `useEngineCanvas()` example: removed an undeclared `finished` identifier and replaced it with a type-narrowed WebGL 2D-independent clear operation that returns `false` after one frame. The main EngineCanvas and React/JSX examples also show the Client Component boundary and guard the callback's Canvas2D/WebGL/WebGL2 union.
 - Container tools available: Git 2.47.3, Node.js 22.16.0 and npm 10.9.2. Direct GitHub access failed at DNS resolution (`Could not resolve host: github.com`); no local clone/download or local type-check/build was performed.
 - Changes were committed through the connected GitHub integration to the existing documentation PR branch.
+
+## Extended component/API audit — 2026-11-03
+- Added source-matched EngineForms input/textarea/checkbox prop tables and clarified the EngineProvider handler-string contract versus ordinary React form callbacks.
+- Added EngineLink prop contracts, the EngineNavLogo shape and the exported renderEngineAnchor(cfg): ReactElement helper.
+- Expanded EngineImage/EngineVideo props with the Gen 2 implementation's actual observer/default behavior and added a standalone EngineVideo prop table.
+- Added Overlay overlayStyle, direct React action callback semantics and a warning not to nest interactive controls inside Gen 2's generated trigger button.
+- Documented the explicit EngineTransitionLink Gen 2 prop set rather than implying it inherits all Next.js Link props.
+- Expanded CustomSelect's direct React contract with controlled value, callback overload, accessible name, search placeholder and empty-state label; retained the Gen 2 No options found default.
+- Structural validation on the changed module pages found balanced Markdown code fences and no duplicate real section headings after correcting the accidental joined headings.
+- No local type-check, production build, or docs-site preview was run because the container cannot resolve GitHub DNS. The current PR workflow checks must pass before merging.
