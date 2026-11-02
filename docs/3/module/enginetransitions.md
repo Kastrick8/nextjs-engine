@@ -106,6 +106,16 @@ export function GalleryLink() {
 }
 ```
 
+### EngineTransitionLink props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `href` | `string` | Required destination. |
+| `transition` | `EngineTransitionInput` | Required preset name or transition configuration. |
+| `children` | `ReactNode` | Link contents. |
+| `onClick` | `React.MouseEventHandler<HTMLAnchorElement>` | Runs before transition navigation. Calling `preventDefault()` cancels the transition. |
+| Next.js `Link` props | inherited | Gen 3 inherits the installed Next.js `Link` prop surface except `href`, `onClick`, `children`, and `ref`, which it defines itself. This includes supported attributes such as `target`, `className`, `style`, `prefetch`, and `scroll`. |
+
 ### Programmatic state/layout changes
 
 ```tsx
