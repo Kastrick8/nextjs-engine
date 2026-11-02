@@ -84,10 +84,14 @@ export async function GET() {
 
 `getCurrentUser()` and `canReadReports()` are application-owned placeholders; Engine does not supply them. Validate resource ownership/tenant boundaries as well as broad roles. Keep `REPORTS_API_TOKEN` server-only: never use a `NEXT_PUBLIC_` variable, serialize it into page props, or import it into a Client Component.
 
+## Generation 2 server API boundary
+
+The Generation 2 `nextjs-engine/server` entrypoint exposes device-detection helpers and types only. It does not include the Generation 3 `EngineServerSession`, `EngineCookies` credential vault, or NENC account-session policy. Importing those Gen 3-only exports from a Gen 2 installation produces missing-export or module-resolution errors. See the [Gen 2 → Gen 3 migration guide](../migration-to-gen3.md).
+
 ## Third-party identity providers
 
 Auth.js, Clerk, Supabase Auth, and other identity/session products can own login, OAuth, MFA, and session issuance. They are not bundled as Engine auth adapters. Use their server-side APIs from your Route Handlers/Server Components, then apply authorization close to the data or operation. See [Third-party libraries](./third-party.md).
 
 ## Generation 3 note
 
-Generation 3 adds the optional server-side NENC command-security path and `createNENCAccountSessionPolicy()`. It is **not** part of Gen 2 and is not silently enabled by APIStatic. Read the [Generation 3 authentication and authorization guide](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/integrations/authentication-and-authorization.md) and [Gen 2 → Gen 3 migration reference](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/guides/migrating-from-gen2.md) before migrating.
+Generation 3 adds the optional server-side NENC command-security path and `createNENCAccountSessionPolicy()`. It is **not** part of Gen 2 and is not silently enabled by APIStatic. Read the [Generation 3 authentication and authorization guide](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/integrations/authentication-and-authorization.md) and [Gen 2 → Gen 3 migration reference](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/guides/migrating-from-gen2.md) before migrating.
