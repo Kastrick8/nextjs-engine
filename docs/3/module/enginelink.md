@@ -57,7 +57,7 @@ export function ProductLink() {
 | `cprop` | Engine CPROP/link config | Supports link-level `href`, `transition`, and `styles`, plus general state styling. |
 | `id` / `point` / `className` / `style` | inherited Engine node props | Identity and styling props from `BaseNodeProps`. |
 
-## Click handlers and styles## Click handlers and styles
+## Click handlers and styles
 
 `onClick` accepts either a React mouse handler (direct React use) or a string handler name resolved from the nearest `EngineProvider` handlers map. Schema links normally use a name registered in `createPage({ handlers })`.
 
