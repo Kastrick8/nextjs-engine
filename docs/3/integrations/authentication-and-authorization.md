@@ -126,25 +126,28 @@ function requiredEnvironment(name: string): string {
   return value;
 }
 
-const backendBaseURL = requiredEnvironment("PRIVATE_BACKEND_URL");
+const backendURL = new URL(requiredEnvironment("PRIVATE_BACKEND_URL"));
+if (backendURL.protocol !== "http:" && backendURL.protocol !== "https:") {
+  throw new Error("PRIVATE_BACKEND_URL must use HTTP(S).");
+}
+if (!backendURL.pathname.endsWith("/")) backendURL.pathname += "/";
 const backendToken = requiredEnvironment("PRIVATE_BACKEND_TOKEN");
-const normalizedBackendBase = backendBaseURL.endsWith("/")
-  ? backendBaseURL
-  : backendBaseURL + "/";
+
+const backendPaths: Record<string, string> = {
+  "account.login": "login",
+  "catalog.privateSearch": "search",
+};
 
 const api = createNENCCommandAPIResolverFactory({
   resolve({ commandName }) {
-    const backendPath = {
-      "account.login": "login",
-      "catalog.privateSearch": "search",
-    }[commandName];
+    const backendPath = backendPaths[commandName];
 
     if (!backendPath) {
       throw new Error("No backend is configured for this command.");
     }
 
     return new EngineAPIResolver({
-      endpoint: new URL(backendPath, normalizedBackendBase).toString(),
+      endpoint: new URL(backendPath, backendURL).toString(),
       method: "POST",
       cache: "no-store",
       auth: { type: "bearer", token: backendToken },
