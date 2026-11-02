@@ -116,31 +116,39 @@ const accountSessions = createNENCAccountSessionPolicy({
   },
 });
 
-// Select the private resolver on the server, after auth/authz succeeds.
+// Select the backend path on the server, after the dispatcher has applied
+// the command's authentication and authorization policy.
+function requiredEnvironment(name: string): string {
+  const value = process.env[name];
+  if (!value?.trim()) {
+    throw new Error(`Missing required server environment variable: ${name}`);
+  }
+  return value;
+}
+
+const backendBaseURL = requiredEnvironment("PRIVATE_BACKEND_URL");
+const backendToken = requiredEnvironment("PRIVATE_BACKEND_TOKEN");
+const normalizedBackendBase = backendBaseURL.endsWith("/")
+  ? backendBaseURL
+  : backendBaseURL + "/";
+
 const api = createNENCCommandAPIResolverFactory({
   resolve({ commandName }) {
-    const baseURL = process.env.PRIVATE_BACKEND_URL!;
-    const token = process.env.PRIVATE_BACKEND_TOKEN!;
+    const backendPath = {
+      "account.login": "login",
+      "catalog.privateSearch": "search",
+    }[commandName];
 
-    if (commandName === "account.login") {
-      return new EngineAPIResolver({
-        endpoint: baseURL + "/login",
-        method: "POST",
-        cache: "no-store",
-        auth: { type: "bearer", token },
-      });
+    if (!backendPath) {
+      throw new Error("No backend is configured for this command.");
     }
 
-    if (commandName === "catalog.privateSearch") {
-      return new EngineAPIResolver({
-        endpoint: baseURL + "/search",
-        method: "POST",
-        cache: "no-store",
-        auth: { type: "bearer", token },
-      });
-    }
-
-    throw new Error("No backend is configured for this command.");
+    return new EngineAPIResolver({
+      endpoint: new URL(backendPath, normalizedBackendBase).toString(),
+      method: "POST",
+      cache: "no-store",
+      auth: { type: "bearer", token: backendToken },
+    });
   },
 });
 
