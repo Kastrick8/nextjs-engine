@@ -19,4 +19,7 @@
 | EngineProvider exposes context but collected-style emission is performed by the internal `EngineCollectedStyles` helper within factory-rendered trees. | `src/engine/providers/EngineProvider.tsx`, `src/engine/createPage.tsx` | Verified | Warn against treating EngineProvider alone as the full SSR style integration. |
 | Gen 2 schema-backed `createComponent()` returns a regular React component and wraps Engine context/style collection. | `src/engine/createPage.tsx` | Verified | Document JSX composition without requiring an all-schema app. |
 
+| APIStaticOptions/APIStaticOperation define route execution, input and proxy contracts but no auth/session/role/permission fields. | `src/engine/core/APIStatic.ts` and APIStatic public types | Verified | Explicitly distinguish input validation/proxy integration from account authentication/authorization. |
+| Gen 2 `nextjs-engine/server` exposes only device helpers/types and has no EngineServerSession, EngineCookies vault or NENC session policy. | `src/engine/server.ts` | Verified | These APIs are Gen 3-only; Gen 2 account checks remain application/backend owned. |
+
 No secrets, environment values or private user data are stored.
