@@ -88,6 +88,9 @@ interface EngineNavItem {
 `active` is pathname-derived when omitted. A root `/` item is active only on `/`; other hrefs use prefix matching.
 
 
+`EngineNavLogo` accepts optional `src`, `href`, and `alt` strings,
+plus `width` and `height` values that may be numbers or CSS strings.
+
 The public `EngineNavItem` type also includes optional
 `"emd_show-url-icon"` and `"emd_url-icon-size"` fields. Set the first to
 `true` to show a favicon for an external HTTP(S) item; the size accepts
