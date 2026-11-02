@@ -54,10 +54,9 @@ export const accountSummary = EngineCommand.create<{ accountId: string }, { name
     auth: "account",
     permissions: ["account.read"],
     input: { accountId: { type: "string", maxLength: 64 } },
-    async execute({ input, api, principal, signal }) {
+    async execute({ input, api, principal }) {
       const response = await api.resolveRequest({
-        input: { accountId: input.accountId },
-        signal
+        input: { accountId: input.accountId }
       });
       if (!response.ok) throw new Error("Account lookup failed.");
       return await response.json();
