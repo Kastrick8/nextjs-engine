@@ -33,7 +33,7 @@ These modes authenticate the Engine-to-provider request. They do not log a visit
 
 APIStatic compiles `data/endpoint/**/*.route` into JavaScript served below `public/_static/endpoint`. The browser downloads and executes those modules.
 
-APIStatic provides input parsing/schema validation, operation selection, and controlled response/error helpers. It does **not** provide account authentication, session validation, roles, or authorization rules. A declared field such as `userId: "string"` is only input validation; it is not proof that the caller owns that account.
+APIStatic provides input parsing/schema validation, operation selection, and controlled response/error helpers. Its public `APIStaticOptions` and `APIStaticOperation` contracts contain no auth, session, role, or permission fields. It does **not** provide account authentication, session validation, roles, or authorization rules. A declared field such as `userId: "string"` is only input validation; it is not proof that the caller owns that account.
 
 > **Security warning:** do not put private keys, bearer tokens, database credentials, private session data, or privileged account logic in `.route` files. Treat every static route and all its inputs as public and caller-controlled.
 
