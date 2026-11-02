@@ -15,6 +15,7 @@ This reference describes the implementation currently present on `main-3`. Gener
 | Understand compilation and server rendering | [Compiler documentation](./ne/compiler/index.md) |
 | Understand runtime scheduling and state | [Runtime documentation](./ne/runtime.md) |
 | Run the Engine command line | [NE-CLI](./ne/cli/index.md) |
+| Find the meaning, cause and repair guidance for a stable diagnostic code | [Generation 3 Error Code Book](./error-codes/README.md) |
 | Build a first page | [Getting started](./guides/getting-started.md) |
 | Keep ordinary Next.js/React JSX | [React and JSX integration](./integrations/react-and-jsx.md) |
 | Configure private account commands | [Authentication and authorization](./integrations/authentication-and-authorization.md) |
