@@ -82,7 +82,20 @@ Custom mode wraps trusted local React code with a declared schema prop/slot cont
 
 ## createTheme()
 
-createTheme() creates a validated theme definition. Theme objects are JSON data; creating one does not fetch a URL, publish it, download fonts or evaluate code.
+createTheme() creates a validated theme definition. Its public shape is `createTheme(definition, options?)`, not a single options object:
+
+```ts
+interface CreateEngineThemeOptions {
+  registry?: EngineComponentRegistry;
+}
+
+function createTheme<T extends EngineThemeDefinition>(
+  definition: T,
+  options?: CreateEngineThemeOptions
+): Readonly<T & { scope: EngineThemeScope }>;
+```
+
+The first argument is the serializable theme definition. The optional second argument scopes runtime registration to an `EngineComponentRegistry`; it is not included in `.etr` output. Theme objects are JSON data; creating one does not fetch a URL, publish it, download fonts or evaluate code. See the complete [EngineTheme public API](./theme.md) and [module reference](../module/enginetheme.md).
 
 ~~~ts
 import { createTheme } from "nextjs-engine";
