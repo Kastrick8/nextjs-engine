@@ -69,3 +69,12 @@ The full server export and type names are in the [public export inventory](./exp
 
 > [!WARNING]
 > Treat server handlers, credentials, signing keys and database access as server-owned. Never import the server entrypoint from a module marked `"use client"`.
+
+
+## Authentication and authorization
+
+The NENC dispatcher is the server-side enforcement layer; `EngineServer` is a request-context helper, not an automatic login/session provider. Configure NENC `authenticate` and `authorize` callbacks (or `createNENCAccountSessionPolicy()`) for protected commands. A command defaults to `auth: "anonymous"` and `permissions: []`; private commands must opt into account authentication and declare their required permissions. See [Authentication and authorization](../integrations/authentication-and-authorization.md).
+
+## Generation 2 compatibility
+
+Gen 2 exposes `nextjs-engine/server` too, but that entrypoint exports only device helpers and related types. The Gen 3 `EngineServer`, `EngineCORS`, `createNENCDispatcher()`, and account-session APIs are absent from Gen 2. Importing those names against a Gen 2 installation fails with TypeScript missing-export errors. See [Migrating from Gen 2](../guides/migrating-from-gen2.md).
