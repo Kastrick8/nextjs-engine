@@ -24,6 +24,8 @@ Use **one** of those rendering paths for a canvas. EngineCanvas still owns the c
 ## Quick start: callback mode
 
 ```tsx
+"use client";
+
 import { EngineCanvas } from "nextjs-engine";
 
 export function DemoCanvas() {
@@ -32,9 +34,10 @@ export function DemoCanvas() {
 			mode="2d"
 			style={{ height: 420 }}
 			onSetup={(context) => {
-				context.fillStyle = "#0f172a";
+				if ("fillStyle" in context) context.fillStyle = "#0f172a";
 			}}
 			onDraw={(context, canvas) => {
+				if (!("clearRect" in context) || !("fillRect" in context)) return false;
 				context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 				context.fillRect(20, 20, 120, 80);
 				return false;
@@ -43,6 +46,16 @@ export function DemoCanvas() {
 	);
 }
 ```
+
+Because this example passes JavaScript callbacks to a Client Component, the file
+must be a Client Component. A Server Component may render EngineCanvas with
+serializable props, but callback functions such as onSetup, onDraw, and onResize
+must be created on the client side of the React Server Component boundary.
+
+The context callback type is intentionally a union of Canvas 2D, WebGL, and
+WebGL2 contexts. TypeScript does not narrow that union from the mode="2d"
+prop, so guard Canvas 2D-only methods with checks such as
+"fillRect" in context before calling them.
 
 `return false` from `onDraw` when the callback has finished producing frames. EngineCanvas then stops requesting animation frames instead of running an idle RAF forever.
 
@@ -189,7 +202,7 @@ Full `.shed` language reference: [`engineshader.md`](./engineshader.md).
 | `responsive` | `boolean` | inferred | defaults true when width and height are omitted |
 | `dpr` | `number \| "auto"` | `"auto"` | target device-pixel ratio |
 | `maxDpr` | `number` | `2` | upper DPR cap |
-| `adaptive` | `boolean` | `true` | V3 compatibility prop; does not lower backing resolution under frame pressure |
+| `adaptive` | `boolean` | `false` | Public facade compatibility prop; accepted for scheduler integrations but does not lower V3 backing resolution |
 | `adaptiveTargetFps` | `number \| "display"` | `"display"` | V3 compatibility prop; RAF follows browser cadence and timing metadata reports actual cadence |
 | `pauseWhenOffscreen` | `boolean` | `true` | suspends useless offscreen work |
 | `pauseWhenHidden` | `boolean` | `true` | suspends work while the tab is hidden |
@@ -209,6 +222,47 @@ Responsive shader canvases use the same `100% × 100%` surface idea and keep a `
 
 ---
 
+## Low-level React hook
+
+For a custom canvas element or a component that needs direct ownership of the
+canvas node, use the exported useEngineCanvas() hook. This is an advanced
+client-side API; the standard EngineCanvas component should be preferred
+unless the application needs to own the element itself.
+
+```tsx
+"use client";
+
+import { useEffect } from "react";
+import { useEngineCanvas } from "nextjs-engine";
+
+export function ManualCanvas() {
+	const { canvasRef, setup } = useEngineCanvas({ mode: "2d" });
+
+	useEffect(() => setup({
+		onDraw(context, canvas) {
+			if (!("clearRect" in context) || !("fillRect" in context)) return false;
+			context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+			context.fillRect(16, 16, 96, 64);
+			return false;
+		},
+	}), [setup]);
+
+	return <canvas ref={canvasRef} style={{ width: "100%", height: 320 }} />;
+}
+```
+
+The hook accepts context-creation options mode, alpha, antialias,
+desynchronized, and powerPreference. Its setup() handler accepts maxDpr, the
+compatibility hints adaptive / adaptiveTargetFps, and the same onSetup,
+onDraw, and onResize callback shapes as the component. It returns a cleanup
+function; return that function from the owning effect so the RAF and any
+onSetup cleanup are released on unmount or dependency change.
+
+Unlike the full EngineCanvas component, the low-level hook does not provide
+the component's responsive-size observer, offscreen/hidden pause policy,
+graphics-engine loader, or shader facade. The caller owns the canvas element's
+CSS sizing and any additional resize/visibility policy. It still uses the
+shared EngineScheduler frame monitor.
 ## Context selection
 
 `mode="auto"` tries:
