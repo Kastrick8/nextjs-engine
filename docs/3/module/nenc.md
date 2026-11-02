@@ -54,7 +54,7 @@ export const accountSummary = EngineCommand.create<{ accountId: string }, { name
     auth: "account",
     permissions: ["account.read"],
     input: { accountId: { type: "string", maxLength: 64 } },
-    async execute({ input, api, principal }) {
+    async execute({ input, api }) {
       const response = await api.resolveRequest({
         input: { accountId: input.accountId }
       });
