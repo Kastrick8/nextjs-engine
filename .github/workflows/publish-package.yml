@@ -349,9 +349,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/current-dist-tags.json"
+          export CURRENT_DIST_TAGS="$RUNNER_TEMP/current-dist-tags.json"
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
           import path from "node:path";
+          const registryTags = JSON.parse(fs.readFileSync(process.env.CURRENT_DIST_TAGS, "utf8"));
           const stable=[], alpha=[], beta=[];
           function walk(dir){
             if(!fs.existsSync(dir)) return;
@@ -382,7 +385,22 @@ jobs:
           const newest=list.at(-1);
           const versionTag=process.env.TRACK==="stable"?"package."+process.env.VERSION:
             process.env.TRACK==="alpha"?"package-alpha."+process.env.VERSION:"package-beta."+process.env.VERSION;
-          const channelTag=newest===process.env.VERSION?(process.env.TRACK==="stable"?"latest":process.env.TRACK):"";
+          const proposedChannel=process.env.TRACK==="stable"?"latest":process.env.TRACK;
+          function compareSemver(aText,bText){
+            const a=String(aText||"").match(/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+))?$/);
+            const b=String(bText||"").match(/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+))?$/);
+            if(!a)return -1;
+            if(!b)return 1;
+            for(let i=1;i<=3;i++){const d=Number(a[i])-Number(b[i]);if(d)return d;}
+            if(!a[4]&&!b[4])return 0;
+            if(!a[4])return 1;
+            if(!b[4])return -1;
+            if(a[4]!==b[4])return a[4]>b[4]?1:-1;
+            return Number(a[5])-Number(b[5]);
+          }
+          const channelTag=newest===process.env.VERSION
+            && compareSemver(process.env.VERSION,registryTags[proposedChannel])>=0
+            ?proposedChannel:"";
           console.log("value="+versionTag);
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
@@ -733,11 +751,13 @@ jobs:
             echo "Unsupported release tag: $TAG_NAME" >&2; exit 1
           fi
           test -f "$DIR/package.json" && test -f "$DIR/index.ts" && test -d "$DIR/engine"
-          export DIR VERSION TRACK
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/current-dist-tags.json"
+          export DIR VERSION TRACK CURRENT_DIST_TAGS="$RUNNER_TEMP/current-dist-tags.json"
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
           import path from "node:path";
           const {DIR,VERSION,TRACK}=process.env;
+          const registryTags=JSON.parse(fs.readFileSync(process.env.CURRENT_DIST_TAGS,"utf8"));
           const p=JSON.parse(fs.readFileSync(path.join(DIR,"package.json"),"utf8"));
           if(p.name!=="@kastrick/nextjs-engine"||p.version!==VERSION) throw new Error("Manifest mismatch: "+p.name+"@"+p.version);
           if(!fs.existsSync(path.join(DIR,"engine/index.ts"))) throw new Error("engine/index.ts is missing");
@@ -770,7 +790,20 @@ jobs:
           if(!list.length)throw new Error("No "+TRACK+" releases are archived.");
           const newest=list.at(-1);
           const versionTag=TRACK==="stable"?"package."+VERSION:TRACK==="alpha"?"package-alpha."+VERSION:"package-beta."+VERSION;
-          const channelTag=newest===VERSION?(TRACK==="stable"?"latest":TRACK):"";
+          const proposedChannel=TRACK==="stable"?"latest":TRACK;
+          function compareSemver(aText,bText){
+            const a=String(aText||"").match(/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+))?$/);
+            const b=String(bText||"").match(/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+))?$/);
+            if(!a)return -1;
+            if(!b)return 1;
+            for(let i=1;i<=3;i++){const d=Number(a[i])-Number(b[i]);if(d)return d;}
+            if(!a[4]&&!b[4])return 0;
+            if(!a[4])return 1;
+            if(!b[4])return -1;
+            if(a[4]!==b[4])return a[4]>b[4]?1:-1;
+            return Number(a[5])-Number(b[5]);
+          }
+          const channelTag=newest===VERSION&&compareSemver(VERSION,registryTags[proposedChannel])>=0?proposedChannel:"";
           console.log("version="+VERSION);
           console.log("directory="+DIR);
           console.log("version_tag="+versionTag);
