@@ -415,10 +415,12 @@ jobs:
             echo
             echo "- Package version: $VERSION"
             echo "- Source: main-3@$SOURCE_SHA"
-            echo "- Packaged snapshot: package/main@$PACKAGE_SHA (alpha/channel/latest)"
+            echo "- Package archive: package/main@$PACKAGE_SHA (alpha/channel/latest)"
+            echo "- Git tag target: package-root@$TAG_SHA"
+            echo "- Root package entry: package.json, index.ts, engine/"
             echo "- SHA-256: $SHA256"
             echo "- npm asset: $ASSET_NAME"
-            echo "- The moving Git tag targets the curated package tree; its source pin is recorded in the manifest."
+            echo "- The moving Git tag and its source archive contain the package layout, not the main-3 repository tree."
             echo
             echo "<!-- NE-CHANNEL-MANIFEST-START -->"
             cat "$MANIFEST"
@@ -448,6 +450,8 @@ jobs:
         env:
           VERSION: ${{ steps.prepare.outputs.version }}
           SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+          PACKAGE_SHA: ${{ steps.package-snapshot.outputs.package_sha }}
+          TAG_SHA: ${{ steps.package-snapshot.outputs.tag_sha }}
           SHA256: ${{ steps.prepare.outputs.sha256 }}
           FINAL_PROMOTION: ${{ steps.final-gate.outputs.publish || 'false' }}
         run: |
@@ -455,9 +459,11 @@ jobs:
             echo "## NE latest Alpha channel"
             echo "- Version: ${VERSION:-not packaged}"
             echo "- Source SHA: ${SOURCE_SHA:-unknown}"
+            echo "- package/main archive commit: ${PACKAGE_SHA:-not created}"
+            echo "- package-root tag commit: ${TAG_SHA:-not created}"
             echo "- SHA-256: ${SHA256:-not calculated}"
             if [[ "$FINAL_PROMOTION" == "true" ]]; then
-              echo "- Rolling tag/release: updated"
+              echo "- Rolling package-root tag/release: updated"
             else
               echo "- Rolling tag/release: not updated (CI failed, packaging failed, or main-3 advanced)"
             fi
