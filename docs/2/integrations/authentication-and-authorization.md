@@ -90,4 +90,4 @@ Auth.js, Clerk, Supabase Auth, and other identity/session products can own login
 
 ## Generation 3 note
 
-Generation 3 adds the optional server-side NENC command-security path and `createNENCAccountSessionPolicy()`. It is **not** part of Gen 2 and is not silently enabled by APIStatic. Read the [Generation 3 authentication and authorization guide](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/integrations/authentication-and-authorization.md) and [Gen 2 → Gen 3 migration reference](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/guides/migrating-from-gen2.md) before migrating.
+Generation 3 adds the optional server-side NENC command-security path and `createNENCAccountSessionPolicy()`. It is **not** part of Gen 2 and is not silently enabled by APIStatic. Read the [Generation 3 authentication and authorization guide](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/integrations/authentication-and-authorization.md) and [Gen 2 → Gen 3 migration reference](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/guides/migrating-from-gen2.md) before migrating.
