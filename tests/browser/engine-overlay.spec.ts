@@ -130,6 +130,51 @@ test("controlled open state reports one close transition and restores the extern
 	await expect(trigger).toBeFocused();
 });
 
+test("controlled dialog can reopen during its exit transition without stale cleanup", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "no-preference" });
+	await page.goto("/engine-overlay-test");
+
+	const body = page.locator("body");
+	const initialOverflow = await body.evaluate((element) => (element as HTMLElement).style.overflow);
+	const backgroundAction = page.getByTestId("background-action");
+	const backgroundIsInert = () => backgroundAction.evaluate((element) => element.closest("[inert]") !== null);
+	const trigger = page.getByTestId("open-controlled-dialog");
+	const modal = page.getByRole("dialog", { name: "Controlled dialog" });
+
+	await trigger.click();
+	await expect(modal).toBeVisible();
+	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe("hidden");
+	await expect.poll(backgroundIsInert).toBe(true);
+
+	await page.keyboard.press("Escape");
+	await expect(modal).toHaveAttribute("data-state", "closed");
+	await expect(page.getByTestId("controlled-changes")).toHaveText("1");
+
+	// The panel remains mounted for its exit duration. Trigger a controlled reopen
+	// before that timeout expires, then wait past the old deadline to catch stale teardown.
+	const reopen = page.getByTestId("reopen-controlled-dialog");
+	await expect(reopen).toBeAttached();
+	await reopen.evaluate((element) => (element as HTMLButtonElement).click());
+
+	await expect(modal).toHaveAttribute("data-state", "open");
+	await expect(page.getByTestId("controlled-dialog-action")).toBeFocused();
+	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe("hidden");
+	await expect.poll(backgroundIsInert).toBe(true);
+
+	await page.waitForTimeout(320);
+	await expect(modal).toBeVisible();
+	await expect(modal).toHaveAttribute("data-state", "open");
+	await expect.poll(backgroundIsInert).toBe(true);
+	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe("hidden");
+
+	await page.keyboard.press("Escape");
+	await expect(modal).toBeHidden();
+	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe(initialOverflow);
+	await expect.poll(backgroundIsInert).toBe(false);
+	await expect(page.getByTestId("controlled-changes")).toHaveText("2");
+	await expect(trigger).toBeFocused();
+});
+
 test("reduced motion keeps overlay interaction functional without transition delay", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await page.goto("/engine-overlay-test");
