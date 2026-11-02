@@ -86,6 +86,13 @@ async function main() {
 	assert.match(errorBanner, /ne-cli-error-book\.md#ne1001/, "the wrapped Help URL retains its destination and code anchor");
 	assert.ok(errorBanner.split("\n").every((line) => !/[╭╮╰╯│─]/.test(line)));
 
+	const cliGuide = fs.readFileSync(path.join(repoRoot, "docs/2/ne-cli.md"), "utf8");
+	for (const option of ["--channel", "--version", "--check", "--dry-run", "--json", "--force", "--yes", "--quiet", "--no-color", "--and-terminal"]) {
+		assert.ok(cliGuide.includes(option), "the Gen 2 CLI guide documents " + option);
+	}
+	assert.match(cliGuide, /shell operators such as `&&` and `\|` are not supported/,
+		"the Gen 2 guide explains that command chaining does not use a shell");
+
 	const errorBook = fs.readFileSync(path.join(repoRoot, "docs/2/ne-cli-error-book.md"), "utf8");
 	for (const code of ["NE1001", "NE1002", "NE1003", "NE1004", "NE2001"]) {
 		assert.match(errorBook, new RegExp(code), "the CLI error book documents " + code);
