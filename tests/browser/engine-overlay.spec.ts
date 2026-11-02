@@ -172,7 +172,7 @@ test("controlled dialog can reopen during its exit transition without stale clea
 	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe(initialOverflow);
 	await expect.poll(backgroundIsInert).toBe(false);
 	await expect(page.getByTestId("controlled-changes")).toHaveText("2");
-	await expect(trigger).toBeFocused();
+	await expect(page.getByTestId("focus-fallback")).toBeFocused();
 });
 
 test("reduced motion keeps overlay interaction functional without transition delay", async ({ page }) => {
