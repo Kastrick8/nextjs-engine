@@ -41,3 +41,8 @@ Research Companion skills guided the audit and note format. This host session di
 - Website viewer implementation remains in the separate `Kate-alt-69/kastrick` PR #14. It maps docs/2 to `main-2` and docs/3 to `main-3`; updated Engine PR branches become the live viewer source after they are merged to those upstream branches.
 - Commits on this branch: EngineCanvas `50f0ed5`; EngineScroll `9aa23b5`; NENC `78a3d95`; EngineTheme `3fb3924`; React/JSX `86904a6`.
 - Local type-check, production build, and site preview were not run in this connector-only session. Recheck CI and run the repository's required checks before merging.
+
+## Final content cleanup
+- Consolidated the Gen 3 EngineCanvas low-level hook reference into a single section; removed its superseded duplicate copy (`3f202fa`).
+- Completed the EngineScroll facade method map with `initialize()` and corrected the literal hash target type (`d8a9731`).
+- Final content pass rechecked the Canvas, Scroll, Theme, NENC and React/JSX headings and examples for duplicate sections and source-contract mismatches.
