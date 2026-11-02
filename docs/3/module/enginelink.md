@@ -73,6 +73,51 @@ Generation 3 adds opt-in favicon props to EngineLink. Set `emd_show-url-icon` to
 </EngineLink>
 ```
 
+
+## EngineUrlIcon direct component and helpers
+
+`EngineUrlIcon` is the small decorative favicon component exported by Gen 3.
+
+| Prop | Type | Notes |
+|---|---|---|
+| `href` | `string` | Required HTTP(S) destination used to resolve the favicon. Invalid or private/local destinations render no icon. |
+| `size` | `EngineUrlIconSize` (`number \| "auto"`) | Defaults to `"auto"`; fixed sizes are rounded and clamped to 8–64 CSS pixels. `"auto"` follows the surrounding text size. |
+| `className` | `string` | Optional image class. |
+| `style` | `CSSProperties` | Optional inline image styles. |
+
+```tsx
+import { EngineUrlIcon } from "nextjs-engine";
+
+<EngineUrlIcon href="https://github.com" size={18} />
+```
+
+The image is decorative (`alt=""`, `aria-hidden="true"`), lazy-loaded, and
+served through Engine's same-origin NENC favicon asset route. The combined
+Engine plugin must be enabled for that route.
+
+The public helper signatures are:
+
+```ts
+type EngineUrlIconSize = number | "auto";
+
+normalizeEngineUrlIconSize(
+  size?: EngineUrlIconSize,
+): number | "1em";
+
+resolveEngineFaviconUrl(
+  href: string,
+  size?: EngineUrlIconSize,
+): string | undefined;
+```
+
+`normalizeEngineUrlIconSize()` returns `"1em"` for `"auto"` and otherwise
+returns the rounded 8–64 pixel value. `resolveEngineFaviconUrl()` returns the
+provider-facing Google S2 favicon URL only for safe, credential-free HTTP(S)
+destinations. It sends the normalized origin hostname rather than a URL path,
+query, port, or fragment; invalid or private/local destinations return
+`undefined`. Render `EngineUrlIcon` rather than inserting the provider URL
+directly when you want the built-in same-origin asset path.
+
 ## When to use EngineNav
 
 Use `EngineLink` for an individual link. Use [EngineNav](./enginenav.md) when you need the navigation shell, responsive menu, logo, dropdown items, or active-route behavior. See [EngineTransitions+](./enginetransitions.md) for the supported transition presets.
