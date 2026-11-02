@@ -18,6 +18,7 @@ For the Gen 3 implementation and full migration workflow, see the [Generation 3 
 | Network/SEO entrypoints | No `nextjs-engine/network` or `nextjs-engine/seo` subpath | Adds both entrypoints | Imports from these Gen 3 subpaths fail in Gen 2. |
 | User/account security | Application-owned session checks plus upstream EngineAPIResolver auth | Adds opt-in NENC command authentication/authorization and account-session policy; EngineServer adds request cookie/header access; EngineCookies adds a sealed credential vault | Gen 3's NENC features are new. EngineServer only reads request context, and EngineCookies protects vault entries; neither replaces account login/session validation. |
 | API config artifact | `.engine-api-compiled.json` | `.nextjs-engine/config/.apiconfig.json` | Update plugin output/config expectations and verify migration diagnostics. |
+| LazyMount / LazySection | One-shot `useInView()` activation; once mounted, the subtree stays mounted | Uses `useEngineSchedule()` / EngineScheduler; near-but-not-visible work can wait under frame pressure | Component props remain similar, but activation timing/admission changes; see the [LazyMount reference](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/module/lazy-mount.md). |
 | CLI | Newly introduced experimental Gen 2 NE-CLI | Expanded Gen 3 NE-CLI | Do not assume all CLI commands/options match. |
 
 ## Imports that will fail in Gen 2
