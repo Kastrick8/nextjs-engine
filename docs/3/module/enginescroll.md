@@ -495,6 +495,86 @@ props: {
 }
 ```
 
+## Public API map
+
+The public `EngineScroll` class is the convenience facade over the exported
+`EngineScrollRuntime`, point manager, movement, timeline, range, tracker,
+director, and snap classes. The following table describes the high-level
+methods available on `EngineScroll` itself; the linked focused references
+cover the returned objects in more detail.
+
+| Method | Signature / result | Use |
+| --- | --- | --- |
+| `configure(policy)` | Returns the resolved site policy | Set global movement defaults |
+| `getPolicy()` / `resetPolicy()` | Read or restore the resolved policy | Inspect or reset global defaults |
+| `move(target, optionsOrOffset?, duration?)` | `boolean` | Navigate to a point, coordinate, special target, or DOM hash |
+| `nearest(options?)`, `next(options?)`, `previous(options?)` | `boolean` | Navigate among registered points; options can include `group` and `wrap` where supported |
+| `top(options?)`, `bottom(options?)`, `moveBy(offset, options?)`, `movePercent(percent, options?)` | `void` | Move relative to document/viewport position |
+| `stop()` | `void` | Stop the active programmatic movement |
+| `snap(options?)` | `boolean` | Perform one snap operation immediately |
+| `enableSnap(options?)` | `() => void` | Enable idle-triggered auto-snap and receive its disable function |
+| `disableSnap()` / `isSnapEnabled()` | `void` / `boolean` | Disable or inspect auto-snap |
+| `range(config)` | `EngineScrollRange` | Create non-reactive interval geometry |
+| `timeline(config)` | `EngineScrollTimeline` | Create progress/events/keyframes over an interval |
+| `direct(config)` | `EngineScrollDirector` | Coordinate multiple named timelines on one runtime subscription |
+| `trackPoints(config?)` | `EngineScrollPointTracker` | Track the active point in a group |
+| `points()` | `typeof EngineScrollPointManager` | Register, resolve, query, group, and locate named points |
+| `subscribe(callback)` | Unsubscribe function | Observe runtime state changes |
+| `runtime()` / `state()` | Runtime / `EngineScrollState` | Access shared runtime and current state |
+| `viewport()` / `animation()` | Viewport / animation snapshots | Read current geometry and movement state |
+| `currentPoint()` / `totalPoints()` | `number` | Read current focus point and maximum reachable top point |
+| `velocity()` / `direction()` / `isAnimating()` | `number` / `-1 \| 0 \| 1` / `boolean` | Read motion telemetry |
+| `setFocus(value)` / `getFocus()` / `getFocusMode()` | `void` / `number` / focus mode | Configure or inspect the logical viewport focus |
+| `moveToHash(hash, duration?, offset?)` | `boolean` | Invoke the hash-target compatibility helper |
+
+`EngineScrollTarget` is `number | "top" | "bottom" | "current" |
+`#${string}`. Navigation options extend the common movement options with an
+optional point `group`. The legacy positional `move(target, offset, duration)`
+form remains supported, but new code should prefer the named options object.
+
+### Movement option types
+
+`EngineScrollBehaviorPolicy` contains `behavior?`, `duration?`, `easing?`,
+`interruptible?`, and `reducedMotion?`. `EngineScrollMoveOptions` adds
+`offset?` and `align?`; its legacy `respectReducedMotion?` flag is deprecated.
+`EngineScrollNavigationOptions` adds `group?`.
+
+| Policy field | Values / default |
+| --- | --- |
+| `behavior` | `"smooth"` (default), `"native"`, `"instant"` |
+| `duration` | `550` ms by default; finite non-negative values are accepted |
+| `easing` | `"linear"`, `"easeInQuad"`, `"easeOutQuad"`, `"easeInOutQuad"`, `"easeInCubic"`, `"easeOutCubic"`, `"easeInOutCubic"`; default `"easeInOutCubic"` |
+| `interruptible` | `true` by default |
+| `reducedMotion` | `"respect"` by default; `"reduce"` always jumps, `"ignore"` keeps requested animation |
+| `offset` | Numeric EngineScroll points; default `0` |
+| `align` | `"start"`, `"center"`, `"end"`, `"nearest"` |
+
+The resolved policy can be changed globally with `configure()` and restored
+with `resetPolicy()`. A `EngineScrollProvider` can also apply a React-tree
+policy. Per-operation options override the resolved policy for that call.
+When `reducedMotion` is `"respect"`, EngineScroll reads the browser's
+`prefers-reduced-motion` preference.
+
+### Range, timeline, snap, and tracker configuration
+
+| Config type | Important fields |
+| --- | --- |
+| `EngineScrollRangeConfig` | Required `start` / `end`; optional `startOffset`, `endOffset`, `startAlign`, `endAlign` |
+| `EngineScrollTimelineConfig` | Range fields plus `source?: "top" \| "current" \| "bottom"` and `easing?` |
+| `EngineScrollSnapOptions` | Movement fields plus `mode?: "nearest" \| "directional"`, `threshold?`, `wrap?`, `group?` |
+| `EngineScrollPointTrackerConfig` | Point group and viewport source (`top`, `current`, or `bottom`), plus offset |
+| `EngineScrollDirectorConfig` | A named record of timeline configurations |
+
+For auto-snap, the default mode is `nearest`, threshold is 12 EngineScroll
+points, duration is 260 ms, and easing is `easeOutCubic`. A one-shot `snap()`
+uses the supplied options for its immediate operation; `enableSnap()` applies
+the normalized defaults to idle-triggered snapping.
+
+See [Range](./enginescroll-range.md), [Timeline](./enginescroll-timeline.md),
+[Director](./enginescroll-director.md), [Point tracking](./enginescroll-tracker.md),
+[Point groups](./enginescroll-groups.md), and
+[Viewport focus](./enginescroll-focus.md) for detailed object methods and
+lifecycle examples.
 ## Legacy schema `"scroll"`
 
 The old schema `"scroll"` component remains for compatibility. It is separate
