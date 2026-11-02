@@ -13,7 +13,7 @@ For a dashboard, account page, billing area, or private data operation, enforce 
 
 ## EngineAPIResolver: authentication to an upstream API
 
-For a normal HTTP endpoint, `EngineAPIResolver` can attach credentials/signatures to the outgoing request. When `auth` is omitted, its behavior is `none`.
+For a normal HTTP endpoint, `EngineAPIResolver` can attach credentials/signatures to the outgoing request. When `auth` is omitted, its behavior is `none` and the request is sent without an authentication header.
 
 | `auth.type` | Required fields | What EngineAPIResolver sends |
 |---|---|---|
