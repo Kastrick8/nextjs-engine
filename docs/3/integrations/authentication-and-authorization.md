@@ -40,7 +40,7 @@ Use these helpers for their documented request-context and credential-vault role
 
 ## APIStatic has no account security system
 
-APIStatic compiles `.route` files to static JavaScript below `public/_static/endpoint`; the browser downloads and executes these modules. It validates declared input fields/types and supplies response/error helpers. It does not provide session authentication, account identity, roles, permission scopes, or per-user authorization.
+APIStatic compiles `.route` files to static JavaScript below `public/_static/endpoint`; the browser downloads and executes these modules. It validates declared input fields/types and supplies response/error helpers. Its public `APIStaticOptions` and `APIStaticOperation` contracts contain no auth, session, role, or permission fields. It does not provide session authentication, account identity, roles, permission scopes, or per-user authorization.
 
 > **Important:** An APIStatic input schema is not an access-control policy. A required `accountId: "string"` field proves only that the caller supplied a string; it does not prove ownership of that account.
 
