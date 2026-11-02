@@ -21,4 +21,10 @@
 | EngineCookieVault seals credentials with AES-256-GCM and applies owner/origin, command, expiry, trust-list and optional device/environment binding checks. | `src/engine/core/enginecookies/EngineCookieVault.ts`, `EngineCookies.ts`, `EngineTrustList.ts`, `types.ts` | Verified | This authorizes access to credential-vault entries; it is not a general end-user login/session/role framework. |
 | EngineCookieMemoryStore is the default record store and is process-local. | `src/engine/core/enginecookies/EngineCookieVault.ts` | Verified | Use persistent/shared storage for production durability and multi-instance use. |
 
+| NE-CLI chained commands are parsed into argv and spawned with `shell:false`; shell metacharacters/expansions are rejected and output capture is bounded. | `bin/ne-cli/cli.js` | Verified | Document `--and` as executable-plus-arguments, not a shell command runner. |
+| NE-CLI cleanup uses a bounded project-relative target list, rejects paths outside the project, and preserves rollback backup history. | `bin/ne-cli/project.js` | Verified | Document `ne clean` as constrained cleanup, not arbitrary recursive deletion. |
+| NE-CLI update/rollback snapshots dependency files in private temporary directories and writes managed state atomically. | `bin/ne-cli/project.js`, `bin/ne-cli/file-system.js` | Verified | Explain confirmation, rollback and managed state safety. |
+| NE-CLI task worker pool is capped at three workers; build invokes optional production preparation, checks, then Next build on the main thread. | `bin/ne-cli/tasks.js`, `bin/ne-cli/project.js` | Verified | Document observed task order and concurrency cap without implying arbitrary parallel Next builds. |
+| NE-CLI release channels distinguish Stable npm, verified Alpha artifacts, verified Beta artifacts and Latest Green (stable/beta only); tag-only entries are not installable. | `bin/ne-cli/channels.js`, `bin/ne-cli/cli.js` | Verified | Describe channel source/verification rules and catalog-only tags. |
+
 No credentials, environment values or private user data are stored in this ledger.
