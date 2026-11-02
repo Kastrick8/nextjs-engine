@@ -27,4 +27,8 @@
 | NE-CLI task worker pool is capped at three workers; build invokes optional production preparation, checks, then Next build on the main thread. | `bin/ne-cli/tasks.js`, `bin/ne-cli/project.js` | Verified | Document observed task order and concurrency cap without implying arbitrary parallel Next builds. |
 | NE-CLI release channels distinguish Stable npm, verified Alpha artifacts, verified Beta artifacts and Latest Green (stable/beta only); tag-only entries are not installable. | `bin/ne-cli/channels.js`, `bin/ne-cli/cli.js` | Verified | Describe channel source/verification rules and catalog-only tags. |
 
+| EngineTrustList normalizes exact HTTP(S) origins; wildcard origin rules may grant CORS only and cannot grant cookie or command access. | `src/engine/core/enginecookies/EngineTrustList.ts` | Verified | Document exact-origin trust for privileged credential-vault/command access. |
+| EngineCookieVault validates device binding registrations and requires device proof for every non-`none` mode; environment-bound modes require a matching environment hash. | `src/engine/core/enginecookies/EngineCookieVault.ts`, `EngineCookies.ts`, `types.ts` | Verified | Describe device/environment binding as opt-in vault-entry protection, not user login. |
+| EngineCookieVault generates a non-exportable AES-GCM 256-bit key by default; a supplied key must be non-exportable AES-GCM with encrypt/decrypt usages. | `src/engine/core/enginecookies/EngineCookieVault.ts` | Verified | Distinguish generated default key from caller-supplied key requirements. |
+
 No credentials, environment values or private user data are stored in this ledger.
