@@ -33,7 +33,7 @@ A module page documents a cohesive developer-facing Engine system. Related imple
 | [EngineTransitions+](./enginetransitions.md) | Transition presets and navigation |
 | [EngineOverlay](./engineoverlay.md) | Dialog, Drawer, Popover and shared runtime |
 
-Overlay features: [Dialog](./engineoverlay/dialog.md) · [Drawer](./engineoverlay/drawer.md) · [Popover](./engineoverlay/popover.md) · [Shared runtime](./engineoverlay/shared-runtime.md).
+Overlay features are documented in the single Gen-2 [EngineOverlay reference](./engineoverlay.md): [Dialog](./engineoverlay.md#dialog) · [Drawer](./engineoverlay.md#drawer) · [Popover](./engineoverlay.md#popover) · [Focus and stacking runtime](./engineoverlay.md#overlay-stacking).
 
 ## Graphics, animation and scroll
 
@@ -46,7 +46,7 @@ Overlay features: [Dialog](./engineoverlay/dialog.md) · [Drawer](./engineoverla
 | [EngineManim](./enginemanim.md) | 2D and 3D animation |
 | [EngineScroll](./enginescroll.md) | Points, navigation, ranges, timelines and tracking |
 
-Grouped references: [Canvas renderers](./enginecanvas/index.md) · [Manim](./enginemanim/index.md) · [Scroll](./enginescroll/index.md).
+Related feature references: [EngineManim 2D/3D](./enginemanim.md#enginemanim-2d) · [EngineScroll ranges](./enginescroll-range.md) · [timelines](./enginescroll-timeline.md) · [director](./enginescroll-director.md) · [point tracking](./enginescroll-tracker.md).
 
 ## Browser and networking
 
