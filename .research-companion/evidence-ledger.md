@@ -16,4 +16,9 @@
 | Scheduler coordinates eligible work and frame pressure. | `src/engine/core/enginescheduler/EngineScheduler.ts` | Verified | Do not promise fixed scheduling latency or resolution reduction. |
 | EngineSEO compiles Next.js metadata, sitemap, robots and JSON-LD. | `src/engine/core/engineseo/EngineSEO.ts` | Verified | Use builder/compiler terms in public docs. |
 
+| APIStaticOptions/APIStaticOperation define no authentication/session/role/permission contract. | `src/engine/core/APIStatic.ts` | Verified | Static route schemas validate caller input, not account identity or authorization. |
+| EngineServerSession exposes read-only request cookie/header access and device/fetch/navigation helpers; it does not validate an account session or create a principal. | `src/engine/core/EngineServer.ts` | Verified | Cookie presence alone is not proof of authentication; validate with an identity provider/NENC policy. |
+| EngineCookieVault seals credentials with AES-256-GCM and applies owner/origin, command, expiry, trust-list and optional device/environment binding checks. | `src/engine/core/enginecookies/EngineCookieVault.ts`, `EngineCookies.ts`, `EngineTrustList.ts`, `types.ts` | Verified | This authorizes access to credential-vault entries; it is not a general end-user login/session/role framework. |
+| EngineCookieMemoryStore is the default record store and is process-local. | `src/engine/core/enginecookies/EngineCookieVault.ts` | Verified | Use persistent/shared storage for production durability and multi-instance use. |
+
 No credentials, environment values or private user data are stored in this ledger.
