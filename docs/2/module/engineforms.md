@@ -85,7 +85,47 @@ handler(currentValue, changeEvent)
 File inputs contribute a `File` for a single selection or `File[]` when
 `multiple` is enabled. Disabled fields are skipped.
 
-## Checkbox values
+
+### Input props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `type` | `InputType` | Defaults to `"text"`. Supports text, email, password, search, URL, telephone, number, hidden, date, time, color, range, file, checkbox, radio, submit, reset and button. |
+| `name` | `string` | Native field name and form-collection key. |
+| `value` / `defaultValue` | `string \| number` | Controlled value or initial value. |
+| `placeholder` | `string` | Native placeholder. |
+| `disabled` / `required` / `readOnly` | `boolean` | Native field state and validation behavior. |
+| `pattern` | `string` | Native validation pattern. |
+| `min` / `max` / `step` | `string \| number` | Native numeric/date constraints. |
+| `minLength` / `maxLength` | `number` | Text-length constraints. |
+| `multiple` / `accept` | `boolean` / `string` | File-selection behavior and accepted file types. |
+| `autoComplete` | `string` | Native autocomplete hint. |
+| `ariaLabel` / `ariaDescribedBy` | `string` | Applied as `aria-label` / `aria-describedby`. |
+| `autoFocus` / `tabIndex` | `boolean` / `number` | Native focus behavior. |
+| `onChange` | `string` | Named handler receiving the current value and React change event. |
+
+The exported `InputType` union is shared by the schema input and
+`EngineInputProps`. File fields contribute a `File` for one selection or
+`File[]` when `multiple` is enabled. The dedicated `checkbox` schema node
+also supports an explicit checked/defaultChecked contract.
+
+### Textarea props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `name` | `string` | Native field name and collection key. |
+| `value` / `defaultValue` | `string` | Controlled value or initial value. |
+| `placeholder` | `string` | Native placeholder. |
+| `rows` / `cols` | `number` | Native text-area dimensions. |
+| `minLength` / `maxLength` | `number` | Text-length constraints. |
+| `disabled` / `required` / `readOnly` | `boolean` | Native field state and validation behavior. |
+| `autoComplete` | `string` | Native autocomplete hint. |
+| `ariaLabel` / `ariaDescribedBy` | `string` | Accessible name and description references. |
+| `autoFocus` / `tabIndex` | `boolean` / `number` | Native focus behavior. |
+| `onChange` | `string` | Named handler receiving the current string value and React change event. |
+| `resizable` | `"none" \| "both" \| "horizontal" \| "vertical" \| "block" \| "inline"` | Controls the CSS resize behavior. |
+
+## Checkbox values## Checkbox values
 
 Checkbox binding currently produces:
 
@@ -94,7 +134,20 @@ Checkbox binding currently produces:
 
 Repeated fields with the same binding name are accumulated into an array.
 
-## Label
+
+### Checkbox props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `name` | `string` | Native field name and collection key. |
+| `value` | `string` | Value included when checked; defaults to the browser's `"on"` value when omitted. |
+| `checked` / `defaultChecked` | `boolean` | Controlled state or initial checked state. |
+| `disabled` / `required` | `boolean` | Native field state and validation behavior. |
+| `ariaLabel` / `ariaDescribedBy` | `string` | Accessible name and description references. |
+| `onChange` | `string` | Named handler receiving `"on"`/the supplied value when checked, or `"off"` when unchecked, plus the React change event. |
+| `autoFocus` / `tabIndex` | `boolean` / `number` | Native focus behavior. |
+
+## Label## Label
 
 ```ts
 { type: "label", props: { forInput: "email", children: "Email" } }
@@ -107,6 +160,12 @@ Repeated fields with the same binding name are accumulated into an array.
 ```
 
 You may use `htmlFor` directly instead.
+
+The exported `EngineLabelProps` contract also supports `children`,
+`htmlFor`, and `forInput`. `htmlFor` is passed through unchanged;
+`forInput: "email"` resolves to `htmlFor="for-email"`. Use the exact matching
+input id so the browser label association works.
+
 
 ## EngineAPI example
 
@@ -142,3 +201,11 @@ EngineAPIResolver. In the current API:
 4. pass it to EngineAPIResolver if the form is network-backed.
 
 This keeps form collection and network orchestration separate and explicit.
+
+
+The primitives are also exported for direct React use as `EngineForm`,
+`EngineInput`, `EngineTextarea`, `EngineCheckbox`, and `EngineLabel`.
+Their `onSubmit`, `onReset`, and `onChange` props resolve named Engine
+handlers; they are not ordinary React callback props. Use a regular HTML
+`<form>` when you want to own submission with a native React
+`onSubmit={(event) => ...}` callback.
