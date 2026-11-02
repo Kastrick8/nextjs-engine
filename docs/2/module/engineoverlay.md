@@ -151,6 +151,13 @@ export function OverlayExamples() {
 
 All three also accept normal Engine styling props through `BaseNodeProps`.
 
+In Gen 2, a supplied `trigger` is rendered inside EngineOverlay's generated
+native button. Pass non-interactive trigger content (text, an icon, or another
+non-interactive element); do not nest a button or link inside it. Gen 2 has no
+`triggerAsChild` option. For an application-owned button, omit the generated
+trigger and control the overlay with `open` and `onOpenChange`.
+
+
 ---
 
 ## Shared props
@@ -179,6 +186,7 @@ These props are shared by Dialog, Drawer and Popover unless noted otherwise.
 | `duration` | `number` | transition ms, clamped to `0..1200` |
 | `portalTargetId` | `string` | portal element id; falls back to `document.body` |
 | `ariaLabel` | `string` | fallback label when there is no visible title |
+| `overlayStyle` | `CSSProperties` | Dialog/Drawer backdrop styles; Popover does not render a backdrop. |
 | `style` | Engine style | styles the panel |
 | `className` | `string` | panel class |
 | `cprop` | Engine CPROP | state styling for the panel |
