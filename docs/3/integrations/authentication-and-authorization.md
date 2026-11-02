@@ -14,7 +14,7 @@ Authentication answers “who is making this request?” Authorization answers �
 
 ## EngineAPIResolver: upstream request authentication
 
-For ordinary HTTP endpoints, `EngineAPIResolver` supports. When `auth` is omitted, its default is `{ type: "none" }` (no authentication header):
+For ordinary HTTP endpoints, `EngineAPIResolver` supports the following authentication modes. When `auth` is omitted, its default is `{ type: "none" }` (no authentication header):
 
 | `auth.type` | Required values | Outgoing request behavior |
 |---|---|---|
