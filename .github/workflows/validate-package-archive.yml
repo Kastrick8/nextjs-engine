@@ -26,7 +26,7 @@ jobs:
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
           import path from "node:path";
-          const roots=["version","alpha","beta"];
+          const roots=["version","alpha/version","beta/version"];
           const packages=[];
           function walk(dir){
             if(!fs.existsSync(dir)) return;
@@ -41,6 +41,56 @@ jobs:
           if(packages.length===0) throw new Error("No versioned package snapshots found.");
           console.log("matrix="+JSON.stringify({package:packages}));
           NODE
+
+  validate-channel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || (github.event_name == 'workflow_dispatch' && 'package/main') || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Validate moving channel package layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="alpha/channel/latest"
+          if [[ ! -f "$DIR/package.json" ]]; then
+            echo "No rolling Alpha package snapshot exists yet; skipping channel validation."
+            exit 0
+          fi
+          cd "$DIR"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const p=JSON.parse(fs.readFileSync("package.json","utf8"));
+          if(p.name!=="@kastrick/nextjs-engine") throw new Error("Unexpected package name: "+p.name);
+          if(!/^\\d+\\.\\d+\\.\\d+-alpha\\.\\d+$/.test(p.version||"")) throw new Error("Rolling Alpha snapshot must use a full Alpha SemVer version.");
+          if(p.private===true) throw new Error("Rolling Alpha package must not be private.");
+          for(const file of ["index.ts","engine/index.ts","tsconfig.json","UPSTREAM.md"]) {
+            if(!fs.existsSync(file)) throw new Error("Missing rolling package file: "+file);
+          }
+          if(fs.readFileSync("index.ts","utf8").trim()!=='export * from "./engine";') {
+            throw new Error("Root entrypoint must re-export ./engine.");
+          }
+          for(const [name,value] of Object.entries(p.exports||{})) {
+            const targets=typeof value==="string"?[value]:[value.types,value.import,value.require,value.default].filter(Boolean);
+            for(const target of targets) if(!fs.existsSync(target.replace(/^\\.\\//,""))) throw new Error("Export "+name+" targets missing file "+target);
+          }
+          NODE
+      - name: Install rolling package validation dependencies
+        if: hashFiles('alpha/channel/latest/package.json') != ''
+        working-directory: alpha/channel/latest
+        run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+      - name: Type-check rolling package
+        if: hashFiles('alpha/channel/latest/package.json') != ''
+        working-directory: alpha/channel/latest
+        run: npm run type-check
+      - name: Verify rolling npm pack contents
+        if: hashFiles('alpha/channel/latest/package.json') != ''
+        working-directory: alpha/channel/latest
+        run: npm run pack:check
 
   validate:
     needs: discover
