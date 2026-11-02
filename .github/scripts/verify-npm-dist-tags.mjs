@@ -10,7 +10,7 @@ if (!tagsFile || !version || !track || !versionTag) {
 }
 
 const packageName = "@kastrick/nextjs-engine";
-const tags = JSON.parse(fs.readFileSync(tagsFile, "utf8"));
+let tags = JSON.parse(fs.readFileSync(tagsFile, "utf8"));
 const isPrerelease = (value) => /-(?:alpha|beta)\./.test(String(value || ""));
 const expectedTrack = version.includes("-alpha.") ? "alpha" : version.includes("-beta.") ? "beta" : "stable";
 
@@ -77,6 +77,16 @@ if (!tags.latest || isPrerelease(tags.latest)) {
   tags.latest = stableVersion;
 }
 
+// Re-read the registry after any repair so the check validates the
+// persisted dist-tag map, not merely the intended npm CLI operation.
+tags = JSON.parse(execFileSync("npm", ["view", packageName, "dist-tags", "--json"], { encoding: "utf8" }));
+
+if (tags[versionTag] !== version) {
+  throw new Error(`Final registry check: ${versionTag} points to ${tags[versionTag] || "nothing"}, expected ${version}.`);
+}
+if (channelTag && tags[channelTag] !== version) {
+  throw new Error(`Final registry check: ${channelTag} points to ${tags[channelTag] || "nothing"}, expected ${version}.`);
+}
 if (isPrerelease(tags.latest)) {
   throw new Error(`npm latest still points to prerelease ${tags.latest}; refusing to report a successful release.`);
 }
