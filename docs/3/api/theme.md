@@ -4,7 +4,24 @@ EngineTheme is a Generation 3 feature. The public entrypoints include theme crea
 
 ## Create and reference themes
 
-`createTheme(options)` validates a declarative theme definition and returns a theme value. `parseEngineThemeId(id)` parses the qualified ID convention. Use the page schema's `theme` value or a registered theme ID to associate it with a page.
+`createTheme(definition, options?)` validates a declarative theme definition and returns a deeply frozen theme value. Its public generic contract is:
+
+```ts
+interface CreateEngineThemeOptions {
+  registry?: EngineComponentRegistry;
+}
+
+function createTheme<T extends EngineThemeDefinition>(
+  definition: T,
+  options?: CreateEngineThemeOptions
+): Readonly<T & { scope: EngineThemeScope }>;
+```
+
+`definition` is the theme data: it contains a one-segment `id`, an optional `scope` (`local`, `global`, or `remote`), and the component/token configuration. When `scope` is omitted it resolves to `local`. `options.registry` is a separate runtime registration scope and is not included in the serialized `.etr` definition. Without a registry, the backwards-compatible process-global registry is used for global themes.
+
+`createTheme()` does not fetch URLs or load remote content. Remote definitions must be fetched and verified explicitly with `loadRemoteEngineTheme()`.
+
+`parseEngineThemeId(id)` parses the qualified ID convention. Use the page schema's `theme` value or a registered theme ID to associate it with a page.
 
 ## Highlighter providers
 
