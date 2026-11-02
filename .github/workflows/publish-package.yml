@@ -408,10 +408,11 @@ jobs:
           DIST_TAG: ${{ steps.dist-tag.outputs.value }}
         run: npm publish --access public --tag "$DIST_TAG"
 
-      - name: Apply npm dist-tags
+      - name: Apply and verify npm dist-tags
         working-directory: archive
         env:
           VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
           VERSION_TAG: ${{ steps.dist-tag.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
         shell: bash
@@ -422,6 +423,8 @@ jobs:
           if [[ -n "$CHANNEL_TAG" ]]; then
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
+          node .github/scripts/verify-npm-dist-tags.mjs "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" .
 
       - name: Release summary
         if: always()
@@ -639,10 +642,11 @@ jobs:
           VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
         run: npm publish --access public --tag "$VERSION_TAG"
 
-      - name: Apply npm dist-tags
+      - name: Apply and verify npm dist-tags
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
           VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.channel.outputs.channel_tag }}
         shell: bash
@@ -653,6 +657,8 @@ jobs:
           if [[ -n "$CHANNEL_TAG" ]]; then
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
+          node "$GITHUB_WORKSPACE/.github/scripts/verify-npm-dist-tags.mjs" "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE"
 
       - name: Release summary
         if: always()
@@ -796,14 +802,18 @@ jobs:
         env:
           DIST_TAG: ${{ steps.snapshot.outputs.version_tag }}
         run: npm publish --access public --tag "$DIST_TAG"
-      - name: Apply npm dist-tags
+      - name: Apply and verify npm dist-tags
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
           VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.snapshot.outputs.channel_tag }}
+        shell: bash
         run: |
           set -euo pipefail
           PACKAGE="@kastrick/nextjs-engine@$VERSION"
           npm dist-tag add "$PACKAGE" "$VERSION_TAG"
           if [[ -n "$CHANNEL_TAG" ]]; then npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"; fi
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
+          node "$GITHUB_WORKSPACE/.github/scripts/verify-npm-dist-tags.mjs" "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE"
