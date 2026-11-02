@@ -46,6 +46,12 @@ avoid CLS.
 | `blurDataURL` | `string` | — | Optional blur-up placeholder |
 | `rounded` | `boolean \| string` | — | `true` = `8px` |
 | `caption` | `string` | — | Wraps image in `<figure>` with `<figcaption>` |
+| `loading` | `"eager" \| "lazy"` | `"eager"` when `priority` is true, otherwise `"lazy"` | Native image loading hint after scheduler admission. |
+| `nearMargin` | `string` | Dimension-based margin | Overrides the EngineScheduler distance used to prepare the image. |
+| `releaseWhenFar` | `boolean` | `false` | Allows the scheduler to release near-viewport work after the image moves far away. |
+| `unoptimized` | `boolean` | `false` | Passes through Next Image's optimization bypass. |
+| `onLoad` / `onError` | `() => void` | — | Direct-component callbacks for successful load or load failure. |
+| `engineThemeStyles` | Partial `image` / `placeholder` / `caption` style map | — | Theme-injected style slots for the image, placeholder and caption. |
 
 ### Layout reservation and fluid sizing
 
@@ -154,6 +160,16 @@ EngineVideo does not create the `<video>` element until its wrapper is within
 | `preload` | `"none" \| "metadata" \| "auto"` | metadata normally, auto for autoplay | Passed through as the browser preload hint |
 | `rootMargin` | `string` | `"800px 0px"` | How early the video element mounts |
 | `eager` | `boolean` | `false` | Mount immediately |
+
+| `className` / `style` | `string` / `CSSProperties` | — | Class and inline styles for the media wrapper. |
+| `borderRadius` | `string` | — | Optional media corner radius. |
+| `onCanPlay` / `onEnded` | `() => void` | — | Direct React callbacks for media readiness and playback completion. |
+
+A `VideoSource` entry is `{ src: string; type?: string }`; use an ordered
+array to provide alternatives such as MP4, WebM, or HLS. The callbacks and the
+Gen 3-only image props above belong to the direct component API; they are not
+all part of the serializable image schema shape.
+
 
 Non-autoplay videos do not show a fake perpetual buffering spinner while using
 `preload="none"`. With the default configuration NE loads metadata near the
