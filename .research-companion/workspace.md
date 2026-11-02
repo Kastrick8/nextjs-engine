@@ -29,3 +29,11 @@
 
 ## Tooling note
 Research Companion skills guided the audit and note structure. This host did not provide a local checkout or bundled helper scripts, so the snapshot was committed through the authorized GitHub connector. No local helper execution is claimed.
+
+## Documentation coverage follow-up — 2026-11-02
+- Recompared the API export catalog to the current root and server barrels: all **350 unique exported names** are represented in `docs/2/api/exports.md`. This is exact-name inventory coverage, not proof that every signature, option, or runtime behavior is exhaustively covered.
+- Confirmed the Gen 2 React/JSX guide explicitly permits conventional Next.js pages and React components, native JSX, hooks, forms and third-party libraries, and distinguishes `createComponent()` from schema-driven `createPage()`.
+- Reconciled third-party package ranges with `main-2/package.json`: Next.js, React/React DOM, next-view-transitions, Three.js and Two.js. Gen 2 does not declare the Gen 3 react-markdown/remark-gfm package pair or NENC/EngineTheme contracts.
+- Fixed the Gen 2 EngineCanvas and JSX examples to show the Client Component boundary and narrow the callback context union before using Canvas 2D-only methods. The Gen 2 public adaptive default remains `true`, matching the stable source.
+- Commits on this branch: EngineCanvas `f62ddfd`; React/JSX `9d61539`.
+- Local type-check, production build, and website preview were not run in this connector-only session. Recheck CI and required repository checks before merging.
