@@ -500,39 +500,6 @@ Built-in names use their direct dynamic imports first; the registry is the fallb
 
 ---
 
-## `useEngineCanvas`
-
-For imperative integrations:
-
-```tsx
-"use client";
-
-import { useEffect } from "react";
-import { useEngineCanvas } from "nextjs-engine";
-
-export function CustomCanvas() {
-	const { canvasRef, setup } = useEngineCanvas({
-		mode: "webgl2",
-	});
-
-	useEffect(() => setup({
-		maxDpr: 2,
-		adaptive: true,
-		adaptiveTargetFps: "display",
-		onDraw(gl, canvas, delta, frame, timing) {
-			const seconds = timing.elapsed * .001;
-			// custom drawing
-			if (finished) return false;
-		},
-	}), [setup]);
-
-	return <canvas ref={canvasRef} />;
-}
-```
-
-The low-level hook avoids RAF when `onDraw` is absent and honors `return false` as completion. It shares the same refresh-aware timing and adaptive target logic as the full component.
-
-Unlike the full component, the hook does not own all resize/offscreen/tab observer conveniences; those lifecycle pieces remain the caller's responsibility.
 
 ---
 
