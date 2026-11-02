@@ -217,6 +217,8 @@ jobs:
             tag: "channel-alpha-latest",
             sourceBranch: "main-3",
             sourceCommit: SOURCE_SHA,
+            packageBranch: "package/main",
+            packagePath: "alpha/channel/latest",
             sha256: SHA256,
             assetName: ASSET_NAME,
             floating: true,
@@ -231,6 +233,7 @@ jobs:
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
           echo "artifact_dir=$OUT/artifacts" >> "$GITHUB_OUTPUT"
           echo "manifest=$OUT/ne-release.json" >> "$GITHUB_OUTPUT"
+          echo "package_dir=$PKG" >> "$GITHUB_OUTPUT"
 
       - name: Reconfirm this commit is still the current main-3 head
         id: final-gate
@@ -255,14 +258,96 @@ jobs:
             echo "::notice::main-3 advanced during packaging; this older Alpha will not be promoted."
           fi
 
-      - name: Move rolling channel tag to the exact source commit
+      - name: Commit the packaged rolling Alpha snapshot to package/main
+        id: package-snapshot
         if: steps.final-gate.outputs.publish == 'true'
         working-directory: archive
         env:
+          PACKAGE_DIR: ${{ steps.prepare.outputs.package_dir }}
+          VERSION: ${{ steps.prepare.outputs.version }}
           SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+          MANIFEST: ${{ steps.prepare.outputs.manifest }}
+        shell: bash
         run: |
           set -euo pipefail
-          git tag -f channel-alpha-latest "$SOURCE_SHA"
+          CHANNEL_DIR="alpha/channel/latest"
+          test -f "$PACKAGE_DIR/package.json"
+          test -f "$PACKAGE_DIR/index.ts"
+          test -f "$PACKAGE_DIR/engine/index.ts"
+          test -f "$PACKAGE_DIR/tsconfig.json"
+          grep -Fqx 'export * from "./engine";' "$PACKAGE_DIR/index.ts"
+          rm -rf "$CHANNEL_DIR"
+          mkdir -p "$CHANNEL_DIR"
+          cp -a "$PACKAGE_DIR/." "$CHANNEL_DIR/"
+          rm -rf "$CHANNEL_DIR/node_modules"
+          cat > "$CHANNEL_DIR/UPSTREAM.md" <<EOF
+          # Rolling Alpha channel snapshot
+
+          - Package: @kastrick/nextjs-engine
+          - Version: $VERSION
+          - Channel: alpha
+          - Source branch: main-3
+          - Source commit: $SOURCE_SHA
+          - Package branch: package/main
+          - Package path: alpha/channel/latest
+
+          This directory is the curated, mutable package snapshot for the latest CI-checked Alpha channel.
+          The root index.ts re-exports ./engine. The main-3 source tree itself is not the target of channel-alpha-latest.
+          EOF
+
+          node - "$CHANNEL_DIR" "$VERSION" <<'NODE'
+          const fs=require("node:fs");
+          const path=require("node:path");
+          const [dir,version]=process.argv.slice(2);
+          const manifest=JSON.parse(fs.readFileSync(path.join(dir,"package.json"),"utf8"));
+          if(manifest.name!=="@kastrick/nextjs-engine"||manifest.version!==version||manifest.private===true) {
+            throw new Error("Rolling Alpha package manifest is invalid.");
+          }
+          for(const file of ["index.ts","engine/index.ts","tsconfig.json","UPSTREAM.md"]) {
+            if(!fs.existsSync(path.join(dir,file))) throw new Error("Missing rolling package file: "+file);
+          }
+          if(fs.readFileSync(path.join(dir,"index.ts"),"utf8").trim()!=='export * from "./engine";') {
+            throw new Error("Root package entrypoint must re-export ./engine.");
+          }
+          NODE
+
+          git fetch --no-tags origin refs/heads/package/main:refs/remotes/origin/package/main
+          git switch --force-create package/main refs/remotes/origin/package/main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$CHANNEL_DIR"
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish rolling Alpha package $VERSION from $SOURCE_SHA"
+            git push origin HEAD:refs/heads/package/main
+          fi
+
+          PACKAGE_SHA="$(git rev-parse HEAD)"
+          git cat-file -e "$PACKAGE_SHA:$CHANNEL_DIR/package.json"
+          git cat-file -e "$PACKAGE_SHA:$CHANNEL_DIR/index.ts"
+          export PACKAGE_SHA MANIFEST
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const {PACKAGE_SHA,MANIFEST}=process.env;
+          const manifest=JSON.parse(fs.readFileSync(MANIFEST,"utf8"));
+          manifest.packageBranch="package/main";
+          manifest.packagePath="alpha/channel/latest";
+          manifest.packageCommit=PACKAGE_SHA;
+          fs.writeFileSync(MANIFEST,JSON.stringify(manifest,null,2)+"\\n");
+          NODE
+          echo "package_sha=$PACKAGE_SHA" >> "$GITHUB_OUTPUT"
+          echo "Committed curated package snapshot: package/main@$PACKAGE_SHA"
+
+      - name: Move rolling channel tag to the packaged snapshot
+        if: steps.final-gate.outputs.publish == 'true'
+        working-directory: archive
+        env:
+          PACKAGE_SHA: ${{ steps.package-snapshot.outputs.package_sha }}
+        run: |
+          set -euo pipefail
+          test -n "$PACKAGE_SHA"
+          git cat-file -e "$PACKAGE_SHA:alpha/channel/latest/package.json"
+          git cat-file -e "$PACKAGE_SHA:alpha/channel/latest/index.ts"
+          git tag -f channel-alpha-latest "$PACKAGE_SHA"
           git push --force origin refs/tags/channel-alpha-latest
 
       - name: Create or update GitHub latest Alpha release
@@ -273,6 +358,7 @@ jobs:
           ASSET_NAME: ${{ steps.prepare.outputs.asset_name }}
           SHA256: ${{ steps.prepare.outputs.sha256 }}
           SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+          PACKAGE_SHA: ${{ steps.package-snapshot.outputs.package_sha }}
           ARTIFACT_DIR: ${{ steps.prepare.outputs.artifact_dir }}
           MANIFEST: ${{ steps.prepare.outputs.manifest }}
           GH_TOKEN: ${{ github.token }}
@@ -285,10 +371,11 @@ jobs:
             echo "## Nextjs Engine — Latest Alpha"
             echo
             echo "- Package version: $VERSION"
-            echo "- Source commit: $SOURCE_SHA"
+            echo "- Source: main-3@$SOURCE_SHA"
+            echo "- Packaged snapshot: package/main@$PACKAGE_SHA (alpha/channel/latest)"
             echo "- SHA-256: $SHA256"
-            echo "- Artifact: $ASSET_NAME"
-            echo "- This is a moving channel; the artifact URL remains commit-specific."
+            echo "- npm asset: $ASSET_NAME"
+            echo "- The moving Git tag targets the curated package tree; its source pin is recorded in the manifest."
             echo
             echo "<!-- NE-CHANNEL-MANIFEST-START -->"
             cat "$MANIFEST"
@@ -297,6 +384,12 @@ jobs:
 
           TARBALL="$ARTIFACT_DIR/$ASSET_NAME"
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            while IFS= read -r OLD_ASSET; do
+              [[ -n "$OLD_ASSET" ]] || continue
+              if [[ "$OLD_ASSET" != "$ASSET_NAME" && "$OLD_ASSET" != "ne-release.json" ]]; then
+                gh release delete-asset "$TAG_NAME" "$OLD_ASSET" --yes
+              fi
+            done < <(gh release view "$TAG_NAME" --json assets --jq '.assets[].name')
             gh release upload "$TAG_NAME" "$TARBALL" "$MANIFEST" --clobber
             gh release edit "$TAG_NAME" --title "Nextjs Engine Latest Alpha ($VERSION)" --notes-file "$NOTES" --prerelease
           else
@@ -304,7 +397,7 @@ jobs:
               --title "Nextjs Engine Latest Alpha ($VERSION)" \
               --notes-file "$NOTES" \
               --prerelease \
-              --target "$SOURCE_SHA"
+              --target "$PACKAGE_SHA"
           fi
 
       - name: Summarize rolling Alpha
