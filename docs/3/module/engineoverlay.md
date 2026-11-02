@@ -180,6 +180,7 @@ These props are shared by Dialog, Drawer and Popover unless noted otherwise.
 | `duration` | `number` | transition ms, clamped to `0..1200` |
 | `portalTargetId` | `string` | portal element id; falls back to `document.body` |
 | `ariaLabel` | `string` | fallback label when there is no visible title |
+| `overlayStyle` | `CSSProperties` | Dialog/Drawer backdrop styles; Popover does not render a backdrop. |
 | `style` | Engine style | styles the panel |
 | `className` | `string` | panel class |
 | `cprop` | Engine CPROP | state styling for the panel |
