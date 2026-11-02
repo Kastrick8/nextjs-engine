@@ -80,6 +80,8 @@ async function testPublicThemeApi() {
 		const React = require("react");
 		const ReactDOMServer = require("react-dom/server");
 		const { EngineMarkdownRenderer } = require(path.resolve(__dirname, "../src/engine/components/EngineMarkdownRenderer.tsx"));
+		const { EngineForm, EngineInput, EngineTextarea, EngineCheckbox, EngineLabel } = require(path.resolve(__dirname, "../src/engine/components/EngineForms.tsx"));
+		const { CustomSelect } = require(path.resolve(__dirname, "../src/engine/components/CustomSelect.tsx"));
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
 		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/fontUrls.ts"));
 		const { flattenEngineThemeTokens, normalizeEngineThemeVariables } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/tokens.ts"));
@@ -895,6 +897,82 @@ async function testPublicThemeApi() {
 				assert.equal(props.outlineColor, "#123456", type + " resolves theme root styles");
 			}
 		}
+
+
+		// Resolver coverage above proves every built-in namespace is translated.
+		// Render form controls as well, so the native engineThemeStyles.root slot
+		// is verified at the actual DOM boundary rather than only as a prop.
+		const builtinFormTheme = createTheme({
+			id: "builtin-form-render-smoke",
+			scope: "local",
+			form: { styles: { root: { padding: "12px", outlineColor: "#123456" } } },
+			input: { styles: { root: { outlineColor: "#654321" } } },
+			textarea: { styles: { root: { outlineColor: "#abcdef" } } },
+			checkbox: { styles: { root: { outlineColor: "#fedcba" } } },
+			label: { styles: { root: { outlineColor: "#0f766e" } } },
+			"custom-select": {
+				styles: {
+					root: { maxWidth: "320px" },
+					label: { color: "#123456" },
+					trigger: { borderColor: "#654321" },
+				},
+			},
+		});
+		const builtinFormPage = resolveEngineThemeSchema({
+			theme: builtinFormTheme,
+			root: {
+				type: "section",
+				children: [
+					{
+						type: "form",
+						children: [
+							{ type: "input", props: { name: "email", type: "email" } },
+							{ type: "textarea", props: { name: "message", rows: 3 } },
+							{ type: "checkbox", props: { name: "consent", defaultChecked: true } },
+							{ type: "label", props: { htmlFor: "email" } },
+						],
+					},
+					{
+						type: "custom-select",
+						props: { name: "plan", label: "Plan", options: [{ value: "free", label: "Free" }] },
+					},
+				],
+			},
+		});
+		const formNode = builtinFormPage.root.children[0];
+		const [inputNode, textareaNode, checkboxNode, labelNode] = formNode.children;
+		const selectNode = builtinFormPage.root.children[1];
+		const formMarkup = ReactDOMServer.renderToStaticMarkup(
+			React.createElement(
+				React.Fragment,
+				null,
+				React.createElement(
+					EngineForm,
+					formNode.props,
+					React.createElement(EngineLabel, { ...labelNode.props, htmlFor: "email" }, "Email"),
+					React.createElement(EngineInput, { ...inputNode.props, id: "email" }),
+					React.createElement(EngineTextarea, textareaNode.props),
+					React.createElement(EngineCheckbox, checkboxNode.props),
+				),
+				React.createElement(CustomSelect, selectNode.props),
+			),
+		);
+		assert.match(formMarkup, /<form[^>]*style="[^"]*padding:12px;[^"]*outline-color:#123456/s,
+			"EngineForm renders its EngineTheme root styles");
+		assert.match(formMarkup, /<label[^>]*style="[^"]*outline-color:#0f766e/s,
+			"EngineLabel renders its EngineTheme root styles");
+		assert.match(formMarkup, /<input[^>]*type="email"[^>]*style="[^"]*outline-color:#654321/s,
+			"EngineInput renders its EngineTheme root styles");
+		assert.match(formMarkup, /<textarea[^>]*style="[^"]*outline-color:#abcdef/s,
+			"EngineTextarea renders its EngineTheme root styles");
+		assert.match(formMarkup, /<input[^>]*type="checkbox"[^>]*style="[^"]*outline-color:#fedcba/s,
+			"EngineCheckbox renders its EngineTheme root styles");
+		assert.match(formMarkup, /<div[^>]*style="[^"]*max-width:320px/s,
+			"CustomSelect renders its EngineTheme root styles on the outer wrapper");
+		assert.match(formMarkup, /<label[^>]*style="[^"]*color:#123456/s,
+			"CustomSelect renders its label slot styles");
+		assert.match(formMarkup, /role="combobox"[^>]*style="[^"]*border-color:#654321/s,
+			"CustomSelect renders its trigger slot styles");
 
 		const unsafeBuiltinTheme = createTheme({
 			id: "unsafe-builtin-theme-smoke",
