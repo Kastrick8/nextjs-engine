@@ -27,7 +27,7 @@ avoid CLS.
 }
 ```
 
-### Props
+### EngineImage props
 
 | Prop | Type | Default | Notes |
 |---|---|---|---|
@@ -145,7 +145,7 @@ EngineVideo does not create the `<video>` element until its wrapper is within
 }
 ```
 
-### Props
+### EngineVideo props
 
 | Prop | Type | Default | Notes |
 |---|---|---|---|
