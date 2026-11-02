@@ -43,4 +43,4 @@ For a schema-rendered component embedded in normal JSX, use `createComponent()` 
 
 ## Generation 3 migration
 
-Gen 3 retains `EngineProvider` but adds a scoped component registry to the provider contract and changes the default eligible `createPage()` path to compiler-first/server-first rendering. Do not assume Gen 2 provider placement or the legacy schema-renderer path is an identical Gen 3 contract. See the [Gen 2 → Gen 3 migration guide](../migration-to-gen3.md) and [Gen 3 EngineProvider reference](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/module/engine-provider.md).
+Gen 3 retains `EngineProvider` but adds a scoped component registry to the provider contract and changes the default eligible `createPage()` path to compiler-first/server-first rendering. Do not assume Gen 2 provider placement or the legacy schema-renderer path is an identical Gen 3 contract. See the [Gen 2 → Gen 3 migration guide](../migration-to-gen3.md) and [Gen 3 EngineProvider reference](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/module/engine-provider.md).
