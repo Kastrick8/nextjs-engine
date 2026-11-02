@@ -267,6 +267,14 @@ An action closes the overlay after running unless `close: false` is set:
 
 Use `disabled: true` to disable an action.
 
+
+For direct React use, an action's `onClick` may be a callback receiving the
+native `React.MouseEvent<HTMLButtonElement>`. In schema, use a handler-name
+string resolved by the Engine handler context. The action's `close` option
+defaults to closing the overlay after the action; set `close: false` when the
+panel should remain open.
+
+
 ---
 
 ## Dialog
