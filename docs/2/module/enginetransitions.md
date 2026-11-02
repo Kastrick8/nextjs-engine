@@ -108,6 +108,22 @@ export function GalleryLink() {
 }
 ```
 
+### EngineTransitionLink props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `href` | `string` | Required destination. |
+| `transition` | `EngineTransitionInput` | Required preset name or transition configuration. |
+| `target` | `string` | Native target; non-`_self` targets keep their normal browser navigation. |
+| `className` | `string` | Anchor class. |
+| `style` | `CSSProperties` | Anchor inline styles. |
+| `children` | `ReactNode` | Link contents. |
+| `onClick` | `React.MouseEventHandler<HTMLAnchorElement>` | Runs before transition navigation. Calling `preventDefault()` cancels the transition. |
+| `aria-label` / `aria-current` | React ARIA attribute types | Accessible anchor name and current-page state. |
+
+Gen 2 exposes this explicit prop set rather than inheriting the full Next.js
+`Link` component prop surface.
+
 ### Programmatic state/layout changes
 
 ```tsx
