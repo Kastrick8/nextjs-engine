@@ -486,10 +486,12 @@ export function CustomCanvas() {
 		maxDpr: 2,
 		adaptive: true,
 		adaptiveTargetFps: "display",
-		onDraw(gl, canvas, delta, frame, timing) {
-			const seconds = timing.elapsed * .001;
-			// custom drawing
-			if (finished) return false;
+		onDraw(gl, canvas) {
+			if (!("clearColor" in gl) || !("clear" in gl) || !("viewport" in gl)) return false;
+			gl.viewport(0, 0, canvas.width, canvas.height);
+			gl.clearColor(0.02, 0.04, 0.1, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			return false;
 		},
 	}), [setup]);
 
