@@ -37,3 +37,8 @@ Research Companion skills guided the audit and note structure. This host did not
 - Fixed the Gen 2 EngineCanvas and JSX examples to show the Client Component boundary and narrow the callback context union before using Canvas 2D-only methods. The Gen 2 public adaptive default remains `true`, matching the stable source.
 - Commits on this branch: EngineCanvas `f62ddfd`; React/JSX `9d61539`.
 - Local type-check, production build, and website preview were not run in this connector-only session. Recheck CI and required repository checks before merging.
+
+## Additional documentation pass — 2026-11-03
+- Corrected the Gen 2 `useEngineCanvas()` example: removed an undeclared `finished` identifier and replaced it with a type-narrowed WebGL 2D-independent clear operation that returns `false` after one frame. The main EngineCanvas and React/JSX examples also show the Client Component boundary and guard the callback's Canvas2D/WebGL/WebGL2 union.
+- Container tools available: Git 2.47.3, Node.js 22.16.0 and npm 10.9.2. Direct GitHub access failed at DNS resolution (`Could not resolve host: github.com`); no local clone/download or local type-check/build was performed.
+- Changes were committed through the connected GitHub integration to the existing documentation PR branch.
