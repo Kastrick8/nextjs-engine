@@ -112,7 +112,7 @@ export default function EngineOverlayTestPage() {
 				initialFocus="#controlled-dialog-action"
 				duration={260}
 			>
-				<button type="button" data-testid="controlled-dialog-action">Controlled action</button>
+				<button id="controlled-dialog-action" type="button" data-testid="controlled-dialog-action">Controlled action</button>
 				<button type="button" data-testid="reopen-controlled-dialog" onClick={() => setControlledOpen(true)}>
 					Reopen controlled dialog during exit
 				</button>
