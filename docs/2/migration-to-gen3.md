@@ -4,7 +4,7 @@
 
 Gen 2 and Gen 3 are separate API generations, not interchangeable labels for one identical runtime. Gen 2 remains the stable 2.x line. Gen 3 is a separate compiler-first/server-first alpha line. A code sample that imports successfully in Gen 3 may fail to compile or resolve in Gen 2.
 
-For the Gen 3 implementation and full migration workflow, see the [Generation 3 migration guide](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/guides/migrating-from-gen2.md) and [Generation 3 index](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/index.md).
+For the Gen 3 implementation and full migration workflow, see the [Generation 3 migration guide](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/guides/migrating-from-gen2.md) and [Generation 3 index](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/index.md).
 
 ## High-impact differences
 
@@ -16,7 +16,7 @@ For the Gen 3 implementation and full migration workflow, see the [Generation 3 
 | Component registry | Process-global registry | Global compatibility registry plus `EngineComponentRegistry` scoped instances | Scoped registry imports/types are absent in Gen 2. A Gen 3 scoped registry requires server-first rendering. |
 | Server entrypoint | `nextjs-engine/server` exposes device helpers/types | Adds EngineServer, EngineCORS, NENC dispatcher/session/security APIs and more | A named import such as `createNENCDispatcher` from the Gen 2 server entrypoint fails to resolve. |
 | Network/SEO entrypoints | No `nextjs-engine/network` or `nextjs-engine/seo` subpath | Adds both entrypoints | Imports from these Gen 3 subpaths fail in Gen 2. |
-| User/account security | Application-owned session checks plus upstream EngineAPIResolver auth | Adds opt-in NENC command authentication/authorization and account-session policy | Gen 3's NENC features are new; they are not hidden defaults in Gen 2 or APIStatic. |
+| User/account security | Application-owned session checks plus upstream EngineAPIResolver auth | Adds opt-in NENC command authentication/authorization and account-session policy; EngineServer adds request cookie/header access; EngineCookies adds a sealed credential vault | Gen 3's NENC features are new. EngineServer only reads request context, and EngineCookies protects vault entries; neither replaces account login/session validation. |
 | API config artifact | `.engine-api-compiled.json` | `.nextjs-engine/config/.apiconfig.json` | Update plugin output/config expectations and verify migration diagnostics. |
 | CLI | Newly introduced experimental Gen 2 NE-CLI | Expanded Gen 3 NE-CLI | Do not assume all CLI commands/options match. |
 
@@ -52,7 +52,7 @@ For multipart uploads, pass a real `FormData` as the body input and do not set t
 
 APIStatic is a browser-executed static route system in both generations. It validates declared inputs; it does not provide user sessions or permission authorization. EngineAPIResolver's Bearer/JWT/Basic/API-key/HMAC/PNP modes authenticate an outgoing upstream request, not the signed-in website user. Static endpoint descriptors bypass the resolver's HTTP-auth header path.
 
-For private account/dashboard work, Gen 2 must perform session and permission checks in an application-owned server endpoint or private backend. Gen 3 can optionally use NENC with `EngineCommand.auth`, `permissions`, `createNENCDispatcher()`, and `createNENCAccountSessionPolicy()`. You still own login/session issuance and the session store. See [Gen 2 security guide](./integrations/authentication-and-authorization.md) and [Gen 3 security guide](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/integrations/authentication-and-authorization.md).
+For private account/dashboard work, Gen 2 must perform session and permission checks in an application-owned server endpoint or private backend. Gen 3 can optionally use NENC with `EngineCommand.auth`, `permissions`, `createNENCDispatcher()`, and `createNENCAccountSessionPolicy()`. You still own login/session issuance and the session store. See [Gen 2 security guide](./integrations/authentication-and-authorization.md) and [Gen 3 security guide](https://github.com/Kastrick8/nextjs-engine/blob/docs/comprehensive-reference-main3/docs/3/integrations/authentication-and-authorization.md).
 
 ## Practical migration checklist
 
