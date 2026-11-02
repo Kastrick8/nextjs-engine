@@ -112,7 +112,7 @@ export const privateSearch = EngineCommand.create<SearchInput, Response>(
 );
 ```
 
-The declaration is scanned during build; `execute()` runs on the server. Keep command declarations out of client bundles. The login example now shows the session handoff. `sessionStore.issue()` is application-owned: it must validate the backend account payload, generate an opaque cryptographically random token, persist only its SHA-256 hash and session metadata, and return a `__Host-engine-session` cookie with `Secure`, `HttpOnly`, `Path=/` and an appropriate `SameSite` policy. The NENC account policy later hashes the cookie token and resolves that stored session. The default auth mode for a command is `"anonymous"`; it does not become account-protected unless you explicitly set `auth: "account"`. Declaring an empty permissions array also means no permission callback is required for that command.
+The declaration is scanned during build; `execute()` runs on the server. Keep command declarations out of client bundles. The login example now shows the session handoff. Because `account.login` is intentionally anonymous, the server example also applies a per-origin limit of ten attempts per minute. Rate limiting is opt-in; NENC does not silently apply a login throttle when no `commandSecurity` policy is configured. `sessionStore.issue()` is application-owned: it must validate the backend account payload, generate an opaque cryptographically random token, persist only its SHA-256 hash and session metadata, and return a `__Host-engine-session` cookie with `Secure`, `HttpOnly`, `Path=/` and an appropriate `SameSite` policy. The NENC account policy later hashes the cookie token and resolves that stored session. The default auth mode for a command is `"anonymous"`; it does not become account-protected unless you explicitly set `auth: "account"`. Declaring an empty permissions array also means no permission callback is required for that command.
 
 ## Standard account-session policy
 
@@ -124,6 +124,8 @@ import {
   createNENCAccountSessionPolicy,
   createNENCCommandAPIResolverFactory,
   createNENCDispatcher,
+  NENCCommandSecurityPolicy,
+  NENCRateLimiter,
 } from "nextjs-engine/server";
 
 const accountSessions = createNENCAccountSessionPolicy({
@@ -173,12 +175,28 @@ const api = createNENCCommandAPIResolverFactory({
   },
 });
 
+const commandSecurity = new NENCCommandSecurityPolicy({
+  rules: {
+    "account.login": {
+      rate: {
+        limiter: new NENCRateLimiter({
+          limit: 10,
+          windowMs: 60_000,
+          namespace: "login",
+        }),
+        key: ({ origin }) => origin,
+      },
+    },
+  },
+});
+
 export default function createHandler(manifest) {
   return createNENCDispatcher({
     manifest,
     api,
     authenticate: accountSessions.authenticate,
     authorize: accountSessions.authorize,
+    commandSecurity,
   });
 }
 ```
