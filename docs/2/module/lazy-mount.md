@@ -78,6 +78,12 @@ Set `contentVisibility={false}` when the browser's content-visibility optimizati
 
 These components defer mounting; they do not replace data authorization, server-side access checks, or application-level loading/error handling.
 
-## Generation 3 note
+## Generation 3 migration note
 
-The same components remain available in Gen 3, but the surrounding rendering architecture changes: eligible Engine schema trees may be compiled and rendered server-first. Do not infer that an entire Gen-2 provider-rendered page has the same Gen-3 client/server boundary. See [Migrating from Gen 2 to Gen 3](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/guides/migrating-from-gen2.md).
+The same component names and primary props remain available in Gen 3, but the activation implementation changes:
+
+- Gen 2 uses the one-shot `useInView()` hook. Once the wrapper enters the configured IntersectionObserver margin, the child mounts and remains mounted.
+- Gen 3 routes observation through `useEngineSchedule()` and EngineScheduler. A near-but-not-visible subtree can remain deferred while the scheduler reports frame pressure; visible or priority/eager work activates.
+- Gen 3's surrounding Engine schema renderer is compiler-first/server-first when eligible, but `LazyMount` and `LazySection` themselves remain client components.
+
+Do not assume identical activation timing or treat the lazy wrapper as a server-side data authorization boundary. See the [Generation 3 LazyMount reference](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/module/lazy-mount.md) and [Gen 2 → Gen 3 migration guide](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/guides/migrating-from-gen2.md).
