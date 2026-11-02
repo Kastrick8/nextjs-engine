@@ -123,7 +123,7 @@ also supports an explicit checked/defaultChecked contract.
 | `onChange` | `string` | Named handler receiving the current string value and React change event. |
 | `resizable` | `"none" \| "both" \| "horizontal" \| "vertical" \| "block" \| "inline"` | Controls the CSS resize behavior. |
 
-## Checkbox values## Checkbox values
+## Checkbox values
 
 Checkbox binding currently produces:
 
@@ -145,7 +145,7 @@ Repeated fields with the same binding name are accumulated into an array.
 | `onChange` | `string` | Named handler receiving `"on"`/the supplied value when checked, or `"off"` when unchecked, plus the React change event. |
 | `autoFocus` / `tabIndex` | `boolean` / `number` | Native focus behavior. |
 
-## Label## Label
+## Label
 
 ```ts
 { type: "label", props: { forInput: "email", children: "Email" } }
