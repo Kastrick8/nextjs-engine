@@ -70,7 +70,25 @@ export const loginCommand = EngineCommand.create<
     password: { type: "string", maxLength: 1024 },
   },
   async execute({ input, api }) {
-    return api.resolveRequest({ input });
+    const backend = await api.resolveRequest({ input });
+    if (!backend.ok) {
+      return Response.json({ error: "invalid_credentials" }, { status: 401 });
+    }
+
+    const account = await backend.json();
+    // Application-owned: validate the account payload, generate a secure random
+    // opaque token, store only its SHA-256 hash, and return the Set-Cookie value.
+    const session = await sessionStore.issue(account);
+
+    return Response.json(
+      { account: { id: account.id }, expiresAt: session.expiresAt },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+          "Set-Cookie": session.cookie,
+        },
+      },
+    );
   },
 });
 
@@ -94,7 +112,7 @@ export const privateSearch = EngineCommand.create<SearchInput, Response>(
 );
 ```
 
-The declaration is scanned during build; `execute()` runs on the server. Keep command declarations out of client bundles. The login example above only shows the transport contract: the server implementation must verify the submitted credentials with your identity provider and create the session. The default auth mode for a command is `"anonymous"`; it does not become account-protected unless you explicitly set `auth: "account"`. Declaring an empty permissions array also means no permission callback is required for that command.
+The declaration is scanned during build; `execute()` runs on the server. Keep command declarations out of client bundles. The login example now shows the session handoff. `sessionStore.issue()` is application-owned: it must validate the backend account payload, generate an opaque cryptographically random token, persist only its SHA-256 hash and session metadata, and return a `__Host-engine-session` cookie with `Secure`, `HttpOnly`, `Path=/` and an appropriate `SameSite` policy. The NENC account policy later hashes the cookie token and resolves that stored session. The default auth mode for a command is `"anonymous"`; it does not become account-protected unless you explicitly set `auth: "account"`. Declaring an empty permissions array also means no permission callback is required for that command.
 
 ## Standard account-session policy
 
