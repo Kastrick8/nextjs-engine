@@ -116,6 +116,9 @@ hooks; it never reads files from the browser.
 | `ansiForeground` | `string` | `codeColor` | Default ANSI text color |
 | `ansiBackground` | `string` | `codeBackground` | Default ANSI background color |
 | `markdownStyles` | `EngineMarkdownStyles` | — | Per-element CSS overrides for headings, prose, links, blockquotes, inline code, code blocks, tables, and rules |
+
+| `prettyPlease` | `EngineMarkdownPrettyPleaseConfig` | — | Optional syntax-highlighting provider/palette configuration. See [Pretty-please highlighting](./enginetheme.md#pretty-please-highlighting). |
+| `themeTemplates` | `EngineMarkdownThemeTemplates` | — | Local safe declarative templates or registered local adapters for Markdown sub-blocks. See [Safe block templates](./enginetheme.md#safe-block-templates-and-info-blocks). |
 | `disablepointformarkdownhash` | `boolean` | `false` | Stops h1 headings from being EngineScroll points |
 | `disablepointformarkdownhashhash` | `boolean` | `false` | Stops h2 headings from being EngineScroll points |
 
