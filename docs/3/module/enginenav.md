@@ -87,6 +87,23 @@ interface EngineNavItem {
 
 `active` is pathname-derived when omitted. A root `/` item is active only on `/`; other hrefs use prefix matching.
 
+
+The public `EngineNavItem` type also includes optional
+`"emd_show-url-icon"` and `"emd_url-icon-size"` fields. Set the first to
+`true` to show a favicon for an external HTTP(S) item; the size accepts
+`"auto"` or a numeric CSS-pixel size (clamped to 8–64). These are Gen 3
+fields and are not present in the Gen 2 item type.
+
+```ts
+{
+  label: "Repository",
+  href: "https://github.com",
+  "emd_show-url-icon": true,
+  "emd_url-icon-size": 18,
+}
+```
+
+
 ## Runtime style behavior
 
 Nav structural classes are generated during the initial render rather than being created only after a menu opens:
