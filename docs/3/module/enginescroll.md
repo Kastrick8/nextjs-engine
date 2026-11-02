@@ -505,6 +505,7 @@ cover the returned objects in more detail.
 
 | Method | Signature / result | Use |
 | --- | --- | --- |
+| `initialize()` | `void` | Initialize the shared browser runtime/listeners; normally called by EngineScroll operations or its provider |
 | `configure(policy)` | Returns the resolved site policy | Set global movement defaults |
 | `getPolicy()` / `resetPolicy()` | Read or restore the resolved policy | Inspect or reset global defaults |
 | `move(target, optionsOrOffset?, duration?)` | `boolean` | Navigate to a point, coordinate, special target, or DOM hash |
@@ -527,8 +528,7 @@ cover the returned objects in more detail.
 | `setFocus(value)` / `getFocus()` / `getFocusMode()` | `void` / `number` / focus mode | Configure or inspect the logical viewport focus |
 | `moveToHash(hash, duration?, offset?)` | `boolean` | Invoke the hash-target compatibility helper |
 
-`EngineScrollTarget` is `number | "top" | "bottom" | "current" |
-`#${string}`. Navigation options extend the common movement options with an
+`EngineScrollTarget` is `number | "top" | "bottom" | "current" | `#${string}`. Navigation options extend the common movement options with an
 optional point `group`. The legacy positional `move(target, offset, duration)`
 form remains supported, but new code should prefer the named options object.
 
