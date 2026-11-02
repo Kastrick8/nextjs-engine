@@ -89,6 +89,14 @@ interface EngineNavItem {
 
 `active` is pathname-derived when omitted. A root `/` item is active only on `/`; other hrefs use prefix matching.
 
+
+Gen 2's `EngineNavItem` type does not include the Gen 3
+`"emd_show-url-icon"` / `"emd_url-icon-size"` navigation-item properties.
+The exported `EngineNavLogo` type in both generations supports `src`,
+`href`, `alt`, `width`, and `height`; the dimension fields accept numbers
+or CSS strings.
+
+
 ## Runtime style behavior
 
 Nav structural classes are generated during the initial render rather than being created only after a menu opens:
