@@ -50,7 +50,7 @@ This makes Overlay UI a primitive system. Higher-level patterns such as command 
 
 ## Quick start
 
-### Dialog
+### Dialog quick start
 
 ```ts
 {
@@ -84,7 +84,7 @@ export default createPage({
 });
 ```
 
-### Drawer
+### Drawer quick start
 
 ```ts
 {
@@ -101,7 +101,7 @@ export default createPage({
 }
 ```
 
-### Popover
+### Popover quick start
 
 ```ts
 {
