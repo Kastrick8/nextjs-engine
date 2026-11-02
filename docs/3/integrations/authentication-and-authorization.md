@@ -119,18 +119,28 @@ const accountSessions = createNENCAccountSessionPolicy({
 // Select the private resolver on the server, after auth/authz succeeds.
 const api = createNENCCommandAPIResolverFactory({
   resolve({ commandName }) {
-    if (commandName !== "catalog.privateSearch") {
-      throw new Error("No backend is configured for this command.");
+    const baseURL = process.env.PRIVATE_BACKEND_URL!;
+    const token = process.env.PRIVATE_BACKEND_TOKEN!;
+
+    if (commandName === "account.login") {
+      return new EngineAPIResolver({
+        endpoint: baseURL + "/login",
+        method: "POST",
+        cache: "no-store",
+        auth: { type: "bearer", token },
+      });
     }
-    return new EngineAPIResolver({
-      endpoint: process.env.PRIVATE_BACKEND_URL + "/search",
-      method: "POST",
-      cache: "no-store",
-      auth: {
-        type: "bearer",
-        token: process.env.PRIVATE_BACKEND_TOKEN!,
-      },
-    });
+
+    if (commandName === "catalog.privateSearch") {
+      return new EngineAPIResolver({
+        endpoint: baseURL + "/search",
+        method: "POST",
+        cache: "no-store",
+        auth: { type: "bearer", token },
+      });
+    }
+
+    throw new Error("No backend is configured for this command.");
   },
 });
 
