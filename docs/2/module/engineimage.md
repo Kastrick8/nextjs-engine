@@ -48,6 +48,7 @@ avoid CLS.
 | `blurDataURL` | `string` | — | Optional blur-up placeholder |
 | `rounded` | `boolean \| string` | — | `true` = `8px` |
 | `caption` | `string` | — | Wraps image in `<figure>` with `<figcaption>` |
+| `onLoad` | `() => void` | — | Direct-component callback after the current image source loads. |
 
 ### Layout reservation and fluid sizing
 
@@ -156,6 +157,16 @@ EngineVideo does not create the `<video>` element until its wrapper is within
 | `preload` | `"none" \| "metadata" \| "auto"` | metadata normally, auto for autoplay | Passed through as the browser preload hint |
 | `rootMargin` | `string` | `"800px 0px"` | How early the video element mounts |
 | `eager` | `boolean` | `false` | Mount immediately |
+
+| `className` / `style` | `string` / `CSSProperties` | — | Class and inline styles for the media wrapper. |
+| `borderRadius` | `string` | — | Optional media corner radius. |
+| `onCanPlay` / `onEnded` | `() => void` | — | Direct React callbacks for media readiness and playback completion. |
+
+A `VideoSource` entry is `{ src: string; type?: string }`; use an ordered
+array to provide alternatives such as MP4, WebM, or HLS. The callbacks and the
+Gen 3-only image props above belong to the direct component API; they are not
+all part of the serializable image schema shape.
+
 
 Non-autoplay videos do not show a fake perpetual buffering spinner while using
 `preload="none"`. With the default configuration NE loads metadata near the
