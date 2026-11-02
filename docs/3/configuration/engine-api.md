@@ -85,7 +85,7 @@ const result = await response.json();
 | `hmac` | `secret` | Timestamped HMAC signature |
 | `pnp` | `privateKey` | Timestamped asymmetric signature |
 
-HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. Required credentials fail closed. Signed auth rejects multipart FormData bodies; use JSON or a non-signing mode.
+HMAC supports SHA-256/SHA-512; PNP supports Ed25519/RS256. **When `auth` is omitted, the resolver defaults to `{ type: "none" }` and sends no auth header.** Required credentials for an explicitly selected mode fail closed. Signed auth rejects multipart FormData bodies; use JSON or a non-signing mode.
 
 > **Authentication is not authorization.** These modes authenticate an outgoing Engine-to-provider request. They do not establish the signed-in website user, validate an account session, prove resource ownership, or check whether a user may access a dashboard. The upstream service must verify the credential/signature and enforce its own authorization. For visitor/account security, use a server Route Handler or the optional NENC path described in [Authentication and authorization](../integrations/authentication-and-authorization.md).
 
