@@ -22,6 +22,26 @@ and engine form binding continue to receive the selected value.
 | `size` | `"sm" \| "md" \| "lg"` | `"md"` | Visual size preset |
 | `onChange` | `string` | — | Named handler receiving `(value, option)` |
 
+
+### Direct React props
+
+The component adapter also accepts the following values beyond the serializable
+schema type:
+
+| Prop | Type | Notes |
+|---|---|---|
+| `value` | `string` | Controlled selected value. Use `defaultValue` for an initial uncontrolled selection. |
+| `onChange` | named handler string or `(value: string, option: SelectOption \| null) => void` | Direct React may pass a callback; schema uses a handler name. |
+| `ariaLabel` | `string` | Overrides the generated accessible name. |
+| `searchPlaceholder` | `string` | Placeholder for the search input; defaults to `"Search…"`. |
+| `emptyLabel` | `string` | Text shown when filtering leaves no options. The current Gen 3 source default is the literal `"{emptyLabel}"`; set this prop explicitly to provide user-facing text. |
+| `engineThemeStyles` | partial style map | Gen 3 theme slots: `label`, `trigger`, `clearButton`, `dropdown`, `list`, `searchInput`, `option`, and `emptyMessage`. Normally injected by the EngineTheme pipeline. |
+
+The serializable schema declaration continues to type `onChange` as a string;
+the function callback overload and controlled `value` are available on the
+direct React component adapter.
+
+
 An empty string is a valid option value. `defaultValue: ""` therefore selects an
 option whose `value` is `""` instead of being treated as an omitted default.
 
