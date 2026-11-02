@@ -29,6 +29,15 @@ These modes authenticate Engine to the upstream API. They do not authenticate th
 
 Keep keys, secrets, service tokens, and private signing keys in server-only configuration. Do not put them in `NEXT_PUBLIC_` variables, browser components, schemas, APIStatic route files, or serialized props.
 
+## EngineServer and EngineCookies are not a login provider
+
+Generation 3 also exports server-side helpers that are useful around account-aware applications, but neither one silently authenticates a user:
+
+- **`EngineServer` / `EngineServerSession`** provides read-only access to the current Next.js request's cookie/header stores, device profile, fetch helpers, and `redirect()`/`notFound()`. `server.cookies.get("session")` returns the cookie value; it does not verify the token, check expiry/revocation, resolve a principal, or grant permissions. Your identity/session provider or NENC policy must validate it.
+- **`EngineCookies` / `EngineCookieVault`** stores sealed credential payloads using AES-256-GCM and checks per-entry metadata before use. Its authorization rules can restrict owner/origin, command allowlists, and optional device-proof/environment binding. That protects access to a credential-vault entry; it is not a general website-account login/session store and does not establish a user's dashboard permissions. The built-in memory record store is process-local and not durable across restarts/instances.
+
+Use these helpers for their documented request-context and credential-vault roles. Use your identity provider plus server-side policy checks—or NENC's account-session policy—for account authentication and authorization.
+
 ## APIStatic has no account security system
 
 APIStatic compiles `.route` files to static JavaScript below `public/_static/endpoint`; the browser downloads and executes these modules. It validates declared input fields/types and supplies response/error helpers. It does not provide session authentication, account identity, roles, permission scopes, or per-user authorization.
