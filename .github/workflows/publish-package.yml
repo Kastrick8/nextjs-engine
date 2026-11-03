@@ -39,7 +39,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: npm-release-${{ inputs.version || github.ref_name }}
+  # Serialize publishers for each moving npm channel; different version tags on
+  # the same track must not race and move latest/alpha/beta backwards.
+  group: npm-release-${{ inputs.track || (startsWith(github.ref_name, 'package-alpha.') && 'alpha') || (startsWith(github.ref_name, 'package-beta.') && 'beta') || 'stable' }}
   cancel-in-progress: false
 
 jobs:
