@@ -730,6 +730,7 @@ jobs:
           NODE
 
       - name: Skip an already-published immutable npm version
+        if: steps.snapshot.outputs.migration_only != 'true'
         id: registry-version
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
