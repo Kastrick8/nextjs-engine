@@ -142,11 +142,12 @@ function inspectSources(root, targetGeneration) {
 				message: "RawComponentRenderer is not a supported Generation 3 public API.",
 				recommendation: "Replace it with a registered React component or normal JSX inside a React component."
 			});
-			const rawSchema = /(?:\btype\b|"type"|'type')\s*:\s*(["'])raw\1/.exec(source);
-			if (rawSchema) addFinding(blockers, {
-				code: "E3M002", file: relative, line: lineFor(rawSchema),
-				message: 'Schema nodes with type: "raw" are not supported by Generation 3.',
-				recommendation: "Replace the raw schema node with a registered component node; do not pass executable code through schema data."
+			const rawSchemaKey = /\btype\s*:\s*/.exec(code);
+			const rawSchemaValue = rawSchemaKey
+				? /^\s*(["'])raw\1/.exec(source.slice(rawSchemaKey.index + rawSchemaKey[0].length))
+				: null;
+			if (rawSchemaKey && rawSchemaValue) addFinding(blockers, {
+				code: "E3M002", file: relative, line: lineFor(rawSchemaKey),
 			});
 			const oldRenderer = /\bcompiler\s*:\s*\{[^}]*\bserverFirst\s*:\s*false\b/s.exec(code);
 			if (oldRenderer) addFinding(warnings, {
