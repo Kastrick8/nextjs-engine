@@ -241,6 +241,7 @@ A `ManimTimelineStep` has `action` (`Create`, `FadeIn`, `FadeOut`,
 |---|---|---|
 | `src` | `string` | Required GLTF/GLB/OBJ model path. |
 | `format` | `"gltf" \| "glb" \| "obj"` | Optional explicit model format. |
+| `materialSrc` | `string` | Optional OBJ Wavefront `.mtl` material-library path; used when `format: "obj"`. |
 | `camera` | `Manim3DCamera` | Camera position, FOV, near/far planes, look target and focus settings. |
 | `lights` | `Manim3DLight[]` | Ambient, directional, point or spot lights. |
 | `animation` | `ManimAnimationRoute` | Built-in file clip, source DSL animation, and optional per-bone overrides. |
