@@ -38,6 +38,19 @@ function stableCompare(a, b) {
   for (let i = 0; i < 3; i++) if (aa[i] !== bb[i]) return aa[i] - bb[i];
   return 0;
 }
+function expectedPackagePath(version, track) {
+  const match = String(version).match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.\d+)?$/);
+  if (!match) return null;
+  const [, major, minor, patch, prerelease] = match;
+  if (track === "stable" && !prerelease) {
+    const snapshot = Number(patch) === 0 ? major + "." + minor : version;
+    return "version/" + major + "." + minor + "/version/" + snapshot;
+  }
+  if ((track === "alpha" || track === "beta") && prerelease === track) {
+    return track + "/version/" + major + "." + track + "/version/" + version;
+  }
+  return null;
+}
 function markerAt(repo, commit) {
   try { return JSON.parse(git(repo, ["show", commit + ":.package-tag.json"])); }
   catch { return null; }
@@ -50,8 +63,7 @@ function isPackageRootCommit(repo, commit, item) {
     if (!marker || marker.schemaVersion !== 1 || marker.packageName !== NAME
       || marker.version !== item.version || marker.track !== item.track || marker.tag !== item.tag
       || marker.layout !== "npm-pack-root"
-      || typeof marker.packagePath !== "string" || !marker.packagePath.startsWith(expectedPrefix)
-      || marker.packagePath.split("/").includes("..")
+      || marker.packagePath !== expectedPackagePath(item.version, item.track)
       || !/^[0-9a-f]{40}$/.test(marker.archiveCommit || "")
       || !(marker.sourceCommit === null || /^[0-9a-f]{40}$/.test(marker.sourceCommit || ""))
       || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity || "")
@@ -92,7 +104,7 @@ function findPackage(repo, commit, version, track) {
 function buildRoot(repo, archiveCommit, folder, version, track, tag, sourceCommit) {
   if (!/^[0-9a-f]{40}$/.test(archiveCommit)) die("Invalid archive commit SHA.");
   if (sourceCommit && !/^[0-9a-f]{40}$/.test(sourceCommit)) die("Invalid source commit SHA.");
-  if (!folder || folder.startsWith("/") || folder.split("/").includes("..")) die("Unsafe package snapshot path.");
+  if (!folder || folder !== expectedPackagePath(version, track)) die("Package snapshot path does not match the version/track directory contract.");
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "ne-package-tag-"));
   const src = path.join(temp, "source"), packDir = path.join(temp, "pack");
   const untar = path.join(temp, "extract"), root = path.join(temp, "root");
