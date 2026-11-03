@@ -120,7 +120,7 @@ The v2.7.0 updater now checks the selected release before changing the project. 
 
 The Gen 2 preflight reports a potential generation switch and flags references such as `createPage()`, `createTheme()`, and `EngineTheme` for manual review. These are warnings, not proof that the target is incompatible. Gen 2 must remain a Generation 2 runtime; this check does not port Generation 3 features into it.
 
-`ne updater` displays the compatibility result and requires a separate acknowledgement for downgrades, generation changes, or compatibility warnings. Fatal preflight errors are blocking. The same report is available in `ne update --check` and `ne update --dry-run` without modifying project files.
+`ne updater` displays the compatibility result and requires a separate acknowledgement for downgrades, generation changes, or compatibility warnings. Fatal preflight errors are blocking. Unknown target or installed generations fail closed. After installation, NE verifies the installed package's generation against the selected release. The same report is available in `ne update --check` and `ne update --dry-run` without modifying project files.
 
 For non-interactive use, `--yes` must be combined with applicable acknowledgement flags:
 
@@ -134,4 +134,4 @@ ne update --channel stable --yes --allow-generation-change --acknowledge-compati
 - `--allow-generation-change` permits switching between Gen 2 and Gen 3.
 - `--acknowledge-compatibility` acknowledges static migration warnings.
 
-This scanner is deliberately limited and does not provide complete dependency/API/runtime compatibility analysis. It checks only known source patterns in a bounded number of project files. After installation NE verifies the exact package name and version; failures restore the backed-up package manifest and lockfiles.
+This scanner is deliberately limited and does not provide complete npm dependency-tree, TypeScript, peer-dependency, API, or runtime compatibility analysis. It does not run `npm audit`, `npm ls`, or a production build before changing dependencies. It checks only known source patterns in a bounded number of project files. After installation NE verifies the exact package name, version, and generation; a mismatch or installation failure enters the existing dependency-file restoration path.
