@@ -529,7 +529,7 @@ Responsive Canvas keeps a minimum height as a safety fallback. Give the canvas o
 
 ### Animation feels like 60 Hz on a high-refresh display
 
-Do not use `frame * delta` as an absolute clock. Read `timing.elapsed` from the fifth `onDraw` argument and leave `adaptiveTargetFps` at its default `"display"` value. Also keep `desynchronized={false}` unless you deliberately need the low-latency 2D presentation hint.
+Do not use `frame * delta` as an absolute clock. Read `timing.elapsed` from the fifth `onDraw` argument. `adaptiveTargetFps` is retained for compatibility and does not change Gen 3 RAF cadence, so setting it to `"display"` or a number has no runtime effect. Also keep `desynchronized={false}` unless you deliberately need the low-latency 2D presentation hint.
 
 ### Static callback keeps animating
 
