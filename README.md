@@ -41,18 +41,7 @@ The source manifest and rolling channel still identify alpha.1. The alpha.2 snap
 
 ## Compiler and rendering
 
-~~~mermaid
-flowchart TD
-  A["Typed page schema"] --> B["compilePage()"]
-  B --> C["Execution plan"]
-  C --> D["Static/server-owned output"]
-  C --> E["Targeted client islands"]
-  C --> F["Used-feature manifest"]
-  F --> G["Capability and fallback plan"]
-  D --> H["Next.js App Router"]
-  E --> H
-  G --> E
-~~~
+Generation 3 compiles a typed page schema before rendering. The compiler prepares an execution plan that records server-owned output, targeted client islands, required features, compatible fallbacks, assets, and diagnostics. This gives the renderer a clear plan for what stays on the server and what needs browser interaction.
 
 - `compilePage()` creates the compiled plan, feature manifest, fallback plan, assets, and diagnostics.
 - `createPage()` uses the Generation 3 compilation and server-rendering path.
@@ -175,6 +164,6 @@ Enjoying Next.js Engine? Supporting the work helps me spend more time improving 
 
 **Scan the QR code to support me!**
 
-[![Kastrick support QR code](./assets/qr-code.png)](https://www.buymeacoffee.com/Kastrick)
+[<img src="./assets/qr-code.png" alt="Kastrick support QR code" width="225" height="225" />](https://www.buymeacoffee.com/Kastrick)
 
 [buymeacoffee.com/Kastrick](https://www.buymeacoffee.com/Kastrick)
