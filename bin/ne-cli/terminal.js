@@ -1,6 +1,7 @@
 "use strict";
 
 const { channelLabel } = require("./channels");
+const { formatUpdateSafety } = require("./update-safety");
 
 const MENU_ITEMS = [
 	{ id: "dev", label: "Dev Server", command: "ne dev" },
@@ -148,7 +149,7 @@ function renderReleaseList(selected, catalog, context) {
 	return frame("ne › updater  [PLAY STORE]", rows);
 }
 
-function renderReleaseDetails(release, context) {
+function renderReleaseDetails(release, context, safetyReport) {
 	const installable = release && release.installable !== false && (release.source === "github" || release.source === "npm");
 	const sources = release && Array.isArray(release.sourceLabels) && release.sourceLabels.length
 		? release.sourceLabels.join(" + ")
@@ -174,8 +175,28 @@ function renderReleaseDetails(release, context) {
 		"",
 		installable ? "Selected action: " + paint("INSTALL NOW", "32;1") : "Selected action: " + paint("VIEW SOURCE ONLY", "33;1"),
 		installable ? "Press Enter or Space to install. Press Esc to return." : "Press Esc to return to the release list.",
+		safetyReport
+			? (safetyReport.blockers.length
+				? "Preflight: BLOCKED · " + safetyReport.blockers.length + " compatibility error(s)"
+				: safetyReport.requiresAcknowledgement
+					? "Preflight: acknowledgement required · Enter to review"
+					: "Preflight: no known blockers or risk changes detected")
+			: "Preflight: will run before installation",
 	];
 	return frame("ne › updater › " + (release && release.version || "release"), rows);
+}
+
+
+function renderSafetyReview(release, report) {
+	const lines = report ? formatUpdateSafety(report).split("\\n") : [
+		"[NE] Compatibility preflight was unavailable.",
+		"Installation cannot continue without a successful review."
+	];
+	lines.push("");
+	lines.push(report && report.blockers.length
+		? "INSTALL BLOCKED · Resolve the compatibility errors first."
+		: "Press Enter to acknowledge and continue. Press Esc to go back.");
+	return frame("ne › updater › safety review › " + (release && release.version || "target"), lines);
 }
 
 function parseMouseSequence(sequence) {
@@ -198,6 +219,7 @@ function runTui(options) {
 	let priorScreen = initialScreen === "dashboard" ? null : "dashboard";
 	let selected = 0;
 	let selectedRelease = null;
+	let selectedSafety = null;
 	let inputBuffer = "";
 	let settled = false;
 	let busy = false;
@@ -223,7 +245,8 @@ function runTui(options) {
 			if (screen === "warning") content = frame("EXPERIMENTAL NOTICE", ["NE is experimental and may change or be removed in a future release.", "Review the selected channel before applying updates.", "", "Press any key to continue. Press Ctrl+C to quit."]);
 			else if (screen === "dashboard") content = renderDashboard(selected, context);
 			else if (screen === "releases") content = renderReleaseList(selected, catalog, context);
-			else content = renderReleaseDetails(selectedRelease, context);
+			else if (screen === "safety") content = renderSafetyReview(selectedRelease, selectedSafety);
+			else content = renderReleaseDetails(selectedRelease, context, selectedSafety);
 			process.stdout.write("\x1b[2J\x1b[H\x1b[?25l" + content + "\n");
 		}
 
@@ -281,19 +304,63 @@ function runTui(options) {
 			if (screen === "releases") {
 				selectedRelease = catalog.releases[Math.min(selected, Math.max(0, catalog.releases.length - 1))] || null;
 				if (!selectedRelease) return;
+				selectedSafety = null;
+				busy = true;
+				try {
+					if (typeof settings.inspectRelease === "function") {
+						selectedSafety = await settings.inspectRelease(selectedRelease);
+					}
+				} catch (error) {
+					selectedSafety = {
+						currentVersion: null,
+						targetVersion: selectedRelease.version,
+						currentGeneration: null,
+						targetGeneration: null,
+						isDowngrade: false,
+						generationChange: false,
+						scannedFiles: 0,
+						blockers: [{
+							code: "WNE999",
+							file: "",
+							line: 0,
+							message: "The compatibility preflight could not complete: " + (error && error.message || String(error)),
+							recommendation: "Retry the review before installing."
+						}],
+						warnings: [],
+						requiresAcknowledgement: true
+					};
+				} finally {
+					busy = false;
+				}
 				screen = "details";
 				draw();
+				return;
+			}
+			if (screen === "safety" && selectedRelease) {
+				if (selectedSafety && selectedSafety.blockers && selectedSafety.blockers.length) return;
+				finish({ action: "install", release: selectedRelease, safetyAcknowledged: true });
 				return;
 			}
 			if (screen === "details" && selectedRelease) {
 				if (selectedRelease.installable === false || !["github", "npm"].includes(selectedRelease.source)) {
 					return;
 				}
-				finish({ action: "install", release: selectedRelease });
+				if (selectedSafety && selectedSafety.blockers && selectedSafety.blockers.length) return;
+				if (selectedSafety && selectedSafety.requiresAcknowledgement) {
+					screen = "safety";
+					draw();
+					return;
+				}
+				finish({ action: "install", release: selectedRelease, safetyAcknowledged: Boolean(selectedSafety) });
 			}
 		}
 
 		function back() {
+			if (screen === "safety") {
+				screen = "details";
+				draw();
+				return;
+			}
 			if (screen === "details") {
 				screen = "releases";
 				draw();
