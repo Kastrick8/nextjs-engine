@@ -195,7 +195,7 @@ function inspectSources(root, targetGeneration) {
 					recommendation: "Replace the raw schema node with a registered component node. Do not pass executable component code through schema data."
 				});
 			}
-			for (const call of findCreatePageCalls(source)) {
+			for (const call of findCreatePageCalls(code)) {
 				const callCode = maskStrings(call.body);
 				const callLine = source.slice(0, call.start).split(/\r?\n/).length;
 				if (/\bcompiler\s*:\s*\{[^}]*\bserverFirst\s*:\s*false\b/.test(callCode)) addFinding(warnings, {
