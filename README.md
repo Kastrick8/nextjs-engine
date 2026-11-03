@@ -44,14 +44,7 @@ Generation 2 builds on foundations established by earlier Engine generations whi
 
 ## Rendering model
 
-~~~mermaid
-flowchart TD
-  A["Typed page schema"] --> B["NE schema renderer"]
-  B --> C["Engine components"]
-  C --> D["Shared styling and runtime"]
-  D --> E["React 19"]
-  E --> F["Next.js App Router"]
-~~~
+A typed page schema flows through the NE schema renderer into the appropriate Engine components. Shared styling and runtime services provide consistent behavior across those components, while React 19 renders the result inside the Next.js App Router.
 
 Your application owns routes, data, server actions, and business logic.
 
@@ -158,7 +151,7 @@ Enjoying Next.js Engine? Supporting the work helps me spend more time improving 
 
 **Scan the QR code to support me!**
 
-[![Kastrick support QR code](./assets/qr-code.png)](https://www.buymeacoffee.com/Kastrick)
+[<img src="./assets/qr-code.png" alt="Kastrick support QR code" width="225" height="225" />](https://www.buymeacoffee.com/Kastrick)
 
 [buymeacoffee.com/Kastrick](https://www.buymeacoffee.com/Kastrick)
 
