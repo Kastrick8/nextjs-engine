@@ -178,7 +178,7 @@ const OVERLAY_NODE_NAMESPACES: Readonly<Record<string, "dialog" | "drawer" | "po
 
 const OVERLAY_STYLE_SLOTS: readonly EngineOverlayThemeSlot[] = [
 	"trigger", "backdrop", "panel", "header", "title", "description",
-	"content", "actions", "actionPrimary", "actionSecondary", "actionDanger",
+	"content", "actions", "actionPrimary", "actionSecondary", "actionDanger", "actionGhost",
 	"closeButton",
 ];
 

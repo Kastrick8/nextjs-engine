@@ -68,6 +68,29 @@ export default function EngineOverlayTestPage() {
 				<button type="button" data-testid="standalone-popover-action">Standalone popover action</button>
 			</EnginePopover>
 
+			<EngineDialog
+				triggerLabel="Open ghost action themed dialog"
+				title="Ghost action theme"
+				engineOverlayTheme={{
+					styles: {
+						actionGhost: { color: "#b45309" },
+						actionSecondary: { color: "#0f766e" },
+					},
+				}}
+				actions={[{ label: "Dedicated ghost action", variant: "ghost", close: false }]}
+			>
+				<p>The dedicated ghost slot should take precedence.</p>
+			</EngineDialog>
+
+			<EngineDialog
+				triggerLabel="Open ghost action fallback dialog"
+				title="Ghost action fallback"
+				engineOverlayTheme={{ styles: { actionSecondary: { color: "#0f766e" } } }}
+				actions={[{ label: "Fallback ghost action", variant: "ghost", close: false }]}
+			>
+				<p>When no ghost slot exists, the secondary slot is retained.</p>
+			</EngineDialog>
+
 			<EngineDrawer triggerLabel="Open settings drawer" title="Settings drawer" side="right" closeOnEscape trapFocus restoreFocus initialFocus="#drawer-action-initial-focus">
 				<button id="drawer-action-initial-focus" type="button" data-testid="drawer-action">Drawer action</button>
 			</EngineDrawer>
@@ -86,8 +109,13 @@ export default function EngineOverlayTestPage() {
 				closeOnEscape
 				trapFocus={false}
 				restoreFocus
+				initialFocus="#controlled-dialog-action"
+				duration={260}
 			>
-				<button type="button" data-testid="controlled-dialog-action">Controlled action</button>
+				<button id="controlled-dialog-action" type="button" data-testid="controlled-dialog-action">Controlled action</button>
+				<button type="button" data-testid="reopen-controlled-dialog" onClick={() => setControlledOpen(true)}>
+					Reopen controlled dialog during exit
+				</button>
 			</EngineDialog>
 		</main>
 	);

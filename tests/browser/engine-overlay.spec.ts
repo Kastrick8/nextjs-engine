@@ -77,6 +77,24 @@ test("standalone popover is non-modal and outside pointer closes it", async ({ p
 	await expect(popover).toBeHidden();
 });
 
+test("ghost action theme slot overrides secondary and keeps the backwards-compatible fallback", async ({ page }) => {
+	await page.goto("/engine-overlay-test");
+
+	await page.getByRole("button", { name: "Open ghost action themed dialog" }).click();
+	const dedicatedDialog = page.getByRole("dialog", { name: "Ghost action theme" });
+	await expect(dedicatedDialog).toBeVisible();
+	await expect(dedicatedDialog.getByRole("button", { name: "Dedicated ghost action" }))
+		.toHaveCSS("color", "rgb(180, 83, 9)");
+	await page.keyboard.press("Escape");
+	await expect(dedicatedDialog).toBeHidden();
+
+	await page.getByRole("button", { name: "Open ghost action fallback dialog" }).click();
+	const fallbackDialog = page.getByRole("dialog", { name: "Ghost action fallback" });
+	await expect(fallbackDialog).toBeVisible();
+	await expect(fallbackDialog.getByRole("button", { name: "Fallback ghost action" }))
+		.toHaveCSS("color", "rgb(15, 118, 110)");
+});
+
 test("drawer releases its scroll lock and restores focus on Escape", async ({ page }) => {
 	await page.goto("/engine-overlay-test");
 
@@ -110,6 +128,52 @@ test("controlled open state reports one close transition and restores the extern
 	await expect(page.getByRole("dialog", { name: "Controlled dialog" })).toBeHidden();
 	await expect(page.getByTestId("controlled-changes")).toHaveText("1");
 	await expect(trigger).toBeFocused();
+});
+
+test("controlled dialog can reopen during its exit transition without stale cleanup", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "no-preference" });
+	await page.goto("/engine-overlay-test");
+
+	const body = page.locator("body");
+	const initialOverflow = await body.evaluate((element) => (element as HTMLElement).style.overflow);
+	const backgroundAction = page.getByTestId("background-action");
+	const backgroundIsInert = () => backgroundAction.evaluate((element) => element.closest("[inert]") !== null);
+	const trigger = page.getByTestId("open-controlled-dialog");
+	const modal = page.getByRole("dialog", { name: "Controlled dialog" });
+
+	await trigger.click();
+	await expect(modal).toBeVisible();
+	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe("hidden");
+	await expect.poll(backgroundIsInert).toBe(true);
+
+	await page.keyboard.press("Escape");
+	await expect(modal).toHaveAttribute("data-state", "closed");
+	await expect(page.getByTestId("controlled-changes")).toHaveText("1");
+
+	// The closing surface is still mounted and animating. Keep a real pointer
+	// activation (so browser focus behavior is exercised) while bypassing only
+	// Playwright's animation-stability wait for this intentional mid-exit click.
+	const reopen = page.getByTestId("reopen-controlled-dialog");
+	await expect(reopen).toBeAttached();
+	await reopen.click({ force: true });
+
+	await expect(modal).toHaveAttribute("data-state", "open");
+	await expect(page.getByTestId("controlled-dialog-action")).toBeFocused();
+	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe("hidden");
+	await expect.poll(backgroundIsInert).toBe(true);
+
+	await page.waitForTimeout(320);
+	await expect(modal).toBeVisible();
+	await expect(modal).toHaveAttribute("data-state", "open");
+	await expect.poll(backgroundIsInert).toBe(true);
+	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe("hidden");
+
+	await page.keyboard.press("Escape");
+	await expect(modal).toBeHidden();
+	await expect.poll(() => body.evaluate((element) => (element as HTMLElement).style.overflow)).toBe(initialOverflow);
+	await expect.poll(backgroundIsInert).toBe(false);
+	await expect(page.getByTestId("controlled-changes")).toHaveText("2");
+	await expect(page.getByTestId("focus-fallback")).toBeFocused();
 });
 
 test("reduced motion keeps overlay interaction functional without transition delay", async ({ page }) => {
