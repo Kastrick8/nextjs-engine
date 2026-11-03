@@ -51,7 +51,7 @@ async function run() {
 		assert.deepEqual(downgrade.blockers.map((finding) => finding.code).sort(), ["E3M001", "E3M002"]);
 		const rawSchemaFinding = downgrade.blockers.find((finding) => finding.code === "E3M002");
 		assert.match(rawSchemaFinding.message, /type: "raw"/);
-		assert.match(rawSchemaFinding.recommendation, /registered component schema|React component/);
+		assert.match(rawSchemaFinding.recommendation, /registered component node|React component/);
 		assert.ok(downgrade.blockers.every((finding) => finding.file === "app/page.tsx"),
 			"code examples inside string literals must not be reported as migration blockers");
 		assert.match(safety.formatUpdateSafety(downgrade), /Replace the raw schema node/);
