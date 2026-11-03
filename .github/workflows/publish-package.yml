@@ -852,7 +852,10 @@ jobs:
           console.log("archive_commit="+marker.archiveCommit);
           NODE
           cat "$RUNNER_TEMP/tag-metadata.env" >> "$GITHUB_OUTPUT"
-          source "$RUNNER_TEMP/tag-metadata.env"
+          VERSION="$(sed -n 's/^version=//p' "$RUNNER_TEMP/tag-metadata.env")"
+          TRACK="$(sed -n 's/^track=//p' "$RUNNER_TEMP/tag-metadata.env")"
+          ARCHIVE_COMMIT="$(sed -n 's/^archive_commit=//p' "$RUNNER_TEMP/tag-metadata.env")"
+          test -n "$VERSION" && test -n "$TRACK" && test -n "$ARCHIVE_COMMIT"
           git merge-base --is-ancestor "$ARCHIVE_COMMIT" refs/remotes/origin/package/main || {
             echo "The package-root tag's archive provenance is not part of package/main history." >&2; exit 1;
           }
