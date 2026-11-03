@@ -59,6 +59,46 @@ jobs:
             node .github/scripts/package-root-git-tags.mjs migrate "$GITHUB_WORKSPACE/archive" --seed
           fi
 
+      - name: Verify every version tag is package-root shaped
+        if: inputs.apply
+        working-directory: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          const git=(...args)=>execFileSync("git",args,{encoding:"utf8"}).trim();
+          const tags=git("tag","--list").split("\n").filter(Boolean);
+          const packageTags=tags.filter((tag)=>/^package\.\d+\.\d+\.\d+$/.test(tag)
+            ||/^package-(?:alpha|beta)\.\d+\.\d+\.\d+-(?:alpha|beta)\.\d+$/.test(tag));
+          if(!packageTags.length) throw new Error("No package version tags were found.");
+          for(const tag of packageTags){
+            const commit=git("rev-parse",tag+"^{commit}");
+            const marker=JSON.parse(git("show",commit+":.package-tag.json"));
+            const pkg=JSON.parse(git("show",commit+":package.json"));
+            if(marker.layout!=="npm-pack-root"||marker.tag!==tag||marker.version!==pkg.version
+              ||marker.packageName!=="@kastrick/nextjs-engine"||marker.migrationOnly!==true
+              ||pkg.name!=="@kastrick/nextjs-engine") {
+              throw new Error("Tag is not a valid migration-only package-root snapshot: "+tag);
+            }
+            const roots=git("ls-tree","--name-only",commit).split("\n");
+            if(roots.includes("version")||roots.includes("alpha")||roots.includes("beta")||roots.includes(".github")) {
+              throw new Error("Archive repository directories leaked into package tag "+tag);
+            }
+          }
+          const latest=git("rev-parse","package.latest^{commit}");
+          const stable=packageTags.filter((tag)=>/^package\.\d+\.\d+\.\d+$/.test(tag)).sort((a,b)=>{
+            const av=a.slice("package.".length).split(".").map(Number);
+            const bv=b.slice("package.".length).split(".").map(Number);
+            for(let i=0;i<3;i++)if(av[i]!==bv[i])return av[i]-bv[i];
+            return 0;
+          });
+          if(stable.length&&latest!==git("rev-parse",stable.at(-1)+"^{commit}")){
+            throw new Error("package.latest does not point to the newest stable package-root tag.");
+          }
+          console.log("Verified "+packageTags.length+" package version tags and package.latest.");
+          NODE
+
       - name: Summarize package-tag operation
         if: always()
         env:
