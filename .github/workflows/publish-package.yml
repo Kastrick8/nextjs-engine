@@ -733,49 +733,55 @@ jobs:
         id: dist-tag
         working-directory: archive
         env:
-          VERSION: ${{ steps.release-meta.outputs.version }}
-          TRACK: ${{ steps.release-meta.outputs.track }}
+          VERSION: \${{ steps.release-meta.outputs.version }}
+          TRACK: \${{ steps.release-meta.outputs.track }}
         shell: bash
         run: |
           set -euo pipefail
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/current-dist-tags.json"
+          export CURRENT_DIST_TAGS="$RUNNER_TEMP/current-dist-tags.json"
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
           import path from "node:path";
-          const stable=[], alpha=[], beta=[];
+          const {VERSION,TRACK}=process.env;
+          const registryTags=JSON.parse(fs.readFileSync(process.env.CURRENT_DIST_TAGS,"utf8"));
+          const stable=[],alpha=[],beta=[];
           function walk(dir){
-            if(!fs.existsSync(dir)) return;
+            if(!fs.existsSync(dir))return;
             for(const e of fs.readdirSync(dir,{withFileTypes:true})){
               const full=path.join(dir,e.name);
-              if(e.isDirectory()) walk(full);
+              if(e.isDirectory())walk(full);
               else if(e.name==="package.json"){
                 const p=JSON.parse(fs.readFileSync(full,"utf8"));
-                if(p.name!=="@kastrick/nextjs-engine") continue;
-                if(/^\d+\.\d+\.\d+$/.test(p.version||"")) stable.push(p.version);
-                else if(/^\d+\.\d+\.\d+-alpha\.\d+$/.test(p.version||"")) alpha.push(p.version);
-                else if(/^\d+\.\d+\.\d+-beta\.\d+$/.test(p.version||"")) beta.push(p.version);
+                if(p.name!=="@kastrick/nextjs-engine")continue;
+                if(/^\\d+\\.\\d+\\.\\d+$/.test(p.version||""))stable.push(p.version);
+                else if(/^\\d+\\.\\d+\\.\\d+-alpha\\.\\d+$/.test(p.version||""))alpha.push(p.version);
+                else if(/^\\d+\\.\\d+\\.\\d+-beta\\.\\d+$/.test(p.version||""))beta.push(p.version);
               }
             }
           }
-          walk("version"); walk("alpha"); walk("beta");
-          const sortNums=(list, prerelease)=>list.sort((a,b)=>{
-            const rx=prerelease?new RegExp("^([0-9]+)\\.([0-9]+)\\.([0-9]+)-"+prerelease+"\\.([0-9]+)$"):null;
-            const A=rx?a.match(rx).slice(1).map(Number):a.split(".").map(Number);
-            const B=rx?b.match(rx).slice(1).map(Number):b.split(".").map(Number);
-            for(let i=0;i<A.length;i++)if(A[i]!==B[i])return A[i]-B[i];
-            return 0;
-          });
-          sortNums(stable,null); sortNums(alpha,"alpha"); sortNums(beta,"beta");
-          const byTrack={stable,alpha,beta};
-          const list=byTrack[process.env.TRACK];
-          if(!list||!list.length)throw new Error("No "+process.env.TRACK+" snapshots found.");
-          const newest=list.at(-1);
-          const versionTag=process.env.TRACK==="stable"?"package."+process.env.VERSION:
-            process.env.TRACK==="alpha"?"package-alpha."+process.env.VERSION:"package-beta."+process.env.VERSION;
-          const channelTag=newest===process.env.VERSION?(process.env.TRACK==="stable"?"latest":process.env.TRACK):"";
+          walk("version");walk("alpha/version");walk("beta/version");
+          const compare=(a,b)=>{
+            const aa=String(a||"").match(/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+))?$/);
+            const bb=String(b||"").match(/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+))?$/);
+            if(!aa)return -1;if(!bb)return 1;
+            for(let i=1;i<=3;i++){const d=Number(aa[i])-Number(bb[i]);if(d)return d;}
+            if(!aa[4]&&!bb[4])return 0;
+            if(!aa[4])return 1;if(!bb[4])return -1;
+            if(aa[4]!==bb[4])return aa[4]>bb[4]?1:-1;
+            return Number(aa[5])-Number(bb[5]);
+          };
+          for(const list of [stable,alpha,beta])list.sort(compare);
+          const list={stable,alpha,beta}[TRACK];
+          if(!list||!list.includes(VERSION))throw new Error("The selected release is not present in the archive catalog.");
+          const versionTag=TRACK==="stable"?"package."+VERSION:"package-"+TRACK+"."+VERSION;
+          const proposedChannel=TRACK==="stable"?"latest":TRACK;
+          const channelTag=list.at(-1)===VERSION&&compare(VERSION,registryTags[proposedChannel])>=0?proposedChannel:"";
           console.log("value="+versionTag);
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
           NODE
+
       - name: Skip an already-published immutable npm version
         id: registry-version
         env:
@@ -804,12 +810,13 @@ jobs:
           NODE_AUTH_TOKEN: ""
         run: npm publish --access public --tag "$DIST_TAG"
 
-      - name: Apply npm dist-tags
+      - name: Apply and verify npm dist-tags
         working-directory: archive
         env:
-          VERSION: ${{ steps.release-meta.outputs.version }}
-          VERSION_TAG: ${{ steps.dist-tag.outputs.version_tag }}
-          CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
+          VERSION: \${{ steps.release-meta.outputs.version }}
+          TRACK: \${{ steps.release-meta.outputs.track }}
+          VERSION_TAG: \${{ steps.dist-tag.outputs.version_tag }}
+          CHANNEL_TAG: \${{ steps.dist-tag.outputs.channel_tag }}
           NODE_AUTH_TOKEN: ""
         shell: bash
         run: |
@@ -819,6 +826,8 @@ jobs:
           if [[ -n "$CHANNEL_TAG" ]]; then
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
+          node .github/scripts/verify-npm-dist-tags.mjs "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE"
 
       - name: Release summary
         if: always()
