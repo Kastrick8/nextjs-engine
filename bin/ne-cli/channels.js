@@ -129,16 +129,24 @@ async function fetchPackageTagMarker(tagName) {
 
 function validPackageTagMarker(marker, version, track, tagName) {
 	if (!marker || typeof marker !== "object") return false;
-	const expectedPrefix = track === "stable" ? "version/" : track + "/version/";
-	return marker.schemaVersion === 1
+	const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.\d+)?$/);
+	if (!match) return false;
+	const [, major, minor, patch, prerelease] = match;
+	let expectedPath = null;
+	if (track === "stable" && !prerelease) {
+		const snapshot = Number(patch) === 0 ? major + "." + minor : version;
+		expectedPath = "version/" + major + "." + minor + "/version/" + snapshot;
+	} else if ((track === "alpha" || track === "beta") && prerelease === track) {
+		expectedPath = track + "/version/" + major + "." + track + "/version/" + version;
+	}
+	return Boolean(expectedPath)
+		&& marker.schemaVersion === 1
 		&& marker.packageName === PACKAGE_NAME
 		&& marker.version === version
 		&& marker.track === track
 		&& marker.tag === tagName
 		&& marker.layout === "npm-pack-root"
-		&& typeof marker.packagePath === "string"
-		&& marker.packagePath.startsWith(expectedPrefix)
-		&& !marker.packagePath.split("/").includes("..")
+		&& marker.packagePath === expectedPath
 		&& /^[0-9a-f]{40}$/.test(marker.archiveCommit || "")
 		&& (marker.sourceCommit === null || /^[0-9a-f]{40}$/.test(marker.sourceCommit || ""))
 		&& /^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity || "");
