@@ -203,7 +203,7 @@ function renderReleaseDetails(release, context, safetyReport) {
 
 
 function renderSafetyReview(release, report) {
-	const lines = report ? formatUpdateSafety(report).split("\\n") : [
+	const lines = report ? formatUpdateSafety(report).split("\n") : [
 		"[NE] Compatibility preflight was unavailable.",
 		"Installation cannot continue without a successful review."
 	];
@@ -367,7 +367,6 @@ function runTui(options) {
 				if (selectedRelease.installable === false || !["github", "npm"].includes(selectedRelease.source)) {
 					return;
 				}
-				if (selectedSafety && selectedSafety.blockers && selectedSafety.blockers.length) return;
 				if (selectedSafety && selectedSafety.requiresAcknowledgement) {
 					screen = "safety";
 					draw();
