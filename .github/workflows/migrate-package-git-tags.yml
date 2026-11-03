@@ -48,7 +48,7 @@ jobs:
       - name: Migrate existing Git tags
         working-directory: archive
         env:
-          APPLY: \${{ inputs.apply }}
+          APPLY: ${{ inputs.apply }}
         shell: bash
         run: |
           set -euo pipefail
