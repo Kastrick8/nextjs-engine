@@ -53,10 +53,10 @@ jobs:
           set -euo pipefail
           if [[ "$APPLY" == "true" ]]; then
             echo "Applying package-only Git tag migration."
-            node .github/scripts/package-root-git-tags.mjs migrate "$GITHUB_WORKSPACE/archive" --apply --push
+            node .github/scripts/package-root-git-tags.mjs migrate "$GITHUB_WORKSPACE/archive" --seed --seed --apply --push
           else
             echo "Dry-run only. No Git refs will be changed."
-            node .github/scripts/package-root-git-tags.mjs migrate "$GITHUB_WORKSPACE/archive"
+            node .github/scripts/package-root-git-tags.mjs migrate "$GITHUB_WORKSPACE/archive" --seed
           fi
 
       - name: Verify every package version tag is package-root shaped
@@ -76,7 +76,8 @@ jobs:
             const marker=JSON.parse(execFileSync("git",["show",commit+":.package-tag.json"],{encoding:"utf8"}));
             const pkg=JSON.parse(execFileSync("git",["show",commit+":package.json"],{encoding:"utf8"}));
             if(marker.layout!=="npm-pack-root"||marker.tag!==tag||marker.version!==pkg.version
-              ||marker.packageName!=="@kastrick/nextjs-engine"||pkg.name!=="@kastrick/nextjs-engine") {
+              ||marker.packageName!=="@kastrick/nextjs-engine"||marker.migrationOnly!==true
+              ||pkg.name!=="@kastrick/nextjs-engine") {
               throw new Error("Tag is not a valid package-root snapshot: "+tag);
             }
             const roots=execFileSync("git",["ls-tree","--name-only",commit],{encoding:"utf8"}).trim().split("\n");
