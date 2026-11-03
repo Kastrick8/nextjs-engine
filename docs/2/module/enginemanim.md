@@ -270,10 +270,18 @@ The exported React components take their configuration through the same
 `cprop` shape as schema nodes:
 
 ```tsx
+"use client";
+
 import { EngineManim, EngineManim3D } from "nextjs-engine";
 
-<EngineManim cprop={{ manim: twoDConfig }} width={640} height={360} />
-<EngineManim3D cprop={{ manim3d: threeDConfig }} width={640} height={360} />
+export function AnimationExamples() {
+  return (
+    <>
+      <EngineManim cprop={{ manim: twoDConfig }} width={640} height={360} />
+      <EngineManim3D cprop={{ manim3d: threeDConfig }} width={640} height={360} />
+    </>
+  );
+}
 ```
 
 | Component | Required prop | Optional props |
