@@ -286,8 +286,11 @@ async function commandUpdate(root, options) {
 		throw new Error("No verified installable release was found for " + (options.version || options.channel) + ". The catalog may list npm prereleases or Git tags without a verified installation artifact.");
 	}
 	if (options.check || options.dryRun) {
-		process.stdout.write("[NE] Selected " + release.version + " [" + channels().channelLabel(release) + "] from " + release.sourceLabel + ".\n");
-		if (options.dryRun) process.stdout.write("[NE] Dry run only; the project was not modified.\n");
+		const safetyReport = project().inspectUpdateSafety(root, release);
+		process.stdout.write("[NE] Selected " + release.version + " [" + channels().channelLabel(release) + "] from " + release.sourceLabel + ".\\n");
+		process.stdout.write(project().formatUpdateSafety(safetyReport) + "\\n");
+		if (safetyReport.blockers.length) process.stdout.write("[NE] This selection is BLOCKED by compatibility errors.\\n");
+		if (options.dryRun) process.stdout.write("[NE] Dry run only; the project was not modified.\\n");
 		return;
 	}
 	if (!(await askToInstall(release, options))) {
