@@ -52,3 +52,13 @@ Research Companion skills guided the audit and note structure. This host did not
 - Expanded CustomSelect's direct React contract with controlled value, callback overload, accessible name, search placeholder and empty-state label; retained the Gen 2 No options found default.
 - Structural validation on the changed module pages found balanced Markdown code fences and no duplicate real section headings after correcting the accidental joined headings.
 - No local type-check, production build, or docs-site preview was run because the container cannot resolve GitHub DNS. The current PR workflow checks must pass before merging.
+
+## Animation, Canvas, SVG and primitive follow-up — 2026-11-03
+- Expanded EngineManim with exact 2D/3D configuration tables, shape/timeline contracts and direct React component prop signatures. The direct React example is now a self-contained Client Component.
+- Documented the Generation 2 Manim3D boundary: `Manim3DConfig` has no `materialSrc` and no special `$root` bone target; use named bones.
+- Confirmed the Gen 2 EngineCanvas runtime still supports measured adaptive DPR: `adaptive` defaults to true and `adaptiveTargetFps` controls the target cadence for DPR recovery/degradation.
+- Clarified that `engine: "skia"` is registered but currently throws because its CanvasKit backend is a stub; use `2d` or `3d` for a working renderer.
+- Added EngineSVG public helper signatures (`exportSVG(scene, width, height): string`, browser-only `importSVG(svgSource): ECNode[]`) and documented the exported `ECRenderingEngine` contract.
+- Expanded primitives common-prop coverage, corrected the Button `type` contract and EngineLink schema callback type, added Box axis gaps, and documented direct EngineCard `coverClassName`.
+- Structural validation covered the Gen 2 primitives, Canvas, Manim and SVG pages plus shared Shader references: all scanned pages had balanced code fences and unique actual headings.
+- Local clone/build/type-check/site preview remain unavailable because outbound DNS to GitHub is blocked in the container. The GitHub connector remains the only repository editing/inspection path used.
