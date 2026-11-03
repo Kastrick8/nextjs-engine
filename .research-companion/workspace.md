@@ -82,3 +82,13 @@ Research Companion skills guided the audit and note format. This host session di
 - Expanded primitives common-prop coverage, corrected the Button `type` contract and EngineLink schema callback type, added Box axis gaps, Gen 3 external URL icon props and EngineTheme primitive style slots. Added direct EngineCard `coverClassName` and theme style props.
 - Structural validation covered the Gen 3/Gen 2 primitives, Canvas, Manim, SVG and Shader pages plus Gen 3 Nav/Hero/Image/Video/Overlay pages: all scanned pages had balanced code fences and unique actual headings.
 - Local clone/build/type-check/site preview remain unavailable because outbound DNS to GitHub is blocked in the container. The GitHub connector remains the only repository editing/inspection path used.
+
+ 
+## Engine3D scene-model audit — 2026-11-03
+- Expanded `docs/3/module/engine3d.md` with a self-contained Client Component quick start, root-exported EC scene factories/types, topology and mesh-metric semantics, camera defaults, material behavior, retained identity/update rules and renderer lifecycle.
+- Added a cross-link from `docs/3/module/enginecanvas.md` to the focused Engine3D reference.
+- Cross-checked the 3D API against `src/engine/core/enginecanvas/ECTypes.ts`, `ECGraphicsModel.ts`, `Engine3D.ts`, `RenderingEngine.ts`, `ECEngineRegistry.ts`, `src/engine/core/enginecanvas/index.ts` and the root `src/engine/index.ts` barrel.
+- The EC model types/factories, Engine3D implementation, RenderingEngine contract, and EngineCanvas engine registry have matching source blob hashes on `main-2` and `main-3`; the documentation is therefore shared for this 3D contract while the Canvas runtime's generation-specific adaptive-DPR behavior remains documented separately.
+- Source-backed limits recorded in the guide: Engine3D uses unlit MeshBasicMaterial/LineBasicMaterial; surface strokes and strokeWidth are not applied; only rim shading adds a back-face shell; custom environment currently sets a solid background color; there is no public light/shadow/HDRI/sky/floor/texture asset API in this renderer; SVG-like paths support M/L/H/V/C/Q/Z with curves flattened to segments.
+- Factory-created mesh metric methods close over the vertex/index arrays supplied at creation. The guide recommends creating a fresh mesh from a factory when replacing geometry rather than mutating the typed-array fields on an existing factory-created mesh.
+- Connector edits only; no local clone, type-check, build or documentation-site preview was available because the container still cannot resolve GitHub DNS.
