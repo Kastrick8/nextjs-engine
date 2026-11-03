@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { inspectUpdateSafety, formatUpdateSafety, confirmUpdateSafety } = require("./update-safety");
+const { inspectUpdateSafety, formatUpdateSafety, confirmUpdateSafety, generationFromManifest } = require("./update-safety");
 const {
 	createPrivateTempDirectory,
 	readRegularFileNoFollow,
@@ -403,10 +403,19 @@ async function downloadVerifiedArtifact(root, release) {
 	}
 }
 
-function verifyInstalledVersion(root, release, artifact) {
+function verifyInstalledVersion(root, release, artifact, expectedGeneration) {
 	const installed = readInstalledPackage(root);
 	if (!installed || installed.name !== PACKAGE_NAME || installed.version !== release.version) {
 		throw new Error("Installed package identity did not match " + PACKAGE_NAME + "@" + release.version + ".");
+	}
+	if (expectedGeneration) {
+		const installedGeneration = generationFromManifest(installed, installed.version);
+		if (installedGeneration !== expectedGeneration) {
+			throw new Error(
+				"Installed package generation did not match the selected release (expected Gen " +
+				expectedGeneration + ", received " + (installedGeneration || "unknown") + ")."
+			);
+		}
 	}
 	if (artifact) {
 		const lockPath = ["npm-shrinkwrap.json", "package-lock.json"].map((name) => path.join(root, name))
@@ -541,7 +550,7 @@ async function installRelease(root, release, requestedChannel, options) {
 		managerInstallStarted = true;
 		await installWithManager(root, installTarget);
 		if (artifact) normalizeArtifactDependency(root, release, artifact);
-		const installed = verifyInstalledVersion(root, release, artifact);
+		const installed = verifyInstalledVersion(root, release, artifact, safetyReport.targetGeneration);
 		const resolvedChannel = requestedChannel || (release.track === "beta" ? "latest-green" : release.track);
 		saveState(root, {
 			schemaVersion: 1,
@@ -669,6 +678,7 @@ async function runBuild(root) {
 
 module.exports = {
 	PACKAGE_NAME,
+	verifyInstalledVersion,
 	inspectUpdateSafety,
 	formatUpdateSafety,
 	findProjectRoot,
