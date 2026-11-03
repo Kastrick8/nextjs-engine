@@ -54,10 +54,11 @@ function readInstalled(root) {
 	const manifest = readJson(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"));
 	const state = readJson(path.join(root, ".nextjs-engine", "config", "ne.config.json"));
 	if (manifest && manifest.name === "@kastrick/nextjs-engine") {
+		const stateMatchesInstalledVersion = Boolean(state && state.installedVersion === manifest.version);
 		return {
 			...manifest,
-			engineGeneration: manifest.engineGeneration || (state && state.engineGeneration),
-			sourceBranch: manifest.sourceBranch || (state && state.sourceBranch)
+			engineGeneration: manifest.engineGeneration || (stateMatchesInstalledVersion && state.engineGeneration),
+			sourceBranch: manifest.sourceBranch || (stateMatchesInstalledVersion && state.sourceBranch)
 		};
 	}
 	if (state && typeof state.installedVersion === "string") {
