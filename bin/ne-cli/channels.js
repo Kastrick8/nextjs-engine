@@ -147,6 +147,7 @@ function validPackageTagMarker(marker, version, track, tagName) {
 		&& marker.tag === tagName
 		&& marker.layout === "npm-pack-root"
 		&& marker.packagePath === expectedPath
+		&& typeof marker.migrationOnly === "boolean"
 		&& /^[0-9a-f]{40}$/.test(marker.archiveCommit || "")
 		&& (marker.sourceCommit === null || /^[0-9a-f]{40}$/.test(marker.sourceCommit || ""))
 		&& /^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity || "");
