@@ -584,15 +584,15 @@ jobs:
             git push origin HEAD:refs/heads/package/main
           fi
 
-      - name: Create and push the version tag
+      - name: Create package-root commit and push the version tag
         id: create-tag
         working-directory: archive
         env:
-          VERSION: ${{ steps.release-meta.outputs.version }}
-          TRACK: ${{ steps.release-meta.outputs.track }}
-          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
-          TARGET: ${{ steps.prepare.outputs.target }}
-          REFRESHED: ${{ steps.prepare.outputs.refreshed }}
+          VERSION: \${{ steps.release-meta.outputs.version }}
+          TRACK: \${{ steps.release-meta.outputs.track }}
+          PINNED_SHA: \${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: \${{ steps.prepare.outputs.target }}
+          REFRESHED: \${{ steps.prepare.outputs.refreshed }}
         shell: bash
         run: |
           set -euo pipefail
@@ -602,31 +602,73 @@ jobs:
             beta) TAG="package-beta.$VERSION" ;;
             *) echo "Unsupported track: $TRACK" >&2; exit 1 ;;
           esac
-          git fetch --tags origin
+
+          git fetch --no-tags origin refs/heads/package/main:refs/remotes/origin/package/main
+          ARCHIVE_COMMIT="$(git rev-parse HEAD)"
+          if [[ "$(git rev-parse refs/remotes/origin/package/main)" != "$ARCHIVE_COMMIT" ]]; then
+            echo "package/main does not point at the just-created archive snapshot; refusing to tag a stale commit." >&2
+            exit 1
+          fi
+
+          RESULT="$(node .github/scripts/package-root-git-tags.mjs create "$GITHUB_WORKSPACE/archive" "$TARGET" "$ARCHIVE_COMMIT" "$VERSION" "$TRACK" "$PINNED_SHA" "$TAG")"
+          NEW_PACKAGE_SHA="$(printf '%s' "$RESULT" | node -e 'const fs=require("node:fs");const x=JSON.parse(fs.readFileSync(0,"utf8"));if(!/^[0-9a-f]{40}$/.test(x.commitSha||""))throw new Error("Invalid package-root commit SHA");process.stdout.write(x.commitSha)')"
+          test -n "$NEW_PACKAGE_SHA"
+          git cat-file -e "$NEW_PACKAGE_SHA:package.json"
+          git cat-file -e "$NEW_PACKAGE_SHA:engine/index.ts"
+          git cat-file -e "$NEW_PACKAGE_SHA:.package-tag.json"
+
+          PUSH_TAG=false
+          PACKAGE_SHA="$NEW_PACKAGE_SHA"
           if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
+            EXISTING_COMMIT="$(git rev-parse "$TAG^{commit}")"
             if [[ "$REFRESHED" == "true" ]]; then
-              # The unpublished snapshot was deliberately refreshed after the registry check.
-              git tag -f -a "$TAG" -m "@kastrick/nextjs-engine $VERSION refreshed from $PINNED_SHA"
-              git push --force origin "refs/tags/$TAG"
+              # Refresh is only allowed by the earlier registry guard for an unpublished snapshot.
+              PUSH_TAG=true
+            elif git cat-file -e "$EXISTING_COMMIT:.package-tag.json" 2>/dev/null; then
+              git show "$EXISTING_COMMIT:.package-tag.json" > "$RUNNER_TEMP/existing-package-tag.json"
+              node - "$RUNNER_TEMP/existing-package-tag.json" "$VERSION" "$TRACK" "$TAG" "$PINNED_SHA" <<'NODE'
+          const fs=require("node:fs");
+          const [file,version,track,tag,sourceCommit]=process.argv.slice(2);
+          const marker=JSON.parse(fs.readFileSync(file,"utf8"));
+          if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
+            ||marker.version!==version||marker.track!==track||marker.tag!==tag
+            ||marker.layout!=="npm-pack-root"||marker.sourceCommit!==sourceCommit
+            ||typeof marker.migrationOnly!=="boolean") {
+            throw new Error("Existing package tag does not match this release's exact source pin.");
+          }
+          NODE
+              if git show "$EXISTING_COMMIT:.package-tag.json" | grep -Fq '"migrationOnly": true'; then
+                PUSH_TAG=true
+              else
+                PACKAGE_SHA="$EXISTING_COMMIT"
+              fi
             else
-              git cat-file -e "$TAG:$TARGET/package.json"
-              git show "$TAG:$TARGET/package.json" > "$RUNNER_TEMP/tag-package.json"
-              git show "$TAG:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
-              node - "$RUNNER_TEMP/tag-package.json" "$VERSION" <<'NODE'
+              git cat-file -e "$EXISTING_COMMIT:$TARGET/package.json" || {
+                echo "Existing tag is neither a verified package-root tag nor a recognized legacy archive tag." >&2; exit 1;
+              }
+              git show "$EXISTING_COMMIT:$TARGET/package.json" > "$RUNNER_TEMP/legacy-tag-package.json"
+              git show "$EXISTING_COMMIT:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/legacy-tag-upstream.md"
+              node - "$RUNNER_TEMP/legacy-tag-package.json" "$VERSION" <<'NODE'
           const fs=require("node:fs");
           const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          if(p.name!=="@kastrick/nextjs-engine"||p.version!==process.argv[3]) throw new Error("Existing tag points to a different package version.");
+          if(p.name!=="@kastrick/nextjs-engine"||p.version!==process.argv[3]) {
+            throw new Error("Legacy package tag points to a different package version.");
+          }
           NODE
-              grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/tag-upstream.md" || {
-                echo "Tag $TAG exists but does not match source pin $PINNED_SHA." >&2; exit 1;
-              }
-              git merge-base --is-ancestor "$TAG^{commit}" refs/remotes/origin/package/main || {
-                echo "Tag $TAG exists but is not reachable from package/main." >&2; exit 1;
-              }
+              grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/legacy-tag-upstream.md" \
+                || grep -Fq -- "- Resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/legacy-tag-upstream.md" || {
+                  echo "Legacy tag $TAG does not prove the requested source commit; refusing to retag." >&2; exit 1;
+                }
+              PUSH_TAG=true
             fi
           else
-            git tag -a "$TAG" -m "@kastrick/nextjs-engine $VERSION from $PINNED_SHA"
-            git push origin "refs/tags/$TAG"
+            PUSH_TAG=true
+          fi
+
+          if [[ "$PUSH_TAG" == "true" ]]; then
+            git tag --force --annotate "$TAG" --message "@kastrick/nextjs-engine $VERSION package-root snapshot" "$NEW_PACKAGE_SHA"
+            git push --force origin "refs/tags/$TAG"
+            PACKAGE_SHA="$NEW_PACKAGE_SHA"
           fi
 
           if [[ "$TRACK" == "stable" ]]; then
@@ -643,11 +685,19 @@ jobs:
           NODE
           )"
             if [[ "$VERSION" == "$LATEST_STABLE" ]]; then
-              git tag -f -a package.latest -m "Latest stable @kastrick/nextjs-engine is $VERSION" "$TAG^{commit}"
-              git push --force origin refs/tags/package.latest
+              CURRENT_LATEST=""
+              if git rev-parse -q --verify refs/tags/package.latest^{commit} >/dev/null; then
+                CURRENT_LATEST="$(git rev-parse package.latest^{commit})"
+              fi
+              if [[ "$CURRENT_LATEST" != "$PACKAGE_SHA" ]]; then
+                git tag --force --annotate package.latest --message "Latest stable @kastrick/nextjs-engine is $VERSION" "$PACKAGE_SHA"
+                git push --force origin refs/tags/package.latest
+              fi
             fi
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "package_root_commit=$PACKAGE_SHA" >> "$GITHUB_OUTPUT"
+          echo "archive_commit=$ARCHIVE_COMMIT" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch versioned prerelease GitHub Release builder
         if: ${{ inputs.track == 'alpha' || inputs.track == 'beta' }}
