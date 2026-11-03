@@ -77,6 +77,45 @@ function maskStrings(source) {
 		(match) => match.replace(/[^\r\n]/g, " "));
 }
 
+function maskStringsKeepingSchemaKeys(source) {
+	return source.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\x60(?:\\[\s\S]|[^\x60\\])*\x60)/g,
+		(match) => match === '"type"' || match === "'type'"
+			? match
+			: match.replace(/[^\r\n]/g, " "));
+}
+
+function findCreatePageCalls(source) {
+	const calls = [];
+	const marker = /\bcreatePage\s*\(/g;
+	let match;
+	while ((match = marker.exec(source)) !== null) {
+		const open = source.indexOf("(", match.index);
+		let depth = 1;
+		let quote = "";
+		let escaped = false;
+		for (let index = open + 1; index < source.length; index += 1) {
+			const character = source[index];
+			if (quote) {
+				if (escaped) escaped = false;
+				else if (character === "\\") escaped = true;
+				else if (character === quote) quote = "";
+				continue;
+			}
+			if (character === "'" || character === '"' || character === "\x60") {
+				quote = character;
+				continue;
+			}
+			if (character === "(") depth += 1;
+			else if (character === ")" && --depth === 0) {
+				calls.push({ start: match.index, body: source.slice(open + 1, index) });
+				marker.lastIndex = index + 1;
+				break;
+			}
+		}
+	}
+	return calls;
+}
+
 function sourceFiles(root) {
 	const found = [];
 	for (const relative of SOURCE_ROOTS) {
@@ -141,9 +180,10 @@ function inspectSources(root, targetGeneration) {
 			if (rawRenderer) addFinding(blockers, {
 				code: "E3M001", file: relative, line: lineFor(rawRenderer),
 				message: "RawComponentRenderer is not a supported Generation 3 public API.",
-				recommendation: "Replace it with a registered React component or normal JSX inside a React component."
+				recommendation: "Replace it with a registered React component via createComponent()/registerComponent(), or render normal JSX inside your own React component."
 			});
-			for (const rawSchemaKey of code.matchAll(/\btype\s*:/g)) {
+			const schemaCode = maskStringsKeepingSchemaKeys(source);
+			for (const rawSchemaKey of schemaCode.matchAll(/(?:\btype\b|"type"|'type')\s*:/g)) {
 				const rawSchemaValue = /^\s*(["'])raw\1/.exec(
 					source.slice(rawSchemaKey.index + rawSchemaKey[0].length)
 				);
@@ -151,23 +191,24 @@ function inspectSources(root, targetGeneration) {
 					code: "E3M002",
 					file: relative,
 					line: lineFor(rawSchemaKey),
-					message: 'A schema node with type: "raw" is not supported in Generation 3.',
-					recommendation: 'Replace the raw schema node with a supported registered component schema or a normal React component.'
+					message: 'Schema nodes with type: "raw" are not supported by Generation 3.',
+					recommendation: "Replace the raw schema node with a registered component node. Do not pass executable component code through schema data."
 				});
 			}
-			const oldRenderer = /\bcompiler\s*:\s*\{[^}]*\bserverFirst\s*:\s*false\b/s.exec(code);
-			if (oldRenderer) addFinding(warnings, {
-				code: "W3M002", file: relative, line: lineFor(oldRenderer),
-				message: "A createPage compiler.serverFirst: false compatibility override was detected.",
-				recommendation: "Keep it only while the page still depends on the legacy renderer."
-			});
-			const createPage = /\bcreatePage\s*\(/.exec(code);
-			const handlers = /\bhandlers\s*:/.exec(code);
-			if (createPage && handlers) addFinding(warnings, {
-				code: "W3M003", file: relative, line: lineFor(handlers),
-				message: "Named createPage handlers select the Generation 3 provider compatibility path.",
-				recommendation: "Review the Gen 3 migration guide and retain handlers only where they are needed."
-			});
+			for (const call of findCreatePageCalls(source)) {
+				const callCode = maskStrings(call.body);
+				const callLine = source.slice(0, call.start).split(/\r?\n/).length;
+				if (/\bcompiler\s*:\s*\{[^}]*\bserverFirst\s*:\s*false\b/.test(callCode)) addFinding(warnings, {
+					code: "W3M002", file: relative, line: callLine,
+					message: "createPage() explicitly enables the Generation 2 client-renderer compatibility path with compiler.serverFirst: false.",
+					recommendation: "Remove this override when the page no longer depends on the legacy renderer. Keep it only as a deliberate migration escape hatch."
+				});
+				if (/\bhandlers\s*:/.test(callCode)) addFinding(warnings, {
+					code: "W3M003", file: relative, line: callLine,
+					message: "Named handlers in createPage() select the Generation 3 provider compatibility path instead of the normal server-first execution path.",
+					recommendation: "Keep named handlers while needed; for a fully server-first page, prefer direct React components/slots or another supported interaction boundary and follow the Gen 3 migration guide."
+				});
+			}
 		} else if (targetGeneration === 2) {
 			const gen3Api = /\b(?:createPage|createTheme|EngineTheme)\b/.exec(code);
 			if (gen3Api) addFinding(warnings, {
