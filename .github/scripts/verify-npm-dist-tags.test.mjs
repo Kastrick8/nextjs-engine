@@ -125,3 +125,42 @@ test("rejects an Alpha release that advances npm latest", () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /must never advance npm's default latest/);
 });
+
+test("repairs a missing npm latest alias from the newest published stable snapshot", () => {
+  const result = runVerifier({
+    "package-alpha.3.0.0-alpha.2": "3.0.0-alpha.2",
+    alpha: "3.0.0-alpha.2",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.registry.latest, "2.6.2");
+});
+
+test("repairs a stable latest alias that trails a newer published stable archive", () => {
+  const result = runVerifier({
+    "package-alpha.3.0.0-alpha.2": "3.0.0-alpha.2",
+    alpha: "3.0.0-alpha.2",
+    latest: "2.6.0",
+  }, { published: ["2.6.0", "2.6.2"] });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.registry.latest, "2.6.2");
+});
+
+test("fails closed when a prerelease latest cannot be repaired to a published stable version", () => {
+  const result = runVerifier({
+    "package-alpha.3.0.0-alpha.2": "3.0.0-alpha.2",
+    alpha: "3.0.0-alpha.2",
+    latest: "3.0.0-alpha.2",
+  }, { published: [] });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /no published stable archive version was found/);
+});
+
+test("rejects an immutable version tag that points at a different package version", () => {
+  const result = runVerifier({
+    "package-alpha.3.0.0-alpha.2": "3.0.0-alpha.1",
+    alpha: "3.0.0-alpha.2",
+    latest: "2.6.2",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /expected 3.0.0-alpha.2/);
+});
