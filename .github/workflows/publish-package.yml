@@ -750,6 +750,7 @@ jobs:
         run: npm publish --access public --tag "$VERSION_TAG"
 
       - name: Apply and verify npm dist-tags
+        if: steps.snapshot.outputs.migration_only != 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
@@ -847,6 +848,7 @@ jobs:
             ||marker.layout!=="npm-pack-root"||marker.packagePath!==expectedPath
             ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
             ||!(marker.sourceCommit===null||/^[0-9a-f]{40}$/.test(marker.sourceCommit||""))
+            ||typeof marker.migrationOnly!=="boolean"
             ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Tag is not a verified package-root snapshot.");
           }
@@ -862,6 +864,7 @@ jobs:
           console.log("version="+version);
           console.log("track="+track);
           console.log("archive_commit="+marker.archiveCommit);
+          console.log("migration_only="+(marker.migrationOnly===true));
           NODE
           cat "$RUNNER_TEMP/tag-metadata.env" >> "$GITHUB_OUTPUT"
           VERSION="$(sed -n 's/^version=//p' "$RUNNER_TEMP/tag-metadata.env")"
@@ -943,7 +946,7 @@ jobs:
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Publish the selected snapshot
-        if: steps.registry-version.outputs.should_publish == 'true'
+        if: steps.snapshot.outputs.migration_only != 'true' && steps.registry-version.outputs.should_publish == 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           DIST_TAG: ${{ steps.snapshot.outputs.version_tag }}
