@@ -15,8 +15,18 @@ const presentation = require("../bin/ne-cli/presentation");
 const diagnostics = require("../bin/ne-cli/diagnostics");
 const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
 const { EventEmitter } = require("node:events");
-const tmp = require("tmp");
 const fileSystem = require("../bin/ne-cli/file-system");
+
+function createTempDirectory(prefix) {
+	const name = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+	if (process.platform !== "win32") fs.chmodSync(name, 0o700);
+	return {
+		name,
+		removeCallback() {
+			fs.rmSync(name, { recursive: true, force: true });
+		},
+	};
+}
 
 async function main() {
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
@@ -135,6 +145,28 @@ async function main() {
 	assert.equal(helpResult.status, 0, "ne --help does not require a project package.json");
 	assert.match(helpResult.stdout, /Open the interactive dashboard/);
 	assert.equal(helpResult.stderr, "");
+	assert.match(helpResult.stdout, /Next\.js Engine CLI — Generation 3/);
+	assert.match(helpResult.stdout, /ne <command> -h/);
+	const updateHelpResult = spawnSync(process.execPath, [executable, "update", "-h"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(updateHelpResult.status, 0, "ne update -h works without a project directory");
+	assert.match(updateHelpResult.stdout, /Usage\n  ne update/);
+	assert.match(updateHelpResult.stdout, /--channel <channel>/);
+	assert.match(updateHelpResult.stdout, /--force/);
+	assert.match(updateHelpResult.stdout, /--dry-run/);
+	assert.doesNotMatch(updateHelpResult.stdout, /Commands\n/);
+	const updateHelpAlias = spawnSync(process.execPath, [executable, "help", "update"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(updateHelpAlias.status, 0);
+	assert.equal(updateHelpAlias.stdout, updateHelpResult.stdout, "ne help update matches ne update -h");
+	const devHelpResult = spawnSync(process.execPath, [executable, "dev", "--help"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(devHelpResult.status, 0);
+	assert.match(devHelpResult.stdout, /ne dev — Development server/);
+	assert.equal(startupPackageManifest.dependencies.tmp, undefined, "the CLI no longer needs an external tmp package");
 
 	const cliModulePath = path.resolve(__dirname, "../bin/ne-cli/cli.js");
 	const lazyProbe = [
@@ -539,7 +571,7 @@ async function main() {
 	assert.match(cli.getHelp(), /ne update --channel/);
 	assert.match(cli.getHelp(), /npx ne --help/);
 	const originalInstallRelease = project.installRelease;
-	const dashboardDirectory = tmp.dirSync({ prefix: "ne-dashboard-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	const dashboardDirectory = createTempDirectory("ne-dashboard-smoke-");
 	let dashboardInstall = null;
 	project.installRelease = async (...args) => { dashboardInstall = args; };
 	try {
@@ -591,7 +623,7 @@ async function main() {
 	assert.ok(Number(pageIndicator[1]) >= 4, "release list can navigate past the first 24 entries");
 	assert.match(laterPage, /of 40/, "release list reports the full release inventory size");
 
-	const tempDirectory = tmp.dirSync({ prefix: "ne-cli-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	const tempDirectory = createTempDirectory("ne-cli-smoke-");
 	const temp = tempDirectory.name;
 	try {
 		const atomicFile = path.join(temp, "atomic-state.json");
