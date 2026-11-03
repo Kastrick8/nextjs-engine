@@ -438,6 +438,8 @@ Stable nodes reuse Three.js objects across frames. Transform/material values upd
 
 This is important for larger scenes because rendering does not recreate every BufferGeometry/material/mesh on every RAF.
 
+For the full scene-model factories and types, camera defaults, material behavior, retained-update rules, and the current lighting/shadow limits, see [Engine3D retained rendering](./engine3d.md).
+
 ---
 
 ## EngineSVG retained mode
