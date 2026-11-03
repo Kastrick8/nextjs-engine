@@ -406,8 +406,9 @@ async function main() {
 	assert.match(cli.getHelp(), /ne updater/);
 	assert.match(cli.getHelp(), /ne update\s+List or install a release/);
 	assert.doesNotMatch(cli.getHelp(), /--channel/, "the overview keeps release flags in command-specific help");
-	assert.match(cli.getHelp(), /npx ne --help/);
-	assert.match(cli.getHelp(), /Shell operators are rejected/);
+	assert.match(cli.getHelp(), /ne --help/);
+	assert.match(cli.getHelp(), /npx --yes --package=@kastrick\\/nextjs-engine ne updater/);
+	assert.match(cli.getHelp(), /without a shell/);
 	const rootHelpResult = spawnSync(process.execPath, [executable, "--help"], {
 		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
 	});
