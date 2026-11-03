@@ -1120,36 +1120,67 @@ jobs:
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
 
-      - name: Create or verify immutable prerelease tag
-        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+      - name: Create or verify immutable package-root prerelease tag
+        if: \${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
         env:
-          TAG_NAME: ${{ steps.snapshot.outputs.version_tag }}
-          VERSION: ${{ steps.snapshot.outputs.version }}
-          DIRECTORY: ${{ steps.snapshot.outputs.directory }}
-          SOURCE_SHA: ${{ steps.snapshot.outputs.source_commit }}
+          TAG_NAME: \${{ steps.snapshot.outputs.version_tag }}
+          VERSION: \${{ steps.snapshot.outputs.version }}
+          TRACK: \${{ steps.snapshot.outputs.track }}
+          DIRECTORY: \${{ steps.snapshot.outputs.directory }}
+          SOURCE_SHA: \${{ steps.snapshot.outputs.source_commit }}
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --force --tags origin
-          if git rev-parse -q --verify "refs/tags/$TAG_NAME^{commit}" >/dev/null; then
-            git cat-file -e "$TAG_NAME:$DIRECTORY/package.json"
-            git show "$TAG_NAME:$DIRECTORY/package.json" > "$RUNNER_TEMP/tag-package.json"
-            git show "$TAG_NAME:$DIRECTORY/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
-            node - "$RUNNER_TEMP/tag-package.json" "$VERSION" "$RUNNER_TEMP/tag-upstream.md" "$SOURCE_SHA" <<'NODE'
-          const fs = require("node:fs");
-          const [manifestPath, version, provenancePath, sourceSha] = process.argv.slice(2);
-          const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-          const provenance = fs.readFileSync(provenancePath, "utf8");
-          const commit = provenance.match(/^- (?:Requested and resolved source commit|Resolved source commit):\s*\`?([0-9a-f]{40})\`?\s*$/m)?.[1];
-          if (manifest.name !== "@kastrick/nextjs-engine" || manifest.version !== version || commit !== sourceSha) {
-            throw new Error("Existing prerelease tag does not match the archive snapshot provenance.");
-          }
-          NODE
-          else
-            git tag -a "$TAG_NAME" -m "@kastrick/nextjs-engine $VERSION from $SOURCE_SHA" HEAD
-            git push origin "refs/tags/$TAG_NAME"
+          ARCHIVE_COMMIT="$(git rev-parse HEAD)"
+          RESULT="$(node .github/scripts/package-root-git-tags.mjs create "$GITHUB_WORKSPACE" "$DIRECTORY" "$ARCHIVE_COMMIT" "$VERSION" "$TRACK" "$SOURCE_SHA" "$TAG_NAME")"
+          PACKAGE_ROOT_SHA="$(printf '%s' "$RESULT" | node -e 'const fs=require("node:fs");const x=JSON.parse(fs.readFileSync(0,"utf8"));if(!/^[0-9a-f]{40}$/.test(x.commitSha||""))throw new Error("Invalid package-root commit SHA");process.stdout.write(x.commitSha)')"
+
+          git fetch --no-tags origin refs/heads/package/main:refs/remotes/origin/package/main
+          if [[ "$(git rev-parse refs/remotes/origin/package/main)" != "$ARCHIVE_COMMIT" ]]; then
+            echo "package/main advanced while preparing the archived prerelease; refusing to tag a stale snapshot." >&2
+            exit 1
           fi
 
+          if git rev-parse -q --verify "refs/tags/$TAG_NAME^{commit}" >/dev/null; then
+            EXISTING_COMMIT="$(git rev-parse "$TAG_NAME^{commit}")"
+            if git cat-file -e "$EXISTING_COMMIT:.package-tag.json" 2>/dev/null; then
+              git show "$EXISTING_COMMIT:.package-tag.json" > "$RUNNER_TEMP/existing-package-tag.json"
+              node - "$RUNNER_TEMP/existing-package-tag.json" "$VERSION" "$TRACK" "$TAG_NAME" "$SOURCE_SHA" <<'NODE'
+          const fs=require("node:fs");
+          const [file,version,track,tag,sourceCommit]=process.argv.slice(2);
+          const marker=JSON.parse(fs.readFileSync(file,"utf8"));
+          const prefix=track+"/version/";
+          if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
+            ||marker.version!==version||marker.track!==track||marker.tag!==tag
+            ||marker.layout!=="npm-pack-root"||!marker.packagePath?.startsWith(prefix)
+            ||marker.packagePath.split("/").includes("..")||marker.sourceCommit!==sourceCommit
+            ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
+            ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
+            throw new Error("Existing immutable prerelease tag has different or unverified provenance.");
+          }
+          NODE
+              PACKAGE_ROOT_SHA="$EXISTING_COMMIT"
+            else
+              git cat-file -e "$EXISTING_COMMIT:$DIRECTORY/package.json"
+              git show "$EXISTING_COMMIT:$DIRECTORY/package.json" > "$RUNNER_TEMP/legacy-tag-package.json"
+              git show "$EXISTING_COMMIT:$DIRECTORY/UPSTREAM.md" > "$RUNNER_TEMP/legacy-tag-upstream.md"
+              node - "$RUNNER_TEMP/legacy-tag-package.json" "$VERSION" "$RUNNER_TEMP/legacy-tag-upstream.md" "$SOURCE_SHA" <<'NODE'
+          const fs=require("node:fs");
+          const [manifestPath,version,provenancePath,sourceSha]=process.argv.slice(2);
+          const p=JSON.parse(fs.readFileSync(manifestPath,"utf8"));
+          const provenance=fs.readFileSync(provenancePath,"utf8");
+          const commit=provenance.match(/^- (?:Requested and resolved source commit|Resolved source commit):\s*\`?([0-9a-f]{40})\`?\s*$/m)?.[1];
+          if(p.name!=="@kastrick/nextjs-engine"||p.version!==version||commit!==sourceSha) {
+            throw new Error("Legacy prerelease tag does not match the archived snapshot provenance.");
+          }
+          NODE
+              git tag --force --annotate "$TAG_NAME" --message "@kastrick/nextjs-engine $VERSION package-root snapshot" "$PACKAGE_ROOT_SHA"
+              git push --force origin "refs/tags/$TAG_NAME"
+            fi
+          else
+            git tag --annotate "$TAG_NAME" --message "@kastrick/nextjs-engine $VERSION package-root snapshot" "$PACKAGE_ROOT_SHA"
+            git push origin "refs/tags/$TAG_NAME"
+          fi
       - name: Dispatch archived prerelease GitHub Release builder
         if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
         env:
