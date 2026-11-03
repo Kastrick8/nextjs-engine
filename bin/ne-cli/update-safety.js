@@ -143,13 +143,18 @@ function inspectSources(root, targetGeneration) {
 				message: "RawComponentRenderer is not a supported Generation 3 public API.",
 				recommendation: "Replace it with a registered React component or normal JSX inside a React component."
 			});
-			const rawSchemaKey = /\btype\s*:/.exec(code);
-			const rawSchemaValue = rawSchemaKey
-				? /^\s*(["'])raw\1/.exec(source.slice(rawSchemaKey.index + rawSchemaKey[0].length))
-				: null;
-			if (rawSchemaKey && rawSchemaValue) addFinding(blockers, {
-				code: "E3M002", file: relative, line: lineFor(rawSchemaKey),
-			});
+			for (const rawSchemaKey of code.matchAll(/\btype\s*:/g)) {
+				const rawSchemaValue = /^\s*(["'])raw\1/.exec(
+					source.slice(rawSchemaKey.index + rawSchemaKey[0].length)
+				);
+				if (rawSchemaValue) addFinding(blockers, {
+					code: "E3M002",
+					file: relative,
+					line: lineFor(rawSchemaKey),
+					message: 'A schema node with type: "raw" is not supported in Generation 3.',
+					recommendation: 'Replace the raw schema node with a supported registered component schema or a normal React component.'
+				});
+			}
 			const oldRenderer = /\bcompiler\s*:\s*\{[^}]*\bserverFirst\s*:\s*false\b/s.exec(code);
 			if (oldRenderer) addFinding(warnings, {
 				code: "W3M002", file: relative, line: lineFor(oldRenderer),
@@ -204,15 +209,15 @@ function inspectUpdateSafety(root, release) {
 	const generationChange = Boolean(currentGeneration && targetGeneration && currentGeneration !== targetGeneration);
 	const findings = inspectSources(root, targetGeneration);
 	const warnings = findings.warnings.slice();
-	if (currentVersion && !currentGeneration && targetGeneration) warnings.unshift({
-		code: "WNE001", file: "", line: 0,
+	if (currentVersion && !currentGeneration && targetGeneration) blockers.unshift({
+		code: "ENE002", file: "", line: 0,
 		message: "The installed Engine generation could not be determined from its manifest or version.",
-		recommendation: "Confirm the current package generation before updating."
+		recommendation: "Confirm the installed package generation before attempting a generation-sensitive update."
 	});
-	if (!targetGeneration) warnings.unshift({
-		code: "WNE002", file: "", line: 0,
-		message: "The selected release does not declare a recognizable Engine generation.",
-		recommendation: "Inspect its release manifest before installing."
+	if (!targetGeneration) blockers.unshift({
+		code: "ENE001", file: "", line: 0,
+		message: "The selected release does not identify a supported Engine generation.",
+		recommendation: "Install only releases with verified main-2/main-3 source metadata or a recognized 2.x/3.x version."
 	});
 	return {
 		currentVersion,
