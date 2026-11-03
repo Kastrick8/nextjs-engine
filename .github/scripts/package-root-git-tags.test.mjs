@@ -187,3 +187,50 @@ test("migration rejects a package in a noncanonical version folder", () => {
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+
+test("seed migrates existing tags and creates missing versions as package-only refs", () => {
+  const repo = initRepo();
+  try {
+    for (const [version, relative] of [
+      ["2.6.2", "version/2.6/version/2.6.2"],
+      ["2.7.0", "version/2.7/version/2.7"],
+    ]) {
+      const staging = path.join(repo, "staging-" + version);
+      writePackage(staging, version);
+      const target = path.join(repo, relative);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.cpSync(path.join(staging, "package"), target, { recursive: true });
+      fs.rmSync(staging, { recursive: true, force: true });
+    }
+    fs.mkdirSync(path.join(repo, ".github/workflows"), { recursive: true });
+    fs.writeFileSync(path.join(repo, ".github/workflows/noise.yml"), "archive-only file\n");
+    git(repo, ["add", "--all"]);
+    git(repo, ["commit", "-m", "archive two package versions"]);
+    const archiveHead = git(repo, ["rev-parse", "HEAD"]);
+    git(repo, ["tag", "-a", "package.2.6.2", "-m", "legacy full archive tag"]);
+
+    const dry = runMigration(repo, ["--seed"]);
+    assert.equal(dry.status, 0, dry.stderr);
+    assert.equal(dry.parsed.operation, "seed-and-migrate");
+    assert.ok(dry.parsed.results.some((item) => item.tag === "package.2.6.2" && item.status === "would-migrate"));
+    assert.ok(dry.parsed.results.some((item) => item.tag === "package.2.7.0" && item.status === "would-create"));
+    assert.equal(git(repo, ["tag", "--list", "package.2.7.0"]), "", "dry-run must not create missing tags");
+
+    const apply = runMigration(repo, ["--seed", "--apply", "--no-push"]);
+    assert.equal(apply.status, 0, apply.stderr);
+    for (const [tag, version] of [["package.2.6.2", "2.6.2"], ["package.2.7.0", "2.7.0"]]) {
+      const commit = git(repo, ["rev-parse", tag + "^{commit}"]);
+      const marker = JSON.parse(git(repo, ["show", commit + ":.package-tag.json"]));
+      const pkg = JSON.parse(git(repo, ["show", commit + ":package.json"]));
+      assert.equal(pkg.version, version);
+      assert.equal(marker.migrationOnly, true, "seeded refs never initiate npm publication");
+      assert.deepEqual(git(repo, ["ls-tree", "--name-only", commit]).split("\n").sort(),
+        [".package-tag.json", "README.md", "engine", "index.ts", "package.json"]);
+      if (version === "2.7.0") assert.equal(marker.archiveCommit, archiveHead);
+    }
+    assert.equal(git(repo, ["rev-parse", "package.latest^{commit}"]), git(repo, ["rev-parse", "package.2.7.0^{commit}"]));
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
