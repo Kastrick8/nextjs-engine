@@ -46,7 +46,7 @@ function sourceShaAt(repo, commit, folder) {
   for (const name of ["UPSTREAM.md", "README.md", "DOCUMENT.md"]) {
     try {
       const body = git(repo, ["show", commit + ":" + folder + "/" + name]);
-      const match = body.match(/(?:Requested and resolved source commit|Source commit|Source SHA):\s*([0-9a-f]{40})/i);
+      const match = body.match(/(?:Requested and resolved source commit|Resolved source commit|Source commit|Source SHA):\s*([0-9a-f]{40})/i);
       if (match) return match[1];
     } catch {}
   }
