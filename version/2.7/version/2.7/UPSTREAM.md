@@ -4,7 +4,7 @@
 - Package: @kastrick/nextjs-engine
 - Archive track: stable
 - Source branch: main-2
-- Requested and resolved source commit: a67012289ce5f1e7890afcb77109ce4895a6829e
+- Requested and resolved source commit: 05795ef3af440116a8c4d0ce640bf02d920dc321
 - Engine source path: source/src/engine
 - Manifest/docs template: archive/version/2.7/version/2.7
 
