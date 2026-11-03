@@ -3,6 +3,25 @@ import { expect, test } from "@playwright/test";
 test("EngineTheme resolves built-in root styles and named slots without overriding local props", async ({ page }) => {
 	await page.goto("/engine-builtin-theme-test");
 
+	const box = page.locator("#themed-box");
+	await expect(box).toHaveCSS("background-color", "rgb(245, 243, 255)");
+	await expect(box).toHaveCSS("border-radius", "4px");
+	await expect(box).toHaveCSS("padding-top", "5px");
+
+	const stack = page.locator("#themed-stack");
+	await expect(stack).toHaveCSS("background-color", "rgb(236, 254, 255)");
+	await expect(stack).toHaveCSS("padding-top", "6px");
+
+	const grid = page.locator("#themed-grid");
+	await expect(grid).toHaveCSS("background-color", "rgb(254, 252, 232)");
+	await expect(grid).toHaveCSS("gap", "3px");
+	await expect(grid).toHaveCSS("padding-top", "7px");
+
+	const button = page.locator("#themed-button");
+	await expect(button).toHaveCSS("background-color", "rgb(249, 115, 22)");
+	await expect(button).toHaveCSS("color", "rgb(255, 255, 255)");
+	await expect(button).toHaveCSS("border-radius", "4px");
+
 	const hero = page.locator("#themed-hero");
 	await expect(hero).toHaveCSS("background-color", "rgb(124, 58, 237)");
 	await expect(hero).toHaveCSS("color", "rgb(248, 250, 252)");
@@ -98,4 +117,17 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	const formLabel = page.locator("#themed-form-label");
 	await expect(formLabel).toHaveCSS("color", "rgb(4, 120, 87)");
 	await expect(formLabel).toHaveCSS("font-weight", "600");
+
+	const canvas = page.locator("canvas.themed-canvas");
+	await expect(canvas).toHaveCSS("background-color", "rgb(17, 24, 39)");
+	await expect(canvas).toHaveCSS("border-radius", "5px");
+
+	const manim = page.locator("canvas.themed-manim");
+	await expect(manim).toHaveCSS("background-color", "rgb(23, 37, 84)");
+	await expect(manim).toHaveCSS("border-radius", "6px");
+
+	const suspense = page.locator("#themed-suspense");
+	await expect(suspense).toHaveCSS("background-color", "rgb(243, 232, 255)");
+	await expect(suspense).toHaveCSS("border-radius", "7px");
+	await expect(suspense).toHaveCSS("padding-top", "9px");
 });
