@@ -208,6 +208,7 @@ function inspectUpdateSafety(root, release) {
 		&& compareVersions(currentVersion, targetVersion) > 0);
 	const generationChange = Boolean(currentGeneration && targetGeneration && currentGeneration !== targetGeneration);
 	const findings = inspectSources(root, targetGeneration);
+	const blockers = findings.blockers.slice();
 	const warnings = findings.warnings.slice();
 	if (currentVersion && !currentGeneration && targetGeneration) blockers.unshift({
 		code: "ENE002", file: "", line: 0,
@@ -227,9 +228,9 @@ function inspectUpdateSafety(root, release) {
 		isDowngrade,
 		generationChange,
 		scannedFiles: findings.scannedFiles,
-		blockers: findings.blockers,
+		blockers,
 		warnings,
-		requiresAcknowledgement: Boolean(isDowngrade || generationChange || findings.blockers.length || warnings.length)
+		requiresAcknowledgement: Boolean(isDowngrade || generationChange || blockers.length || warnings.length)
 	};
 }
 
