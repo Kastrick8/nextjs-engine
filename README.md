@@ -150,12 +150,6 @@ Start with the [Generation 3 documentation index](./docs/3/index.md).
 
 ---
 
-> **Disclaimer:** Nextjs Engine is an independent open-source framework created by Kastrick and Developer Kate-alt-69. It is not affiliated with, endorsed by, or sponsored by Vercel Inc. or Meta Platforms, Inc.
-
-Built by **Kate-alt-69** for the Kastrick platform. See [LICENSE](./LICENSE).
-
----
-
 ## ☕ Support me!
 
 Enjoying Next.js Engine? Supporting the work helps me spend more time improving the Engine and its open-source tooling.
@@ -167,3 +161,10 @@ Enjoying Next.js Engine? Supporting the work helps me spend more time improving 
 [<img src="./assets/qr-code.png" alt="Kastrick support QR code" width="225" height="225" />](https://www.buymeacoffee.com/Kastrick)
 
 [buymeacoffee.com/Kastrick](https://www.buymeacoffee.com/Kastrick)
+
+---
+
+> [!WARNING]
+> **Disclaimer:** Nextjs Engine is an independent open-source framework created by Kastrick and Developer Kate-alt-69. It is not affiliated with, endorsed by, or sponsored by Vercel Inc. or Meta Platforms, Inc.
+
+Built by **Kate-alt-69** for the [Kastrick](kastrick.vercel.app) platform. See [LICENSE](./LICENSE).
