@@ -17,7 +17,7 @@ PageSchema / EngineConfig
 - EngineProvider supplies page config, handlers, slots, breakpoints and style context.
 - Style helpers/resolver turn supported schema props into CSS classes collected by StyleCollector.
 - EngineScroll combines provider/hook, points, navigation, movement, ranges, timelines, director and tracking.
-- EngineCanvas composes scene data, renderer registry and 2D/3D/SVG/Skia engines.
+- EngineCanvas composes the shared EC scene factories/types, renderer registry and 2D/3D/SVG/Skia engines; Engine3D maps meshes to unlit Three.js basic materials.
 - EngineShader loads compiled shader assets into its runtime/surface.
 - EngineManim composes DSL parser, animation config/easing and router for 2D/3D.
 - EngineOverlay primitives share stack, portal, focus, Escape and scroll-lock runtime.
