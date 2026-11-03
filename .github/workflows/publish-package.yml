@@ -1264,7 +1264,6 @@ jobs:
             throw new Error("Package root index.ts must re-export ./engine.");
           }
           const archiveCommit=marker.archiveCommit;
-          const provenancePath=path.join("unused"); // provenance is read from the exact archive snapshot below
           const metaFile=path.join(process.env.RUNNER_TEMP||path.dirname(dir),"tag-provenance.json");
           let sourceBranch="", sourceCommit="";
           try {
@@ -1321,8 +1320,22 @@ jobs:
               }
               return 0;
             };
-            const channel=TRACK==="stable"?"latest":TRACK;
-            const channelTag=cmp(VERSION,tags[channel])>0?channel:"";
+            const stable=[];
+            function walk(dir){
+              if(!fs.existsSync(dir))return;
+              for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+                const full=path.join(dir,entry.name);
+                if(entry.isDirectory())walk(full);
+                else if(entry.name==="package.json"){
+                  const p=JSON.parse(fs.readFileSync(full,"utf8"));
+                  if(p.name==="@kastrick/nextjs-engine"&&/^\d+\.\d+\.\d+$/.test(p.version||""))stable.push(p.version);
+                }
+              }
+            }
+            walk("version");
+            stable.sort(cmp);
+            const newestStable=stable.at(-1)||"";
+            const channelTag=TRACK==="stable"&&newestStable===VERSION&&cmp(VERSION,tags.latest)>0?"latest":"";
             console.log("channel_tag="+channelTag);
             NODE
           else
