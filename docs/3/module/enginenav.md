@@ -69,6 +69,13 @@ See [`enginetransitions.md`](./enginetransitions.md) for all presets and setting
 
 EngineNav also accepts shared engine styling props (`bg`, responsive spacing, color, transforms, etc.). Those props are consumed by `usePropStyles()` and become CSS; they are not forwarded as arbitrary attributes to `<nav>`.
 
+
+The direct Gen 3 component also receives theme-owned styles through
+`engineThemeStyles`. Its slots are `inner`, `items`, `item`, `activeItem`,
+`dropdown`, `logo`, `mobileToggle`, and `mobileMenu`. The EngineTheme
+pipeline injects these; they are not fields on serializable schema items.
+
+
 ```ts
 interface EngineNavItem {
 	label: string;
