@@ -163,3 +163,26 @@ test("migration preflights every legacy tag before moving any ref", () => {
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+
+test("migration rejects a package in a noncanonical version folder", () => {
+  const repo = initRepo();
+  try {
+    const staging = path.join(repo, "staging");
+    writePackage(staging, "2.7.0");
+    const wrong = path.join(repo, "version/2.7/version/2.7.0");
+    fs.mkdirSync(path.dirname(wrong), { recursive: true });
+    fs.cpSync(path.join(staging, "package"), wrong, { recursive: true });
+    fs.rmSync(staging, { recursive: true, force: true });
+    git(repo, ["add", "--all"]);
+    git(repo, ["commit", "-m", "noncanonical stable package folder"]);
+    const previous = git(repo, ["rev-parse", "HEAD"]);
+    git(repo, ["tag", "-a", "package.2.7.0", "-m", "legacy tag with wrong folder"]);
+    const result = runMigration(repo, []);
+    assert.notEqual(result.status, 0, "a stable patch-zero package must use the shortened major/minor folder");
+    assert.equal(git(repo, ["rev-parse", "package.2.7.0^{commit}"]), previous,
+      "the invalid tag must remain unchanged");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
