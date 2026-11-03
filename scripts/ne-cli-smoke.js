@@ -17,6 +17,7 @@ const tmp = require("tmp");
 const fileSystem = require("../bin/ne-cli/file-system");
 
 async function main() {
+	await require("./ne-cli-update-safety-smoke").run();
 	const { spawnSync } = require("node:child_process");
 	const executable = path.resolve(__dirname, "../bin/ne.js");
 	const repoRoot = path.resolve(__dirname, "..");
