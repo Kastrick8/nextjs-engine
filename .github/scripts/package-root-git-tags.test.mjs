@@ -96,3 +96,36 @@ test("migration is idempotent once a version tag has a package-root marker", () 
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+
+test("migration preflights every legacy tag before moving any ref", () => {
+  const repo = initRepo();
+  try {
+    writePackage(repo, "2.6.2");
+    const goodDir = path.join(repo, "version/2.6/version/2.6.2");
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.cpSync(path.join(repo, "package"), goodDir, { recursive: true });
+    fs.rmSync(path.join(repo, "package"), { recursive: true, force: true });
+    const badDir = path.join(repo, "version/2.7/version/2.7");
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, "package.json"), JSON.stringify({
+      name: "@kastrick/nextjs-engine", version: "2.7.0", private: false,
+      files: ["index.ts", "engine"],
+    }));
+    fs.writeFileSync(path.join(badDir, "index.ts"), 'export * from "./engine";\n');
+    fs.writeFileSync(path.join(badDir, "UPSTREAM.md"), "- Requested and resolved source commit: " + "d".repeat(40) + "\n");
+    git(repo, ["add", "--all"]);
+    git(repo, ["commit", "-m", "archive with one invalid package"]);
+    const previous = git(repo, ["rev-parse", "HEAD"]);
+    git(repo, ["tag", "-a", "package.2.6.2", "-m", "old 2.6.2 tag"]);
+    git(repo, ["tag", "-a", "package.2.7.0", "-m", "invalid 2.7.0 tag"]);
+    const result = runMigration(repo, ["--apply", "--no-push"]);
+    assert.notEqual(result.status, 0, "the malformed later package must fail migration");
+    assert.equal(git(repo, ["rev-parse", "package.2.6.2^{commit}"]), previous,
+      "an earlier valid tag must remain untouched when a later tag fails preflight");
+    assert.equal(git(repo, ["rev-parse", "package.2.7.0^{commit}"]), previous,
+      "the malformed tag must remain untouched");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
