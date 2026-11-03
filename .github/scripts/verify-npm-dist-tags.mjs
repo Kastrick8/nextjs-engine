@@ -12,6 +12,18 @@ if (!tagsFile || !version || !track || !versionTag) {
 const packageName = "@kastrick/nextjs-engine";
 let tags = JSON.parse(fs.readFileSync(tagsFile, "utf8"));
 const isPrerelease = (value) => /-(?:alpha|beta)\./.test(String(value || ""));
+const isStableVersion = (value) => /^\d+\.\d+\.\d+$/.test(String(value || ""));
+function compareStableVersions(leftText, rightText) {
+  const left = String(leftText || "").split(".").map(Number);
+  const right = String(rightText || "").split(".").map(Number);
+  if (left.length !== 3 || right.length !== 3
+    || left.some((part) => !Number.isInteger(part))
+    || right.some((part) => !Number.isInteger(part))) return -1;
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] > right[index] ? 1 : -1;
+  }
+  return 0;
+}
 const expectedTrack = version.includes("-alpha.") ? "alpha" : version.includes("-beta.") ? "beta" : "stable";
 
 if (track !== expectedTrack) {
@@ -33,11 +45,10 @@ if (track !== "stable" && channelTag === "latest") {
   throw new Error("Alpha/beta releases must never advance npm's default latest dist-tag.");
 }
 
-// Older workflows or manual publishes may have left npm's default latest alias
-// pointing at a prerelease. Repair that state to the newest stable version that
-// is both archived here and already present in the registry before accepting
-// a prerelease channel update.
-if (!tags.latest || isPrerelease(tags.latest)) {
+// Keep npm's default latest alias on a stable package. Repair a missing,
+// prerelease-valued, invalid, or stale stable alias to the highest stable snapshot
+// that is both present in this archive and already published to the registry.
+{
   const stable = [];
   const root = path.resolve(archiveRoot, "version");
   const walk = (dir) => {
@@ -47,34 +58,34 @@ if (!tags.latest || isPrerelease(tags.latest)) {
       if (entry.isDirectory()) walk(full);
       else if (entry.name === "package.json") {
         const manifest = JSON.parse(fs.readFileSync(full, "utf8"));
-        if (manifest.name === packageName && /^\d+\.\d+\.\d+$/.test(manifest.version || "")) {
+        if (manifest.name === packageName && isStableVersion(manifest.version)) {
           stable.push(manifest.version);
         }
       }
     }
   };
   walk(root);
-  stable.sort((a, b) => {
-    const A = a.split(".").map(Number), B = b.split(".").map(Number);
-    for (let i = 0; i < 3; i += 1) if (A[i] !== B[i]) return A[i] - B[i];
-    return 0;
-  });
+  stable.sort(compareStableVersions);
 
-  let stableVersion = "";
+  let newestPublishedStable = "";
   for (const candidate of stable.reverse()) {
     try {
       execFileSync("npm", ["view", `${packageName}@${candidate}`, "version"], { stdio: "ignore" });
-      stableVersion = candidate;
+      newestPublishedStable = candidate;
       break;
     } catch {
-      // Keep searching; an archive snapshot is not necessarily published.
+      // An archived snapshot is not necessarily published yet; keep searching.
     }
   }
-  if (!stableVersion) {
-    throw new Error("npm latest was missing or pointed at a prerelease, but no published stable archive version was found to repair it.");
+
+  const latestNeedsRepair = !isStableVersion(tags.latest)
+    || (newestPublishedStable && compareStableVersions(tags.latest, newestPublishedStable) < 0);
+  if (latestNeedsRepair) {
+    if (!newestPublishedStable) {
+      throw new Error("npm latest was missing, invalid, or a prerelease, but no published stable archive version was found to repair it.");
+    }
+    execFileSync("npm", ["dist-tag", "add", `${packageName}@${newestPublishedStable}`, "latest"], { stdio: "inherit" });
   }
-  execFileSync("npm", ["dist-tag", "add", `${packageName}@${stableVersion}`, "latest"], { stdio: "inherit" });
-  tags.latest = stableVersion;
 }
 
 // Re-read the registry after any repair so the check validates the
