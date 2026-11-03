@@ -836,9 +836,15 @@ jobs:
           if(!match) throw new Error("Unsupported release tag: "+tag);
           const version=match[1];
           const track=tag.startsWith("package-alpha.")?"alpha":tag.startsWith("package-beta.")?"beta":"stable";
+          const versionParts=version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.\d+)?$/);
+          if(!versionParts) throw new Error("Invalid package SemVer: "+version);
+          const [,major,minor,patch,prerelease]=versionParts;
+          const expectedPath=track==="stable"&&!prerelease
+            ? "version/"+major+"."+minor+"/version/"+(Number(patch)===0?major+"."+minor:version)
+            : track+"/version/"+major+"."+track+"/version/"+version;
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"||marker.packagePath!==TARGET
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==expectedPath
             ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
             ||!(marker.sourceCommit===null||/^[0-9a-f]{40}$/.test(marker.sourceCommit||""))
             ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
