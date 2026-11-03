@@ -352,6 +352,10 @@ async function main() {
 	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
 	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
 	assert.equal(channels.packageTagToRelease(tagFixtures[0], { ...packageTagMarker, packagePath: "../outside" }).installable, false,
+
+	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
+		...packageTagMarker, packagePath: "version/2.7/version/2.7.0",
+	}).installable, false, "patch-zero releases must use the canonical shortened version folder");
 		"unsafe snapshot paths cannot verify a package tag");
 	const alphaTagMarker = {
 		...packageTagMarker,
