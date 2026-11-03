@@ -39,7 +39,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: npm-release-${{ inputs.version || github.ref_name }}
+  # One publisher per dist-tag track prevents overlapping releases from moving
+  # latest/alpha/beta backwards after a newer version has already promoted.
+  group: npm-release-${{ inputs.track || (startsWith(github.ref_name, 'package-alpha.') && 'alpha') || (startsWith(github.ref_name, 'package-beta.') && 'beta') || 'stable' }}
   cancel-in-progress: false
 
 jobs:
