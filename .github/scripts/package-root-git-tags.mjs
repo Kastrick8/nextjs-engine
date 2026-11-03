@@ -144,12 +144,13 @@ function migrate(args) {
   const tags = git(repo, ["tag", "--list"]).split("\n").map((x) => x.trim()).filter(Boolean);
   const versions = tags.map(parseTag).filter(Boolean);
   if (!versions.length) die("No immutable package version tags were found.");
-  const migrated = new Map(), results = [];
+  const migrated = new Map(), results = [], pending = [];
   for (const item of versions) {
     const oldCommit = git(repo, ["rev-parse", item.tag + "^{commit}"]);
     const existing = markerAt(repo, oldCommit);
     if (existing && existing.schemaVersion === 1 && existing.packageName === NAME
-      && existing.version === item.version && existing.tag === item.tag && existing.layout === "npm-pack-root") {
+      && existing.version === item.version && existing.tag === item.tag && existing.track === item.track
+      && existing.layout === "npm-pack-root") {
       migrated.set(item.tag, oldCommit);
       results.push({ tag: item.tag, status: "already-package-root", commitSha: oldCommit });
       continue;
@@ -157,28 +158,53 @@ function migrate(args) {
     const folder = findPackage(repo, oldCommit, item.version, item.track);
     const sourceCommit = sourceShaAt(repo, oldCommit, folder);
     const built = buildRoot(repo, oldCommit, folder, item.version, item.track, item.tag, sourceCommit);
-    if (apply) {
-      git(repo, ["tag", "--force", "--annotate", item.tag, "--message", NAME + "@" + item.version + " package-root migration", built.commit]);
-      if (push) git(repo, ["push", "--force", "origin", "refs/tags/" + item.tag]);
-    }
     migrated.set(item.tag, built.commit);
+    pending.push({ tag: item.tag, version: item.version, commitSha: built.commit });
     results.push({
-      tag: item.tag, status: apply ? "migrated" : "would-migrate",
+      tag: item.tag, status: apply ? "prepared-for-migration" : "would-migrate",
       previousCommit: oldCommit, commitSha: built.commit, packagePath: folder, sourceCommit,
     });
     fs.rmSync(built.temp, { recursive: true, force: true });
   }
+
+  // Nothing is moved until every legacy tag has a successfully built and verified package root.
   const stable = versions.filter((x) => x.track === "stable").sort((a, b) => stableCompare(a.version, b.version));
+  const updates = [];
+  if (apply) {
+    for (const item of pending) {
+      git(repo, ["tag", "--force", "--annotate", item.tag,
+        "--message", NAME + "@" + item.version + " package-root migration", item.commitSha]);
+      updates.push("refs/tags/" + item.tag);
+    }
+  }
   if (stable.length) {
     const latest = stable.at(-1);
     const target = migrated.get(latest.tag) || git(repo, ["rev-parse", latest.tag + "^{commit}"]);
-    if (apply) {
-      git(repo, ["tag", "--force", "--annotate", "package.latest", "--message", "Latest stable " + NAME + " is " + latest.version, target]);
-      if (push) git(repo, ["push", "--force", "origin", "refs/tags/package.latest"]);
+    let currentLatest = null;
+    try { currentLatest = git(repo, ["rev-parse", "package.latest^{commit}"]); } catch {}
+    if (apply && currentLatest !== target) {
+      git(repo, ["tag", "--force", "--annotate", "package.latest",
+        "--message", "Latest stable " + NAME + " is " + latest.version, target]);
+      updates.push("refs/tags/package.latest");
     }
-    results.push({ tag: "package.latest", status: apply ? "updated" : "would-update", targetTag: latest.tag, commitSha: target });
+    results.push({
+      tag: "package.latest",
+      status: apply ? (currentLatest === target ? "already-current" : "updated") : "would-update",
+      targetTag: latest.tag,
+      commitSha: target,
+    });
   }
-  process.stdout.write(JSON.stringify({ mode: apply ? "apply" : "dry-run", pushed: push, results }, null, 2) + "\n");
+
+  if (push && updates.length) {
+    git(repo, ["push", "--force", "--atomic", "origin", ...updates]);
+  }
+  process.stdout.write(JSON.stringify({
+    mode: apply ? "apply" : "dry-run",
+    pushed: push,
+    changedRefs: updates,
+    count: results.length,
+    results,
+  }, null, 2) + "\n");
 }
 const [mode, ...args] = process.argv.slice(2);
 try {
