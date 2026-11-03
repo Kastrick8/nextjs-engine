@@ -15,3 +15,6 @@ The checked-in website docs are under `docs/3/`; these research notes are not a 
 ## Authority
 
 Current source on `main-3` is authoritative. These notes are a navigation/cache layer, not a substitute for re-reading source after the branch changes.
+
+
+Latest audit update (2026-11-03): the Engine3D scene-model, camera/material contract and current renderer limits are documented in the versioned module reference and recorded in the workspace/evidence ledger.
