@@ -372,9 +372,19 @@ jobs:
           }
           walk("version"); walk("alpha"); walk("beta");
           const sortNums=(list, prerelease)=>list.sort((a,b)=>{
-            const rx=prerelease?new RegExp("^([0-9]+)\.([0-9]+)\.([0-9]+)-"+prerelease+"\.([0-9]+)$"):null;
-            const A=rx?a.match(rx).slice(1).map(Number):a.split(".").map(Number);
-            const B=rx?b.match(rx).slice(1).map(Number):b.split(".").map(Number);
+            const parts=(value)=>{
+              const segments=value.split("-");
+              if(segments.length!==(prerelease?2:1))throw new Error("Invalid package version: "+value);
+              const nums=segments[0].split(".").map(Number);
+              if(nums.length!==3||nums.some(part=>!Number.isInteger(part)))throw new Error("Invalid package version: "+value);
+              if(prerelease){
+                const suffix=segments[1].split(".");
+                if(suffix.length!==2||suffix[0]!==prerelease||!^\d+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
+                nums.push(Number(suffix[1]));
+              }
+              return nums;
+            };
+            const A=parts(a),B=parts(b);
             for(let i=0;i<A.length;i++)if(A[i]!==B[i])return A[i]-B[i];
             return 0;
           });
@@ -778,9 +788,19 @@ jobs:
           }
           walk("version");walk("alpha");walk("beta");
           const sortNums=(list, prerelease)=>list.sort((a,b)=>{
-            const rx=prerelease?new RegExp("^([0-9]+)\.([0-9]+)\.([0-9]+)-"+prerelease+"\.([0-9]+)$"):null;
-            const A=rx?a.match(rx).slice(1).map(Number):a.split(".").map(Number);
-            const B=rx?b.match(rx).slice(1).map(Number):b.split(".").map(Number);
+            const parts=(value)=>{
+              const segments=value.split("-");
+              if(segments.length!==(prerelease?2:1))throw new Error("Invalid package version: "+value);
+              const nums=segments[0].split(".").map(Number);
+              if(nums.length!==3||nums.some(part=>!Number.isInteger(part)))throw new Error("Invalid package version: "+value);
+              if(prerelease){
+                const suffix=segments[1].split(".");
+                if(suffix.length!==2||suffix[0]!==prerelease||!^\d+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
+                nums.push(Number(suffix[1]));
+              }
+              return nums;
+            };
+            const A=parts(a),B=parts(b);
             for(let i=0;i<A.length;i++)if(A[i]!==B[i])return A[i]-B[i];
             return 0;
           });
