@@ -763,6 +763,20 @@ onReady?: () => void
 onError?: (reason: unknown) => void
 ```
 
+
+Configuration defaults and bounds:
+
+| Setting | Default / behavior |
+|---|---|
+| `fps` | 60 for dedicated canvases, 30 for `layer`; bounded to 1–120. |
+| `maxDpr` | 2 for dedicated canvases, 1.5 for `layer`; minimum effective cap is 0.5. |
+| `adaptive` | `true`; measured frame timing may lower or recover backing-store DPR. Set `false` to opt out. |
+| `pauseWhenOffscreen` | `true`; offscreen observation uses a 180px root margin. |
+| `pauseWhenHidden` | `true`; pauses when the document is hidden. |
+| `respectReducedMotion` | `true`; suppresses continuous animation when reduced motion is requested. |
+| `powerPreference` | `high-performance` for a dedicated canvas, `low-power` for `layer`. |
+
+
 Layer mode defaults to a lower-power profile: 30 FPS target and low-power GPU preference. Dedicated shader canvases default to 60 FPS and high-performance preference unless overridden.
 
 ---
