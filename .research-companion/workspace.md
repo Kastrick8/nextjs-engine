@@ -115,24 +115,43 @@ Research Companion skills guided the audit and note format. This host session di
 - Local repository checkout and package execution were not available: previous shell attempt could not resolve GitHub DNS. Verification must rely on GitHub Actions here; do not claim a local `npm run test:cli`, build, or type-check.
 
 ### Open PR audit snapshot
-- #77 and #83: independent Gen 3 EngineTheme changes; last observed workflows green, but both were behind `main-3` and need branch refresh/current-head checks.
+- #77 and #83: independent Gen 3 EngineTheme changes; last observed workflows green, but both were behind `main-3` and need branch refresh/current-head checks. They overlap in `scripts/gen3-theme-compiler-smoke.js`; merge/retest sequentially.
 - #80: security/Code Quality remediation; keep absolutely last per maintainer instruction. Its PR description records one Code Quality annotation and CodeQL alert #70 as explicit review items.
 - #84: rolling Alpha package-root/release workflow on `main-3`; draft, downstream of package migration work.
-- #85 then #90: package dist-tag correctness, then package-only Git tag snapshots on `package/main`; #90 depends on #85. Latest #85 validation passed; #90 validation was still running at audit time.
+- #85 then #90: package dist-tag correctness, then package-only Git tag snapshots on `package/main`; #90 depends on #85. Both package archive validator workflows have passed on the audited heads.
 - #88 then #93: Generation 3 CLI runtime/help, then updater safety.
 - #89 then #94: Generation 2 CLI runtime/help, then updater safety.
-- #91/#92: package-root Git-tag installation support; stacked on #88/#89 and not operational for old tags until the package-tag migration is applied.
-- #95: default-branch package-root publish workflow; depends on #84 and the package/main helper delivered by #90; refresh its base before CI/review.
+- #91/#92: closed unmerged and superseded; do not merge them. Their clean replacements are #97 (Gen 3) and #98 (Gen 2).
+- #95: default-branch package-root publish workflow; depends on #84 and the package/main helper delivered by #90. Its head was 19 commits behind its #84 base in the audit; refresh/rebase and rerun CI before considering it.
 - #55 is a stale draft with superseded EngineOverlay theme contract; #77 is the discrete replacement. Do not merge #55.
+- #96: Gen 2 manual tag seeder; base `main-2`; its runtime/browser/CodeQL checks passed. It depends on #90's shared package-root helper being merged to `package/main`.
+- #97/#98: clean Gen 3/Gen 2 package-only Git-tag installers; both are based directly on their respective main branches and their full CI matrices passed. Existing old refs still remain TAG ONLY until migration.
+- #91/#92 are closed unmerged and superseded by #97/#98.
 - Previously merged: #78, #79 and #81.
 
 ### Merge order and safety
-1. Refresh and merge #88 / #89, then refresh and merge #93 / #94 respectively.
-2. Merge independent #77 / #83 after refreshing each against current `main-3` and rerunning required checks.
-3. On `package/main`, merge #85 then #90 after #90 validation passes.
-4. Merge #84 after the package helper is present, then refresh and merge #95.
-5. Inspect the tag migration with `apply=false`; only run `apply=true` after an explicit maintainer decision. No live tag refs were rewritten in this audit.
-6. Merge #91/#92 only after their base CLI PRs are merged, tag migration is complete, and fresh checks pass.
-7. Merge #80 absolutely last, after all other intended main-3 changes, refreshing it and reviewing its outstanding Code Quality annotation / alert #70 first.
+1. Refresh #88 and #89 against current `main-3` / `main-2`; merge those CLI help/runtime fixes once their latest checks pass.
+2. Then merge #93 and #94 against their respective main branches. #94's latest checks passed 4/4. #93's latest CLI smoke, font-provider, cross-browser and CodeQL checks passed; Engine runtime CI was still running at the last poll.
+3. Refresh #77 and #83 against current `main-3`; merge them sequentially because both touch `scripts/gen3-theme-compiler-smoke.js`, rerunning the second PR's checks after the first lands.
+4. On `package/main`, merge #85 then #90. The latest validator checks for both passed; ensure #90 is refreshed against #85 before merge.
+5. After #90 is present, merge #84 (Gen 3 tag seeder/release contract) and #96 (Gen 2 tag seeder) after refreshing their bases and checks. #84 also has the rolling Alpha workflow changes; #96 has 3/3 passing checks.
+6. Merge #97 and #98 (verified package-tag installers) after their main-branch checks are current; they are currently clean-based and all checks passed. Existing whole-repo tags remain TAG ONLY until the seeder workflow is reviewed and applied.
+7. Refresh #95 from the updated #84 base after #84/#90 land, then rerun its checks before merge. It was 19 commits behind its base at the audit.
+8. Inspect both package tag seeders with `apply=false`; review the exact planned tag refs. Do not run `apply=true` without explicit maintainer approval. No live tag refs were rewritten in this audit.
+9. Merge #80 absolutely last, after all other intended main-3 changes, refreshing it and reviewing its outstanding Code Quality annotation / alert #70 first.
 
 No PR was merged, no npm publication was made, and no live Git tag was changed during this work.
+
+
+## PR audit correction and latest check state — 2026-11-04
+
+This addendum supersedes the initial #91/#92 and package-validator status references above.
+
+- #91 and #92 are closed, unmerged, and explicitly superseded by #97 and #98.
+- #96 is the Gen 2 manual tag-seeding workflow; #97 and #98 are the new clean-based Gen 3/Gen 2 tag installers.
+- #85 and #90 package archive validator runs both completed successfully.
+- #94 latest head `6da0fd738de4e339331b844d16f28aa78c719df9`: CLI smoke, runtime, browser compatibility and CodeQL all passed (4/4).
+- #93 latest head `36e2221dae91c56411af861cbf4a6c3981149410`: CLI smoke, live font provider, cross-browser compatibility and CodeQL passed; Engine runtime CI was still in progress at last poll.
+- #96 (3/3), #97 (5/5), and #98 (4/4) had green workflows on the audited heads.
+- #80 remains absolutely last. Its checks pass, but one Code Quality annotation and CodeQL alert #70 remain explicit review items in its PR description.
+- Do not merge stale branches just because historical run results are green; update each target/base branch and require fresh head checks after the update.
