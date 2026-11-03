@@ -46,25 +46,42 @@ jobs:
           const fs = require("node:fs");
           const [branch, sha, file] = process.argv.slice(2);
           const payload = JSON.parse(fs.readFileSync(file, "utf8"));
-          const matches = (payload.workflow_runs || [])
-            .filter((run) => run.name === "Engine cross-browser compatibility" &&
-              run.head_branch === branch && run.head_sha === sha && run.event === "push")
-            .sort((a, b) => Date.parse(b.run_started_at || b.created_at || 0) -
-              Date.parse(a.run_started_at || a.created_at || 0));
-          if (!matches.length || matches[0].status !== "completed") console.log("pending");
-          else console.log(matches[0].conclusion === "success" ? "success" : "failure");
+          const required = [
+            "Engine cross-browser compatibility",
+            "EngineTheme live font-provider compatibility",
+            "CodeQL",
+          ];
+          const outcomes = required.map((name) => {
+            const matches = (payload.workflow_runs || [])
+              .filter((run) => run.name === name && run.head_branch === branch
+                && run.head_sha === sha && run.event === "push")
+              .sort((a, b) => Date.parse(b.run_started_at || b.created_at || 0)
+                - Date.parse(a.run_started_at || a.created_at || 0));
+            const latest = matches[0];
+            if (!latest || latest.status !== "completed") return { name, state: "pending" };
+            return { name, state: latest.conclusion === "success" ? "success" : "failure",
+              conclusion: latest.conclusion };
+          });
+          const failure = outcomes.find((item) => item.state === "failure");
+          if (failure) {
+            console.log("failure:" + failure.name + ":" + failure.conclusion);
+          } else if (outcomes.some((item) => item.state === "pending")) {
+            console.log("pending:" + outcomes.filter((item) => item.state === "pending").map((item) => item.name).join(","));
+          } else {
+            console.log("success");
+          }
           NODE
             )"
 
             if [[ "$RESULT" == "success" ]]; then
               break
             fi
-            if [[ "$RESULT" == "failure" ]]; then
+            if [[ "$RESULT" == failure:* ]]; then
               echo "publish=false" >> "$GITHUB_OUTPUT"
-              echo "::warning::Cross-browser CI failed for $SOURCE_SHA; latest Alpha was not updated."
+              echo "::warning::A required exact-SHA release check failed ($RESULT); latest Alpha was not updated."
               exit 0
             fi
-            echo "Cross-browser CI is queued or running (attempt $attempt/60)."
+            echo "Required exact-SHA release checks are queued or running ($RESULT; attempt $attempt/60)."
             sleep 20
           done
 
