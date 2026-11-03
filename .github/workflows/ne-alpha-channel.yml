@@ -432,7 +432,7 @@ jobs:
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             while IFS= read -r OLD_ASSET; do
               [[ -n "$OLD_ASSET" ]] || continue
-              if [[ "$OLD_ASSET" != "$ASSET_NAME" && "$OLD_ASSET" != "ne-release.json" ]]; then
+              if [[ "$OLD_ASSET" == nextjs-engine-*.tgz && "$OLD_ASSET" != "$ASSET_NAME" ]]; then
                 gh release delete-asset "$TAG_NAME" "$OLD_ASSET" --yes
               fi
             done < <(gh release view "$TAG_NAME" --json assets --jq '.assets[].name')
