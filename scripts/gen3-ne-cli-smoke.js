@@ -568,7 +568,8 @@ async function main() {
 		/shell operators or expansions/, "NE --and rejects shell pipelines");
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
-	assert.match(cli.getHelp(), /ne update --channel/);
+	assert.match(cli.getHelp(), /ne update\s+List or install a release/);
+	assert.doesNotMatch(cli.getHelp(), /--channel/, "the overview keeps release flags in command-specific help");
 	assert.match(cli.getHelp(), /npx ne --help/);
 	const originalInstallRelease = project.installRelease;
 	const dashboardDirectory = createTempDirectory("ne-dashboard-smoke-");
