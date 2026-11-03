@@ -42,6 +42,29 @@ function markerAt(repo, commit) {
   try { return JSON.parse(git(repo, ["show", commit + ":.package-tag.json"])); }
   catch { return null; }
 }
+function isPackageRootCommit(repo, commit, item) {
+  try {
+    const marker = markerAt(repo, commit);
+    const pkg = JSON.parse(git(repo, ["show", commit + ":package.json"]));
+    const expectedPrefix = item.track === "stable" ? "version/" : item.track + "/version/";
+    if (!marker || marker.schemaVersion !== 1 || marker.packageName !== NAME
+      || marker.version !== item.version || marker.track !== item.track || marker.tag !== item.tag
+      || marker.layout !== "npm-pack-root"
+      || typeof marker.packagePath !== "string" || !marker.packagePath.startsWith(expectedPrefix)
+      || marker.packagePath.split("/").includes("..")
+      || !/^[0-9a-f]{40}$/.test(marker.archiveCommit || "")
+      || !(marker.sourceCommit === null || /^[0-9a-f]{40}$/.test(marker.sourceCommit || ""))
+      || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity || "")
+      || pkg.name !== NAME || pkg.version !== item.version || pkg.private === true) return false;
+    if (git(repo, ["rev-parse", commit + "^"]) !== marker.archiveCommit) return false;
+    if (git(repo, ["show", commit + ":index.ts"]).trim() !== 'export * from "./engine";') return false;
+    git(repo, ["cat-file", "-e", commit + ":engine/index.ts"]);
+    git(repo, ["cat-file", "-e", marker.archiveCommit + "^{commit}"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
 function sourceShaAt(repo, commit, folder) {
   for (const name of ["UPSTREAM.md", "README.md", "DOCUMENT.md"]) {
     try {
@@ -147,10 +170,7 @@ function migrate(args) {
   const migrated = new Map(), results = [], pending = [];
   for (const item of versions) {
     const oldCommit = git(repo, ["rev-parse", item.tag + "^{commit}"]);
-    const existing = markerAt(repo, oldCommit);
-    if (existing && existing.schemaVersion === 1 && existing.packageName === NAME
-      && existing.version === item.version && existing.tag === item.tag && existing.track === item.track
-      && existing.layout === "npm-pack-root") {
+    if (isPackageRootCommit(repo, oldCommit, item)) {
       migrated.set(item.tag, oldCommit);
       results.push({ tag: item.tag, status: "already-package-root", commitSha: oldCommit });
       continue;
