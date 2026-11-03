@@ -22,6 +22,8 @@ const {
 	projectName,
 	runClean,
 	installRelease,
+	inspectUpdateSafety,
+	formatUpdateSafety,
 	rollback,
 	runCheck,
 	runBuild,
@@ -62,13 +64,20 @@ function parseArgs(argv) {
 				if (value !== undefined) options[name] = value;
 				else if (argv[index + 1] && !argv[index + 1].startsWith("-")) options[name] = argv[++index];
 				else throw diagnostics.missingOptionValue("--" + name, "a value");
-			} else if (["yes", "check", "json", "dry-run", "force", "no-color"].includes(name)) {
-				options[name === "dry-run" ? "dryRun" : name === "no-color" ? "noColor" : name] = true;
+			} else if (["yes", "check", "json", "dry-run", "force", "no-color", "allow-downgrade", "allow-generation-change", "acknowledge-compatibility"].includes(name)) {
+				const optionNames = {
+					"dry-run": "dryRun",
+					"no-color": "noColor",
+					"allow-downgrade": "allowDowngrade",
+					"allow-generation-change": "allowGenerationChange",
+					"acknowledge-compatibility": "acknowledgeCompatibility"
+				};
+				options[optionNames[name] || name] = true;
 			} else {
 				throw diagnostics.unknownOption(argument, [
 					"--channel", "--version", "--and", "--and-terminal",
 					"--yes", "--check", "--json", "--dry-run", "--force",
-					"--quiet", "--no-color",
+					"--quiet", "--no-color", "--allow-downgrade", "--allow-generation-change", "--acknowledge-compatibility",
 				]);
 			}
 			continue;
@@ -180,6 +189,9 @@ function getCommandHelp(command) {
 			"  --json               Print the release catalog as JSON",
 			"  --force              Ignore the cached catalog and refresh feeds",
 			"  --yes                Skip the interactive install confirmation",
+			"--allow-downgrade    Explicitly allow an older version",
+			"--allow-generation-change  Explicitly allow switching Gen 2 / Gen 3",
+			"--acknowledge-compatibility Acknowledge migration warnings",
 			"  -q, --quiet          Hide the v2.7.0 introduction notice",
 			"  --no-color           Disable ANSI colors",
 			"  -h, --help           Show this command help",
@@ -354,15 +366,19 @@ async function commandUpdate(root, options) {
 		throw new Error("No verified installable release was found for " + (options.version || options.channel) + ". The catalog may list npm prereleases or Git tags without a verified installation artifact.");
 	}
 	if (options.check || options.dryRun) {
+		const safetyReport = inspectUpdateSafety(root, release);
 		process.stdout.write("[NE] Selected " + release.version + " [" + channelLabel(release) + "] from " + release.sourceLabel + ".\n");
+		process.stdout.write(formatUpdateSafety(safetyReport) + "\n");
+		if (safetyReport.blockers.length) process.stdout.write("[NE] This selection is BLOCKED by compatibility errors.\n");
 		if (options.dryRun) process.stdout.write("[NE] Dry run only; the project was not modified.\n");
 		return;
 	}
+
 	if (!(await askToInstall(release, options))) {
 		process.stdout.write("[NE] Installation cancelled.\n");
 		return;
 	}
-	await installRelease(root, release, options.channel || release.track);
+	await installRelease(root, release, options.channel || release.track, options);
 }
 
 async function commandUpdater(root, showWarning) {
@@ -375,6 +391,7 @@ async function commandUpdater(root, showWarning) {
 	}
 	const result = await runTui({
 		initialScreen: "releases",
+		inspectRelease: (release) => inspectUpdateSafety(root, release),
 		showWarning: Boolean(showWarning),
 		catalog,
 		context: {
@@ -386,7 +403,7 @@ async function commandUpdater(root, showWarning) {
 		},
 	});
 	if (result.action === "install" && result.release) {
-		await installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+		await installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track, { safetyAcknowledged: Boolean(result.safetyAcknowledged) });
 	}
 }
 
@@ -433,7 +450,7 @@ async function runDashboardAction(root, result, dependencies) {
 		? dependencies.installRelease
 		: installRelease;
 	if (action === "install" && result && result.release) {
-		return install(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+		return install(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track, { safetyAcknowledged: Boolean(result.safetyAcknowledged) });
 	}
 	if (action === "dev") return runNext(root, ["dev"]);
 	if (action === "build") return runBuild(root);
