@@ -59,7 +59,6 @@ function isPackageRootCommit(repo, commit, item) {
   try {
     const marker = markerAt(repo, commit);
     const pkg = JSON.parse(git(repo, ["show", commit + ":package.json"]));
-    const expectedPrefix = item.track === "stable" ? "version/" : item.track + "/version/";
     if (!marker || marker.schemaVersion !== 1 || marker.packageName !== NAME
       || marker.version !== item.version || marker.track !== item.track || marker.tag !== item.tag
       || marker.layout !== "npm-pack-root"
