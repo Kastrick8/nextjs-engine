@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const safety = require("../bin/ne-cli/update-safety");
+const project = require("../bin/ne-cli/project");
 
 async function run() {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "ne-update-safety-"));
@@ -14,7 +15,7 @@ async function run() {
 			JSON.stringify({ name: "@kastrick/nextjs-engine", version: "3.0.0-alpha.3" }));
 		fs.mkdirSync(path.join(root, "app"), { recursive: true });
 		fs.writeFileSync(path.join(root, "app", "page.tsx"),
-			'const invalid = { type: "raw" };\nfunction render() { return RawComponentRenderer(); }\n');
+			'const invalid = { type: "component", child: { type: "raw" } };\nfunction render() { return RawComponentRenderer(); }\n');
 		fs.writeFileSync(path.join(root, "app", "string-example.ts"),
 			'const docs = \'example: { type: "raw" } and RawComponentRenderer\';\\n');
 
@@ -41,8 +42,20 @@ async function run() {
 		assert.equal(downgrade.currentGeneration, 3);
 		assert.equal(downgrade.targetGeneration, 3);
 		assert.deepEqual(downgrade.blockers.map((finding) => finding.code).sort(), ["E3M001", "E3M002"]);
+		const rawSchemaFinding = downgrade.blockers.find((finding) => finding.code === "E3M002");
+		assert.match(rawSchemaFinding.message, /type: "raw"/);
+		assert.match(rawSchemaFinding.recommendation, /registered component schema|React component/);
 		assert.ok(downgrade.blockers.every((finding) => finding.file === "app/page.tsx"),
 			"code examples inside string literals must not be reported as migration blockers");
+		assert.match(safety.formatUpdateSafety(downgrade), /Replace the raw schema node/);
+		const postInstallVerified = project.verifyInstalledVersion(root, {
+			version: "3.0.0-alpha.3"
+		}, null, 3);
+		assert.equal(postInstallVerified.version, "3.0.0-alpha.3");
+		assert.throws(() => project.verifyInstalledVersion(root, {
+			version: "3.0.0-alpha.3"
+		}, null, 2), /generation/i,
+		"post-install verification rejects the wrong Engine generation");
 		assert.match(safety.formatUpdateSafety(downgrade), /DOWNGRADE/);
 		await assert.rejects(() => safety.confirmUpdateSafety(downgrade, { yes: true }), /blocked/i,
 			"fatal Generation 3 findings block even an explicitly acknowledged install");
@@ -81,7 +94,15 @@ async function run() {
 		await safety.confirmUpdateSafety(gen2, {
 			yes: true, allowGenerationChange: true, allowDowngrade: true, acknowledgeCompatibility: true
 		});
-		process.stdout.write("[NE CLI] Update safety smoke passed.\n");
+
+		const unknownGeneration = safety.inspectUpdateSafety(root, {
+			version: "4.0.0", sourceBranch: "main-4", source: "github"
+		});
+		assert.ok(unknownGeneration.blockers.some((finding) => finding.code === "ENE001"));
+		await assert.rejects(() => safety.confirmUpdateSafety(unknownGeneration, {
+			yes: true, allowGenerationChange: true, allowDowngrade: true, acknowledgeCompatibility: true
+		}), /supported Engine generation/i);
+		process.stdout.write("[NE CLI] Update safety smoke passed.\\n");
 	} finally {
 		fs.rmSync(root, { recursive: true, force: true });
 	}
