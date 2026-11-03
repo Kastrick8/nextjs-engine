@@ -330,6 +330,18 @@ const markup = exportSVG(scene, 800, 600);
 
 `markup` is an SVG string.
 
+The package exports these helper signatures:
+
+```ts
+exportSVG(scene: ECScene, width: number, height: number): string;
+
+importSVG(svgSource: string): ECNode[];
+```
+
+`exportSVG()` is a pure string exporter and can run without a browser DOM.
+`importSVG()` requires `DOMParser` and must run in a browser environment.
+
+
 You can save/send it using your own application code:
 
 ```ts
@@ -423,7 +435,21 @@ import { EngineSVGEngine } from "nextjs-engine";
 const renderer = new EngineSVGEngine();
 ```
 
-It implements the standard EngineCanvas `RenderingEngine` contract:
+It implements the package's exported `ECRenderingEngine` contract:
+
+The package exposes the renderer through the `ECRenderingEngine` type alias.
+The implementation has this lifecycle contract:
+
+```ts
+interface ECRenderingEngine {
+  readonly name: string;
+  init(context: ECRenderContext): void | Promise<void>;
+  render(scene: ECScene, delta: number, frame: number): void;
+  resize(width: number, height: number, dpr?: number): void;
+  dispose(): void;
+}
+```
+
 
 ```ts
 interface RenderingEngine {
