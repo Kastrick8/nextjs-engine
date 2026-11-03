@@ -52,9 +52,10 @@ function sourceShaAt(repo, commit, folder) {
   }
   return null;
 }
-function findPackage(repo, commit, version) {
+function findPackage(repo, commit, version, track) {
+  const prefix = track === "stable" ? "version/" : track === "alpha" ? "alpha/version/" : "beta/version/";
   const files = git(repo, ["ls-tree", "-r", "--name-only", commit]).split("\n")
-    .filter((item) => item === "package.json" || item.endsWith("/package.json"));
+    .filter((item) => item.startsWith(prefix) && item.endsWith("/package.json"));
   const matches = [];
   for (const file of files) {
     try {
@@ -62,7 +63,7 @@ function findPackage(repo, commit, version) {
       if (pkg.name === NAME && pkg.version === version) matches.push(path.posix.dirname(file));
     } catch {}
   }
-  if (matches.length !== 1) die("Expected one " + NAME + "@" + version + " folder in tag commit; found " + matches.length + ".");
+  if (matches.length !== 1) die("Expected one " + NAME + "@" + version + " snapshot under " + prefix + "; found " + matches.length + ".");
   return matches[0];
 }
 function buildRoot(repo, archiveCommit, folder, version, track, tag, sourceCommit) {
@@ -153,7 +154,7 @@ function migrate(args) {
       results.push({ tag: item.tag, status: "already-package-root", commitSha: oldCommit });
       continue;
     }
-    const folder = findPackage(repo, oldCommit, item.version);
+    const folder = findPackage(repo, oldCommit, item.version, item.track);
     const sourceCommit = sourceShaAt(repo, oldCommit, folder);
     const built = buildRoot(repo, oldCommit, folder, item.version, item.track, item.tag, sourceCommit);
     if (apply) {
