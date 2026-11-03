@@ -102,7 +102,7 @@ async function run() {
 		await assert.rejects(() => safety.confirmUpdateSafety(unknownGeneration, {
 			yes: true, allowGenerationChange: true, allowDowngrade: true, acknowledgeCompatibility: true
 		}), /supported Engine generation/i);
-		process.stdout.write("[NE CLI] Update safety smoke passed.\\n");
+		process.stdout.write("[NE CLI] Update safety smoke passed.\n");
 	} finally {
 		fs.rmSync(root, { recursive: true, force: true });
 	}
