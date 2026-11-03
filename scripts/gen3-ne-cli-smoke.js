@@ -19,6 +19,7 @@ const tmp = require("tmp");
 const fileSystem = require("../bin/ne-cli/file-system");
 
 async function main() {
+	await require("./ne-cli-update-safety-smoke").run();
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
 	const { spawnSync } = require("node:child_process");
 	const neExecutable = path.resolve(__dirname, "../bin/ne.js");
