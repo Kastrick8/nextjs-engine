@@ -65,6 +65,7 @@ function isPackageRootCommit(repo, commit, item) {
       || marker.packagePath !== expectedPackagePath(item.version, item.track)
       || !/^[0-9a-f]{40}$/.test(marker.archiveCommit || "")
       || !(marker.sourceCommit === null || /^[0-9a-f]{40}$/.test(marker.sourceCommit || ""))
+      || typeof marker.migrationOnly !== "boolean"
       || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity || "")
       || pkg.name !== NAME || pkg.version !== item.version || pkg.private === true) return false;
     if (git(repo, ["rev-parse", commit + "^"]) !== marker.archiveCommit) return false;
