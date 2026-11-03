@@ -14,10 +14,17 @@ async function run() {
 		fs.writeFileSync(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"),
 			JSON.stringify({ name: "@kastrick/nextjs-engine", version: "3.0.0-alpha.3" }));
 		fs.mkdirSync(path.join(root, "app"), { recursive: true });
-		fs.writeFileSync(path.join(root, "app", "page.tsx"),
-			'const invalid = { type: "component", child: { type: "raw" } };\nfunction render() { return RawComponentRenderer(); }\n');
+		fs.writeFileSync(path.join(root, "app", "page.tsx"), [
+			'const invalid = { type: "component", child: { "type": "raw" } };',
+			'function render() { return RawComponentRenderer(); }',
+			'export default createPage({',
+			' compiler: { serverFirst: false },',
+			' handlers: { onClick() {} },',
+			'});'
+		].join("\n") + "\n");
 		fs.writeFileSync(path.join(root, "app", "string-example.ts"),
 			'const docs = \'example: { type: "raw" } and RawComponentRenderer\';\\n');
+		fs.writeFileSync(path.join(root, "app", "other.tsx"), 'const config = { handlers: {} };\\n');
 
 		assert.equal(safety.generationFromBranch("main-2"), 2);
 		assert.equal(safety.generationFromBranch("main-3"), 3);
@@ -48,6 +55,10 @@ async function run() {
 		assert.ok(downgrade.blockers.every((finding) => finding.file === "app/page.tsx"),
 			"code examples inside string literals must not be reported as migration blockers");
 		assert.match(safety.formatUpdateSafety(downgrade), /Replace the raw schema node/);
+		assert.ok(downgrade.warnings.some((finding) => finding.code === "W3M002" && finding.file === "app/page.tsx"));
+		assert.ok(downgrade.warnings.some((finding) => finding.code === "W3M003" && finding.file === "app/page.tsx"));
+		assert.ok(!downgrade.warnings.some((finding) => finding.code === "W3M003" && finding.file === "app/other.tsx"),
+			"handlers outside createPage() must not be reported as a migration warning");
 		const postInstallVerified = project.verifyInstalledVersion(root, {
 			version: "3.0.0-alpha.3"
 		}, null, 3);
