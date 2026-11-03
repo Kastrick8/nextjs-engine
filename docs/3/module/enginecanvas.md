@@ -202,8 +202,8 @@ Full `.shed` language reference: [`engineshader.md`](./engineshader.md).
 | `responsive` | `boolean` | inferred | defaults true when width and height are omitted |
 | `dpr` | `number \| "auto"` | `"auto"` | target device-pixel ratio |
 | `maxDpr` | `number` | `2` | upper DPR cap |
-| `adaptive` | `boolean` | `false` | Public facade compatibility prop; accepted for scheduler integrations but does not lower V3 backing resolution |
-| `adaptiveTargetFps` | `number \| "display"` | `"display"` | V3 compatibility prop; RAF follows browser cadence and timing metadata reports actual cadence |
+| `adaptive` | `boolean` | `false` | Compatibility prop only; Gen 3 never lowers backing resolution from measured frame pressure. |
+| `adaptiveTargetFps` | `number \| "display"` | `"display"` | Compatibility field only; Gen 3 does not throttle RAF to this target. Frame timing reports the browser-delivered cadence. |
 | `pauseWhenOffscreen` | `boolean` | `true` | suspends useless offscreen work |
 | `pauseWhenHidden` | `boolean` | `true` | suspends work while the tab is hidden |
 | `alpha` | `boolean` | `false` | alpha buffer hint in normal Canvas/WebGL mode |
