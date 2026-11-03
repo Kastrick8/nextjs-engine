@@ -92,3 +92,47 @@ Research Companion skills guided the audit and note format. This host session di
 - Source-backed limits recorded in the guide: Engine3D uses unlit MeshBasicMaterial/LineBasicMaterial; surface strokes and strokeWidth are not applied; only rim shading adds a back-face shell; custom environment currently sets a solid background color; there is no public light/shadow/HDRI/sky/floor/texture asset API in this renderer; SVG-like paths support M/L/H/V/C/Q/Z with curves flattened to segments.
 - Factory-created mesh metric methods close over the vertex/index arrays supplied at creation. The guide recommends creating a fresh mesh from a factory when replacing geometry rather than mutating the typed-array fields on an existing factory-created mesh.
 - Connector edits only; no local clone, type-check, build or documentation-site preview was available because the container still cannot resolve GitHub DNS.
+
+
+## NE-CLI updater safety and PR audit — 2026-11-04
+
+### Scope and branches
+- Repository: `kastrick8/nextjs-engine`.
+- Generation 3 updater safety: PR [#93](https://github.com/kastrick8/nextjs-engine/pull/93), branch `fix/ne-cli-update-safety-main3-ready`, target `main-3`.
+- Generation 2 updater safety: PR [#94](https://github.com/kastrick8/nextjs-engine/pull/94), branch `fix/ne-cli-update-safety-main2-ready`, target `main-2`.
+- The safety branches contain the respective CLI help/runtime fixes from PRs #88 and #89 as ancestors. Compare result: #88 → #93 is 19 commits ahead / 0 behind; #89 → #94 is 19 ahead / 0 behind. Merge the help PR first, then the safety PR after refreshing its CI.
+
+### Safety behavior verified in source
+- Installed generation is read from the installed package manifest, with managed NE state used only when it matches that installed version; generation falls back to SemVer major when needed.
+- Selected generation prefers the release source branch (`main-2` / `main-3`) and falls back to version metadata.
+- SemVer downgrade, generation change, static compatibility findings, and explicit non-interactive acknowledgement flags are enforced before dependency changes.
+- Known Gen 3 incompatibilities `RawComponentRenderer` and schema `type: "raw"` block installation. The schema scan checks every `type:` key and reports remediation guidance.
+- Unknown target/installed generation is fail-closed. After the package-manager install, NE verifies exact package name/version and expected generation; mismatch triggers the existing restore path.
+- TUI review requires a separate acknowledgement; `--yes` alone does not bypass risk flags or hard blockers.
+
+### Scope limitation
+- Preflight is a bounded static source scan (up to 500 files / 1 MiB each in configured app/pages/components/lib roots). It is not a full dependency-tree, npm audit, TypeScript, peer-dependency, or runtime compatibility proof. No such checks are claimed as part of this PR.
+- Local repository checkout and package execution were not available: previous shell attempt could not resolve GitHub DNS. Verification must rely on GitHub Actions here; do not claim a local `npm run test:cli`, build, or type-check.
+
+### Open PR audit snapshot
+- #77 and #83: independent Gen 3 EngineTheme changes; last observed workflows green, but both were behind `main-3` and need branch refresh/current-head checks.
+- #80: security/Code Quality remediation; keep absolutely last per maintainer instruction. Its PR description records one Code Quality annotation and CodeQL alert #70 as explicit review items.
+- #84: rolling Alpha package-root/release workflow on `main-3`; draft, downstream of package migration work.
+- #85 then #90: package dist-tag correctness, then package-only Git tag snapshots on `package/main`; #90 depends on #85. Latest #85 validation passed; #90 validation was still running at audit time.
+- #88 then #93: Generation 3 CLI runtime/help, then updater safety.
+- #89 then #94: Generation 2 CLI runtime/help, then updater safety.
+- #91/#92: package-root Git-tag installation support; stacked on #88/#89 and not operational for old tags until the package-tag migration is applied.
+- #95: default-branch package-root publish workflow; depends on #84 and the package/main helper delivered by #90; refresh its base before CI/review.
+- #55 is a stale draft with superseded EngineOverlay theme contract; #77 is the discrete replacement. Do not merge #55.
+- Previously merged: #78, #79 and #81.
+
+### Merge order and safety
+1. Refresh and merge #88 / #89, then refresh and merge #93 / #94 respectively.
+2. Merge independent #77 / #83 after refreshing each against current `main-3` and rerunning required checks.
+3. On `package/main`, merge #85 then #90 after #90 validation passes.
+4. Merge #84 after the package helper is present, then refresh and merge #95.
+5. Inspect the tag migration with `apply=false`; only run `apply=true` after an explicit maintainer decision. No live tag refs were rewritten in this audit.
+6. Merge #91/#92 only after their base CLI PRs are merged, tag migration is complete, and fresh checks pass.
+7. Merge #80 absolutely last, after all other intended main-3 changes, refreshing it and reviewing its outstanding Code Quality annotation / alert #70 first.
+
+No PR was merged, no npm publication was made, and no live Git tag was changed during this work.
