@@ -15,6 +15,8 @@ async function run() {
 		fs.mkdirSync(path.join(root, "app"), { recursive: true });
 		fs.writeFileSync(path.join(root, "app", "page.tsx"),
 			'const invalid = { type: "raw" };\nfunction render() { return RawComponentRenderer(); }\n');
+		fs.writeFileSync(path.join(root, "app", "string-example.ts"),
+			'const docs = \'example: { type: "raw" } and RawComponentRenderer\';\\n');
 
 		assert.equal(safety.generationFromBranch("main-2"), 2);
 		assert.equal(safety.generationFromBranch("main-3"), 3);
@@ -29,6 +31,8 @@ async function run() {
 		assert.equal(downgrade.currentGeneration, 3);
 		assert.equal(downgrade.targetGeneration, 3);
 		assert.deepEqual(downgrade.blockers.map((finding) => finding.code).sort(), ["E3M001", "E3M002"]);
+		assert.ok(downgrade.blockers.every((finding) => finding.file === "app/page.tsx"),
+			"code examples inside string literals must not be reported as migration blockers");
 		assert.match(safety.formatUpdateSafety(downgrade), /DOWNGRADE/);
 		await assert.rejects(() => safety.confirmUpdateSafety(downgrade, { yes: true }), /blocked/i,
 			"fatal Generation 3 findings block even an explicitly acknowledged install");
