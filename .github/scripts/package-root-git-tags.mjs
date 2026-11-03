@@ -160,8 +160,8 @@ function migrate(args) {
     if (apply) {
       git(repo, ["tag", "--force", "--annotate", item.tag, "--message", NAME + "@" + item.version + " package-root migration", built.commit]);
       if (push) git(repo, ["push", "--force", "origin", "refs/tags/" + item.tag]);
-      migrated.set(item.tag, built.commit);
     }
+    migrated.set(item.tag, built.commit);
     results.push({
       tag: item.tag, status: apply ? "migrated" : "would-migrate",
       previousCommit: oldCommit, commitSha: built.commit, packagePath: folder, sourceCommit,
