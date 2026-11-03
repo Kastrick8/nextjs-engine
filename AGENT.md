@@ -61,7 +61,11 @@ npm dist-tags:
 - Each alpha version receives `package-alpha.X.Y.Z-alpha.N`; each beta version receives `package-beta.X.Y.Z-beta.N`.
 - The newest prerelease in each track additionally receives `alpha` or `beta`.
 
-The `Seed package Git tags` workflow is idempotent, backfills version-specific Git tags for snapshots already in the archive, and sets `package.latest` to the current latest stable version tag. It does not publish anything to npm.
+Git package tags are package-root commits built from the exact archived version folder with `npm pack`. A tag tree contains the package's packed files plus a root `.package-tag.json` provenance marker; it must never contain the complete `package/main` archive tree. The package-root commit keeps the archive snapshot commit as its parent so its provenance remains reachable from `package/main`.
+
+The `Migrate package Git tags to package-only snapshots` workflow lives on the default development branch. It first runs in dry-run mode; inspect the per-tag result, then dispatch again with `apply=true` to force-update legacy `package.X.Y.Z`, `package-alpha.X.Y.Z-alpha.N`, and `package-beta.X.Y.Z-beta.N` refs and move `package.latest` to the newest stable package-root commit. It preserves each tag's own archived package version, does not copy current `main-2` or `main-3` source into historical versions, and does not publish to npm. The migration refuses ambiguous package folders or unverified legacy provenance.
+
+The normal release workflow creates the same package-only tag layout for all new immutable version tags. It validates the root marker and package manifest before a tag-triggered npm publication.
 
 Before the first release, check `npm view @kastrick/nextjs-engine name`. If the name is not registered and version `2.6.2` does not already exist, publish the `version/2.6/version/2.6.2` snapshot once from an npm-authenticated CLI with `npm publish --access public`. Then configure the package's Trusted Publisher with owner `Kate-alt-69`, repository `nextjs-engine`, workflow `publish-package.yml`, blank environment, and both **Allow npm publish** and **Allow npm dist-tag**. The workflow uses a GitHub-hosted runner, `id-token: write`, Node 24 and npm CLI 11.21.0+. npm requires a new Trusted Publisher to complete its first successful operation within two days, so add the configuration when ready to run the release.
 
