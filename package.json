@@ -27,8 +27,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "three": "^0.184.0",
-    "two.js": "^0.8.23",
-    "tmp": "0.2.7"
+    "two.js": "^0.8.23"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

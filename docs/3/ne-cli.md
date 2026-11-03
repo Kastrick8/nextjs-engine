@@ -21,6 +21,18 @@ The NE CLI gives projects one command interface for development, production buil
 | **ne rollback** | Restore the previous package manifest and lockfiles, then reinstall dependencies. |
 | **ne help** | Print command help. |
 
+## Command help
+
+Use `ne --help` for the command overview, or ask a command for its own usage and options:
+
+```sh
+ne update --help
+ne update -h
+ne help update
+```
+
+Each command has focused help. For example, `ne update --help` lists supported channels, version selection, refresh/check modes, dry runs, JSON output, and install confirmation options. Help works outside a project directory.
+
 ## Terminal presentation and diagnostics
 
 NE CLI messages use a shared adaptive banner renderer. Banner width is based on the available terminal columns, visible text width ignores ANSI color sequences, long messages wrap to fit, and narrow/ASCII terminals use a plain character fallback. Severity styles are consistent across command warnings and failures: errors are red, warnings yellow, successful notices green, and informational/running messages cyan.
@@ -164,3 +176,30 @@ Run:
     node scripts/gen3-ne-cli-smoke.js
 
 The smoke test covers version ordering, channel manifest validation, channel selection, argument parsing, the terminal frame, safe backup restoration, and cache cleanup behavior.
+
+
+## Update safety preflight
+
+Before an update changes project dependencies, NE inspects the installed and selected Engine versions, determines their generations (verified release branch metadata takes priority over the SemVer-major fallback), and scans up to 500 project source files in the supported app/pages/components/lib roots. The scan skips dependency and generated-output folders and is intentionally bounded.
+
+The preflight detects:
+
+- A SemVer downgrade, including prerelease-to-prerelease downgrades.
+- A Gen 2 ↔ Gen 3 transition.
+- Gen 3 blockers: `RawComponentRenderer` and schema nodes with `type: "raw"`. Every matching schema `type` property is checked, and findings include a source location and remediation guidance.
+- Unknown target generations and unknown installed generations fail closed; after installation, NE verifies that the installed package belongs to the generation selected during preflight.
+- Gen 3 migration warnings for legacy EngineAPI artifacts, `compiler.serverFirst: false`, and named `createPage()` handlers.
+
+The release details view reports the scan result. Risky updates open a separate acknowledgement screen; fatal compatibility findings block installation. The command-line path performs the same scan immediately before installation. `--check` and `--dry-run` print the report without changing the project.
+
+For non-interactive installs, `--yes` alone is not enough for a risky change. Add the applicable acknowledgement flags:
+
+~~~sh
+ne update --version 3.0.0-alpha.2 --dry-run
+ne update --version 3.0.0-alpha.2 --yes --allow-downgrade
+ne update --version 3.0.0-alpha.2 --yes --allow-generation-change --acknowledge-compatibility
+~~~
+
+`--allow-downgrade` explicitly permits an older version, `--allow-generation-change` explicitly permits crossing between Gen 2 and Gen 3, and `--acknowledge-compatibility` acknowledges preflight warnings. These flags do not bypass fatal findings.
+
+This is a focused static migration preflight, not a complete API, npm dependency-tree, TypeScript, peer-dependency, or runtime-compatibility proof. It does not run `npm audit`, `npm ls`, or a production build before changing dependencies. Clean results mean no currently encoded rules matched in the bounded set of scanned files; they do not guarantee that every third-party package or application behavior is compatible. After installation NE verifies the exact installed package name/version and Engine generation; a mismatch or installation failure enters the existing dependency-file restoration path.
