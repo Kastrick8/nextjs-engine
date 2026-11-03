@@ -404,7 +404,8 @@ async function main() {
 	assert.throws(() => cli.tokenizeCommand("node -e 'unterminated"), /unterminated quoted argument/);
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
-	assert.match(cli.getHelp(), /ne update --channel/);
+	assert.match(cli.getHelp(), /ne update\s+List or install a release/);
+	assert.doesNotMatch(cli.getHelp(), /--channel/, "the overview keeps release flags in command-specific help");
 	assert.match(cli.getHelp(), /npx ne --help/);
 	assert.match(cli.getHelp(), /Shell operators are rejected/);
 	const rootHelpResult = spawnSync(process.execPath, [executable, "--help"], {
