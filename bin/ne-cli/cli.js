@@ -77,7 +77,7 @@ function parseArgs(argv) {
 				throw diagnostics.unknownOption(argument, [
 					"--channel", "--version", "--and", "--and-terminal",
 					"--yes", "--check", "--json", "--dry-run", "--force",
-					"--quiet", "--no-color", "--allow-downgrade", "--allow-generation-change", "--acknowledge-compatibility", "--allow-downgrade", "--allow-generation-change", "--acknowledge-compatibility",
+					"--quiet", "--no-color", "--allow-downgrade", "--allow-generation-change", "--acknowledge-compatibility",
 				]);
 			}
 			continue;
@@ -158,9 +158,9 @@ function getHelp() {
 		"  --dry-run     Show a selection without changing the project",
 		"  --check       Refresh and list channel availability without installing",
 		"  --json        Print the channel catalog as JSON",
-		"--allow-downgrade             Explicitly allow an older Engine version",
-		"--allow-generation-change     Explicitly allow switching Gen 2 / Gen 3",
-		"--acknowledge-compatibility   Acknowledge preflight migration warnings",
+		"  --allow-downgrade     Explicitly allow an older Engine version",
+		"  --allow-generation-change  Explicitly allow switching Gen 2 / Gen 3",
+		"  --acknowledge-compatibility  Acknowledge preflight migration warnings",
 		"  -q, --quiet   Suppress the NE CLI introduction notice",
 		"  --no-color    Disable ANSI colors in CLI output",
 		"",
