@@ -72,3 +72,13 @@ Research Companion skills guided the audit and note format. This host session di
 - Source note: Gen 3 CustomSelect currently defaults emptyLabel to the literal string {emptyLabel} whereas Gen 2 defaults to No options found. The docs advise explicitly setting the Gen 3 prop; runtime code was intentionally not changed in these documentation PRs.
 - Structural validation on the changed module pages found balanced Markdown code fences and no duplicate real section headings after correcting the accidental joined headings; the duplicate ## API sample in EngineMarkdown is fenced content demonstrating generated heading suffixes.
 - No local type-check, production build, or docs-site preview was run because the container cannot resolve GitHub DNS. The current PR workflow checks must pass before merging.
+
+## Animation, Canvas, SVG and primitive follow-up — 2026-11-03
+- Expanded EngineManim with exact 2D/3D configuration tables, shape/timeline contracts and direct React component prop signatures. The direct React example is now a self-contained Client Component.
+- Documented Gen 3 `Manim3DConfig.materialSrc` for OBJ Wavefront `.mtl` files and the `$root` bone-transform target; added the EngineScheduler frame-pressure note for animated Manim3D.
+- Corrected the EngineCanvas compatibility boundary: Gen 3 accepts `adaptive` and `adaptiveTargetFps` for call-site compatibility, but does not adapt DPR, lower backing resolution, or throttle RAF to that target. `adaptiveTargetFps` timing is browser-delivered.
+- Clarified that `engine: "skia"` is registered but currently throws because its CanvasKit backend is a stub; use `2d` or `3d` for a working renderer.
+- Added EngineSVG public helper signatures (`exportSVG(scene, width, height): string`, browser-only `importSVG(svgSource): ECNode[]`) and documented the exported `ECRenderingEngine` contract.
+- Expanded primitives common-prop coverage, corrected the Button `type` contract and EngineLink schema callback type, added Box axis gaps, Gen 3 external URL icon props and EngineTheme primitive style slots. Added direct EngineCard `coverClassName` and theme style props.
+- Structural validation covered the Gen 3/Gen 2 primitives, Canvas, Manim, SVG and Shader pages plus Gen 3 Nav/Hero/Image/Video/Overlay pages: all scanned pages had balanced code fences and unique actual headings.
+- Local clone/build/type-check/site preview remain unavailable because outbound DNS to GitHub is blocked in the container. The GitHub connector remains the only repository editing/inspection path used.
