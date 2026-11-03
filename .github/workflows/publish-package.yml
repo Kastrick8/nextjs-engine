@@ -364,9 +364,14 @@ jobs:
           const fs=require("node:fs");
           const [file,version,track,tag,sourceCommit]=process.argv.slice(2);
           const marker=JSON.parse(fs.readFileSync(file,"utf8"));
+          const expectedPrefix=track==="stable"?"version/":track+"/version/";
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"||marker.sourceCommit!==sourceCommit) {
+            ||marker.layout!=="npm-pack-root"||marker.sourceCommit!==sourceCommit
+            ||typeof marker.packagePath!=="string"||!marker.packagePath.startsWith(expectedPrefix)
+            ||marker.packagePath.split("/").includes("..")
+            ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
+            ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Existing immutable package tag has different or unverified provenance; refusing to move it.");
           }
           NODE
@@ -833,9 +838,15 @@ jobs:
           if(!match) throw new Error("Unsupported release tag: "+tag);
           const version=match[1];
           const track=tag.startsWith("package-alpha.")?"alpha":tag.startsWith("package-beta.")?"beta":"stable";
+          const expectedPrefix=track==="stable"?"version/":track+"/version/";
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")) {
+            ||marker.layout!=="npm-pack-root"
+            ||typeof marker.packagePath!=="string"||!marker.packagePath.startsWith(expectedPrefix)
+            ||marker.packagePath.split("/").includes("..")
+            ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
+            ||!(marker.sourceCommit===null||/^[0-9a-f]{40}$/.test(marker.sourceCommit||""))
+            ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Tag is not a verified package-root snapshot.");
           }
           if(pkg.name!=="@kastrick/nextjs-engine"||pkg.version!==version||pkg.private===true) {
@@ -856,6 +867,9 @@ jobs:
           TRACK="$(sed -n 's/^track=//p' "$RUNNER_TEMP/tag-metadata.env")"
           ARCHIVE_COMMIT="$(sed -n 's/^archive_commit=//p' "$RUNNER_TEMP/tag-metadata.env")"
           test -n "$VERSION" && test -n "$TRACK" && test -n "$ARCHIVE_COMMIT"
+          test "$(git rev-parse "$GITHUB_SHA^")" = "$ARCHIVE_COMMIT" || {
+            echo "Package-root tag commit does not have its recorded archive commit as its parent." >&2; exit 1;
+          }
           git merge-base --is-ancestor "$ARCHIVE_COMMIT" refs/remotes/origin/package/main || {
             echo "The package-root tag's archive provenance is not part of package/main history." >&2; exit 1;
           }
