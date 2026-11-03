@@ -291,6 +291,8 @@ A styled container with full layout control.
 | `coverFit` | `string` | `"cover"` | CSS object-fit for the cover image |
 | `coverWidth` | `string` | `"40%"` | Cover column width when `direction="horizontal"` |
 | `innerPadding` | `string` | `"1.25rem"` | Padding on the content area |
+| `coverClassName` | `string` | — | Direct React prop for the cover `<img>` class; not part of the serializable schema `CardProps`. |
+| `engineThemeStyles` | partial `cover` / `coverImage` / `content` style map | — | Gen 3 direct/theme-injected slots for the cover surface, cover image and content container. |
 
 Any children passed to the card render inside the content area below (or beside) the cover.
 
