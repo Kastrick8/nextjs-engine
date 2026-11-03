@@ -41,6 +41,24 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
     fs.mkdirSync(path.join(repo, "version/2.6/version/2.6.2"), { recursive: true });
     fs.cpSync(path.join(repo, "package"), path.join(repo, "version/2.6/version/2.6.2"), { recursive: true });
     fs.rmSync(path.join(repo, "package"), { recursive: true, force: true });
+    const legacySnapshots = [
+      ["1.0.0", "version/1.0/version/1.0"],
+      ["2.6.1", "version/2.6/version/2.6.1"],
+    ];
+    for (const [version, relative] of legacySnapshots) {
+      const staging = path.join(repo, "staging-" + version);
+      writePackage(staging, version);
+      const target = path.join(repo, relative);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.cpSync(path.join(staging, "package"), target, { recursive: true });
+      fs.rmSync(staging, { recursive: true, force: true });
+    }
+    const alphaStaging = path.join(repo, "staging-alpha");
+    writePackage(alphaStaging, "3.0.0-alpha.1");
+    const alphaTarget = path.join(repo, "alpha/version/3.alpha/version/3.0.0-alpha.1");
+    fs.mkdirSync(path.dirname(alphaTarget), { recursive: true });
+    fs.cpSync(path.join(alphaStaging, "package"), alphaTarget, { recursive: true });
+    fs.rmSync(alphaStaging, { recursive: true, force: true });
     fs.mkdirSync(path.join(repo, ".github/workflows"), { recursive: true });
     fs.writeFileSync(path.join(repo, ".github/workflows/noise.yml"), "not package content\n");
     fs.mkdirSync(path.join(repo, "alpha"), { recursive: true });
@@ -48,13 +66,18 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
     git(repo, ["add", "--all"]);
     git(repo, ["commit", "-m", "legacy archive tree"]);
     const previous = git(repo, ["rev-parse", "HEAD"]);
+    git(repo, ["tag", "-a", "package.1.0.0", "-m", "old archive tag"]);
+    git(repo, ["tag", "-a", "package.2.6.1", "-m", "old archive tag"]);
     git(repo, ["tag", "-a", "package.2.6.2", "-m", "old archive tag"]);
+    git(repo, ["tag", "-a", "package-alpha.3.0.0-alpha.1", "-m", "old alpha archive tag"]);
     git(repo, ["tag", "-a", "package.latest", "-m", "old latest tag"]);
 
     const dry = runMigration(repo, []);
     assert.equal(dry.status, 0, dry.stderr);
     assert.equal(dry.parsed.mode, "dry-run");
-    assert.equal(git(repo, ["rev-parse", "package.2.6.2^{commit}"]), previous, "dry-run must not move refs");
+    for (const tag of ["package.1.0.0", "package.2.6.1", "package.2.6.2", "package-alpha.3.0.0-alpha.1"]) {
+      assert.equal(git(repo, ["rev-parse", tag + "^{commit}"]), previous, "dry-run must not move " + tag);
+    }
     const plannedLatest = dry.parsed.results.find((item) => item.tag === "package.latest");
     assert.equal(plannedLatest.targetTag, "package.2.6.2");
     assert.notEqual(plannedLatest.commitSha, previous, "dry-run preview points package.latest at the planned package-root commit");
@@ -63,6 +86,17 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
     assert.equal(apply.status, 0, apply.stderr);
     const rootCommit = git(repo, ["rev-parse", "package.2.6.2^{commit}"]);
     assert.notEqual(rootCommit, previous);
+    for (const [tag, version] of [
+      ["package.1.0.0", "1.0.0"],
+      ["package.2.6.1", "2.6.1"],
+      ["package-alpha.3.0.0-alpha.1", "3.0.0-alpha.1"],
+    ]) {
+      const tagCommit = git(repo, ["rev-parse", tag + "^{commit}"]);
+      const tagMarker = JSON.parse(git(repo, ["show", tagCommit + ":.package-tag.json"]));
+      assert.equal(tagMarker.version, version, "each tag resolves its own snapshot from the shared legacy archive commit");
+      assert.deepEqual(git(repo, ["ls-tree", "--name-only", tagCommit]).split("\n").sort(),
+        [".package-tag.json", "README.md", "engine", "index.ts", "package.json"]);
+    }
     assert.deepEqual(git(repo, ["ls-tree", "--name-only", rootCommit]).split("\n").sort(),
       [".package-tag.json", "README.md", "engine", "index.ts", "package.json"]);
     const marker = JSON.parse(git(repo, ["show", rootCommit + ":.package-tag.json"]));
