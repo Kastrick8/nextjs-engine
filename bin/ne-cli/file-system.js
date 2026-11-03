@@ -2,7 +2,6 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const tmp = require("tmp");
 
 /**
  * Create a private temporary directory on the same filesystem as its eventual
@@ -11,13 +10,19 @@ const tmp = require("tmp");
 function createPrivateTempDirectory(parentDirectory, prefix) {
 	const parent = path.resolve(parentDirectory);
 	fs.mkdirSync(parent, { recursive: true });
-	return tmp.dirSync({
-		tmpdir: parent,
-		prefix: prefix || ".ne-",
-		mode: 0o700,
-		keep: true,
-		unsafeCleanup: true,
-	});
+	const name = fs.mkdtempSync(path.join(parent, prefix || ".ne-"));
+	try {
+		if (process.platform !== "win32") fs.chmodSync(name, 0o700);
+	} catch (error) {
+		fs.rmSync(name, { recursive: true, force: true });
+		throw error;
+	}
+	return {
+		name,
+		removeCallback() {
+			fs.rmSync(name, { recursive: true, force: true });
+		},
+	};
 }
 
 /**
