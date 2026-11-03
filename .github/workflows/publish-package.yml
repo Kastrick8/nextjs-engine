@@ -827,7 +827,7 @@ jobs:
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
           npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
-          node .github/scripts/verify-npm-dist-tags.mjs "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE"
+          node .github/scripts/verify-npm-dist-tags.mjs "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE/archive"
 
       - name: Release summary
         if: always()
