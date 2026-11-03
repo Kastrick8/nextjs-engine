@@ -364,12 +364,10 @@ jobs:
           const fs=require("node:fs");
           const [file,version,track,tag,sourceCommit]=process.argv.slice(2);
           const marker=JSON.parse(fs.readFileSync(file,"utf8"));
-          const expectedPrefix=track==="stable"?"version/":track+"/version/";
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
             ||marker.layout!=="npm-pack-root"||marker.sourceCommit!==sourceCommit
-            ||typeof marker.packagePath!=="string"||!marker.packagePath.startsWith(expectedPrefix)
-            ||marker.packagePath.split("/").includes("..")
+            ||marker.packagePath!==DIR
             ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
             ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Existing immutable package tag has different or unverified provenance; refusing to move it.");
@@ -838,12 +836,9 @@ jobs:
           if(!match) throw new Error("Unsupported release tag: "+tag);
           const version=match[1];
           const track=tag.startsWith("package-alpha.")?"alpha":tag.startsWith("package-beta.")?"beta":"stable";
-          const expectedPrefix=track==="stable"?"version/":track+"/version/";
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"
-            ||typeof marker.packagePath!=="string"||!marker.packagePath.startsWith(expectedPrefix)
-            ||marker.packagePath.split("/").includes("..")
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==TARGET
             ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
             ||!(marker.sourceCommit===null||/^[0-9a-f]{40}$/.test(marker.sourceCommit||""))
             ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
