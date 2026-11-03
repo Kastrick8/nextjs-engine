@@ -24,6 +24,18 @@ The NE CLI was introduced to the Generation 2 package in v2.7.0. It provides pro
 | `ne rollback` | Restore the previous managed package state. |
 | `ne help` | Show command help. |
 
+## Command help
+
+Use `ne --help` for the overview, or request help for one command:
+
+```sh
+ne update --help
+ne update -h
+ne help update
+```
+
+Command help works outside a project directory and shows only the selected command's usage and options. In particular, `ne update --help` lists release channels, version selection, refresh/check modes, dry runs, JSON output, and install confirmation.
+
 Install the package globally to use `ne` directly from a shell:
 
 ~~~sh
