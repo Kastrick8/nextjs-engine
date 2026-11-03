@@ -1,0 +1,36 @@
+name: NE CLI smoke — Generation 2
+
+on:
+  pull_request:
+    branches:
+      - main-2
+    paths:
+      - "bin/ne-cli/**"
+      - "bin/ne.js"
+      - "scripts/ne-cli-smoke.js"
+      - "package.json"
+      - ".github/workflows/ne-cli-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ne-cli-smoke:
+    name: Generation 2 NE CLI regression checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install CLI dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run Generation 2 CLI regression suite
+        run: npm run test:cli
