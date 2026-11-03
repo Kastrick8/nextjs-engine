@@ -161,9 +161,45 @@ async function main() {
 	];
 	const parsedTags = tagFixtures.map(channels.packageTagToRelease);
 	assert.deepEqual(parsedTags.slice(0, 3).map((item) => item.version), ["2.7.0", "3.0.0-alpha.2", "3.0.0-beta.1"]);
-	assert.equal(parsedTags[0].installable, false);
+	assert.equal(parsedTags[0].installable, false, "a legacy tag without a root marker remains TAG ONLY");
 	assert.equal(parsedTags[3], null);
 	assert.equal(parsedTags[4], null);
+	const packageTagMarker = {
+		schemaVersion: 1,
+		packageName: "@kastrick/nextjs-engine",
+		version: "2.7.0",
+		track: "stable",
+		tag: "package.2.7.0",
+		layout: "npm-pack-root",
+		archiveCommit: "b".repeat(40),
+		packagePath: "version/2.7/version/2.7",
+		sourceCommit: "a".repeat(40),
+		migrationOnly: true,
+		npmIntegrity: "sha512-" + "c".repeat(86) + "==",
+	};
+	const verifiedStableTag = channels.packageTagToRelease(tagFixtures[0], packageTagMarker);
+	assert.equal(verifiedStableTag.installable, true);
+	assert.equal(verifiedStableTag.installSpec, "git+https://github.com/Kastrick8/nextjs-engine.git#package.2.7.0");
+	assert.equal(verifiedStableTag.sourceCommit, "a".repeat(40));
+	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
+	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
+	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
+		...packageTagMarker, tag: "package.2.7.1",
+	}).installable, false, "a marker for a different tag cannot verify this ref");
+	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
+		...packageTagMarker, packagePath: "version/2.7/version/2.7.0",
+	}).installable, false, "patch-zero releases must use the canonical shortened snapshot path");
+	const previousMarkerFetch = global.fetch;
+	try {
+		global.fetch = async (url) => {
+			assert.match(String(url), /^https:\/\/raw\.githubusercontent\.com\/Kastrick8\/nextjs-engine\/package\.2\.7\.0\/\.package-tag\.json$/);
+			return new Response(JSON.stringify(packageTagMarker), { status: 200 });
+		};
+		const verifiedRecords = await channels.verifyPackageTagRecords([tagFixtures[0]], false);
+		assert.equal(verifiedRecords[0].installable, true, "the updater verifies the marker on the official raw tag ref");
+	} finally {
+		global.fetch = previousMarkerFetch;
+	}
 
 	const freeformGitHubRelease = channels.catalogOnlyGitHubRelease({
 		tag_name: "historical-engine-prerelease",
@@ -183,7 +219,7 @@ async function main() {
 
 	const mergedCatalog = channels.normaliseCatalog([
 		...npmCatalog,
-		parsedTags[0],
+		verifiedStableTag,
 		{
 			version: "3.0.0-alpha.2",
 			track: "alpha",
@@ -211,7 +247,9 @@ async function main() {
 	assert.deepEqual(mergedAlpha.sources.sort(), ["github", "npm"]);
 	assert.equal(channels.resolveRelease(mergedCatalog, { version: "3.0.0-alpha.2" }).source, "github");
 	assert.equal(channels.resolveRelease({ releases: [parsedTags[0]] }, { version: "2.7.0" }), null);
+	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
 	assert.equal(channels.channelLabel(parsedTags[0]), "TAG ONLY");
+	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
 
 	const manifest = {
 		schemaVersion: 1,
