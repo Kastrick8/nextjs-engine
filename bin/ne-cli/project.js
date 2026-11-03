@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { inspectUpdateSafety, confirmUpdateSafety } = require("./update-safety");
+const { inspectUpdateSafety, formatUpdateSafety, confirmUpdateSafety } = require("./update-safety");
 const { createPrivateTempDirectory, writeFileAtomically } = require("./file-system");
 
 function taskRuntime() {
@@ -1059,6 +1059,7 @@ async function runBuild(root) {
 module.exports = {
 	PACKAGE_NAME,
 	inspectUpdateSafety,
+	formatUpdateSafety,
 	findProjectRoot,
 	resolveProcessInvocation,
 	readJson,
