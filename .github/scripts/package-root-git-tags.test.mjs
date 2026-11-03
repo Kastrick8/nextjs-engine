@@ -103,6 +103,7 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
     assert.equal(marker.tag, "package.2.6.2");
     assert.equal(marker.version, "2.6.2");
     assert.equal(marker.layout, "npm-pack-root");
+    assert.equal(marker.migrationOnly, true, "legacy tag rewrites are marked to suppress npm publication");
     assert.equal(marker.sourceCommit, "a".repeat(40));
     assert.equal(git(repo, ["rev-parse", "package.latest^{commit}"]), rootCommit);
   } finally {
