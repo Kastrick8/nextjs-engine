@@ -1219,7 +1219,7 @@ jobs:
           DISPATCH_TAG: ${{ github.event.client_payload.tag_name || '' }}
         run: |
           set -euo pipefail
-          TAG_NAME="\${DISPATCH_TAG:-$GITHUB_REF_NAME}"
+          TAG_NAME="${DISPATCH_TAG:-$GITHUB_REF_NAME}"
           [[ "$TAG_NAME" =~ ^package(-alpha|-beta)?\.[0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+|-beta\.[0-9]+)?$ ]] || {
             echo "Invalid package release tag: $TAG_NAME" >&2; exit 1;
           }
@@ -1494,6 +1494,6 @@ jobs:
             echo "- Track: $TRACK"
             echo "- Package root: ${{ steps.snapshot.outputs.directory }}"
             echo "- Migration-only: $MIGRATION_ONLY"
-            echo "- Channel alias advanced: \${CHANNEL_TAG:-none}"
-            echo "- New npm publication required: \${SHOULD_PUBLISH:-no}"
+            echo "- Channel alias advanced: ${CHANNEL_TAG:-none}"
+            echo "- New npm publication required: ${SHOULD_PUBLISH:-no}"
           } >> "$GITHUB_STEP_SUMMARY"
