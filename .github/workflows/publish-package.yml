@@ -1281,9 +1281,6 @@ jobs:
           TAG_COMMIT="$(git rev-parse -q --verify "refs/tags/$TAG_NAME^{commit}")" || {
             echo "Release tag is missing: $TAG_NAME" >&2; exit 1;
           }
-          git merge-base --is-ancestor "$TAG_COMMIT" refs/remotes/origin/package/main || {
-            echo "Tag is not part of package/main history." >&2; exit 1;
-          }
           if [[ "$TAG_NAME" =~ ^package-alpha\.([0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+)$ ]]; then
             VERSION="${BASH_REMATCH[1]}"
             TRACK="alpha"
@@ -1305,6 +1302,39 @@ jobs:
             echo "Unsupported release tag: $TAG_NAME" >&2; exit 1
           fi
           test -f "$DIR/package.json" && test -f "$DIR/index.ts" && test -d "$DIR/engine"
+          git show "$TAG_COMMIT:.package-tag.json" > "$RUNNER_TEMP/package-tag-marker.json" || {
+            echo "Release tag is not a package-root Git tag." >&2; exit 1;
+          }
+          git show "$TAG_COMMIT:package.json" > "$RUNNER_TEMP/tag-root-package.json"
+          node - "$RUNNER_TEMP/package-tag-marker.json" "$RUNNER_TEMP/tag-root-package.json" "$TAG_NAME" "$VERSION" "$TRACK" "$DIR" <<'NODE'
+          const fs=require("node:fs");
+          const [markerPath,packagePath,tag,version,track,directory]=process.argv.slice(2);
+          const marker=JSON.parse(fs.readFileSync(markerPath,"utf8"));
+          const pkg=JSON.parse(fs.readFileSync(packagePath,"utf8"));
+          const prefix=track==="stable"?"version/":track+"/version/";
+          if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
+            ||marker.version!==version||marker.track!==track||marker.tag!==tag
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==directory
+            ||!marker.packagePath.startsWith(prefix)||marker.packagePath.split("/").includes("..")
+            ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
+            ||!(marker.sourceCommit===null||/^[0-9a-f]{40}$/.test(marker.sourceCommit||""))
+            ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")
+            ||pkg.name!=="@kastrick/nextjs-engine"||pkg.version!==version||pkg.private===true) {
+            throw new Error("The version tag does not match a verified package-root snapshot.");
+          }
+          console.log(marker.archiveCommit);
+          NODE
+          ARCHIVE_COMMIT="$(node - "$RUNNER_TEMP/package-tag-marker.json" <<'NODE'
+          const fs=require("node:fs");
+          process.stdout.write(JSON.parse(fs.readFileSync(process.argv[2],"utf8")).archiveCommit);
+          NODE
+          )"
+          [[ "$(git rev-parse "$TAG_COMMIT^")" == "$ARCHIVE_COMMIT" ]] || {
+            echo "Package-root tag commit does not have its recorded archive snapshot as its parent." >&2; exit 1;
+          }
+          git merge-base --is-ancestor "$ARCHIVE_COMMIT" refs/remotes/origin/package/main || {
+            echo "The archive snapshot recorded by the package tag is not part of package/main history." >&2; exit 1;
+          }
           if [[ "$TRACK" == "alpha" || "$TRACK" == "beta" || "$VERSION" =~ ^2\.7\.[0-9]+$ ]]; then
             test -f "$DIR/bin/ne.js" || { echo "Release requires the ne CLI, but $DIR/bin/ne.js is missing." >&2; exit 1; }
           fi
