@@ -21,6 +21,18 @@ The NE CLI gives projects one command interface for development, production buil
 | **ne rollback** | Restore the previous package manifest and lockfiles, then reinstall dependencies. |
 | **ne help** | Print command help. |
 
+## Command help
+
+Use `ne --help` for the command overview, or ask a command for its own usage and options:
+
+```sh
+ne update --help
+ne update -h
+ne help update
+```
+
+Each command has focused help. For example, `ne update --help` lists supported channels, version selection, refresh/check modes, dry runs, JSON output, and install confirmation options. Help works outside a project directory.
+
 ## Terminal presentation and diagnostics
 
 NE CLI messages use a shared adaptive banner renderer. Banner width is based on the available terminal columns, visible text width ignores ANSI color sequences, long messages wrap to fit, and narrow/ASCII terminals use a plain character fallback. Severity styles are consistent across command warnings and failures: errors are red, warnings yellow, successful notices green, and informational/running messages cyan.
