@@ -52,7 +52,6 @@ if (command === "dist-tag" && args[0] === "add") {
   const candidate = args[1].slice("${packageName}@".length);
   state[args[2]] = candidate;
   fs.writeFileSync(stateFile, JSON.stringify(state));
-  process.stdout.write("tag updated\\n");
   process.exit(0);
 }
 process.stderr.write("Unexpected npm mock invocation: " + [command, ...args].join(" "));
