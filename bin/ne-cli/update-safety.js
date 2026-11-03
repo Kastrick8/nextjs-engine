@@ -52,10 +52,16 @@ function readJson(file) {
 
 function readInstalled(root) {
 	const manifest = readJson(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"));
-	if (manifest && manifest.name === "@kastrick/nextjs-engine") return manifest;
 	const state = readJson(path.join(root, ".nextjs-engine", "config", "ne.config.json"));
+	if (manifest && manifest.name === "@kastrick/nextjs-engine") {
+		return {
+			...manifest,
+			engineGeneration: manifest.engineGeneration || (state && state.engineGeneration),
+			sourceBranch: manifest.sourceBranch || (state && state.sourceBranch)
+		};
+	}
 	if (state && typeof state.installedVersion === "string") {
-		return { version: state.installedVersion, engineGeneration: state.engineGeneration };
+		return { version: state.installedVersion, engineGeneration: state.engineGeneration, sourceBranch: state.sourceBranch };
 	}
 	return null;
 }
@@ -106,6 +112,15 @@ function addFinding(collection, finding) {
 	if (collection.length >= MAX_FINDINGS) return;
 	if (collection.some((item) => item.code === finding.code && item.file === finding.file && item.line === finding.line)) return;
 	collection.push(finding);
+}
+
+function isRegularFileNoFollow(file) {
+	try {
+		const stats = fs.lstatSync(file);
+		return stats.isFile() && !stats.isSymbolicLink();
+	} catch {
+		return false;
+	}
 }
 
 function inspectSources(root, targetGeneration) {
@@ -159,10 +174,13 @@ function inspectSources(root, targetGeneration) {
 		const legacyDirectory = path.join(root, ".EngineAPIConfig");
 		let legacyInputs = false;
 		try {
-			legacyInputs = fs.readdirSync(legacyDirectory, { withFileTypes: true })
-				.some((entry) => entry.isFile() && entry.name.endsWith(".api"));
+			const stats = fs.lstatSync(legacyDirectory);
+			if (stats.isDirectory() && !stats.isSymbolicLink()) {
+				legacyInputs = fs.readdirSync(legacyDirectory, { withFileTypes: true })
+					.some((entry) => entry.isFile() && entry.name.endsWith(".api"));
+			}
 		} catch {}
-		const legacyOutput = readJson(path.join(root, ".engine-api-compiled.json"));
+		const legacyOutput = isRegularFileNoFollow(path.join(root, ".engine-api-compiled.json"));
 		if (legacyInputs || legacyOutput) addFinding(warnings, {
 			code: "W3M001", file: legacyInputs ? ".EngineAPIConfig" : ".engine-api-compiled.json", line: 1,
 			message: "Legacy EngineAPI configuration artifacts were detected.",
@@ -269,6 +287,7 @@ module.exports = {
 	generationFromVersion,
 	generationFromManifest,
 	generationForRelease,
+	readInstalled,
 	inspectUpdateSafety,
 	formatUpdateSafety,
 	confirmUpdateSafety
