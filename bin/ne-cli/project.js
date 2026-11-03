@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { inspectUpdateSafety, formatUpdateSafety, confirmUpdateSafety, generationFromManifest } = require("./update-safety");
 const {
 	createPrivateTempDirectory,
 	readRegularFileNoFollow,
@@ -402,10 +403,19 @@ async function downloadVerifiedArtifact(root, release) {
 	}
 }
 
-function verifyInstalledVersion(root, release, artifact) {
+function verifyInstalledVersion(root, release, artifact, expectedGeneration) {
 	const installed = readInstalledPackage(root);
 	if (!installed || installed.name !== PACKAGE_NAME || installed.version !== release.version) {
 		throw new Error("Installed package identity did not match " + PACKAGE_NAME + "@" + release.version + ".");
+	}
+	if (expectedGeneration) {
+		const installedGeneration = generationFromManifest(installed, installed.version);
+		if (installedGeneration !== expectedGeneration) {
+			throw new Error(
+				"Installed package generation did not match the selected release (expected Gen " +
+				expectedGeneration + ", received " + (installedGeneration || "unknown") + ")."
+			);
+		}
 	}
 	if (artifact) {
 		const lockPath = ["npm-shrinkwrap.json", "package-lock.json"].map((name) => path.join(root, name))
@@ -520,8 +530,10 @@ function normalizeArtifactDependency(root, release, artifact) {
 	return { manager, lockFilesUpdated: lockCount, dependencyUrl: remoteUrl };
 }
 
-async function installRelease(root, release, requestedChannel) {
+async function installRelease(root, release, requestedChannel, options) {
 	if (!release || !release.version) throw new Error("No installable release was selected.");
+	const safetyReport = inspectUpdateSafety(root, release);
+	await confirmUpdateSafety(safetyReport, options);
 	const current = loadState(root);
 	let backup = null;
 	let artifact = null;
@@ -538,13 +550,15 @@ async function installRelease(root, release, requestedChannel) {
 		managerInstallStarted = true;
 		await installWithManager(root, installTarget);
 		if (artifact) normalizeArtifactDependency(root, release, artifact);
-		const installed = verifyInstalledVersion(root, release, artifact);
+		const installed = verifyInstalledVersion(root, release, artifact, safetyReport.targetGeneration);
 		const resolvedChannel = requestedChannel || (release.track === "beta" ? "latest-green" : release.track);
 		saveState(root, {
 			schemaVersion: 1,
 			controlScheme: current.controlScheme || "hybrid",
 			activeChannel: resolvedChannel,
 			installedVersion: installed.version,
+			engineGeneration: safetyReport.targetGeneration || null,
+			sourceBranch: release.sourceBranch || null,
 			installedCommit: release.sourceCommit || null,
 			sha256: release.sha256 || null,
 			source: release.source,
@@ -553,6 +567,8 @@ async function installRelease(root, release, requestedChannel) {
 			previous: {
 				activeChannel: current.activeChannel || null,
 				installedVersion: current.installedVersion || null,
+				engineGeneration: current.engineGeneration || null,
+				sourceBranch: current.sourceBranch || null,
 				installedCommit: current.installedCommit || null,
 				source: current.source || null,
 				backup: backup.relative,
@@ -595,11 +611,15 @@ async function rollback(root) {
 			...state,
 			activeChannel: state.previous.activeChannel || "unknown",
 			installedVersion: state.previous.installedVersion || null,
+			engineGeneration: state.previous.engineGeneration || null,
+			sourceBranch: state.previous.sourceBranch || null,
 			installedCommit: state.previous.installedCommit || null,
 			source: state.previous.source || null,
 			previous: {
 				activeChannel: state.activeChannel || null,
 				installedVersion: state.installedVersion || null,
+				engineGeneration: state.engineGeneration || null,
+				sourceBranch: state.sourceBranch || null,
 				installedCommit: state.installedCommit || null,
 				source: state.source || null,
 				backup: currentBackup.relative,
@@ -658,6 +678,8 @@ async function runBuild(root) {
 
 module.exports = {
 	PACKAGE_NAME,
+	inspectUpdateSafety,
+	formatUpdateSafety,
 	findProjectRoot,
 	readJson,
 	loadState,

@@ -13,10 +13,21 @@ const project = require("../bin/ne-cli/project");
 const presentation = require("../bin/ne-cli/presentation");
 const diagnostics = require("../bin/ne-cli/diagnostics");
 const { EventEmitter } = require("node:events");
-const tmp = require("tmp");
 const fileSystem = require("../bin/ne-cli/file-system");
 
+function createTempDirectory(prefix) {
+	const name = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+	if (process.platform !== "win32") fs.chmodSync(name, 0o700);
+	return {
+		name,
+		removeCallback() {
+			fs.rmSync(name, { recursive: true, force: true });
+		},
+	};
+}
+
 async function main() {
+	await require("./ne-cli-update-safety-smoke").run();
 	const { spawnSync } = require("node:child_process");
 	const executable = path.resolve(__dirname, "../bin/ne.js");
 	const repoRoot = path.resolve(__dirname, "..");
@@ -394,10 +405,34 @@ async function main() {
 	assert.throws(() => cli.tokenizeCommand("node -e 'unterminated"), /unterminated quoted argument/);
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
-	assert.match(cli.getHelp(), /ne update --channel/);
-	assert.match(cli.getHelp(), /npx ne --help/);
-	assert.match(cli.getHelp(), /Shell operators are rejected/);
-	const dashboardDirectory = tmp.dirSync({ prefix: "ne-dashboard-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	assert.match(cli.getHelp(), /ne update\s+List or install a release/);
+	assert.doesNotMatch(cli.getHelp(), /--channel/, "the overview keeps release flags in command-specific help");
+	assert.match(cli.getHelp(), /ne --help/);
+	assert.match(cli.getHelp(), /npx --yes --package=@kastrick.*nextjs-engine ne updater/);
+	assert.match(cli.getHelp(), /without a shell/);
+	const rootHelpResult = spawnSync(process.execPath, [executable, "--help"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(rootHelpResult.status, 0, "Gen 2 ne --help works without a project directory");
+	assert.match(rootHelpResult.stdout, /Next\.js Engine CLI — Generation 2/);
+	assert.match(rootHelpResult.stdout, /Introduced in v2\.7\.0/);
+	const updateHelpResult = spawnSync(process.execPath, [executable, "update", "-h"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(updateHelpResult.status, 0, "Gen 2 ne update -h works without a project directory");
+	assert.match(updateHelpResult.stdout, /Usage\n  ne update/);
+	assert.match(updateHelpResult.stdout, /--channel <channel>/);
+	assert.match(updateHelpResult.stdout, /--force/);
+	assert.match(updateHelpResult.stdout, /--dry-run/);
+	assert.doesNotMatch(updateHelpResult.stdout, /Commands\n/);
+	const updateHelpAlias = spawnSync(process.execPath, [executable, "help", "update"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(updateHelpAlias.status, 0);
+	assert.equal(updateHelpAlias.stdout, updateHelpResult.stdout, "Gen 2 help alias matches ne update -h");
+	assert.equal(JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).dependencies.tmp, undefined,
+		"the Gen 2 CLI no longer needs an external tmp package");
+	const dashboardDirectory = createTempDirectory("ne-dashboard-smoke-");
 	let dashboardInstall = null;
 	const fixtureRelease = { version: "3.0.0-alpha.2", track: "alpha" };
 	try {
@@ -436,7 +471,7 @@ async function main() {
 	assert.ok(Number(pageIndicator[1]) >= 4, "release list can navigate past the first 24 entries");
 	assert.match(laterPage, /of 40/, "release list reports the full release inventory size");
 
-	const tempDirectory = tmp.dirSync({ prefix: "ne-cli-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	const tempDirectory = createTempDirectory("ne-cli-smoke-");
 	const temp = tempDirectory.name;
 	try {
 		const atomicFile = path.join(temp, "atomic-state.json");
