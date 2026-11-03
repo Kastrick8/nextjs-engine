@@ -1401,7 +1401,7 @@ jobs:
           NODE
 
       - name: Require green runtime and browser CI for prereleases
-        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        if: ${{ (steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta') && steps.snapshot.outputs.source_commit != '' && steps.snapshot.outputs.source_branch != '' }}
         working-directory: tooling
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -1411,6 +1411,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/gen3-assert-green-commit.js
 
+      - name: Note preserved prerelease without asserted source provenance
+        if: \${{ (steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta') && (steps.snapshot.outputs.source_commit == '' || steps.snapshot.outputs.source_branch == '') }}
+        run: |
+          echo "This historical prerelease tag has no verified source branch/commit. Its package-only tag is retained, but no new GitHub Release artifact is created and no current CI status is inferred." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Validate and pack the selected snapshot
         working-directory: ${{ steps.snapshot.outputs.directory }}
         run: |
@@ -1419,7 +1424,7 @@ jobs:
           npm run type-check
           npm run pack:check
       - name: Publish Alpha/Beta snapshot as a GitHub Release (never to npm)
-        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        if: ${{ (steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta') && steps.snapshot.outputs.source_commit != '' && steps.snapshot.outputs.source_branch != '' }}
         id: github-prerelease
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
