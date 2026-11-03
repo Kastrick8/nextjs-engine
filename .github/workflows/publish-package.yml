@@ -269,9 +269,9 @@ jobs:
         id: commit-snapshot
         working-directory: archive
         env:
-          TARGET: \${{ steps.prepare.outputs.target }}
-          VERSION: \${{ inputs.version }}
-          PINNED_SHA: \${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+          VERSION: ${{ inputs.version }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -288,10 +288,10 @@ jobs:
         id: package-root
         working-directory: archive
         env:
-          VERSION: \${{ inputs.version }}
-          TRACK: \${{ inputs.track }}
-          PINNED_SHA: \${{ steps.prepare.outputs.pinned_sha }}
-          TARGET: \${{ steps.prepare.outputs.target }}
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
         shell: bash
         run: |
           set -euo pipefail
@@ -315,12 +315,12 @@ jobs:
         id: create-tag
         working-directory: archive
         env:
-          VERSION: \${{ inputs.version }}
-          TRACK: \${{ inputs.track }}
-          PINNED_SHA: \${{ steps.prepare.outputs.pinned_sha }}
-          TARGET: \${{ steps.prepare.outputs.target }}
-          PACKAGE_ROOT_SHA: \${{ steps.package-root.outputs.commit_sha }}
-          ARCHIVE_COMMIT: \${{ steps.package-root.outputs.archive_commit }}
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+          PACKAGE_ROOT_SHA: ${{ steps.package-root.outputs.commit_sha }}
+          ARCHIVE_COMMIT: ${{ steps.package-root.outputs.archive_commit }}
         shell: bash
         run: |
           set -euo pipefail
@@ -794,7 +794,7 @@ jobs:
       - name: Checkout tagged package-root commit
         uses: actions/checkout@v6
         with:
-          ref: \${{ github.ref }}
+          ref: ${{ github.ref }}
           fetch-depth: 0
       - name: Checkout package archive for version catalog and release tools
         uses: actions/checkout@v6
