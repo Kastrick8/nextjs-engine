@@ -100,7 +100,7 @@ function findPackage(repo, commit, version, track) {
   if (matches.length !== 1) die("Expected one " + NAME + "@" + version + " snapshot under " + prefix + "; found " + matches.length + ".");
   return matches[0];
 }
-function buildRoot(repo, archiveCommit, folder, version, track, tag, sourceCommit) {
+function buildRoot(repo, archiveCommit, folder, version, track, tag, sourceCommit, migrationOnly = false) {
   if (!/^[0-9a-f]{40}$/.test(archiveCommit)) die("Invalid archive commit SHA.");
   if (sourceCommit && !/^[0-9a-f]{40}$/.test(sourceCommit)) die("Invalid source commit SHA.");
   if (!folder || folder !== expectedPackagePath(version, track)) die("Package snapshot path does not match the version/track directory contract.");
@@ -138,7 +138,7 @@ function buildRoot(repo, archiveCommit, folder, version, track, tag, sourceCommi
     const marker = {
       schemaVersion: 1, packageName: NAME, version, track, tag,
       layout: "npm-pack-root", archiveCommit, packagePath: folder,
-      sourceCommit: sourceCommit || null, npmIntegrity: packed[0].integrity,
+      sourceCommit: sourceCommit || null, migrationOnly: Boolean(migrationOnly), npmIntegrity: packed[0].integrity,
       packedFileCount: Array.isArray(packed[0].files) ? packed[0].files.length : null,
     };
     fs.writeFileSync(path.join(root, ".package-tag.json"), JSON.stringify(marker, null, 2) + "\n");
@@ -188,7 +188,7 @@ function migrate(args) {
     }
     const folder = findPackage(repo, oldCommit, item.version, item.track);
     const sourceCommit = sourceShaAt(repo, oldCommit, folder);
-    const built = buildRoot(repo, oldCommit, folder, item.version, item.track, item.tag, sourceCommit);
+    const built = buildRoot(repo, oldCommit, folder, item.version, item.track, item.tag, sourceCommit, true);
     migrated.set(item.tag, built.commit);
     pending.push({ tag: item.tag, version: item.version, commitSha: built.commit });
     results.push({
