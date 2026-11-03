@@ -164,3 +164,29 @@ Run:
     node scripts/gen3-ne-cli-smoke.js
 
 The smoke test covers version ordering, channel manifest validation, channel selection, argument parsing, the terminal frame, safe backup restoration, and cache cleanup behavior.
+
+
+## Update safety preflight
+
+Before an update changes project dependencies, NE inspects the installed and selected Engine versions, determines their generations (verified release branch metadata takes priority over the SemVer-major fallback), and scans up to 500 project source files in the supported app/pages/components/lib roots. The scan skips dependency and generated-output folders and is intentionally bounded.
+
+The preflight detects:
+
+- A SemVer downgrade, including prerelease-to-prerelease downgrades.
+- A Gen 2 ↔ Gen 3 transition.
+- Gen 3 blockers: `RawComponentRenderer` and schema nodes with `type: "raw"`.
+- Gen 3 migration warnings for legacy EngineAPI artifacts, `compiler.serverFirst: false`, and named `createPage()` handlers.
+
+The release details view reports the scan result. Risky updates open a separate acknowledgement screen; fatal compatibility findings block installation. The command-line path performs the same scan immediately before installation. `--check` and `--dry-run` print the report without changing the project.
+
+For non-interactive installs, `--yes` alone is not enough for a risky change. Add the applicable acknowledgement flags:
+
+~~~sh
+ne update --version 3.0.0-alpha.2 --dry-run
+ne update --version 3.0.0-alpha.2 --yes --allow-downgrade
+ne update --version 3.0.0-alpha.2 --yes --allow-generation-change --acknowledge-compatibility
+~~~
+
+`--allow-downgrade` explicitly permits an older version, `--allow-generation-change` explicitly permits crossing between Gen 2 and Gen 3, and `--acknowledge-compatibility` acknowledges preflight warnings. These flags do not bypass fatal findings.
+
+This is a focused static migration preflight, not a complete API, peer-dependency, or runtime-compatibility proof. Clean results mean no currently encoded rules matched in the scanned files; they do not guarantee that every third-party package or application behavior is compatible. After installation NE still verifies the exact installed package name/version, and installation failure restores the saved dependency manifests and lockfiles.
