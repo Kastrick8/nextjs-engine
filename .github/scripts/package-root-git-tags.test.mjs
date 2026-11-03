@@ -55,6 +55,9 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
     assert.equal(dry.status, 0, dry.stderr);
     assert.equal(dry.parsed.mode, "dry-run");
     assert.equal(git(repo, ["rev-parse", "package.2.6.2^{commit}"]), previous, "dry-run must not move refs");
+    const plannedLatest = dry.parsed.results.find((item) => item.tag === "package.latest");
+    assert.equal(plannedLatest.targetTag, "package.2.6.2");
+    assert.notEqual(plannedLatest.commitSha, previous, "dry-run preview points package.latest at the planned package-root commit");
 
     const apply = runMigration(repo, ["--apply", "--no-push"]);
     assert.equal(apply.status, 0, apply.stderr);
