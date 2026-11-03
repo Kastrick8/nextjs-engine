@@ -287,10 +287,10 @@ async function commandUpdate(root, options) {
 	}
 	if (options.check || options.dryRun) {
 		const safetyReport = project().inspectUpdateSafety(root, release);
-		process.stdout.write("[NE] Selected " + release.version + " [" + channels().channelLabel(release) + "] from " + release.sourceLabel + ".\\n");
-		process.stdout.write(project().formatUpdateSafety(safetyReport) + "\\n");
-		if (safetyReport.blockers.length) process.stdout.write("[NE] This selection is BLOCKED by compatibility errors.\\n");
-		if (options.dryRun) process.stdout.write("[NE] Dry run only; the project was not modified.\\n");
+		process.stdout.write("[NE] Selected " + release.version + " [" + channels().channelLabel(release) + "] from " + release.sourceLabel + ".\n");
+		process.stdout.write(project().formatUpdateSafety(safetyReport) + "\n");
+		if (safetyReport.blockers.length) process.stdout.write("[NE] This selection is BLOCKED by compatibility errors.\n");
+		if (options.dryRun) process.stdout.write("[NE] Dry run only; the project was not modified.\n");
 		return;
 	}
 	if (!(await askToInstall(release, options))) {
