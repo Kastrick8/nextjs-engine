@@ -100,6 +100,32 @@ function findPackage(repo, commit, version, track) {
   if (matches.length !== 1) die("Expected one " + NAME + "@" + version + " snapshot under " + prefix + "; found " + matches.length + ".");
   return matches[0];
 }
+
+function discoverPackageSnapshots(repo, commit) {
+  const files = git(repo, ["ls-tree", "-r", "--name-only", commit]).split("\n")
+    .filter((item) => /^(version|alpha\/version|beta\/version)\//.test(item) && item.endsWith("/package.json"));
+  const entries = new Map();
+  for (const file of files) {
+    let pkg;
+    try { pkg = JSON.parse(git(repo, ["show", commit + ":" + file])); }
+    catch { continue; }
+    if (!pkg || pkg.name !== NAME) continue;
+    let track = "";
+    if (/^\d+\.\d+\.\d+$/.test(pkg.version || "")) track = "stable";
+    else if (/^\d+\.\d+\.\d+-alpha\.\d+$/.test(pkg.version || "")) track = "alpha";
+    else if (/^\d+\.\d+\.\d+-beta\.\d+$/.test(pkg.version || "")) track = "beta";
+    if (!track) continue;
+    const folder = path.posix.dirname(file);
+    const expected = expectedPackagePath(pkg.version, track);
+    if (!expected || folder !== expected) {
+      die("Package snapshot path does not match the version/track contract: " + folder + " (" + pkg.version + ").");
+    }
+    const tag = track === "stable" ? "package." + pkg.version : "package-" + track + "." + pkg.version;
+    if (entries.has(tag)) die("Duplicate archived package version found for Git tag " + tag + ".");
+    entries.set(tag, { tag, version: pkg.version, track, folder });
+  }
+  return Array.from(entries.values()).sort((a, b) => a.tag.localeCompare(b.tag));
+}
 function buildRoot(repo, archiveCommit, folder, version, track, tag, sourceCommit, migrationOnly = false) {
   if (!/^[0-9a-f]{40}$/.test(archiveCommit)) die("Invalid archive commit SHA.");
   if (sourceCommit && !/^[0-9a-f]{40}$/.test(sourceCommit)) die("Invalid source commit SHA.");
@@ -174,11 +200,14 @@ function create(args) {
 }
 function migrate(args) {
   const repo = args[0] || ".", apply = args.includes("--apply"), push = args.includes("--push");
+  const seed = args.includes("--seed");
   if (push && !apply) die("--push requires --apply.");
   const tags = git(repo, ["tag", "--list"]).split("\n").map((x) => x.trim()).filter(Boolean);
   const versions = tags.map(parseTag).filter(Boolean);
-  if (!versions.length) die("No immutable package version tags were found.");
+  if (!versions.length && !seed) die("No immutable package version tags were found.");
   const migrated = new Map(), results = [], pending = [];
+  const versionByTag = new Map(versions.map((item) => [item.tag, item]));
+
   for (const item of versions) {
     const oldCommit = git(repo, ["rev-parse", item.tag + "^{commit}"]);
     if (isPackageRootCommit(repo, oldCommit, item)) {
@@ -198,39 +227,55 @@ function migrate(args) {
     fs.rmSync(built.temp, { recursive: true, force: true });
   }
 
-  // Nothing is moved until every legacy tag has a successfully built and verified package root.
-  const stable = versions.filter((x) => x.track === "stable").sort((a, b) => stableCompare(a.version, b.version));
+  const archiveHead = git(repo, ["rev-parse", "HEAD"]);
+  const archivedPackages = seed ? discoverPackageSnapshots(repo, archiveHead) : [];
+  for (const item of archivedPackages) {
+    if (versionByTag.has(item.tag)) continue;
+    const sourceCommit = sourceShaAt(repo, archiveHead, item.folder);
+    const built = buildRoot(repo, archiveHead, item.folder, item.version, item.track, item.tag, sourceCommit, true);
+    migrated.set(item.tag, built.commit);
+    pending.push({ tag: item.tag, version: item.version, commitSha: built.commit });
+    versionByTag.set(item.tag, item);
+    results.push({
+      tag: item.tag, status: apply ? "prepared-for-create" : "would-create",
+      archiveCommit: archiveHead, commitSha: built.commit, packagePath: item.folder, sourceCommit,
+    });
+    fs.rmSync(built.temp, { recursive: true, force: true });
+  }
+
+  const allVersions = Array.from(versionByTag.values());
+  const stable = allVersions.filter((x) => x.track === "stable").sort((a, b) => stableCompare(a.version, b.version));
+  if (!stable.length) die("No stable package snapshots or package version tags were found.");
   const updates = [];
   if (apply) {
     for (const item of pending) {
       git(repo, ["tag", "--force", "--annotate", item.tag,
-        "--message", NAME + "@" + item.version + " package-root migration", item.commitSha]);
+        "--message", NAME + "@" + item.version + " package-root snapshot", item.commitSha]);
       updates.push("refs/tags/" + item.tag);
     }
   }
-  if (stable.length) {
-    const latest = stable.at(-1);
-    const target = migrated.get(latest.tag) || git(repo, ["rev-parse", latest.tag + "^{commit}"]);
-    let currentLatest = null;
-    try { currentLatest = git(repo, ["rev-parse", "package.latest^{commit}"]); } catch {}
-    if (apply && currentLatest !== target) {
-      git(repo, ["tag", "--force", "--annotate", "package.latest",
-        "--message", "Latest stable " + NAME + " is " + latest.version, target]);
-      updates.push("refs/tags/package.latest");
-    }
-    results.push({
-      tag: "package.latest",
-      status: apply ? (currentLatest === target ? "already-current" : "updated") : "would-update",
-      targetTag: latest.tag,
-      commitSha: target,
-    });
+  const latest = stable.at(-1);
+  const target = migrated.get(latest.tag) || git(repo, ["rev-parse", latest.tag + "^{commit}"]);
+  let currentLatest = null;
+  try { currentLatest = git(repo, ["rev-parse", "package.latest^{commit}"]); } catch {}
+  if (apply && currentLatest !== target) {
+    git(repo, ["tag", "--force", "--annotate", "package.latest",
+      "--message", "Latest stable " + NAME + " is " + latest.version, target]);
+    updates.push("refs/tags/package.latest");
   }
+  results.push({
+    tag: "package.latest",
+    status: apply ? (currentLatest === target ? "already-current" : "updated") : "would-update",
+    targetTag: latest.tag,
+    commitSha: target,
+  });
 
   if (push && updates.length) {
     git(repo, ["push", "--force", "--atomic", "origin", ...updates]);
   }
   process.stdout.write(JSON.stringify({
     mode: apply ? "apply" : "dry-run",
+    operation: seed ? "seed-and-migrate" : "migrate-existing",
     pushed: push,
     changedRefs: updates,
     count: results.length,
