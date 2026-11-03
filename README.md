@@ -1,416 +1,157 @@
 # Next.js Engine
 
-**Next.js Engine (NE)** is a schema-driven rendering/runtime layer for React 19 and Next.js 16.
+[![Generation 2 — Stable](https://img.shields.io/badge/Generation-2%20Stable-2563EB?style=for-the-badge)](https://github.com/Kastrick8/nextjs-engine/tree/main-2) [![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react)](https://react.dev/) [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js)](https://nextjs.org/)
 
-Instead of rebuilding the same rendering, responsive, lazy-loading, navigation, graphics, API, motion, and browser plumbing in every app, NE lets you describe UI as typed schema objects and routes that schema through shared Engine systems.
+**Next.js Engine (NE)** is a schema-driven rendering and runtime layer for React 19 and Next.js 16, with UI primitives, responsive styling, navigation, graphics, animation, media, API, and browser utilities.
 
-**Current development / release target:** **NE v2.7.0 (prepared; not yet published)**  
-**Release notes:** [`docs/release/NE-v2-7-0.md`](./docs/release/NE-v2-7-0.md)  
-**Previous stability notes:** [`docs/release/NE-v2-6-2.md`](./docs/release/NE-v2-6-2.md)  
-**Earlier stability notes:** [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md)  
-**Latest published GitHub release:** [NE v2.6.2](https://github.com/Kastrick8/nextjs-engine/releases/tag/Release-v2.6.2)
+Generation 2 builds on foundations established by earlier Engine generations while maintaining its own stable API and runtime contract. **This README documents Generation 2 only.**
 
-> v2.7.0 is a release candidate in the source branch. It will be marked released only after the package workflow confirms the npm publication and GitHub release.
+> [!IMPORTANT]
+> ## NE 2.7.0 is on the way
+>
+> The **2.7.0 release candidate is prepared** and its versioned package snapshot has been created and validated. npm publication and the official GitHub Release are still pending.
+>
+> Track the [v2.7.0 release notes](./docs/release/NE-v2-7-0.md).
 
-> v2.6.x is the Shader + Motion + Scroll + Overlay generation of NE. v2.6.1 focuses on React 19 hydration, App Router stability, primitive style correctness, routing consistency, and regression coverage.
+| Release information | Status |
+|---|---|
+| Source branch | `main-2` |
+| Source version | `2.7.0` |
+| Latest published release | [v2.6.2](https://github.com/Kastrick8/nextjs-engine/releases/tag/Release-v2.6.2) |
+| Upcoming release | **v2.7.0 — coming soon** |
+| Prepared package | [2.7.0 snapshot](https://github.com/Kastrick8/nextjs-engine/tree/package/main/version/2.7/version/2.7) |
 
 ---
 
-## What is in the current Engine?
+## Engine systems
 
 | System | Purpose |
 |---|---|
-| Schema renderer | Turns `PageSchema` / `SchemaNode` trees into React components |
-| Responsive style runtime | Compiles responsive Engine props into CSS variables + media queries |
-| Primitive styling | Box, Stack, Grid, Text, Heading, Section, Button, Card, Spacer, Divider |
-| Component registry | Built-in, split/lazy, and custom schema node types |
-| EngineTransitions+ | 20 page/layout transition presets, shared morphs, programmatic navigation |
-| EngineShader | Compiled `.shed` GPU surfaces, render stages, graph scheduling, runtime inputs |
-| EngineCanvas | Callback mode, retained 2D, Three.js 3D, SVG, and EngineShader mode |
-| EngineSVG | Retained SVG rendering plus ECScene import/export |
-| EngineScroll | Points, movement, URL protocol, timelines, ranges, tracking, snapping, Director |
-| EngineOverlay | Dialog, Drawer, Popover, focus management, stacking, portals, scroll lock |
-| EngineManim | 2D timeline animation and demand-driven 3D model animation |
-| EngineImage / Video | Viewport-aware media loading and responsive image behavior |
-| EngineBrowser | SSR-safe capability, clipboard, media, speech, network, and interaction helpers |
-| EngineForms | Schema-native form controls wired to named handlers |
-| EngineMarkdown | Markdown rendering, heading anchors, styling, and safe links |
-| EngineNav / Link | Next.js-aware internal routing plus optional Transitions+ navigation |
-| EngineAPIResolver | External HTTP/API orchestration, provider config, auth, HMAC/PNP, FormData |
-| APIStatic | Compiled browser-side `.route` endpoint programs under `/_static/endpoint` |
-| EngineDevice / Mobile | Shared device detection and server-side mobile schema patching |
-| Diagnostics | Runtime validation plus deeper analyzer diagnostics |
+| Schema renderer and registry | Turns PageSchema / SchemaNode definitions into React UI |
+| Responsive styling and primitives | Responsive CSS, Box, Stack, Grid, Text, Heading, Button, Card, and layouts |
+| EngineTransitions+ | Page/layout transitions and shared-element morphs |
+| EngineShader / EngineCanvas | Compiled .shed effects, Canvas 2D, 3D, SVG, and graphics |
+| EngineScroll | Points, groups, timelines, ranges, snapping, and tracking |
+| EngineOverlay | Dialogs, drawers, popovers, focus, portals, and scroll locking |
+| EngineManim | 2D and 3D animation |
+| EngineImage / EngineVideo | Viewport-aware media |
+| EngineBrowser / EngineDevice | Browser capabilities and device detection |
+| EngineForms / CustomSelect | Schema-native forms and accessible select controls |
+| EngineMarkdown | Markdown rendering and safe links |
+| EngineNav / EngineLink | Next.js-aware navigation |
+| EngineAPIResolver / APIStatic | External API orchestration and compiled browser endpoints |
+| Diagnostics | Schema validation and analyzer messages |
 
-The public API is exported from [`src/engine/index.ts`](./src/engine/index.ts).
+## Rendering model
 
----
+~~~mermaid
+flowchart TD
+  A["Typed page schema"] --> B["NE schema renderer"]
+  B --> C["Engine components"]
+  C --> D["Shared styling and runtime"]
+  D --> E["React 19"]
+  E --> F["Next.js App Router"]
+~~~
 
-## What changed in v2.6?
-
-### EngineTransitions+
-
-Transitions are now a first-class runtime instead of a single page-to-page effect.
-
-Built-in presets:
-
-```text
-fade        slide       zoom        morph       layout
-reveal      wipe        split       curtain     pixel
-dissolve    liquid      smear       depth       flip
-page-turn   spring      scatter     rgb         portal
-```
-
-Use them from schema links/Nav or programmatically through `useEngineTransitions()`.
-
-Read [`docs/engine-components/enginetransitions.md`](./docs/engine-components/enginetransitions.md).
-
-### EngineShader + `.shed`
-
-NE now has a compiled GPU-surface system.
-
-```shed
-shader <= aurora => [
-	before.aurora => [
-		time <= system.time
-		speed => .6
-	]
-]
-```
-
-`.shed` programs can use staged `before`, `render`, `after`, and `overlay` processing, runtime system/pointer/scroll/viewport inputs, build-time validation, render-graph optimization, and demand-aware runtime scheduling.
-
-Read [`docs/engine-components/engineshader.md`](./docs/engine-components/engineshader.md).
-
-### EngineScroll orchestration
-
-EngineScroll now goes far beyond `move()`:
-
-- named points and groups;
-- start/center/end/nearest alignment;
-- timelines with normalized progress;
-- ranges and reusable boundary resolution;
-- active/nearest point tracking;
-- snapping;
-- numeric timeline tracks;
-- CSS bindings;
-- crossing/activity events;
-- `EngineScrollDirector` for coordinating multiple named timelines through one runtime subscription.
-
-Read [`docs/engine-components/enginescroll.md`](./docs/engine-components/enginescroll.md).
-
-### EngineOverlay
-
-The Engine now includes three first-class overlay primitives:
-
-```text
-dialog
-	dialog / EngineDialog
-
-drawer
-	drawer / EngineDrawer
-
-popover
-	popover / EnginePopover
-```
-
-They share focus handling, top-overlay ownership, Escape behavior, portals, focus restoration, and reference-counted body scroll locking.
-
-Use them to compose sheets, inspectors, confirmation prompts, account menus, dropdowns, and command palettes instead of adding redundant core node types.
-
-Read [`docs/engine-components/engineoverlay.md`](./docs/engine-components/engineoverlay.md).
+Your application owns routes, data, server actions, and business logic.
 
 ---
 
-## v2.6.1 stability work
+## What's coming in 2.7.0?
 
-v2.6.1 is the React 19 / Next.js 16 stability patch for the v2.6 generation.
+The next Generation 2 release introduces the NE CLI and focused usability, compatibility, and diagnostics improvements.
 
-Important fixes and hardening include:
+- **NE CLI:** Dashboard, dev/build/start, checks, cleanup, updater, channel/version selection, rollback, and help.
+- **Release discovery:** npm versions, GitHub Releases, and package tags with source/installability details.
+- **Diagnostics:** Stable command/option codes, close-match suggestions, source-aware syntax errors, and Error Book links.
+- **Terminal UI:** Adaptive sizing, wrapped messages, severity colors, Unicode/ASCII fallback, and no-color support.
+- **CustomSelect:** Controlled values, direct callbacks, and configurable labels/empty states.
+- **Style precedence:** Explicit Engine props and style overrides take priority over defaults while required runtime state remains authoritative.
+- **Packaging:** New Generation 2 snapshots include the ne executable.
 
-- primitive style precedence now follows `defaults < schema props < style={} < required runtime state`;
-- Card defaults no longer silently overwrite schema `bg` / `borderRadius`;
-- Button variant defaults no longer defeat schema colors/weight;
-- Text/Heading variant typography no longer defeats explicit schema typography;
-- EngineShader development hot-polling is serialized and failing hot-reload listeners are isolated;
-- hydration-focused fixes are tracked for generated Engine CSS, initially-open overlays, reduced-motion behavior, rewrite-sensitive Nav state, and nested interactive markup;
-- route matching is being hardened so `/about` does not incorrectly match `/about-us`;
-- primitive/internal routing is being aligned with the same Next.js navigation pipeline used by EngineLink/Nav;
-- static Engine stylesheet/keyframe ownership is being tightened for SSR and Fast Refresh;
-- real SSR → `hydrateRoot()` coverage is being added so hydration regressions can fail CI.
+See [the full 2.7.0 notes](./docs/release/NE-v2-7-0.md).
 
-Full breakdown: [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md).
+### NE CLI
 
----
+> [!WARNING]
+> The NE CLI is newly introduced in 2.7.0. Its command contract is experimental and may change or be removed in a future release. Prefer headless commands for scripts and CI.
 
-## Repository and release workflow
-
-The source workspace and distributable snapshots now use one package branch:
-
-- `main-2`: stable Generation 2 runtime and its 2.x release candidate source.
-- `main-3`: Generation 3 compiler/runtime and alpha release source.
-- `package/main`: immutable versioned package snapshots and publishing metadata for both streams.
-
-The release workflow reads a pinned source commit, copies the maintained source/docs, applies `content.include` for additional package files such as `bin/`, validates the package snapshot, then publishes only after the configured gates pass. Archived snapshots are not rewritten when source changes.
-
-## Package entrypoints
-
-Main runtime:
-
-```ts
-import {
-	createPage,
-	defineSchema,
-	EngineCanvas,
-	EngineScroll,
-	EngineDialog,
-	EngineDrawer,
-	EnginePopover,
-	EngineBrowser,
-	EngineAPIResolver,
-	APIStatic
-} from "nextjs-engine"
-```
-
-Server-only request helpers:
-
-```ts
-import { getServerDevice } from "nextjs-engine/server"
-```
-
-Combined Next.js build plugin:
-
-```js
-const withEngine = require("nextjs-engine/plugin")
-
-module.exports = withEngine({})
-```
-
-Specialized plugin entrypoints remain available for advanced setups:
-
-```js
-const withEngineAPI = require("nextjs-engine/api-plugin")
-const withEngineShader = require("nextjs-engine/shader-plugin")
-```
-
----
-
-## NE CLI
-
-The NE command-line tool ships in new package snapshots:
-
-```bash
+~~~sh
 ne --help
-ne check
+ne
+ne dev
 ne build
+ne start
+ne check
+ne clean
+ne updater
 ne update --channel stable
-```
+ne rollback
+~~~
 
-The updater shows the npm/GitHub release inventory with its source and verification status. A catalog-only entry is available for inspection but cannot be installed until NE can verify an installable package or artifact. The interactive terminal is experimental; the headless commands are the reliable scripting interface.
+After publication, install with `npm install --global @kastrick/nextjs-engine@2.7.0`. For one-time use, run `npx --yes --package=@kastrick/nextjs-engine@2.7.0 ne updater`.
 
----
+Read the [Generation 2 CLI guide](./docs/2/ne-cli.md) and [CLI Error Book](./docs/2/ne-cli-error-book.md).
 
 ## Quick start
 
-```ts
-// app/page.tsx
-import { createPage, defineSchema } from "nextjs-engine"
+~~~tsx
+import { createPage, defineSchema } from "@kastrick/nextjs-engine";
 
 const home = defineSchema({
-	meta: {
-		title: "My Site",
-		description: "Rendered by Next.js Engine"
-	},
-	root: {
-		type: "section",
-		props: {
-			contentMaxWidth: "1100px",
-			px: { xs: "1rem", md: "2rem" },
-			py: { xs: "3rem", md: "5rem" }
-		},
-		children: [
-			{
-				type: "heading",
-				props: {
-					level: 1,
-					content: "Hello from NE"
-				}
-			},
-			{
-				type: "link",
-				props: {
-					href: "/docs",
-					content: "Open docs",
-					cprop: {
-						link: {
-							transition: "reveal"
-						}
-					}
-				}
-			}
-		]
-	}
-})
+  meta: { title: "My Site" },
+  root: {
+    type: "section",
+    props: { px: { xs: "1rem", md: "2rem" }, py: "3rem" },
+    children: [{ type: "heading", props: { level: 1, content: "Hello from NE" } }],
+  },
+});
 
-export default createPage({ schema: home })
-```
-
-`createPage()` supplies Engine context and the core EngineScroll provider automatically.
-
-For reusable schema-rendered application chrome, use `createComponent()` and named slots.
-
----
+export default createPage({ schema: home });
+~~~
 
 ## Responsive styling
 
-Responsive Engine values are generally compiled to CSS instead of reading `window.innerWidth` during component render:
-
-```ts
+~~~ts
 props: {
-	px: { xs: "1rem", md: "2rem", xl: "3rem" },
-	columns: { xs: 1, md: 2, lg: 3 },
-	bg: { xs: "#111827", md: "#030712" }
+  px: { xs: "1rem", md: "2rem" },
+  columns: { xs: 1, md: 2, lg: 3 },
 }
-```
+~~~
 
-The intended primitive style precedence is:
+Read [simple styling](./docs/2/styling.md) and the [detailed styling reference](./docs/2/styling-detailed.md).
 
-```text
-component defaults
-	< schema/direct Engine props
-	< explicit style={}
-	< required runtime state
-```
+## Development
 
-Full styling reference: [`docs/styling.md`](./docs/styling.md).
-
----
-
-## APIStatic
-
-APIStatic is NE's browser-executed static endpoint system.
-
-Source:
-
-```text
-data/endpoint/**/*.route
-```
-
-Compiled output:
-
-```text
-public/_static/endpoint/
-├── <route>-<stable-hash>.js
-└── manifest.json
-```
-
-Application code addresses logical endpoint names rather than generated hashes:
-
-```ts
-import { APIStatic } from "nextjs-engine"
-
-const response = await APIStatic.resolve(
-	"math",
-	"add",
-	{ a: 20, b: 30 }
-)
-```
-
-`.route` programs execute in the browser. Do not put secrets, private environment values, database credentials, or server-only session state in them. Use an explicitly configured backend/proxy bridge for trusted work.
-
-Read [`docs/engine-components/apistatic.md`](./docs/engine-components/apistatic.md).
-
----
-
-## Performance model
-
-Current NE performance work includes:
-
-- lazy module split-points for optional/heavier Engine systems;
-- pooled `IntersectionObserver`s;
-- shared RAF-coalesced viewport/breakpoint updates;
-- responsive CSS instead of JS breakpoint branching for normal style props;
-- retained EngineCanvas / EngineSVG / Three.js resources;
-- demand-driven Canvas, Shader, Scroll, and Manim scheduling;
-- offscreen and hidden-tab pausing;
-- bounded responsive resolver caching;
-- provider-scoped generated style collection;
-- production client-bundle inventory in CI.
-
-NE removes repeated framework plumbing; it cannot make arbitrary expensive application code, huge scenes, or oversized media free.
-
-Read [`docs/runtime-performance.md`](./docs/runtime-performance.md).
-
----
-
-## Validation and diagnostics
-
-```ts
-import {
-	analyzeSchema,
-	validateSchema
-} from "nextjs-engine"
-
-const validation = validateSchema(schema.root)
-const analysis = analyzeSchema(schema)
-```
-
-The analyzer handles deeper diagnostics including unknown node types, duplicate navigation targets, schema-object reuse, accessibility hints, large/deep trees, mobile-patch ambiguity, and EngineScroll metadata mistakes.
-
-Read [`docs/schema-diagnostics.md`](./docs/schema-diagnostics.md).
-
----
-
-## Development and CI
-
-Workspace development:
-
-```bash
+~~~sh
 npm install
 npm run type-check
 npm run dev
-```
-
-Production validation:
-
-```bash
 npm run build
-```
-
-Current CI coverage includes APIStatic, EngineShader, EngineBrowser SSR safety, EngineTransitions+, EngineScroll, EngineOverlay, primitive/style compiler regressions, TypeScript, a full optimized Next.js integration build, and production bundle reporting.
-
-Hydration-specific SSR → client regression coverage is part of the v2.6.1 stability work.
-
----
+~~~
 
 ## Documentation
 
-Start at [`docs/index.md`](./docs/index.md), then choose the generation that matches your application:
+Start with the [Generation 2 documentation index](./docs/2/index.md).
 
-- **Generation 2 — stable 2.x:** [documentation index](https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/index.md) — [simple styling](https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/styling.md) and [detailed styling](https://github.com/Kastrick8/nextjs-engine/blob/main-2/docs/2/styling-detailed.md).
-- **Generation 3 — alpha:** [documentation index](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/index.md) — [simple styling](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/styling.md) and [detailed styling](https://github.com/Kastrick8/nextjs-engine/blob/main-3/docs/3/styling-detailed.md).
-
-Gen 2 and Gen 3 guides are maintained separately. Gen 3 is an alpha architecture and should not be treated as the stable 2.x API contract.
-
-| Goal | Read |
+| Topic | Guide |
 |---|---|
-| Release history | [`docs/release/index.md`](./docs/release/index.md) |
-| v2.6.1 stability changes | [`docs/release/NE-v2-6-1.md`](./docs/release/NE-v2-6-1.md) |
-| v2.6.0 feature release | [`docs/release/NE-v2-6-0.md`](./docs/release/NE-v2-6-0.md) |
-| Layouts and primitives | [`docs/engine-components/primitives.md`](./docs/engine-components/primitives.md) |
-| Transitions+ | [`docs/engine-components/enginetransitions.md`](./docs/engine-components/enginetransitions.md) |
-| EngineShader | [`docs/engine-components/engineshader.md`](./docs/engine-components/engineshader.md) |
-| EngineOverlay | [`docs/engine-components/engineoverlay.md`](./docs/engine-components/engineoverlay.md) |
-| EngineScroll | [`docs/engine-components/enginescroll.md`](./docs/engine-components/enginescroll.md) |
-| Canvas / EC graphics | [`docs/engine-components/enginecanvas.md`](./docs/engine-components/enginecanvas.md) |
-| Gen 2 styling — simple | [`docs/2/styling.md`](./docs/2/styling.md) |
-| Gen 2 styling — detailed | [`docs/2/styling-detailed.md`](./docs/2/styling-detailed.md) |
-| Runtime/performance | [`docs/runtime-performance.md`](./docs/runtime-performance.md) |
-| APIStatic | [`docs/engine-components/apistatic.md`](./docs/engine-components/apistatic.md) |
-| External APIs | [`docs/engine-components/engineapi.md`](./docs/engine-components/engineapi.md) |
-| Diagnostics | [`docs/schema-diagnostics.md`](./docs/schema-diagnostics.md) |
-
-`DOCUMENT.md` is the large technical/history reference. For recently changed behavior, prefer the current TypeScript types and focused docs when an old historical section disagrees.
+| Getting started | [Schema and page guide](./docs/2/readme.md) |
+| Primitives | [Engine primitives](./docs/2/engine-components/primitives.md) |
+| Graphics | [EngineCanvas](./docs/2/engine-components/enginecanvas.md) |
+| Shader effects | [EngineShader](./docs/2/engine-components/engineshader.md) |
+| Transitions | [EngineTransitions+](./docs/2/engine-components/enginetransitions.md) |
+| Scroll | [EngineScroll](./docs/2/engine-components/enginescroll.md) |
+| Overlays | [EngineOverlay](./docs/2/engine-components/engineoverlay.md) |
+| Forms | [CustomSelect](./docs/2/engine-components/customselect.md) |
+| API | [EngineAPIResolver](./docs/2/engine-components/engineapi.md) |
+| Browser endpoints | [APIStatic](./docs/2/engine-components/apistatic.md) |
+| Release | [2.7.0 notes](./docs/release/NE-v2-7-0.md) |
 
 ---
 
-Built by **Kate-alt-69** for the Kastrick platform.
+## Support
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Kastrick-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/Kastrick)
+
+Built by **Kate-alt-69** for the Kastrick platform. See [LICENSE](./LICENSE).
