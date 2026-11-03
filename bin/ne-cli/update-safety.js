@@ -142,7 +142,7 @@ function inspectSources(root, targetGeneration) {
 				message: "RawComponentRenderer is not a supported Generation 3 public API.",
 				recommendation: "Replace it with a registered React component or normal JSX inside a React component."
 			});
-			const rawSchemaKey = /\btype\s*:\s*/.exec(code);
+			const rawSchemaKey = /\btype\s*:/.exec(code);
 			const rawSchemaValue = rawSchemaKey
 				? /^\s*(["'])raw\1/.exec(source.slice(rawSchemaKey.index + rawSchemaKey[0].length))
 				: null;
