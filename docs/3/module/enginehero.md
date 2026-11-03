@@ -27,6 +27,17 @@ optional parallax.
 Shared engine props such as `bg`, `background`, `backgroundColor`, `px`, `py`,
 `id`, `point`, `style`, and `cprop` also apply.
 
+
+`href` is also inherited from `BaseNodeProps`; when supplied, EngineHero wraps
+the entire section in an anchor. HTTP(S) destinations open in a new tab with
+`rel="noopener noreferrer"`.
+
+The Gen 3 theme pipeline can inject two component-owned style slots:
+`engineThemeStyles.inner` for the content container and
+`engineThemeStyles.overlay` for the overlay surface. These are theme-injected
+styles, not ordinary serializable schema fields.
+
+
 Hero background props are routed through the same responsive resolver as other
 engine surface props. Breakpoint maps are not inserted directly into React's
 `CSSProperties` object.
