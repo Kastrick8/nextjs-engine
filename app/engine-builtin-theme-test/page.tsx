@@ -48,6 +48,13 @@ const builtInTheme = createTheme({
 	textarea: { styles: { root: { backgroundColor: "#fce7f3", borderColor: "#db2777", color: "#831843", padding: "8px" } } },
 	checkbox: { styles: { root: { width: "20px", height: "20px" } } },
 	label: { styles: { root: { color: "#047857", fontWeight: 600 } } },
+	box: { styles: { root: { backgroundColor: "#f5f3ff", borderRadius: "4px", padding: "5px" } } },
+	stack: { styles: { root: { backgroundColor: "#ecfeff", borderRadius: "5px", padding: "6px" } } },
+	grid: { styles: { root: { backgroundColor: "#fefce8", gap: "3px", padding: "7px" } } },
+	button: { styles: { root: { backgroundColor: "#f97316", color: "#ffffff", borderRadius: "4px", padding: "8px" } } },
+	canvas: { styles: { root: { backgroundColor: "#111827", borderRadius: "5px" } } },
+	manim: { styles: { root: { backgroundColor: "#172554", borderRadius: "6px" } } },
+	suspense: { styles: { root: { backgroundColor: "#f3e8ff", borderRadius: "7px", padding: "9px" } } },
 	slot: { styles: { root: { backgroundColor: "#dbeafe", padding: "4px" } } },
 });
 
@@ -65,6 +72,10 @@ export default createPage({
 					props: { id: "themed-hero", backgroundColor: "#7c3aed" },
 					children: [{ type: "text", props: { content: "Themed hero" } }],
 				},
+				{ type: "box", props: { id: "themed-box" }, children: [{ type: "text", props: { content: "Themed box" } }] },
+				{ type: "stack", props: { id: "themed-stack", direction: "horizontal" }, children: [{ type: "text", props: { content: "Stack item" } }] },
+				{ type: "grid", props: { id: "themed-grid", columns: 2 }, children: [{ type: "text", props: { content: "Grid item" } }] },
+				{ type: "button", props: { id: "themed-button", label: "Themed button" } },
 				{
 					type: "nav",
 					props: { id: "themed-nav", items: [{ label: "Overview", href: "/engine-compat-test" }] },
@@ -94,6 +105,16 @@ export default createPage({
 				},
 				{ type: "image", props: { src: "/next.svg", alt: "Themed fixture image", caption: "Themed image caption", style: { borderRadius: "4px" } } },
 				{ type: "video", props: { src: "/fixture.mp4", className: "themed-video", style: { borderRadius: "4px" } } },
+				{ type: "canvas", props: { className: "themed-canvas", mode: "2d", width: 160, height: 80 } },
+				{
+					type: "manim",
+					props: {
+						className: "themed-manim",
+						width: 160,
+						height: 80,
+						cprop: { manim: { mobjects: [{ id: "theme-circle", type: "Circle", radius: 12 }], timeline: [{ action: "Create", target: "theme-circle", durationMs: 400 }] } },
+					},
+				},
 				{
 					type: "section",
 					theme: "engine-builtin-theme-browser.section.contentArea",
@@ -113,6 +134,11 @@ export default createPage({
 					type: "scroll",
 					props: { id: "themed-scroll", pageTransition: false },
 					children: [{ type: "text", props: { content: "Themed scroll content" } }],
+				},
+				{
+					type: "suspense",
+					props: { id: "themed-suspense", preset: "skeleton", minHeight: "24px", skeletonLines: 1 },
+					children: [{ type: "text", props: { content: "Themed suspense content" } }],
 				},
 				{
 					type: "form",
