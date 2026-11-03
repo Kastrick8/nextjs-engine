@@ -571,7 +571,7 @@ async function main() {
 	assert.match(cli.getHelp(), /ne update\s+List or install a release/);
 	assert.doesNotMatch(cli.getHelp(), /--channel/, "the overview keeps release flags in command-specific help");
 	assert.match(cli.getHelp(), /ne --help/);
-	assert.match(cli.getHelp(), /npx --yes --package=@kastrick\\/nextjs-engine ne updater/);
+	assert.match(cli.getHelp(), /npx --yes --package=@kastrick.*nextjs-engine ne updater/);
 	const originalInstallRelease = project.installRelease;
 	const dashboardDirectory = createTempDirectory("ne-dashboard-smoke-");
 	let dashboardInstall = null;
