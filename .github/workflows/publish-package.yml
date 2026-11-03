@@ -934,8 +934,11 @@ jobs:
           if(!list||!list.includes(VERSION))throw new Error("Tagged version is not present in package/main.");
           const versionTag=TRACK==="stable"?"package."+VERSION:"package-"+TRACK+"."+VERSION;
           const proposedChannel=TRACK==="stable"?"latest":TRACK;
+          const newest=list.at(-1);
           const compareVersion=(a,b)=>compare(a||"0.0.0",b||"0.0.0");
-          const channelTag=compareVersion(VERSION,registryTags[proposedChannel])>=0?proposedChannel:"";
+          const channelTag=newest===VERSION
+            &&compareVersion(VERSION,registryTags[proposedChannel])>=0
+            ?proposedChannel:"";
           console.log("directory=.");
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
