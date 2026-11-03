@@ -730,7 +730,6 @@ Or pass a shader object:
 		},
 		fps: 45,
 		maxDpr: 1.5,
-		adaptive: true,
 	}}
 />
 ```
@@ -743,7 +742,7 @@ interface EngineShaderConfig {
 	variables?: Record<string, EngineShaderVariableValue>;
 	fps?: number;
 	maxDpr?: number;
-	adaptive?: boolean;
+	adaptive?: boolean; // Shared type field retained for compatibility; ignored by Gen 3 runtime.
 	pauseWhenOffscreen?: boolean;
 	pauseWhenHidden?: boolean;
 	respectReducedMotion?: boolean;
@@ -762,6 +761,15 @@ onError?: (reason: unknown) => void
 ```
 
 Layer mode defaults to a lower-power profile: 30 FPS target and low-power GPU preference. Dedicated shader canvases default to 60 FPS and high-performance preference unless overridden.
+
+
+**Generation 3 does not adapt DPR from measured frame timing.** The shared
+`EngineShaderConfig` type still contains an `adaptive?: boolean` compatibility
+field, but the Gen 3 runtime does not read it. Use `maxDpr` and the compiled
+`.shed` `render.resolution` value to set the quality budget explicitly.
+Generation 2 still implements adaptive DPR; do not apply that older behavior to
+the Gen 3 runtime.
+
 
 ---
 
