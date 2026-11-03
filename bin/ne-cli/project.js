@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { inspectUpdateSafety, confirmUpdateSafety } = require("./update-safety");
 const { createPrivateTempDirectory, writeFileAtomically } = require("./file-system");
 
 function taskRuntime() {
@@ -679,8 +680,10 @@ function normalizeArtifactDependency(root, release, artifact) {
 	return { manager, lockFilesUpdated: lockCount, dependencyUrl: remoteUrl };
 }
 
-async function installRelease(root, release, requestedChannel) {
+async function installRelease(root, release, requestedChannel, options) {
 	if (!release || !release.version) throw new Error("No installable release was selected.");
+	const safetyReport = inspectUpdateSafety(root, release);
+	await confirmUpdateSafety(safetyReport, options);
 	const current = loadState(root);
 	let backup = null;
 	let artifact = null;
@@ -704,6 +707,8 @@ async function installRelease(root, release, requestedChannel) {
 			controlScheme: current.controlScheme || "hybrid",
 			activeChannel: resolvedChannel,
 			installedVersion: installed.version,
+			engineGeneration: safetyReport.targetGeneration || null,
+			sourceBranch: release.sourceBranch || null,
 			installedCommit: release.sourceCommit || null,
 			sha256: release.sha256 || null,
 			source: release.source,
@@ -712,6 +717,8 @@ async function installRelease(root, release, requestedChannel) {
 			previous: {
 				activeChannel: current.activeChannel || null,
 				installedVersion: current.installedVersion || null,
+				engineGeneration: current.engineGeneration || null,
+				sourceBranch: current.sourceBranch || null,
 				installedCommit: current.installedCommit || null,
 				source: current.source || null,
 				backup: backup.relative,
@@ -770,11 +777,15 @@ async function rollback(root) {
 			...state,
 			activeChannel: state.previous.activeChannel || "unknown",
 			installedVersion: state.previous.installedVersion || null,
+			engineGeneration: state.previous.engineGeneration || null,
+			sourceBranch: state.previous.sourceBranch || null,
 			installedCommit: state.previous.installedCommit || null,
 			source: state.previous.source || null,
 			previous: {
 				activeChannel: state.activeChannel || null,
 				installedVersion: state.installedVersion || null,
+				engineGeneration: state.engineGeneration || null,
+				sourceBranch: state.sourceBranch || null,
 				installedCommit: state.installedCommit || null,
 				source: state.source || null,
 				backup: currentBackup.relative,
@@ -1047,6 +1058,7 @@ async function runBuild(root) {
 
 module.exports = {
 	PACKAGE_NAME,
+	inspectUpdateSafety,
 	findProjectRoot,
 	resolveProcessInvocation,
 	readJson,
