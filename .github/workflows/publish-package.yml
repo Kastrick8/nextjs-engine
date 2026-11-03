@@ -644,11 +644,9 @@ jobs:
           const fs=require("node:fs");
           const [file,version,track,tag,sourceCommit,archiveCommit]=process.argv.slice(2);
           const marker=JSON.parse(fs.readFileSync(file,"utf8"));
-          const prefix=track==="stable"?"version/":track+"/version/";
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"||!marker.packagePath?.startsWith(prefix)
-            ||marker.packagePath.split("/").includes("..")||marker.sourceCommit!==sourceCommit
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==TARGET||marker.sourceCommit!==sourceCommit
             ||marker.archiveCommit!==archiveCommit||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Generated package-root marker does not match this release.");
           }
@@ -1149,11 +1147,9 @@ jobs:
           const fs=require("node:fs");
           const [file,version,track,tag,sourceCommit]=process.argv.slice(2);
           const marker=JSON.parse(fs.readFileSync(file,"utf8"));
-          const prefix=track+"/version/";
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"||!marker.packagePath?.startsWith(prefix)
-            ||marker.packagePath.split("/").includes("..")||marker.sourceCommit!==sourceCommit
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==DIRECTORY||marker.sourceCommit!==sourceCommit
             ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
             ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Existing immutable prerelease tag has different or unverified provenance.");
