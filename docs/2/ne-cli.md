@@ -100,3 +100,26 @@ ne --verison
 Suggestions never execute commands automatically. Coded failures include a code-specific `Help:` link to the [NE CLI Error Book](./ne-cli-error-book.md).
 
 For the separate Generation 3 compiler/runtime migration diagnostics, see [Migrating from Generation 2 to Generation 3](./migrating-to-3.md). Gen 2 CLI codes and Gen 3 migration diagnostic codes are different namespaces; do not treat them as interchangeable.
+
+
+## Experimental updater safety preflight
+
+The v2.7.0 updater now checks the selected release before changing the project. It compares installed and target versions, identifies the Engine generation from verified release-branch metadata (falling back to the package version), and scans a bounded set of application source files for known Generation 3-oriented APIs when selecting Gen 2.
+
+The Gen 2 preflight reports a potential generation switch and flags references such as `createPage()`, `createTheme()`, and `EngineTheme` for manual review. These are warnings, not proof that the target is incompatible. Gen 2 must remain a Generation 2 runtime; this check does not port Generation 3 features into it.
+
+`ne updater` displays the compatibility result and requires a separate acknowledgement for downgrades, generation changes, or compatibility warnings. Fatal preflight errors are blocking. The same report is available in `ne update --check` and `ne update --dry-run` without modifying project files.
+
+For non-interactive use, `--yes` must be combined with applicable acknowledgement flags:
+
+~~~sh
+ne update --version 2.7.0 --dry-run
+ne update --version 2.6.2 --yes --allow-downgrade
+ne update --channel stable --yes --allow-generation-change --acknowledge-compatibility
+~~~
+
+- `--allow-downgrade` permits an older version.
+- `--allow-generation-change` permits switching between Gen 2 and Gen 3.
+- `--acknowledge-compatibility` acknowledges static migration warnings.
+
+This scanner is deliberately limited and does not provide complete dependency/API/runtime compatibility analysis. It checks only known source patterns in a bounded number of project files. After installation NE verifies the exact package name and version; failures restore the backed-up package manifest and lockfiles.
