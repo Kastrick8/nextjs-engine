@@ -202,3 +202,86 @@ camera.position = [0, 2, 5]
 Bone `.move`, `.rotate`, and `.scale` transforms belong inside `frame()` blocks.
 Camera/light declarations belong at the top level. Bone names may contain dots;
 the transform operation is the final dotted segment.
+
+## Public 2D and 3D type contracts
+
+### 2D configuration
+
+`ManimConfig` is the value assigned to `cprop.manim`:
+
+```ts
+interface ManimConfig {
+  mobjects: ManimMobject[];
+  timeline: ManimTimelineStep[];
+  settings?: {
+    loop?: boolean;
+    fpsLimit?: 30 | 60 | 120;
+    background?: string;
+  };
+}
+```
+
+Supported mobject shapes:
+
+| Shape | Required fields | Optional fields |
+|---|---|---|
+| `Circle` | `id`, `type: "Circle"`, `radius` | `x`, `y`, `strokeColor`, `fillColor`, `strokeWidth` |
+| `Square` | `id`, `type: "Square"`, `sideLength` | `x`, `y`, `strokeColor`, `fillColor`, `strokeWidth` |
+| `Rectangle` | `id`, `type: "Rectangle"`, `width`, `height` | `x`, `y`, `strokeColor`, `fillColor`, `strokeWidth` |
+| `Line` | `id`, `type: "Line"`, `x1`, `y1`, `x2`, `y2` | `strokeColor`, `strokeWidth` |
+| `Path` | `id`, `type: "Path"`, SVG path data in `d` | `strokeColor`, `fillColor`, `strokeWidth` |
+
+A `ManimTimelineStep` has `action` (`Create`, `FadeIn`, `FadeOut`,
+`Transform`, or `Wait`), required `durationMs`, optional `target` and
+`delay`, optional `origin` for `Transform`, and optional `easing`
+(`linear`, `ease-in`, `ease-out`, `ease-in-out`, `bounce`, or
+`elastic`).
+
+### 3D configuration
+
+`Manim3DConfig` is assigned to `cprop.manim3d`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `src` | `string` | Required GLTF/GLB/OBJ model path. |
+| `format` | `"gltf" \| "glb" \| "obj"` | Optional explicit model format. |
+| `camera` | `Manim3DCamera` | Camera position, FOV, near/far planes, look target and focus settings. |
+| `lights` | `Manim3DLight[]` | Ambient, directional, point or spot lights. |
+| `animation` | `ManimAnimationRoute` | Built-in file clip, source DSL animation, and optional per-bone overrides. |
+| `settings` | object | Optional `loop`, `fps`, `shadows`, `wireframe`, and `background` settings. |
+
+`Manim3DCamera` supports `position`, `fov`, `near`, `far`,
+`look.content` (a bone name or a world-space `[x, y, z]` target), and
+`focus.distance` / `focus.aperture`. A light supports `type`, `color`,
+`intensity`, `position`, `direction`, and `castShadow`.
+
+An animation route uses `source: "file"` with a `clip` name, or
+`source: "source"` with a `dsl` string. Optional `speed` is a playback
+multiplier. `overrides` contains per-bone frame groups and a mode:
+`"replace"` replaces a GLTF track; `"additive"` layers the DSL transforms
+over the file clip/base pose. Each frame group specifies `frameStart`,
+`frameEnd`, and a list of bone transforms; a transform can supply
+`move`, `rotate` (Euler degrees), `scale`, and `easing`.
+
+
+### Direct React component props
+
+The exported React components take their configuration through the same
+`cprop` shape as schema nodes:
+
+```tsx
+import { EngineManim, EngineManim3D } from "nextjs-engine";
+
+<EngineManim cprop={{ manim: twoDConfig }} width={640} height={360} />
+<EngineManim3D cprop={{ manim3d: threeDConfig }} width={640} height={360} />
+```
+
+| Component | Required prop | Optional props |
+|---|---|---|
+| `EngineManim` | `cprop: { manim: ManimConfig }` | `width`, `height`, `className`, `style` |
+| `EngineManim3D` | `cprop: { manim3d: Manim3DConfig }` | `width`, `height`, `className`, `style` |
+
+
+### Generation 2 boundary
+
+Generation 2 does not expose `Manim3DConfig.materialSrc` or the special `"$root"` bone target. Use a named bone present in the loaded model for Gen 2 bone tracks.
