@@ -20,7 +20,7 @@ PageSchema / EngineConfig
 | Theme/style | createTheme → theme resolver → built-in/custom component styles → StyleCollector |
 | Browser/runtime | EngineViewport publishes view geometry; EngineScheduler coordinates eligible work; image/video/canvas/shader/scroll/animation consume their relevant signals |
 | Scroll | provider + global EngineScroll runtime; points/nav/movement/hash/snap/range/timeline/director/tracker are cooperating subsystems |
-| Graphics | model factories → renderer registry → Engine2D/3D/SVG/Skia; EngineCanvas owns React lifecycle and frame clock |
+| Graphics | shared EC scene factories/types → renderer registry → Engine2D/3D/SVG/Skia; EngineCanvas owns React lifecycle/frame clock; Engine3D currently maps EC meshes to unlit Three.js basic materials |
 | Networking | .api provider config → EngineAPIResolver; EngineAPIResolver may delegate to APIStatic static route descriptor |
 | NENC | command declaration → build manifest → client transport → generated route/server dispatcher → auth/device proof/rate/replay policy → application handler |
 | EngineCookies | alias/index metadata + sealed encrypted record store + trust/device proof policy |
