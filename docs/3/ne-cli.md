@@ -186,7 +186,8 @@ The preflight detects:
 
 - A SemVer downgrade, including prerelease-to-prerelease downgrades.
 - A Gen 2 ↔ Gen 3 transition.
-- Gen 3 blockers: `RawComponentRenderer` and schema nodes with `type: "raw"`.
+- Gen 3 blockers: `RawComponentRenderer` and schema nodes with `type: "raw"`. Every matching schema `type` property is checked, and findings include a source location and remediation guidance.
+- Unknown target generations and unknown installed generations fail closed; after installation, NE verifies that the installed package belongs to the generation selected during preflight.
 - Gen 3 migration warnings for legacy EngineAPI artifacts, `compiler.serverFirst: false`, and named `createPage()` handlers.
 
 The release details view reports the scan result. Risky updates open a separate acknowledgement screen; fatal compatibility findings block installation. The command-line path performs the same scan immediately before installation. `--check` and `--dry-run` print the report without changing the project.
@@ -201,4 +202,4 @@ ne update --version 3.0.0-alpha.2 --yes --allow-generation-change --acknowledge-
 
 `--allow-downgrade` explicitly permits an older version, `--allow-generation-change` explicitly permits crossing between Gen 2 and Gen 3, and `--acknowledge-compatibility` acknowledges preflight warnings. These flags do not bypass fatal findings.
 
-This is a focused static migration preflight, not a complete API, peer-dependency, or runtime-compatibility proof. Clean results mean no currently encoded rules matched in the scanned files; they do not guarantee that every third-party package or application behavior is compatible. After installation NE still verifies the exact installed package name/version, and installation failure restores the saved dependency manifests and lockfiles.
+This is a focused static migration preflight, not a complete API, npm dependency-tree, TypeScript, peer-dependency, or runtime-compatibility proof. It does not run `npm audit`, `npm ls`, or a production build before changing dependencies. Clean results mean no currently encoded rules matched in the bounded set of scanned files; they do not guarantee that every third-party package or application behavior is compatible. After installation NE verifies the exact installed package name/version and Engine generation; a mismatch or installation failure enters the existing dependency-file restoration path.
