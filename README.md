@@ -152,6 +152,14 @@ Start with the [Generation 2 documentation index](./docs/2/index.md).
 
 ## Support
 
+Enjoying Next.js Engine? Supporting the work helps me spend more time improving the Engine and its open-source tooling.
+
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Kastrick-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/Kastrick)
+
+**Scan the QR code to support me!**
+
+[![Kastrick support QR code](./assets/qr-code.png)](https://www.buymeacoffee.com/Kastrick)
+
+[buymeacoffee.com/Kastrick](https://www.buymeacoffee.com/Kastrick)
 
 Built by **Kate-alt-69** for the Kastrick platform. See [LICENSE](./LICENSE).
