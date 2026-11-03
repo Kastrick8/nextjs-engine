@@ -303,6 +303,19 @@ function applyGeneric(
 }
 
 const CSS_PASSTHROUGH: readonly string[] = [
+	// Complete CSS declarations accepted by the EngineTheme built-in style
+	// allowlist but which are not represented by a shorter Engine prop alias.
+	// Keep these here so flattened root theme props still reach the DOM style.
+	"padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+	"paddingBlock", "paddingBlockStart", "paddingBlockEnd",
+	"paddingInline", "paddingInlineStart", "paddingInlineEnd",
+	"margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
+	"marginBlock", "marginInline",
+	"borderColor", "borderWidth", "borderStyle",
+	"fontStyle", "textDecorationThickness", "boxSizing",
+	"overflowWrap", "textOverflow",
+	"flexGrow", "flexShrink", "flexBasis", "flexDirection", "flexWrap",
+	"gridTemplateColumns", "gridTemplateRows",
 	"transform", "transformOrigin", "transformStyle",
 	"perspective", "perspectiveOrigin", "backfaceVisibility",
 	"filter", "backdropFilter", "clipPath", "objectFit", "objectPosition",
