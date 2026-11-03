@@ -182,7 +182,7 @@ test("a Beta release advances beta without moving the stable latest alias", () =
     channelTag: "beta",
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).beta, "3.0.0-beta.1");
+  assert.equal(JSON.parse(result.stdout).channelTag, "3.0.0-beta.1");
   assert.equal(result.registry.latest, "2.6.2");
 });
 
