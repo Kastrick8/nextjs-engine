@@ -69,13 +69,20 @@ function parseArgs(argv) {
 				if (value !== undefined) options[name] = value;
 				else if (argv[index + 1] && !argv[index + 1].startsWith("-")) options[name] = argv[++index];
 				else throw diagnostics().missingOptionValue("--" + name, "a value");
-			} else if (["yes", "check", "json", "dry-run", "force", "no-color"].includes(name)) {
-				options[name === "dry-run" ? "dryRun" : name === "no-color" ? "noColor" : name] = true;
+			} else if (["yes", "check", "json", "dry-run", "force", "no-color", "allow-downgrade", "allow-generation-change", "acknowledge-compatibility"].includes(name)) {
+				const optionNames = {
+					"dry-run": "dryRun",
+					"no-color": "noColor",
+					"allow-downgrade": "allowDowngrade",
+					"allow-generation-change": "allowGenerationChange",
+					"acknowledge-compatibility": "acknowledgeCompatibility",
+				};
+				options[optionNames[name] || name] = true;
 			} else {
 				throw diagnostics().unknownOption(argument, [
 					"--channel", "--version", "--and", "--and-terminal",
 					"--yes", "--check", "--json", "--dry-run", "--force",
-					"--quiet", "--no-color",
+					"--quiet", "--no-color", "--allow-downgrade", "--allow-generation-change", "--acknowledge-compatibility",
 				]);
 			}
 			continue;
@@ -155,6 +162,9 @@ function getHelp() {
 		"  --dry-run     Show a selection without changing the project",
 		"  --check       Refresh and list channel availability without installing",
 		"  --json        Print the channel catalog as JSON",
+		"--allow-downgrade             Explicitly allow an older Engine version",
+		"--allow-generation-change     Explicitly allow switching Gen 2 / Gen 3",
+		"--acknowledge-compatibility   Acknowledge preflight migration warnings",
 		"  -q, --quiet   Suppress the experimental notice banner",
 		"  --no-color    Disable ANSI colors in CLI output",
 		"",
@@ -284,7 +294,7 @@ async function commandUpdate(root, options) {
 		process.stdout.write("[NE] Installation cancelled.\n");
 		return;
 	}
-	await project().installRelease(root, release, options.channel || release.track);
+	await project().installRelease(root, release, options.channel || release.track, options);
 }
 
 async function commandUpdater(root, showWarning) {
@@ -309,6 +319,7 @@ async function commandUpdater(root, showWarning) {
 		showWarning: Boolean(showWarning),
 		catalog: cached,
 		loadCatalog: (onSourceStatus) => channels().loadChannelCatalog(root, { onSourceStatus }),
+		inspectRelease: (release) => project().inspectUpdateSafety(root, release),
 		context: {
 			projectName: projectTitle,
 			version: installedVersion,
@@ -321,7 +332,7 @@ async function commandUpdater(root, showWarning) {
 		},
 	});
 	if (result.action === "install" && result.release) {
-		await project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+		await project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track, { safetyAcknowledged: Boolean(result.safetyAcknowledged) });
 	}
 }
 
@@ -361,7 +372,7 @@ async function runDashboard(root, showWarning) {
 async function runDashboardAction(root, result) {
 	const action = typeof result === "string" ? result : result && result.action;
 	if (action === "install" && result && result.release) {
-		return project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+		return project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track, { safetyAcknowledged: Boolean(result.safetyAcknowledged) });
 	}
 	if (action === "dev") return project().runNext(root, ["dev"]);
 	if (action === "build") return project().runBuild(root);
