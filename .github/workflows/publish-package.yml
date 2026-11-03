@@ -571,9 +571,9 @@ jobs:
         id: commit-snapshot
         working-directory: archive
         env:
-          TARGET: \${{ steps.prepare.outputs.target }}
-          VERSION: \${{ steps.release-meta.outputs.version }}
-          PINNED_SHA: \${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -590,11 +590,11 @@ jobs:
         id: package-root
         working-directory: archive
         env:
-          VERSION: \${{ steps.release-meta.outputs.version }}
-          TRACK: \${{ steps.release-meta.outputs.track }}
-          PINNED_SHA: \${{ steps.prepare.outputs.pinned_sha }}
-          TARGET: \${{ steps.prepare.outputs.target }}
-          ARCHIVE_COMMIT: \${{ steps.commit-snapshot.outputs.archive_commit }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+          ARCHIVE_COMMIT: ${{ steps.commit-snapshot.outputs.archive_commit }}
         shell: bash
         run: |
           set -euo pipefail
@@ -617,13 +617,13 @@ jobs:
         id: create-tag
         working-directory: archive
         env:
-          VERSION: \${{ steps.release-meta.outputs.version }}
-          TRACK: \${{ steps.release-meta.outputs.track }}
-          PINNED_SHA: \${{ steps.prepare.outputs.pinned_sha }}
-          TARGET: \${{ steps.prepare.outputs.target }}
-          REFRESHED: \${{ steps.prepare.outputs.refreshed }}
-          PACKAGE_ROOT_SHA: \${{ steps.package-root.outputs.commit_sha }}
-          ARCHIVE_COMMIT: \${{ steps.package-root.outputs.archive_commit }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          TRACK: ${{ steps.release-meta.outputs.track }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+          REFRESHED: ${{ steps.prepare.outputs.refreshed }}
+          PACKAGE_ROOT_SHA: ${{ steps.package-root.outputs.commit_sha }}
+          ARCHIVE_COMMIT: ${{ steps.package-root.outputs.archive_commit }}
         shell: bash
         run: |
           set -euo pipefail
