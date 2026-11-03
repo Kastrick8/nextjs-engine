@@ -495,6 +495,7 @@ jobs:
           console.log("channel_tag="+channelTag);
           NODE
       - name: Skip an already-published immutable npm version
+        if: steps.snapshot.outputs.migration_only != 'true'
         id: registry-version
         env:
           VERSION: ${{ inputs.version }}
@@ -870,10 +871,23 @@ jobs:
           VERSION="$(sed -n 's/^version=//p' "$RUNNER_TEMP/tag-metadata.env")"
           TRACK="$(sed -n 's/^track=//p' "$RUNNER_TEMP/tag-metadata.env")"
           ARCHIVE_COMMIT="$(sed -n 's/^archive_commit=//p' "$RUNNER_TEMP/tag-metadata.env")"
+          MIGRATION_ONLY="$(sed -n 's/^migration_only=//p' "$RUNNER_TEMP/tag-metadata.env")"
           test -n "$VERSION" && test -n "$TRACK" && test -n "$ARCHIVE_COMMIT"
           test "$(git rev-parse "$GITHUB_SHA^")" = "$ARCHIVE_COMMIT" || {
             echo "Package-root tag commit does not have its recorded archive commit as its parent." >&2; exit 1;
           }
+          if [[ "$MIGRATION_ONLY" == "true" ]]; then
+            VERSION_TAG="package.$VERSION"
+            if [[ "$TRACK" != "stable" ]]; then VERSION_TAG="package-$TRACK.$VERSION"; fi
+            {
+              echo "directory=."
+              echo "version_tag=$VERSION_TAG"
+              echo "channel_tag="
+              echo "migration_only=true"
+            } >> "$GITHUB_OUTPUT"
+            echo "Legacy package tag was repaired only; npm publication and dist-tag changes are intentionally skipped."
+            exit 0
+          fi
           git merge-base --is-ancestor "$ARCHIVE_COMMIT" refs/remotes/origin/package/main || {
             echo "The package-root tag's archive provenance is not part of package/main history." >&2; exit 1;
           }
@@ -926,6 +940,7 @@ jobs:
           console.log("channel_tag="+channelTag);
           NODE
       - name: Validate and pack the selected snapshot
+        if: steps.snapshot.outputs.migration_only != 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         run: |
           set -euo pipefail
