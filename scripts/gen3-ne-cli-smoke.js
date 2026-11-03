@@ -330,9 +330,42 @@ async function main() {
 	];
 	const parsedTags = tagFixtures.map(channels.packageTagToRelease);
 	assert.deepEqual(parsedTags.slice(0, 3).map((item) => item.version), ["2.7.0", "3.0.0-alpha.2", "3.0.0-beta.1"]);
-	assert.equal(parsedTags[0].installable, false);
+	assert.equal(parsedTags[0].installable, false, "an unverified legacy tag remains TAG ONLY");
 	assert.equal(parsedTags[3], null);
 	assert.equal(parsedTags[4], null);
+	const packageTagMarker = {
+		schemaVersion: 1,
+		packageName: "@kastrick/nextjs-engine",
+		version: "2.7.0",
+		track: "stable",
+		tag: "package.2.7.0",
+		layout: "npm-pack-root",
+		archiveCommit: "b".repeat(40),
+		packagePath: "version/2.7/version/2.7",
+		sourceCommit: "a".repeat(40),
+		npmIntegrity: "sha512-" + "c".repeat(86) + "==",
+	};
+	const verifiedStableTag = channels.packageTagToRelease(tagFixtures[0], packageTagMarker);
+	assert.equal(verifiedStableTag.installable, true);
+	assert.equal(verifiedStableTag.installSpec, "git+https://github.com/Kastrick8/nextjs-engine.git#package.2.7.0");
+	assert.equal(verifiedStableTag.sourceCommit, "a".repeat(40));
+	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
+	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
+	assert.equal(channels.packageTagToRelease(tagFixtures[0], { ...packageTagMarker, packagePath: "../outside" }).installable, false,
+		"unsafe snapshot paths cannot verify a package tag");
+	const alphaTagMarker = {
+		...packageTagMarker,
+		version: "3.0.0-alpha.2",
+		track: "alpha",
+		tag: "package-alpha.3.0.0-alpha.2",
+		packagePath: "alpha/version/3.alpha/version/3.0.0-alpha.2",
+	};
+	const verifiedAlphaTag = channels.packageTagToRelease(tagFixtures[1], alphaTagMarker);
+	assert.equal(verifiedAlphaTag.installable, true);
+	const mergedVerifiedAlpha = channels.normaliseCatalog([npmCatalog.find((item) => item.version === "3.0.0-alpha.2"), verifiedAlphaTag]);
+	assert.equal(mergedVerifiedAlpha.releases[0].source, "git-tag",
+		"verified Git package tags outrank npm prerelease catalog-only entries");
+	assert.equal(channels.resolveRelease(mergedVerifiedAlpha, { version: "3.0.0-alpha.2" }).installable, true);
 	const rollingTag = channels.githubTagToRelease({ ref: "refs/tags/channel-alpha-latest" });
 	assert.equal(rollingTag.version, "channel-alpha-latest");
 	assert.equal(rollingTag.installable, false, "channel pointer tags are visible but never directly installable");
@@ -358,7 +391,7 @@ async function main() {
 
 	const mergedCatalog = channels.normaliseCatalog([
 		...npmCatalog,
-		parsedTags[0],
+		verifiedStableTag,
 		{
 			version: "3.0.0-alpha.2",
 			track: "alpha",
@@ -386,7 +419,9 @@ async function main() {
 	assert.deepEqual(mergedAlpha.sources.sort(), ["github", "npm"]);
 	assert.equal(channels.resolveRelease(mergedCatalog, { version: "3.0.0-alpha.2" }).source, "github");
 	assert.equal(channels.resolveRelease({ releases: [parsedTags[0]] }, { version: "2.7.0" }), null);
+	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
 	assert.equal(channels.channelLabel(parsedTags[0]), "TAG ONLY");
+	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
 
 	const greenContext = {
 		repo: "Kastrick8/nextjs-engine",
@@ -752,11 +787,28 @@ async function main() {
 				{ ref: "refs/tags/package.latest" },
 			];
 			const sourceEvents = [];
+			const stableTagMarker = {
+				schemaVersion: 1, packageName: "@kastrick/nextjs-engine", version: "1.0.119", track: "stable",
+				tag: "package.1.0.119", layout: "npm-pack-root", archiveCommit: "b".repeat(40),
+				packagePath: "version/1.0/version/1.0.119", sourceCommit: "a".repeat(40),
+				npmIntegrity: "sha512-" + "c".repeat(86) + "==",
+			};
+			const alphaTagMarker = {
+				...stableTagMarker, version: "3.0.0-alpha.1", track: "alpha",
+				tag: "package-alpha.3.0.0-alpha.1",
+				packagePath: "alpha/version/3.alpha/version/3.0.0-alpha.1",
+			};
 			global.fetch = async (url) => {
 				if (url === channels.NPM_PACKUMENT_URL) return new Response(JSON.stringify(packument), { status: 200 });
 				if (url === channels.GITHUB_RELEASES_URL) return new Response("[]", { status: 200 });
 				if (url === channels.GITHUB_LATEST_ALPHA_URL) return new Response(JSON.stringify(rollingAsset), { status: 200 });
 				if (url === channels.GITHUB_PACKAGE_TAGS_URL) return new Response(JSON.stringify(gitRefs), { status: 200 });
+				if (url === "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/package.1.0.119/.package-tag.json") {
+					return new Response(JSON.stringify(stableTagMarker), { status: 200 });
+				}
+				if (url === "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/package-alpha.3.0.0-alpha.1/.package-tag.json") {
+					return new Response(JSON.stringify(alphaTagMarker), { status: 200 });
+				}
 				throw new Error("Unexpected updater feed URL: " + url);
 			};
 			const feedCatalog = await channels.loadChannelCatalog(feedRoot, {
@@ -767,6 +819,12 @@ async function main() {
 				"the complete npm packument is retained instead of only latest");
 			assert.ok(feedCatalog.releases.some((item) => item.version === "1.0.119" && item.gitTags.includes("package.1.0.119")),
 				"package/main Git tags merge onto their matching npm version");
+			assert.equal(feedCatalog.releases.find((item) => item.version === "1.0.119").source, "npm",
+				"stable npm remains preferred over the matching Git package tag");
+			assert.ok(feedCatalog.releases.some((item) => item.version === "3.0.0-alpha.1"
+				&& item.source === "git-tag" && item.installable === true),
+				"verified Alpha package-root tags become installable Git dependencies");
+			assert.equal(channels.resolveRelease(feedCatalog, { version: "3.0.0-alpha.1" }).source, "git-tag");
 			assert.ok(feedCatalog.releases.some((item) => item.tagName === "channel-alpha-latest"),
 				"the rolling Alpha Git tag is visible in the updater");
 			assert.ok(feedCatalog.releases.some((item) => item.version === "3.0.0-alpha.2" && item.floating === true),
