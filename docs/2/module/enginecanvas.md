@@ -127,7 +127,7 @@ Built-in graphics engines:
 | `2d` | Canvas 2D retained rendering | caches compiled topology and stable `Path2D` geometry |
 | `3d` | Three.js-backed retained 3D | reuses Three.js objects and disposes removed GPU resources |
 | `svg` | DOM SVG retained renderer | renders ECScene topology into a retained SVG DOM surface |
-| `skia` | reserved CanvasKit backend | recognized but intentionally not implemented yet |
+| `skia` | reserved CanvasKit backend | registered as a forward-compatible name, but selecting it currently throws because the CanvasKit backend is not implemented; use `2d` or `3d` for a working renderer |
 
 See [`enginesvg.md`](./enginesvg.md) for SVG-specific geometry/import/export behavior.
 
