@@ -104,7 +104,7 @@ The graphics model is generation-shared. These types and factories are exported 
 
 The shape factories return `ECMesh` objects with generated ids. A circle is a triangle fan; a rectangle and polygon are also triangle fans; paths and lines are strips. `ecPath` accepts the common SVG path commands `M`, `L`, `H`, `V`, `C`, `Q`, and `Z` in absolute or relative form. Cubic and quadratic curves are flattened into line segments. Unsupported commands (including SVG arc commands) are skipped rather than rendered as native curves.
 
-Because `ecPolygon` emits a triangle fan from the first vertex, use it for convex polygon outlines/fills. It is not a general concave-polygon triangulator.
+Because `ecPolygon` emits a triangle fan from the first vertex, use it for convex filled polygons. It is not a general concave-polygon triangulator.
 
 ### Mesh data and topology
 
