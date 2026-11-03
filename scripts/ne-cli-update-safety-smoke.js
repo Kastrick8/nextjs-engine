@@ -23,6 +23,16 @@ async function run() {
 		assert.equal(safety.generationFromVersion("2.7.0"), 2);
 		assert.equal(safety.generationForRelease({ version: "2.7.0", sourceBranch: "main-3" }), 3,
 			"verified release branch metadata takes precedence over a SemVer-major fallback");
+		fs.mkdirSync(path.join(root, ".nextjs-engine", "config"), { recursive: true });
+		fs.writeFileSync(path.join(root, ".nextjs-engine", "config", "ne.config.json"),
+			JSON.stringify({ installedVersion: "3.0.0-alpha.3", engineGeneration: 3, sourceBranch: "main-3" }));
+		assert.equal(safety.readInstalled(root).version, "3.0.0-alpha.3");
+		fs.writeFileSync(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"),
+			JSON.stringify({ name: "@kastrick/nextjs-engine", version: "2.7.0" }));
+		assert.equal(safety.generationFromManifest(safety.readInstalled(root)), 2,
+			"stale NE state must not override the version currently installed in node_modules");
+		fs.writeFileSync(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"),
+			JSON.stringify({ name: "@kastrick/nextjs-engine", version: "3.0.0-alpha.3" }));
 
 		const downgrade = safety.inspectUpdateSafety(root, {
 			version: "3.0.0-alpha.2", sourceBranch: "main-3", source: "github"
