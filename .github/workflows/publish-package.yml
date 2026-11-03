@@ -53,7 +53,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: npm-release-${{ inputs.version || github.event.workflow_run.head_branch || inputs.source_branch || github.event.client_payload.tag_name || github.ref_name }}
+  # Serialize all publishers by dist-tag track, including main-2/main-3
+  # workflow_run promotions and immutable package tag events.
+  group: npm-release-${{ inputs.track || (startsWith(github.ref_name, 'package-alpha.') && 'alpha') || (startsWith(github.ref_name, 'package-beta.') && 'beta') || (startsWith(github.event.client_payload.tag_name, 'package-alpha.') && 'alpha') || (startsWith(github.event.client_payload.tag_name, 'package-beta.') && 'beta') || (github.event.workflow_run.head_branch == 'main-2' && 'stable') || 'alpha' }}
   cancel-in-progress: false
 
 jobs:
