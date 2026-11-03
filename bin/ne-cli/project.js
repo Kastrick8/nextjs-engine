@@ -678,7 +678,6 @@ async function runBuild(root) {
 
 module.exports = {
 	PACKAGE_NAME,
-	verifyInstalledVersion,
 	inspectUpdateSafety,
 	formatUpdateSafety,
 	findProjectRoot,
