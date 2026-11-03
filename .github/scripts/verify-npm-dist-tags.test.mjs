@@ -14,18 +14,24 @@ function runVerifier(initialTags, {
   versionTag = "package-alpha.3.0.0-alpha.2",
   channelTag = "alpha",
   published = ["2.6.2"],
+  stableArchiveVersions = ["2.6.2"],
 } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "engine-dist-tags-"));
   try {
     const bin = path.join(root, "bin");
     const archive = path.join(root, "archive");
-    const stableDir = path.join(archive, "version", "2.6", "2.6.2");
     mkdirSync(bin, { recursive: true });
-    mkdirSync(stableDir, { recursive: true });
-    writeFileSync(path.join(stableDir, "package.json"), JSON.stringify({
-      name: packageName,
-      version: "2.6.2",
-    }));
+    for (const stableVersion of stableArchiveVersions) {
+      const [major, minor, patch] = stableVersion.split(".");
+      const family = major + "." + minor;
+      const snapshot = patch === "0" ? family : stableVersion;
+      const stableDir = path.join(archive, "version", family, "version", snapshot);
+      mkdirSync(stableDir, { recursive: true });
+      writeFileSync(path.join(stableDir, "package.json"), JSON.stringify({
+        name: packageName,
+        version: stableVersion,
+      }));
+    }
     const tagsFile = path.join(root, "dist-tags.json");
     const stateFile = path.join(root, "registry.json");
     writeFileSync(tagsFile, JSON.stringify(initialTags));
@@ -162,4 +168,37 @@ test("rejects an immutable version tag that points at a different package versio
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /expected 3.0.0-alpha.2/);
+});
+
+test("a Beta release advances beta without moving the stable latest alias", () => {
+  const result = runVerifier({
+    "package-beta.3.0.0-beta.1": "3.0.0-beta.1",
+    beta: "3.0.0-beta.1",
+    latest: "2.6.2",
+  }, {
+    version: "3.0.0-beta.1",
+    track: "beta",
+    versionTag: "package-beta.3.0.0-beta.1",
+    channelTag: "beta",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).beta, "3.0.0-beta.1");
+  assert.equal(result.registry.latest, "2.6.2");
+});
+
+test("a newer Stable release advances package version and latest aliases", () => {
+  const result = runVerifier({
+    "package.2.6.3": "2.6.3",
+    latest: "2.6.3",
+  }, {
+    version: "2.6.3",
+    track: "stable",
+    versionTag: "package.2.6.3",
+    channelTag: "latest",
+    published: ["2.6.2", "2.6.3"],
+    stableArchiveVersions: ["2.6.2", "2.6.3"],
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).latest, "2.6.3");
+  assert.equal(result.registry["package.2.6.3"], "2.6.3");
 });
