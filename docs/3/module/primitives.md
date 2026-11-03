@@ -9,7 +9,6 @@
 
 ## Shared Base Props
 
-### Shared Base Props
 
 All nodes accept these props in addition to their type-specific props:
 
@@ -19,14 +18,16 @@ All nodes accept these props in addition to their type-specific props:
 | `className` | `string` | CSS class names |
 | `style` | `CSSProperties` | Inline style overrides |
 | `vars` | `Record<string, string>` | CSS custom properties set inline — cascade to all children |
-| `priority` | `boolean` | Skip lazy loading entirely |
-| `lazy` | `boolean` | Force lazy (true) or eager (false) |
+| `priority` | `boolean` | Mark important/above-fold content; supported lazy wrappers can render eagerly. |
+| `lazy` | `boolean` | Request lazy mounting (`true`) or eager rendering (`false`) where the renderer supports it. |
+| `eager` | `boolean` | Eager-mount alias for components/wrappers that expose it. |
+| `hideOn` / `showOnly` | `Breakpoint[]` | Hide at the listed breakpoints, or show only at the listed breakpoints. |
 | `m`, `mt`, `mr`, `mb`, `ml`, `mx`, `my` | `ResponsiveValue<string\|number>` | Margin |
 | `p`, `pt`, `pr`, `pb`, `pl`, `px`, `py` | `ResponsiveValue<string\|number>` | Padding |
 | `w`, `h`, `minW`, `minH`, `maxW`, `maxH` | `ResponsiveValue<string\|number>` | Sizing |
 | `width`, `height`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight` | `ResponsiveValue<string\|number>` | Long-form sizing aliases |
-| `bg` | `string` | Background color |
-| `color` | `string` | Text color |
+| `bg` / `background` | `ResponsiveValue<CSSProperties["background"]>` | Background shorthand; supports breakpoint values. |
+| `backgroundColor` / `color` | responsive CSS values | Background/text color; supports breakpoint values. |
 | `border` | `string` | CSS border shorthand |
 | `borderRadius` | `ResponsiveValue<string\|number>` | Border radius |
 | `shadow` | `string` | Box shadow |
@@ -34,15 +35,20 @@ All nodes accept these props in addition to their type-specific props:
 | `transition` | `string` | CSS transition |
 | `backgroundImage`, `backgroundSize`, `backgroundRepeat`, `backgroundPosition` | `string` | Background image controls |
 | `backdrop`, `backdropFilter` | `string` | CSS backdrop-filter controls |
-| `position` | `string` | CSS position |
+| `position` / `top` / `right` / `bottom` / `left` | CSS position / string or number | Positioning fields. |
 | `zIndex` | `number` | Z-index |
-| `opacity` | `number` | Opacity |
-| `overflow` | `string` | Overflow behaviour |
+| `opacity` | `ResponsiveValue<number>` | Opacity; supports breakpoint values. |
+| `flex` / `order` / `alignSelf` / `justifySelf` | CSS flex/alignment values | Per-node layout overrides. |
+| `transform` / `transformOrigin` / `transformStyle` | CSS transform values | Transform controls; transform/origin may be responsive. |
+| `filter` / `backdropFilter` / `clipPath` | CSS values | Visual effects. |
+| `overflow` / `overflowX` / `overflowY` | CSS overflow values | Overflow control on each axis. |
 | `sides` | `(1\|2\|3\|4)[]` | Which sides `sideDistance` applies to (1=top 2=left 3=right 4=bottom) |
 | `sideDistance` | `string\|number` | Distance applied to each selected side |
 | `sideType` | `"margin"\|"padding"` | Whether `sideDistance` maps to margin (default) or padding |
-| `onClick` | `string` | Handler name from `createPage({ handlers })` |
-| `href` | `string` | Wraps node in an `<a>` tag |
+| `onClick` | `string` | Schema handler name from `createPage({ handlers })`; schema data does not serialize React callback functions. |
+| `href` | `string` | Wraps supported primitive nodes in an `<a>` tag. |
+| `emd_show-url-icon` | `boolean` | Opt supported external links into a leading favicon; off by default. |
+| `emd_url-icon-size` | `EngineUrlIconSize` | Gen 3 favicon size: `"auto"` or a number clamped to 8–64 CSS pixels. |
 
 Numbers in spacing/sizing props are treated as pixels divided by 16 (so `16 → 1rem`, `32 → 2rem`).
 
@@ -50,7 +56,6 @@ Numbers in spacing/sizing props are treated as pixels divided by 16 (so `16 → 
 
 ## `vars` — CSS Custom Properties
 
-### `vars` — CSS Custom Properties
 
 Set CSS variables directly on any element. They cascade to all children through the standard CSS variable system.
 
@@ -74,7 +79,6 @@ Keys without a leading `--` are auto-prefixed, so `"accent"` and `"--accent"` bo
 
 ## `sides` — Per-Side Spacing
 
-### `sides` — Per-Side Spacing
 
 The sides system applies a distance to specific sides of an element using CSS margin (default) or padding. In a CSS grid, adding margin to a cell pushes adjacent cells outward.
 
@@ -132,7 +136,6 @@ props: {
 
 ## box
 
-### box
 
 Generic container. Maps to a `<div>` by default.
 
@@ -144,13 +147,13 @@ Generic container. Maps to a `<div>` by default.
 | `justify` | `ResponsiveValue` | justify-content |
 | `wrap` | `ResponsiveValue` | flex-wrap |
 | `gap` | `ResponsiveValue<string\|number>` | Gap between flex/grid children |
+| `colGap`, `rowGap` | `ResponsiveValue<string\|number>` | Column and row gaps. |
 | `as` | `ElementType` | Override the HTML tag |
 
 ---
 
 ## stack
 
-### stack
 
 Vertical or horizontal flex stack with optional dividers.
 
@@ -167,7 +170,6 @@ Vertical or horizontal flex stack with optional dividers.
 
 ## grid
 
-### grid
 
 CSS Grid container.
 
@@ -185,7 +187,6 @@ CSS Grid container.
 
 ## text
 
-### text
 
 Renders text with a variant system.
 
@@ -244,7 +245,6 @@ Plain segments (no `href`, no `style`) render as raw text nodes — no `<span>` 
 
 ## heading
 
-### heading
 
 Shorthand combining a heading text node with an optional subheading.
 
@@ -263,7 +263,6 @@ Shorthand combining a heading text node with an optional subheading.
 
 ## section
 
-### section
 
 Page section with a centered max-width content column.
 
@@ -278,7 +277,6 @@ Page section with a centered max-width content column.
 
 ## card
 
-### card
 
 A styled container with full layout control.
 
@@ -343,19 +341,8 @@ Inserts whitespace. `axis: "y"` (default) or `axis: "x"`.
 
 A `<hr>` with configurable orientation, color, thickness, and style.
 
----
-
-## divider
-
-### divider
-
-A `<hr>` with configurable orientation, color, thickness, and style.
-
----
-
 ## slot
 
-### slot
 
 Renders a named piece of React content injected via `createPage({ slots: { … } })`. Useful for dynamic content that can't be expressed as a schema node.
 
@@ -376,7 +363,6 @@ createPage({
 
 ## link
 
-### link
 
 The primary routing primitive. It handles external URLs automatically and integrates with the `next-view-transitions` pipeline.
 
@@ -384,9 +370,9 @@ The primary routing primitive. It handles external URLs automatically and integr
 |------|------|-------------|
 | `href` | `string` | Destination URL. Defaults to `"#"` |
 | `target` | `string` | HTML anchor target (e.g., `"_blank"`) |
-| `onClick` | `string \| function` | Named handler or callback function |
+| `onClick` | `string` | Schema handler name; direct JSX `EngineLink` also accepts a React mouse callback. |
 | `content` | `string` | Text content (alternative to schema children) |
-| `cprop.link` | `EngineLinkConfig` | Behavior config: `{ transition: "page-to-page" | "instant", styles: CSSProperties }` |
+| `cprop.link` | `EngineLinkConfig` | Optional `href`, an `EngineTransitionInput` preset/configuration, and `styles: CSSProperties`. See [EngineTransitions+](./enginetransitions.md). |
 
 **Transition Pipeline:**
 - `page-to-page`: Uses the View Transitions API for seamless full-page animations.
@@ -402,8 +388,7 @@ The primary routing primitive. It handles external URLs automatically and integr
 
 ## button
 
-Renders a `<button>` or `<a>` depending on whether `href` is set.
-Use `type: "link"` for navigation — `"button"` is for actions.
+Renders a `<button>` by default and an `<a>` when `href` is set. The `type` prop remains the native button type (`button`, `submit`, or `reset`); `variant: "link"` changes appearance only and does not provide navigation by itself.
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
@@ -535,6 +520,22 @@ Prefer `custom-select` over native `box as="select"` when you need search,
 clear, or consistent cross-browser styling.
 
 ---
+
+## EngineTheme style slots
+
+Generation 3 theme resolution can inject component-owned style slots before
+caller styles are applied:
+
+| Component | Theme style slots |
+|---|---|
+| `EngineHero` | `inner`, `overlay` |
+| `EngineText` | `part`, `partLink` |
+| `EngineHeading` | `subheading` |
+| `EngineSection` | `inner` |
+| `EngineCard` | `cover`, `coverImage`, `content` |
+
+These are injected by the EngineTheme pipeline; they are not serializable
+schema props. Component interaction and semantic behavior remain runtime-owned.
 
 ## Custom React components in schema
 
