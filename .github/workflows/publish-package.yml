@@ -379,7 +379,7 @@ jobs:
               if(nums.length!==3||nums.some(part=>!Number.isInteger(part)))throw new Error("Invalid package version: "+value);
               if(prerelease){
                 const suffix=segments[1].split(".");
-                if(suffix.length!==2||suffix[0]!==prerelease||!^\d+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
+                if(suffix.length!==2||suffix[0]!==prerelease||!/^[0-9]+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
                 nums.push(Number(suffix[1]));
               }
               return nums;
@@ -795,7 +795,7 @@ jobs:
               if(nums.length!==3||nums.some(part=>!Number.isInteger(part)))throw new Error("Invalid package version: "+value);
               if(prerelease){
                 const suffix=segments[1].split(".");
-                if(suffix.length!==2||suffix[0]!==prerelease||!^\d+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
+                if(suffix.length!==2||suffix[0]!==prerelease||!/^[0-9]+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
                 nums.push(Number(suffix[1]));
               }
               return nums;
