@@ -40,6 +40,7 @@ async function testPublicThemeApi() {
 				module: ts.ModuleKind.CommonJS,
 				target: ts.ScriptTarget.ES2020,
 				jsx: ts.JsxEmit.ReactJSX,
+				esModuleInterop: true,
 			},
 			fileName: filePath,
 			reportDiagnostics: true,
