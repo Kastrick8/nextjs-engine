@@ -566,6 +566,63 @@ async function downloadVerifiedArtifact(root, release) {
 	}
 }
 
+
+function verifyGitTagResolution(root, release) {
+	const expectedCommit = typeof release.tagCommit === "string" ? release.tagCommit.toLowerCase() : "";
+	if (!/^[0-9a-f]{40}$/.test(expectedCommit)) {
+		throw new Error("The verified Git package tag is missing its resolved commit SHA.");
+	}
+	const manifest = readJson(path.join(root, "package.json"), null);
+	const dependencySections = ["dependencies", "devDependencies", "optionalDependencies"];
+	const dependencySpec = dependencySections
+		.map((section) => manifest && manifest[section] && manifest[section][PACKAGE_NAME])
+		.find((value) => typeof value === "string");
+	if (typeof dependencySpec !== "string" || !dependencySpec.toLowerCase().includes(expectedCommit)) {
+		throw new Error("The project manifest did not retain the exact package-root Git commit. The install will be rolled back.");
+	}
+
+	const manager = detectPackageManager(root);
+	const lockPathsByManager = {
+		npm: ["npm-shrinkwrap.json", "package-lock.json"],
+		pnpm: ["pnpm-lock.yaml"],
+		yarn: ["yarn.lock"],
+		bun: ["bun.lock"],
+	};
+	const lockPaths = (lockPathsByManager[manager] || []).map((name) => path.join(root, name));
+	const lockPath = lockPaths.find((file) => fs.existsSync(file));
+	if (!lockPath) {
+		if (manager === "bun" && fs.existsSync(path.join(root, "bun.lockb"))) {
+			throw new Error("NE cannot verify a Git package commit in binary bun.lockb. Use Bun's text bun.lock format before installing this Git package.");
+		}
+		throw new Error("The package manager did not write a supported text lockfile for the verified Git package. The install will be rolled back.");
+	}
+
+	if (manager === "npm") {
+		const lock = readJson(lockPath, null);
+		const entry = lock && ((lock.packages && lock.packages["node_modules/" + PACKAGE_NAME])
+			|| (lock.dependencies && lock.dependencies[PACKAGE_NAME]));
+		const resolved = entry && (entry.resolved || entry.version);
+		if (typeof resolved !== "string" || !resolved.toLowerCase().includes(expectedCommit)) {
+			throw new Error("The npm lockfile did not pin " + PACKAGE_NAME + " to verified Git commit " + expectedCommit + ".");
+		}
+		return true;
+	}
+
+	const lockText = fs.readFileSync(lockPath, "utf8");
+	const lower = lockText.toLowerCase();
+	const packageName = PACKAGE_NAME.toLowerCase();
+	const repository = "github.com/kastrick8/nextjs-engine";
+	let cursor = lower.indexOf(packageName);
+	while (cursor !== -1) {
+		const start = Math.max(0, cursor - 256);
+		const end = Math.min(lower.length, cursor + 4096);
+		const entryContext = lower.slice(start, end);
+		if (entryContext.includes(expectedCommit) && entryContext.includes(repository)) return true;
+		cursor = lower.indexOf(packageName, cursor + packageName.length);
+	}
+	throw new Error("The " + manager + " lockfile did not pin " + PACKAGE_NAME + " to verified Git commit " + expectedCommit + ".");
+}
+
 function verifyInstalledVersion(root, release, artifact) {
 	const installed = readInstalledPackage(root);
 	if (!installed || installed.name !== PACKAGE_NAME || installed.version !== release.version) {
@@ -582,6 +639,8 @@ function verifyInstalledVersion(root, release, artifact) {
 				throw new Error("The lockfile integrity did not match the checksum-verified artifact.");
 			}
 		}
+	} else if (release.source === "git-tag") {
+		verifyGitTagResolution(root, release);
 	}
 	return installed;
 }
@@ -1065,6 +1124,7 @@ module.exports = {
 	restoreDependencyFiles,
 	downloadVerifiedArtifact,
 	verifyInstalledVersion,
+	verifyGitTagResolution,
 	installRelease,
 	normalizeArtifactDependency,
 	rollback,
