@@ -40,6 +40,7 @@ async function testPublicThemeApi() {
 				module: ts.ModuleKind.CommonJS,
 				target: ts.ScriptTarget.ES2020,
 				jsx: ts.JsxEmit.ReactJSX,
+				esModuleInterop: true,
 			},
 			fileName: filePath,
 			reportDiagnostics: true,
@@ -80,6 +81,14 @@ async function testPublicThemeApi() {
 		const React = require("react");
 		const ReactDOMServer = require("react-dom/server");
 		const { EngineMarkdownRenderer } = require(path.resolve(__dirname, "../src/engine/components/EngineMarkdownRenderer.tsx"));
+		const { EngineForm, EngineInput, EngineTextarea, EngineCheckbox, EngineLabel } = require(path.resolve(__dirname, "../src/engine/components/EngineForms.tsx"));
+		const { CustomSelect } = require(path.resolve(__dirname, "../src/engine/components/CustomSelect.tsx"));
+		const {
+			EngineBox, EngineStack, EngineGrid, EngineButton, EngineOption, EngineOptGroup,
+		} = require(path.resolve(__dirname, "../src/engine/components/primitives.tsx"));
+		const { EngineCanvas } = require(path.resolve(__dirname, "../src/engine/components/EngineCanvas.tsx"));
+		const { EngineSuspense } = require(path.resolve(__dirname, "../src/engine/components/EngineSuspense.tsx"));
+		const { EngineManim3D } = require(path.resolve(__dirname, "../src/engine/components/EngineManim/EngineManim3D.tsx"));
 		const { normalizeEngineMarkdownSource } = require(path.resolve(__dirname, "../src/engine/core/markdownParser.ts"));
 		const { normalizeEngineThemeFontHref, normalizeEngineThemeFontHrefs } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/fontUrls.ts"));
 		const { flattenEngineThemeTokens, normalizeEngineThemeVariables } = require(path.resolve(__dirname, "../src/engine/component/engineTheme/tokens.ts"));
@@ -895,6 +904,148 @@ async function testPublicThemeApi() {
 				assert.equal(props.outlineColor, "#123456", type + " resolves theme root styles");
 			}
 		}
+
+
+		// Resolver coverage above proves every built-in namespace is translated.
+		// Render form controls as well, so the native engineThemeStyles.root slot
+		// is verified at the actual DOM boundary rather than only as a prop.
+		const builtinFormTheme = createTheme({
+			id: "builtin-form-render-smoke",
+			scope: "local",
+			form: { styles: { root: { padding: "12px", outlineColor: "#123456" } } },
+			input: { styles: { root: { outlineColor: "#654321" } } },
+			textarea: { styles: { root: { outlineColor: "#abcdef" } } },
+			checkbox: { styles: { root: { outlineColor: "#fedcba" } } },
+			label: { styles: { root: { outlineColor: "#0f766e" } } },
+			"custom-select": {
+				styles: {
+					root: { maxWidth: "320px" },
+					label: { color: "#123456" },
+					trigger: { borderColor: "#654321" },
+				},
+			},
+		});
+		const builtinFormPage = resolveEngineThemeSchema({
+			theme: builtinFormTheme,
+			root: {
+				type: "section",
+				children: [
+					{
+						type: "form",
+						children: [
+							{ type: "input", props: { name: "email", type: "email" } },
+							{ type: "textarea", props: { name: "message", rows: 3 } },
+							{ type: "checkbox", props: { name: "consent", defaultChecked: true } },
+							{ type: "label", props: { htmlFor: "email" } },
+						],
+					},
+					{
+						type: "custom-select",
+						props: { name: "plan", label: "Plan", options: [{ value: "free", label: "Free" }] },
+					},
+				],
+			},
+		});
+		const formNode = builtinFormPage.root.children[0];
+		const [inputNode, textareaNode, checkboxNode, labelNode] = formNode.children;
+		const selectNode = builtinFormPage.root.children[1];
+		const formMarkup = ReactDOMServer.renderToStaticMarkup(
+			React.createElement(
+				React.Fragment,
+				null,
+				React.createElement(
+					EngineForm,
+					formNode.props,
+					React.createElement(EngineLabel, { ...labelNode.props, htmlFor: "email" }, "Email"),
+					React.createElement(EngineInput, { ...inputNode.props, id: "email" }),
+					React.createElement(EngineTextarea, textareaNode.props),
+					React.createElement(EngineCheckbox, checkboxNode.props),
+				),
+				React.createElement(CustomSelect, selectNode.props),
+			),
+		);
+		assert.match(formMarkup, /<form[^>]*style="[^"]*padding:12px;[^"]*outline-color:#123456/s,
+			"EngineForm renders its EngineTheme root styles");
+		assert.match(formMarkup, /<label[^>]*style="[^"]*outline-color:#0f766e/s,
+			"EngineLabel renders its EngineTheme root styles");
+		assert.match(formMarkup, /<input[^>]*type="email"[^>]*style="[^"]*outline-color:#654321/s,
+			"EngineInput renders its EngineTheme root styles");
+		assert.match(formMarkup, /<textarea[^>]*style="[^"]*outline-color:#abcdef/s,
+			"EngineTextarea renders its EngineTheme root styles");
+		assert.match(formMarkup, /<input[^>]*type="checkbox"[^>]*style="[^"]*outline-color:#fedcba/s,
+			"EngineCheckbox renders its EngineTheme root styles");
+		assert.match(formMarkup, /<div[^>]*style="[^"]*max-width:320px/s,
+			"CustomSelect renders its EngineTheme root styles on the outer wrapper");
+		assert.match(formMarkup, /<label[^>]*style="[^"]*color:#123456/s,
+			"CustomSelect renders its label slot styles");
+		assert.match(formMarkup, /role="combobox"[^>]*style="[^"]*border-color:#654321/s,
+			"CustomSelect renders its trigger slot styles");
+
+		// Exercise the remaining default component families at their render boundary.
+		// This complements the full resolver matrix and browser fixture: every
+		// namespace must not only resolve but place its CSS on the actual DOM node.
+		const builtinCoreRenderTheme = createTheme({
+			id: "builtin-core-render-smoke",
+			scope: "local",
+			box: { styles: { root: { outlineColor: "#101010" } } },
+			stack: { styles: { root: { outlineColor: "#202020" } } },
+			grid: { styles: { root: { outlineColor: "#303030" } } },
+			button: { styles: { root: { outlineColor: "#404040" } } },
+			canvas: { styles: { root: { outlineColor: "#505050" } } },
+			manim3d: { styles: { root: { outlineColor: "#606060" } } },
+			suspense: { styles: { root: { outlineColor: "#707070" } } },
+			option: { styles: { root: { outlineColor: "#808080" } } },
+			optgroup: { styles: { root: { outlineColor: "#909090" } } },
+		});
+		const builtinCorePage = resolveEngineThemeSchema({
+			theme: builtinCoreRenderTheme,
+			root: {
+				type: "section",
+				children: [
+					{ type: "box", props: { id: "root-box" } },
+					{ type: "stack", props: { id: "root-stack" } },
+					{ type: "grid", props: { id: "root-grid" } },
+					{ type: "button", props: { id: "root-button", label: "Button" } },
+					{ type: "canvas", props: { width: 80, height: 40, className: "root-canvas" } },
+					{ type: "manim3d", props: { width: 80, height: 40, className: "root-manim3d", cprop: { manim3d: { src: "/fixture.glb" } } } },
+					{ type: "suspense", props: { id: "root-suspense" }, children: "Suspense content" },
+					{ type: "option", props: { id: "root-option", value: "one" }, children: "One" },
+					{ type: "optgroup", props: { id: "root-optgroup", label: "Group" }, children: "Options" },
+				],
+			},
+		});
+		const [
+			boxNode, stackNode, gridNode, buttonNode, canvasNode,
+			manim3dNode, suspenseNode, optionNode, optgroupNode,
+		] = builtinCorePage.root.children;
+		const builtinCoreMarkup = ReactDOMServer.renderToStaticMarkup(
+			React.createElement(
+				React.Fragment,
+				null,
+				React.createElement(EngineBox, boxNode.props, "Box"),
+				React.createElement(EngineStack, stackNode.props, "Stack"),
+				React.createElement(EngineGrid, gridNode.props, "Grid"),
+				React.createElement(EngineButton, buttonNode.props, "Button"),
+				React.createElement(EngineCanvas, canvasNode.props),
+				React.createElement(EngineManim3D, manim3dNode.props),
+				React.createElement(EngineSuspense, suspenseNode.props, "Suspense"),
+				React.createElement("select", null,
+					React.createElement(EngineOptGroup, optgroupNode.props,
+						React.createElement(EngineOption, optionNode.props, "One"),
+					),
+				),
+			),
+		);
+		assert.ok(builtinCoreMarkup.includes("outline-color:#101010"),
+			"EngineBox includes its EngineTheme root style in rendered markup");
+		assert.match(builtinCoreMarkup, /outline-color:#202020/, "EngineStack renders its EngineTheme root style");
+		assert.match(builtinCoreMarkup, /outline-color:#303030/, "EngineGrid renders its EngineTheme root style");
+		assert.match(builtinCoreMarkup, /outline-color:#404040/, "EngineButton renders its EngineTheme root style");
+		assert.match(builtinCoreMarkup, /<canvas[^>]*outline-color:#505050/s, "EngineCanvas renders its EngineTheme root style");
+		assert.match(builtinCoreMarkup, /<canvas[^>]*outline-color:#606060/s, "EngineManim3D renders its EngineTheme root style");
+		assert.match(builtinCoreMarkup, /outline-color:#707070/, "EngineSuspense renders its EngineTheme root style");
+		assert.match(builtinCoreMarkup, /<optgroup[^>]*outline-color:#909090/s, "EngineOptGroup renders its EngineTheme root style");
+		assert.match(builtinCoreMarkup, /<option[^>]*outline-color:#808080/s, "EngineOption renders its EngineTheme root style");
 
 		const unsafeBuiltinTheme = createTheme({
 			id: "unsafe-builtin-theme-smoke",
