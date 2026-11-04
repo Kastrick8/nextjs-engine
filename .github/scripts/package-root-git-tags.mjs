@@ -179,7 +179,7 @@ function buildRoot(repo, archiveCommit, folder, version, track, tag, sourceCommi
       GIT_COMMITTER_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com",
     };
     run("git", ["--git-dir", gitDir, "--work-tree", root, "read-tree", "--empty"], { cwd: repo, env });
-    run("git", ["--git-dir", gitDir, "--work-tree", root, "add", "--all"], { cwd: repo, env });
+    run("git", ["--git-dir", gitDir, "--work-tree", root, "add", "--all", "--force"], { cwd: repo, env });
     const tree = run("git", ["--git-dir", gitDir, "write-tree"], { cwd: repo, env }).trim();
     const commit = git(repo, ["commit-tree", tree, "-p", archiveCommit, "-m", "Package-root " + NAME + "@" + version + " (" + tag + ")"], { env });
     return { commit, tree, marker, temp };
