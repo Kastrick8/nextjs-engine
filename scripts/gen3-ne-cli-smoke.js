@@ -298,9 +298,47 @@ async function main() {
 	];
 	const parsedTags = tagFixtures.map(channels.packageTagToRelease);
 	assert.deepEqual(parsedTags.slice(0, 3).map((item) => item.version), ["2.7.0", "3.0.0-alpha.2", "3.0.0-beta.1"]);
-	assert.equal(parsedTags[0].installable, false);
+	assert.equal(parsedTags[0].installable, false, "unverified legacy version tags remain TAG ONLY");
 	assert.equal(parsedTags[3], null);
 	assert.equal(parsedTags[4], null);
+	const packageTagMarker = {
+		schemaVersion: 1,
+		packageName: "@kastrick/nextjs-engine",
+		version: "2.7.0",
+		track: "stable",
+		tag: "package.2.7.0",
+		layout: "npm-pack-root",
+		archiveCommit: "b".repeat(40),
+		packagePath: "version/2.7/version/2.7",
+		sourceCommit: "a".repeat(40),
+		migrationOnly: true,
+		npmIntegrity: "sha512-" + "c".repeat(86) + "==",
+	};
+	const verifiedStableTag = channels.packageTagToRelease(tagFixtures[0], packageTagMarker, "dddddddddddddddddddddddddddddddddddddddd");
+	assert.equal(verifiedStableTag.installable, true);
+	assert.equal(verifiedStableTag.installSpec, "git+https://github.com/Kastrick8/nextjs-engine.git#dddddddddddddddddddddddddddddddddddddddd");
+	assert.equal(verifiedStableTag.sourceCommit, "a".repeat(40));
+	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
+	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
+	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
+		...packageTagMarker, packagePath: "../outside",
+	}, "dddddddddddddddddddddddddddddddddddddddd").installable, false, "unsafe package paths cannot verify a tag");
+	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
+		...packageTagMarker, packagePath: "version/2.7/version/2.7.0",
+	}, "dddddddddddddddddddddddddddddddddddddddd").installable, false, "patch-zero releases must use the canonical shortened snapshot path");
+	const alphaTagMarker = {
+		...packageTagMarker,
+		version: "3.0.0-alpha.2",
+		track: "alpha",
+		tag: "package-alpha.3.0.0-alpha.2",
+		packagePath: "alpha/version/3.alpha/version/3.0.0-alpha.2",
+	};
+	const verifiedAlphaTag = channels.packageTagToRelease(tagFixtures[1], alphaTagMarker, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+	assert.equal(verifiedAlphaTag.installable, true);
+	const mergedVerifiedAlpha = channels.normaliseCatalog([npmCatalog.find((item) => item.version === "3.0.0-alpha.2"), verifiedAlphaTag]);
+	assert.equal(mergedVerifiedAlpha.releases[0].source, "git-tag",
+		"verified package tags outrank npm prerelease catalog-only entries");
+	assert.equal(channels.resolveRelease(mergedVerifiedAlpha, { version: "3.0.0-alpha.2" }).installable, true);
 	const rollingTag = channels.githubTagToRelease({ ref: "refs/tags/channel-alpha-latest" });
 	assert.equal(rollingTag.version, "channel-alpha-latest");
 	assert.equal(rollingTag.installable, false, "channel pointer tags are visible but never directly installable");
@@ -326,7 +364,7 @@ async function main() {
 
 	const mergedCatalog = channels.normaliseCatalog([
 		...npmCatalog,
-		parsedTags[0],
+		verifiedStableTag,
 		{
 			version: "3.0.0-alpha.2",
 			track: "alpha",
@@ -354,7 +392,9 @@ async function main() {
 	assert.deepEqual(mergedAlpha.sources.sort(), ["github", "npm"]);
 	assert.equal(channels.resolveRelease(mergedCatalog, { version: "3.0.0-alpha.2" }).source, "github");
 	assert.equal(channels.resolveRelease({ releases: [parsedTags[0]] }, { version: "2.7.0" }), null);
+	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
 	assert.equal(channels.channelLabel(parsedTags[0]), "TAG ONLY");
+	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
 
 	const greenContext = {
 		repo: "Kastrick8/nextjs-engine",
@@ -711,18 +751,35 @@ async function main() {
 				time: { "1.0.119": "2026-10-01T00:00:00.000Z" },
 			};
 			const gitRefs = [
-				{ ref: "refs/tags/package.1.0.119" },
-				{ ref: "refs/tags/package-alpha.3.0.0-alpha.1" },
-				{ ref: "refs/tags/channel-alpha-latest" },
-				{ ref: "refs/tags/Release-v2.6.2" },
-				{ ref: "refs/tags/package.latest" },
+				{ ref: "refs/tags/package.1.0.119", object: { type: "commit", sha: "d".repeat(40) } },
+				{ ref: "refs/tags/package-alpha.3.0.0-alpha.1", object: { type: "commit", sha: "e".repeat(40) } },
+				{ ref: "refs/tags/channel-alpha-latest", object: { type: "commit", sha: "f".repeat(40) } },
+				{ ref: "refs/tags/Release-v2.6.2", object: { type: "commit", sha: "1".repeat(40) } },
+				{ ref: "refs/tags/package.latest", object: { type: "commit", sha: "2".repeat(40) } },
 			];
 			const sourceEvents = [];
+			const stableTagMarker = {
+				schemaVersion: 1, packageName: "@kastrick/nextjs-engine", version: "1.0.119", track: "stable",
+				tag: "package.1.0.119", layout: "npm-pack-root", archiveCommit: "b".repeat(40),
+				packagePath: "version/1.0/version/1.0.119", sourceCommit: "a".repeat(40),
+				migrationOnly: false, npmIntegrity: "sha512-" + "c".repeat(86) + "==",
+			};
+			const alphaTagMarker = {
+				...stableTagMarker, version: "3.0.0-alpha.1", track: "alpha",
+				tag: "package-alpha.3.0.0-alpha.1",
+				packagePath: "alpha/version/3.alpha/version/3.0.0-alpha.1",
+			};
 			global.fetch = async (url) => {
 				if (url === channels.NPM_PACKUMENT_URL) return new Response(JSON.stringify(packument), { status: 200 });
 				if (url === channels.GITHUB_RELEASES_URL) return new Response("[]", { status: 200 });
 				if (url === channels.GITHUB_LATEST_ALPHA_URL) return new Response(JSON.stringify(rollingAsset), { status: 200 });
 				if (url === channels.GITHUB_PACKAGE_TAGS_URL) return new Response(JSON.stringify(gitRefs), { status: 200 });
+				if (url === "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/dddddddddddddddddddddddddddddddddddddddd/.package-tag.json") {
+					return new Response(JSON.stringify(stableTagMarker), { status: 200 });
+				}
+				if (url === "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/.package-tag.json") {
+					return new Response(JSON.stringify(alphaTagMarker), { status: 200 });
+				}
 				throw new Error("Unexpected updater feed URL: " + url);
 			};
 			const feedCatalog = await channels.loadChannelCatalog(feedRoot, {
@@ -733,6 +790,12 @@ async function main() {
 				"the complete npm packument is retained instead of only latest");
 			assert.ok(feedCatalog.releases.some((item) => item.version === "1.0.119" && item.gitTags.includes("package.1.0.119")),
 				"package/main Git tags merge onto their matching npm version");
+			assert.equal(feedCatalog.releases.find((item) => item.version === "1.0.119").source, "npm",
+				"published stable npm packages remain preferred over Git tags");
+			assert.ok(feedCatalog.releases.some((item) => item.version === "3.0.0-alpha.1"
+				&& item.source === "git-tag" && item.installable === true),
+				"verified Alpha package-root tags become installable Git dependencies");
+			assert.equal(channels.resolveRelease(feedCatalog, { version: "3.0.0-alpha.1" }).source, "git-tag");
 			assert.ok(feedCatalog.releases.some((item) => item.tagName === "channel-alpha-latest"),
 				"the rolling Alpha Git tag is visible in the updater");
 			assert.ok(feedCatalog.releases.some((item) => item.version === "3.0.0-alpha.2" && item.floating === true),
@@ -876,6 +939,74 @@ async function main() {
 			const normalizedPnpm = fs.readFileSync(path.join(textRoot, "pnpm-lock.yaml"), "utf8");
 			assert.equal(normalizedPnpm.includes(remoteUrl), true);
 			assert.equal(normalizedPnpm.includes(fileSpec), false);
+
+			const gitTagProject = path.join(temp, "git-tag-project");
+			fs.mkdirSync(gitTagProject, { recursive: true });
+			const gitTagCommit = "f".repeat(40);
+			const gitTagSpec = "git+https://github.com/Kastrick8/nextjs-engine.git#" + gitTagCommit;
+			fs.writeFileSync(path.join(gitTagProject, "package.json"), JSON.stringify({
+				name: "git-tag-fixture",
+				version: "1.0.0",
+				packageManager: "npm@10.9.0",
+				dependencies: { "@kastrick/nextjs-engine": gitTagSpec },
+			}, null, 2) + "\n");
+			fs.writeFileSync(path.join(gitTagProject, "package-lock.json"), JSON.stringify({
+				name: "git-tag-fixture",
+				version: "1.0.0",
+				lockfileVersion: 3,
+				packages: {
+					"": { name: "git-tag-fixture", version: "1.0.0", dependencies: { "@kastrick/nextjs-engine": gitTagSpec } },
+					"node_modules/@kastrick/nextjs-engine": { version: "2.7.0", resolved: gitTagSpec },
+				},
+			}, null, 2) + "\n");
+			assert.equal(project.verifyGitTagResolution(gitTagProject, { tagCommit: gitTagCommit, installSpec: gitTagSpec }), true,
+				"npm lockfile must preserve the exact verified tag commit");
+			const wrongGitLock = JSON.parse(fs.readFileSync(path.join(gitTagProject, "package-lock.json"), "utf8"));
+			wrongGitLock.packages["node_modules/@kastrick/nextjs-engine"].resolved =
+				"git+https://github.com/Kastrick8/nextjs-engine.git#" + "a".repeat(40);
+			fs.writeFileSync(path.join(gitTagProject, "package-lock.json"), JSON.stringify(wrongGitLock, null, 2) + "\n");
+			assert.throws(() => project.verifyGitTagResolution(gitTagProject, { tagCommit: gitTagCommit, installSpec: gitTagSpec }),
+				/npm lockfile did not pin/);
+
+			const pnpmGitRoot = path.join(temp, "pnpm-git-tag-project");
+			fs.mkdirSync(pnpmGitRoot, { recursive: true });
+			fs.writeFileSync(path.join(pnpmGitRoot, "package.json"), JSON.stringify({
+				name: "pnpm-git-tag-fixture",
+				version: "1.0.0",
+				packageManager: "pnpm@10.0.0",
+				dependencies: { "@kastrick/nextjs-engine": gitTagSpec },
+			}, null, 2) + "\n");
+			fs.writeFileSync(path.join(pnpmGitRoot, "pnpm-lock.yaml"), [
+				"lockfileVersion: '9.0'",
+				"importers:",
+				"  .:",
+				"    dependencies:",
+				"      '@kastrick/nextjs-engine':",
+				"        specifier: " + gitTagSpec,
+				"        version: 2.7.0",
+				"packages:",
+				"  '@kastrick/nextjs-engine@git+https://github.com/Kastrick8/nextjs-engine.git#" + gitTagCommit + "':",
+				"    resolution: {commit: " + gitTagCommit + ", repo: https://github.com/Kastrick8/nextjs-engine.git}",
+			].join("\n") + "\n");
+			assert.equal(project.verifyGitTagResolution(pnpmGitRoot, { tagCommit: gitTagCommit, installSpec: gitTagSpec }), true,
+				"pnpm lockfile must preserve the exact verified tag commit");
+
+			const yarnGitRoot = path.join(temp, "yarn-git-tag-project");
+			fs.mkdirSync(yarnGitRoot, { recursive: true });
+			fs.writeFileSync(path.join(yarnGitRoot, "package.json"), JSON.stringify({
+				name: "yarn-git-tag-fixture",
+				version: "1.0.0",
+				packageManager: "yarn@1.22.0",
+				dependencies: { "@kastrick/nextjs-engine": gitTagSpec },
+			}, null, 2) + "\n");
+			fs.writeFileSync(path.join(yarnGitRoot, "yarn.lock"), [
+				'"@kastrick/nextjs-engine@' + gitTagSpec + '":',
+				'  version "2.7.0"',
+				'  resolved "' + gitTagSpec + '"',
+			].join("\n") + "\n");
+			assert.equal(project.verifyGitTagResolution(yarnGitRoot, { tagCommit: gitTagCommit, installSpec: gitTagSpec }), true,
+				"Yarn lockfile must preserve the exact verified tag commit");
+
 
 		} finally {
 			global.fetch = previousFetch;
