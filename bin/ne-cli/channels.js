@@ -127,6 +127,36 @@ async function fetchPackageTagMarker(tagName) {
 	}
 }
 
+async function fetchPackageTagCommit(tagRef) {
+	const object = tagRef && tagRef.object;
+	if (!object || !/^[0-9a-f]{40}$/.test(object.sha || "")) return null;
+	if (object.type === "commit") return object.sha;
+	if (object.type !== "tag") return null;
+	let tagSha = object.sha;
+	for (let depth = 0; depth < 4; depth += 1) {
+		try {
+			const response = await fetch("https://api.github.com/repos/Kastrick8/nextjs-engine/git/tags/" + tagSha, {
+				headers: {
+					Accept: "application/vnd.github+json",
+					"User-Agent": "nextjs-engine-ne-cli",
+					"X-GitHub-Api-Version": "2022-11-28",
+				},
+				signal: AbortSignal.timeout(10000),
+			});
+			if (!response.ok) return null;
+			const payload = await response.json();
+			const target = payload && payload.object;
+			if (!target || !/^[0-9a-f]{40}$/.test(target.sha || "")) return null;
+			if (target.type === "commit") return target.sha;
+			if (target.type !== "tag") return null;
+			tagSha = target.sha;
+		} catch {
+			return null;
+		}
+	}
+	return null;
+}
+
 function validPackageTagMarker(marker, version, track, tagName) {
 	if (!marker || typeof marker !== "object") return false;
 	const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.\d+)?$/);
@@ -165,8 +195,11 @@ async function verifyPackageTagRecords(values, includeOtherTags) {
 				output[index] = includeOtherTags ? githubTagToRelease(value) : null;
 				continue;
 			}
-			const marker = await fetchPackageTagMarker(parsed.tagName);
-			output[index] = packageTagToRelease(value, marker);
+			const [marker, tagCommit] = await Promise.all([
+				fetchPackageTagMarker(parsed.tagName),
+				fetchPackageTagCommit(value),
+			]);
+			output[index] = packageTagToRelease(value, marker, tagCommit);
 		}
 	};
 	await Promise.all(Array.from({ length: Math.min(6, values.length) }, worker));
@@ -229,7 +262,7 @@ function npmReleasesFromPackument(metadata) {
 	return releases;
 }
 
-function packageTagToRelease(value, marker) {
+function packageTagToRelease(value, marker, tagCommit) {
 	const rawName = typeof value === "string"
 		? value
 		: value && typeof value.name === "string"
@@ -258,7 +291,8 @@ function packageTagToRelease(value, marker) {
 	}
 	if (!version || trackForVersion(version) !== track) return null;
 	const tagUrl = "https://github.com/Kastrick8/nextjs-engine/tree/" + encodeURIComponent(rawName);
-	const verified = validPackageTagMarker(marker, version, track, rawName);
+	const verified = validPackageTagMarker(marker, version, track, rawName)
+		&& /^[0-9a-f]{40}$/.test(tagCommit || "");
 	return {
 		version,
 		track,
@@ -267,6 +301,7 @@ function packageTagToRelease(value, marker) {
 		sourceLabel: SOURCE_LABELS["git-tag"],
 		sourceBranch: "package/main",
 		sourceCommit: verified ? marker.sourceCommit : null,
+		tagCommit: verified ? tagCommit : null,
 		archiveCommit: verified ? marker.archiveCommit : null,
 		packagePath: verified ? marker.packagePath : null,
 		npmIntegrity: verified ? marker.npmIntegrity : null,
@@ -279,7 +314,7 @@ function packageTagToRelease(value, marker) {
 		tagUrl,
 		gitTags: [rawName],
 		npmDistTags: [],
-		installSpec: verified ? "git+https://github.com/Kastrick8/nextjs-engine.git#" + rawName : null,
+		installSpec: verified ? "git+https://github.com/Kastrick8/nextjs-engine.git#" + tagCommit : null,
 		installable: verified,
 		description: verified
 			? "Verified package-only Git tag. NE installs the exact tagged package root and the package manager locks the resolved Git commit."
@@ -652,6 +687,7 @@ module.exports = {
 	packageTagToRelease,
 	validPackageTagMarker,
 	fetchPackageTagMarker,
+	fetchPackageTagCommit,
 	verifyPackageTagRecords,
 	parseManifestFromBody,
 	validateReleaseManifest,
