@@ -68,7 +68,7 @@ ne check --and "node --version" --and-terminal 8
 
 ## Versioned Git package tags
 
-The updater reads the npm version catalog and the versioned Git tags in the official repository. A version tag is installable only after NE verifies its root `.package-tag.json` marker, proving that the tag contains the package-only layout produced from that archived version's `npm pack` output. Verified tags can be installed directly from their immutable Git ref; npm, pnpm, or Yarn then records the resolved Git commit in the project lockfile.
+The updater reads the npm version catalog and the versioned Git tags in the official repository. A version tag is installable only after NE verifies its root `.package-tag.json` marker, proving that the tag contains the package-only layout produced from that archived version's `npm pack` output. NE resolves a verified tag to its full Git commit SHA before install, installs that immutable commit rather than the movable tag name, and checks that the same SHA appears in the npm, pnpm, or Yarn lockfile. If the lockfile does not preserve the expected commit, NE rolls the dependency files back.
 
 Legacy tags that still contain the entire package archive repository remain **TAG ONLY** until the one-time migration replaces them with verified package-root tags. The moving `package.latest` ref is an alias for the newest stable package tag, not a separate package version. Non-version tags are never accepted as package installation targets.
 
