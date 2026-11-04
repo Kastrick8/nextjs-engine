@@ -212,29 +212,30 @@ function buildTransitionFrames(resolved: ResolvedEngineTransition): TransitionFr
 	}
 }
 
-function animatePseudo(root: HTMLElement, frames: TransitionFrames, resolved: ResolvedEngineTransition, easing: string): Animation[] {
+function animatePseudo(root: HTMLElement, frames: TransitionFrames, resolved: ResolvedEngineTransition, easing: string): void {
 	const common = { duration: resolved.duration, easing, fill: "both" as FillMode };
-	return [
-		root.animate(frames.old, { ...common, pseudoElement: "::view-transition-old(root)" } as PseudoAnimationOptions),
-		root.animate(frames.fresh, { ...common, pseudoElement: "::view-transition-new(root)" } as PseudoAnimationOptions),
-	];
+	const oldAnimation = root.animate(frames.old, { ...common, pseudoElement: "::view-transition-old(root)" } as PseudoAnimationOptions);
+	try {
+		root.animate(frames.fresh, { ...common, pseudoElement: "::view-transition-new(root)" } as PseudoAnimationOptions);
+	} catch (error) {
+		oldAnimation.cancel();
+		throw error;
+	}
 }
 
 function playRootAnimations(resolved: ResolvedEngineTransition): boolean {
 	if (resolved.type === "instant") return true;
 	const root = document.documentElement;
-	let animations: Animation[] = [];
 	try {
-		animations = animatePseudo(root, buildTransitionFrames(resolved), resolved, resolved.easing);
+		animatePseudo(root, buildTransitionFrames(resolved), resolved, resolved.easing);
 		return true;
 	} catch {
-		for (const animation of animations) animation.cancel();
+		// The helper cancels any partially-created animation before fallback.
 	}
 	try {
-		animations = animatePseudo(root, { old: [{ opacity: 1 }, { opacity: 0 }], fresh: [{ opacity: 0 }, { opacity: 1 }] }, resolved, "ease-out");
+		animatePseudo(root, { old: [{ opacity: 1 }, { opacity: 0 }], fresh: [{ opacity: 0 }, { opacity: 1 }] }, resolved, "ease-out");
 		return true;
 	} catch {
-		for (const animation of animations) animation.cancel();
 		return false;
 	}
 }

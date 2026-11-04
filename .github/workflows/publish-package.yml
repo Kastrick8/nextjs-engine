@@ -67,10 +67,10 @@ jobs:
     outputs:
       publish: ${{ steps.gate.outputs.publish }}
     steps:
-      - name: Checkout the exact CI-tested source commit
+      - name: Checkout protected stable source branch
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: main-2
           path: source
           fetch-depth: 0
           persist-credentials: false
@@ -84,6 +84,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
+          # A workflow_run SHA is event data, not a checkout ref. Only use it
+          # after confirming the protected main-2 checkout is that exact commit.
+          CHECKED_OUT_SHA="$(git -C source rev-parse HEAD)"
+          if [[ "$CHECKED_OUT_SHA" != "$SOURCE_SHA" ]]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main-2 advanced after the successful CI run; skipping this automatic publish."
+            exit 0
+          fi
 
           # Only publish commits that can change the package snapshot.
           if git -C source rev-parse "$SOURCE_SHA^1" >/dev/null 2>&1; then

@@ -102,7 +102,8 @@ async function fetchManifest(force = false, requestedBasePath?: string): Promise
 	})();
 	if (!force) manifestPromises.set(basePath, request);
 	try {
-		return await request;
+		const manifest = await request;
+		return manifest;
 	} finally {
 		if (!force && manifestPromises.get(basePath) === request) manifestPromises.delete(basePath);
 		if (manifestRequestIds.get(basePath) === requestId) manifestRequestIds.delete(basePath);

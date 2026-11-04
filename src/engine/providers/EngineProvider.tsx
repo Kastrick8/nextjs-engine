@@ -149,13 +149,14 @@ export function EngineCollectedStyles({ id }: EngineCollectedStylesProps) {
 		return styleCollector.subscribe(sync);
 	}, [styleCollector]);
 
+	// A style element is an HTML raw-text context. Escape every opening angle
+	// bracket as a CSS code point before passing the snapshot as React text so
+	// an injected </style sequence cannot terminate the element.
+	const safeCssText = css.replace(/</g, "\\3c ");
 	return (
-		<style
-			id={resolvedId}
-			data-engine-generated="true"
-			suppressHydrationWarning
-			dangerouslySetInnerHTML={{ __html: css }}
-		/>
+		<style id={resolvedId} data-engine-generated="true" suppressHydrationWarning>
+			{safeCssText}
+		</style>
 	);
 }
 

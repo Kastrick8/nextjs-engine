@@ -10,6 +10,7 @@ const { createSchemaOutputCache } = require("./schema-cache.compiler.js");
 const { compileEngineThemeArtifacts } = require("./theme/3/compiler.ts");
 const { compileEngineThemeFonts } = require("./font/3/compiler.ts");
 const nencLogger = require("../plugins/nencTerminalLogger");
+const { resolveSafeOutputPath } = require("../plugins/safeFileSystem.js");
 
 const BUILTIN_NODE_TYPES = new Set([
 	"box", "stack", "grid", "text", "heading", "markdown", "image", "video",
@@ -260,9 +261,10 @@ const ASCII_WORDMARK = Object.freeze(readBannerAsset("wordmark.txt"));
 const BOTTOM_TEXT = Object.freeze(readBannerAsset("bottom-text.txt"));
 
 function bannerMarkerPath(projectRoot) {
-	const resolvedRoot = path.resolve(projectRoot);
-	const key = require("node:crypto").createHash("sha256").update(resolvedRoot).digest("hex").slice(0, 24);
-	return path.join(require("node:os").tmpdir(), "nextjs-engine-gen3-banner-" + key + ".lock");
+	const projectRootPath = path.resolve(projectRoot || process.cwd());
+	fs.mkdirSync(projectRootPath, { recursive: true });
+	const resolvedRoot = fs.realpathSync(projectRootPath);
+	return resolveSafeOutputPath(path.join(resolvedRoot, ".nextjs-engine", ".cache", "gen3", "build-banner.lock"));
 }
 
 function renderBannerLines(wordmark = ASCII_WORDMARK, bottomText = BOTTOM_TEXT) {
@@ -293,7 +295,7 @@ function printBannerOnce(projectRoot, logger = console.log) {
 	for (let attempt = 0; attempt < 2; attempt++) {
 		let descriptor;
 		try {
-			descriptor = fs.openSync(marker, "wx");
+			descriptor = fs.openSync(marker, "wx", 0o600);
 		} catch (error) {
 			if (error.code !== "EEXIST") throw error;
 			let stale = false;
@@ -323,18 +325,6 @@ function releaseBanner(projectRoot) {
 	catch { /* Cleanup must not hide the build outcome. */ }
 }
 
-function installTypeScriptRequireHook() {
-	if (require.extensions[".ts"] && require.extensions[".ts"].__engineBuildHook) return;
-	const handler = function engineTypeScriptBuildHook(module, filename) {
-		const output = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
-			compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
-			fileName: filename,
-		}).outputText;
-		module._compile(output, filename);
-	};
-	handler.__engineBuildHook = true;
-	require.extensions[".ts"] = handler;
-}
 function readVersion(root) {
 	try { return JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version || "unknown"; }
 	catch { return "unknown"; }

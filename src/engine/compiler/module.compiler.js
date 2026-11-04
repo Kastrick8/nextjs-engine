@@ -3,6 +3,7 @@
 const path = require("node:path");
 const fs = require("node:fs");
 const ts = require("typescript");
+const { readRegularFileIfExists } = require("../plugins/safeFileSystem.js");
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"]);
 const EXCLUDED_DIRECTORY_NAMES = new Set([
@@ -135,22 +136,18 @@ function createSourceCache(projectRoot, sourceByPath) {
 		get(file) {
 			const resolved = path.resolve(file);
 			if (cache.has(resolved)) return cache.get(resolved);
-			if (hasExcludedSegment(projectRoot, resolved) || !isSourcePath(resolved) || !fs.existsSync(resolved)) return undefined;
-			let stat;
-			try { stat = fs.statSync(resolved); } catch { return undefined; }
-			if (!stat.isFile()) return undefined;
-			let sourceFile;
-			try {
-				sourceFile = ts.createSourceFile(
-					resolved,
-					fs.readFileSync(resolved, "utf8"),
-					ts.ScriptTarget.Latest,
-					true,
-					scriptKindFor(resolved),
-				);
-			} catch {
-				return undefined;
-			}
+			if (hasExcludedSegment(projectRoot, resolved) || !isSourcePath(resolved)) return undefined;
+			let sourceText;
+			try { sourceText = readRegularFileIfExists(resolved, "utf8"); }
+			catch { return undefined; }
+			if (sourceText === undefined) return undefined;
+			const sourceFile = ts.createSourceFile(
+				resolved,
+				sourceText,
+				ts.ScriptTarget.Latest,
+				true,
+				scriptKindFor(resolved),
+			);
 			cache.set(resolved, sourceFile);
 			return sourceFile;
 		},
