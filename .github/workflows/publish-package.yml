@@ -965,6 +965,7 @@ jobs:
           npm run pack:check
       - name: Skip an already-published immutable npm version
         id: registry-version
+        if: steps.snapshot.outputs.migration_only != 'true'
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
         shell: bash
