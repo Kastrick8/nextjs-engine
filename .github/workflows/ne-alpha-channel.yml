@@ -282,6 +282,8 @@ jobs:
         working-directory: archive
         env:
           PACKAGE_DIR: ${{ steps.prepare.outputs.package_dir }}
+          ARTIFACT_DIR: ${{ steps.prepare.outputs.artifact_dir }}
+          ASSET_NAME: ${{ steps.prepare.outputs.asset_name }}
           VERSION: ${{ steps.prepare.outputs.version }}
           SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
           MANIFEST: ${{ steps.prepare.outputs.manifest }}
@@ -290,16 +292,32 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin refs/heads/package/main:refs/remotes/origin/package/main
           git switch --force-create package/main refs/remotes/origin/package/main
+
+          # Unpack the exact npm-pack archive used by downstream consumers. This
+          # keeps both the archive-branch snapshot and the Git tag's root tree
+          # aligned with npm's files/ignore rules, not merely the build directory.
+          TARBALL="$ARTIFACT_DIR/$ASSET_NAME"
+          test -f "$TARBALL"
+          PACKED_ROOT="$RUNNER_TEMP/ne-alpha-package-root"
+          rm -rf "$PACKED_ROOT"
+          mkdir -p "$PACKED_ROOT"
+          tar -xzf "$TARBALL" --strip-components=1 -C "$PACKED_ROOT"
+          for file in package.json index.ts engine/index.ts tsconfig.json; do
+            test -f "$PACKED_ROOT/$file" || { echo "npm pack is missing required file: $file" >&2; exit 1; }
+          done
+          grep -Fqx 'export * from "./engine";' "$PACKED_ROOT/index.ts"
+          node - "$PACKED_ROOT/package.json" "$VERSION" <<'NODE'
+          const fs=require("node:fs");
+          const pkg=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          if(pkg.name!=="@kastrick/nextjs-engine"||pkg.version!==process.argv[3]||pkg.private===true) {
+            throw new Error("The npm-packed Alpha manifest does not match the release.");
+          }
+          NODE
+
           CHANNEL_DIR="alpha/channel/latest"
-          test -f "$PACKAGE_DIR/package.json"
-          test -f "$PACKAGE_DIR/index.ts"
-          test -f "$PACKAGE_DIR/engine/index.ts"
-          test -f "$PACKAGE_DIR/tsconfig.json"
-          grep -Fqx 'export * from "./engine";' "$PACKAGE_DIR/index.ts"
           rm -rf "$CHANNEL_DIR"
           mkdir -p "$CHANNEL_DIR"
-          cp -a "$PACKAGE_DIR/." "$CHANNEL_DIR/"
-          rm -rf "$CHANNEL_DIR/node_modules"
+          cp -a "$PACKED_ROOT/." "$CHANNEL_DIR/"
           cat > "$CHANNEL_DIR/UPSTREAM.md" <<EOF
           # Rolling Alpha channel snapshot
 
@@ -350,8 +368,7 @@ jobs:
           rm -rf "$TAG_REPO"
           mkdir -p "$TAG_REPO"
           git init "$TAG_REPO"
-          cp -a "$PACKAGE_DIR/." "$TAG_REPO/"
-          rm -rf "$TAG_REPO/node_modules"
+          cp -a "$PACKED_ROOT/." "$TAG_REPO/"
           cat > "$TAG_REPO/UPSTREAM.md" <<EOF
           # Latest Alpha package provenance
 
