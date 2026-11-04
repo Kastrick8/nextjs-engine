@@ -1036,11 +1036,8 @@ async function testPublicThemeApi() {
 				),
 			),
 		);
-		for (const [selector, color, label] of [
-			["div", "#101010", "EngineBox"],
-		]) {
-			assert.ok(builtinCoreMarkup.includes("outline-color:" + color), label + " includes its EngineTheme root style in rendered markup");
-		}
+		assert.ok(builtinCoreMarkup.includes("outline-color:#101010"),
+			"EngineBox includes its EngineTheme root style in rendered markup");
 		assert.match(builtinCoreMarkup, /outline-color:#202020/, "EngineStack renders its EngineTheme root style");
 		assert.match(builtinCoreMarkup, /outline-color:#303030/, "EngineGrid renders its EngineTheme root style");
 		assert.match(builtinCoreMarkup, /outline-color:#404040/, "EngineButton renders its EngineTheme root style");
