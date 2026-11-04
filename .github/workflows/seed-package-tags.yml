@@ -1,8 +1,13 @@
-name: Seed package Git tags (manual)
+name: Seed package Git tags (Generation 2)
 
 on:
-  # Manual only: inspect the package archive before refreshing version tags.
   workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply package-only tag creation/migration (default is a dry run)."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -14,9 +19,9 @@ concurrency:
 jobs:
   seed:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 60
     steps:
-      - name: Checkout package archive
+      - name: Checkout package archive and version history
         uses: actions/checkout@v6
         with:
           ref: package/main
@@ -24,72 +29,85 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Create missing immutable version tags and refresh package.latest
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Validate package-root tag helper
         working-directory: archive
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin refs/heads/package/main:refs/remotes/origin/package/main
-          git checkout --detach refs/remotes/origin/package/main
-          git fetch --tags origin
-          ARCHIVE_SHA="$(git rev-parse HEAD)"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          node --input-type=module <<'NODE' > "$RUNNER_TEMP/package-tags.tsv"
-          import fs from "node:fs";
-          import path from "node:path";
-          const entries=[];
-          function walk(dir){
-            if(!fs.existsSync(dir)) return;
-            for(const e of fs.readdirSync(dir,{withFileTypes:true})){
-              const full=path.join(dir,e.name);
-              if(e.isDirectory()) walk(full);
-              else if(e.name==="package.json"){
-                const p=JSON.parse(fs.readFileSync(full,"utf8"));
-                if(p.name!=="@kastrick/nextjs-engine") continue;
-                const v=p.version||"";
-                let track="";
-                if(/^\d+\.\d+\.\d+$/.test(v)) track="stable";
-                else if(/^\d+\.\d+\.\d+-alpha\.\d+$/.test(v)) track="alpha";
-                else if(/^\d+\.\d+\.\d+-beta\.\d+$/.test(v)) track="beta";
-                if(track) entries.push({track,version:v,path:full.replaceAll("\\","/")});
-              }
+          test -f .github/scripts/package-root-git-tags.mjs || {
+            echo "The package-root helper is not on package/main yet. Merge the package-root tag implementation first." >&2
+            exit 1
+          }
+          node --check .github/scripts/package-root-git-tags.mjs
+
+      - name: Seed and migrate package-only Git tags
+        working-directory: archive
+        env:
+          APPLY: ${{ inputs.apply }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$APPLY" == "true" ]]; then
+            node .github/scripts/package-root-git-tags.mjs migrate "$GITHUB_WORKSPACE/archive" --seed --apply --push
+          else
+            node .github/scripts/package-root-git-tags.mjs migrate "$GITHUB_WORKSPACE/archive" --seed
+          fi
+
+      - name: Verify every version tag is package-root shaped
+        if: inputs.apply
+        working-directory: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          const git=(...args)=>execFileSync("git",args,{encoding:"utf8"}).trim();
+          const tags=git("tag","--list").split("\n").filter(Boolean);
+          const packageTags=tags.filter((tag)=>/^package\.\d+\.\d+\.\d+$/.test(tag)
+            ||/^package-(?:alpha|beta)\.\d+\.\d+\.\d+-(?:alpha|beta)\.\d+$/.test(tag));
+          if(!packageTags.length) throw new Error("No package version tags were found.");
+          for(const tag of packageTags){
+            const commit=git("rev-parse",tag+"^{commit}");
+            const marker=JSON.parse(git("show",commit+":.package-tag.json"));
+            const pkg=JSON.parse(git("show",commit+":package.json"));
+            if(marker.layout!=="npm-pack-root"||marker.tag!==tag||marker.version!==pkg.version
+              ||marker.packageName!=="@kastrick/nextjs-engine"||marker.migrationOnly!==true
+              ||pkg.name!=="@kastrick/nextjs-engine") {
+              throw new Error("Tag is not a valid migration-only package-root snapshot: "+tag);
+            }
+            const roots=git("ls-tree","--name-only",commit).split("\n");
+            if(roots.includes("version")||roots.includes("alpha")||roots.includes("beta")||roots.includes(".github")) {
+              throw new Error("Archive repository directories leaked into package tag "+tag);
             }
           }
-          walk("version"); walk("alpha"); walk("beta");
-          if(!entries.some(x=>x.track==="stable")) throw new Error("No stable snapshots found in package/main.");
-          entries.sort((a,b)=>a.path.localeCompare(b.path));
-          for(const x of entries) console.log([x.track,x.version,x.path].join("\t"));
+          const latest=git("rev-parse","package.latest^{commit}");
+          const stable=packageTags.filter((tag)=>/^package\.\d+\.\d+\.\d+$/.test(tag)).sort((a,b)=>{
+            const av=a.slice("package.".length).split(".").map(Number);
+            const bv=b.slice("package.".length).split(".").map(Number);
+            for(let i=0;i<3;i++)if(av[i]!==bv[i])return av[i]-bv[i];
+            return 0;
+          });
+          if(stable.length&&latest!==git("rev-parse",stable.at(-1)+"^{commit}")){
+            throw new Error("package.latest does not point to the newest stable package-root tag.");
+          }
+          console.log("Verified "+packageTags.length+" package version tags and package.latest.");
           NODE
 
-          while IFS=$'\t' read -r TRACK VERSION PACKAGE_JSON; do
-            case "$TRACK" in
-              stable) TAG="package.$VERSION" ;;
-              alpha) TAG="package-alpha.$VERSION" ;;
-              beta) TAG="package-beta.$VERSION" ;;
-              *) echo "Unsupported track $TRACK" >&2; exit 1 ;;
-            esac
-            if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
-              echo "Keeping existing version tag $TAG"
-            else
-              git tag -a "$TAG" "$ARCHIVE_SHA" -m "@kastrick/nextjs-engine $VERSION ($TRACK archive snapshot)"
-              git push origin "refs/tags/$TAG"
-              echo "Created $TAG -> $ARCHIVE_SHA"
-            fi
-          done < "$RUNNER_TEMP/package-tags.tsv"
-
-          LATEST_STABLE="$(awk -F '\t' '$1 == "stable" {print $2}' "$RUNNER_TEMP/package-tags.tsv" | sort -V | tail -n 1)"
-          [[ -n "$LATEST_STABLE" ]] || { echo "Could not resolve latest stable version." >&2; exit 1; }
-          LATEST_TAG="package.$LATEST_STABLE"
-          git rev-parse -q --verify "refs/tags/$LATEST_TAG^{commit}" >/dev/null || {
-            echo "Missing latest stable version tag $LATEST_TAG." >&2; exit 1;
-          }
-          git tag -f -a package.latest -m "Latest stable @kastrick/nextjs-engine is $LATEST_STABLE" "$LATEST_TAG^{commit}"
-          git push --force origin refs/tags/package.latest
-          echo "package.latest -> $LATEST_TAG ($LATEST_STABLE)"
+      - name: Summarize package-tag operation
+        if: always()
+        env:
+          APPLY: ${{ inputs.apply }}
+        run: |
           {
-            echo "## Package Git tags seeded"
-            echo "- Archive commit: $ARCHIVE_SHA"
-            echo "- Latest stable Git pointer: package.latest -> $LATEST_TAG"
-            echo "- Registry publication: not performed"
+            echo "## Package-only Git tag seed"
+            echo "- Mode: ${APPLY}"
+            echo "- Apply requested: ${APPLY}"
+            echo "- Operation: migrate existing tags and create missing version tags from their own archive snapshots"
+            echo "- Legacy rewrites are migration-only and do not publish to npm"
           } >> "$GITHUB_STEP_SUMMARY"
