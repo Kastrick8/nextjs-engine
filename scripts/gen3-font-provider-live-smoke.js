@@ -34,7 +34,7 @@ const PROVIDERS = {
 	bunny: {
 		cssUrl: "https://fonts.bunny.net/css?family=Roboto:400&text=EngineTheme",
 		cssOrigins: "https://fonts.bunny.net",
-		fileOrigins: "https://fonts.bunny.net",
+		fileOrigins: "https://fonts.bunny.net,https://bunnyfonts.b-cdn.net",
 	},
 };
 
