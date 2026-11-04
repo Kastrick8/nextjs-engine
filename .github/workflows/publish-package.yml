@@ -756,16 +756,16 @@ jobs:
               else if(e.name==="package.json"){
                 const p=JSON.parse(fs.readFileSync(full,"utf8"));
                 if(p.name!=="@kastrick/nextjs-engine")continue;
-                if(/^\\d+\\.\\d+\\.\\d+$/.test(p.version||""))stable.push(p.version);
-                else if(/^\\d+\\.\\d+\\.\\d+-alpha\\.\\d+$/.test(p.version||""))alpha.push(p.version);
-                else if(/^\\d+\\.\\d+\\.\\d+-beta\\.\\d+$/.test(p.version||""))beta.push(p.version);
+                if(/^\d+\.\d+\.\d+$/.test(p.version||""))stable.push(p.version);
+                else if(/^\d+\.\d+\.\d+-alpha\.\d+$/.test(p.version||""))alpha.push(p.version);
+                else if(/^\d+\.\d+\.\d+-beta\.\d+$/.test(p.version||""))beta.push(p.version);
               }
             }
           }
           walk("version");walk("alpha/version");walk("beta/version");
           const compare=(a,b)=>{
-            const aa=String(a||"").match(/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+))?$/);
-            const bb=String(b||"").match(/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+))?$/);
+            const aa=String(a||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.(\d+))?$/);
+            const bb=String(b||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.(\d+))?$/);
             if(!aa)return -1;if(!bb)return 1;
             for(let i=1;i<=3;i++){const d=Number(aa[i])-Number(bb[i]);if(d)return d;}
             if(!aa[4]&&!bb[4])return 0;
