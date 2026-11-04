@@ -314,18 +314,18 @@ async function main() {
 		migrationOnly: true,
 		npmIntegrity: "sha512-" + "c".repeat(86) + "==",
 	};
-	const verifiedStableTag = channels.packageTagToRelease(tagFixtures[0], packageTagMarker);
+	const verifiedStableTag = channels.packageTagToRelease(tagFixtures[0], packageTagMarker, "dddddddddddddddddddddddddddddddddddddddd");
 	assert.equal(verifiedStableTag.installable, true);
-	assert.equal(verifiedStableTag.installSpec, "git+https://github.com/Kastrick8/nextjs-engine.git#package.2.7.0");
+	assert.equal(verifiedStableTag.installSpec, "git+https://github.com/Kastrick8/nextjs-engine.git#dddddddddddddddddddddddddddddddddddddddd");
 	assert.equal(verifiedStableTag.sourceCommit, "a".repeat(40));
 	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
 	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
 	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
 		...packageTagMarker, packagePath: "../outside",
-	}).installable, false, "unsafe package paths cannot verify a tag");
+	}, "dddddddddddddddddddddddddddddddddddddddd").installable, false, "unsafe package paths cannot verify a tag");
 	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
 		...packageTagMarker, packagePath: "version/2.7/version/2.7.0",
-	}).installable, false, "patch-zero releases must use the canonical shortened snapshot path");
+	}, "dddddddddddddddddddddddddddddddddddddddd").installable, false, "patch-zero releases must use the canonical shortened snapshot path");
 	const alphaTagMarker = {
 		...packageTagMarker,
 		version: "3.0.0-alpha.2",
@@ -333,7 +333,7 @@ async function main() {
 		tag: "package-alpha.3.0.0-alpha.2",
 		packagePath: "alpha/version/3.alpha/version/3.0.0-alpha.2",
 	};
-	const verifiedAlphaTag = channels.packageTagToRelease(tagFixtures[1], alphaTagMarker);
+	const verifiedAlphaTag = channels.packageTagToRelease(tagFixtures[1], alphaTagMarker, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 	assert.equal(verifiedAlphaTag.installable, true);
 	const mergedVerifiedAlpha = channels.normaliseCatalog([npmCatalog.find((item) => item.version === "3.0.0-alpha.2"), verifiedAlphaTag]);
 	assert.equal(mergedVerifiedAlpha.releases[0].source, "git-tag",
@@ -751,11 +751,11 @@ async function main() {
 				time: { "1.0.119": "2026-10-01T00:00:00.000Z" },
 			};
 			const gitRefs = [
-				{ ref: "refs/tags/package.1.0.119" },
-				{ ref: "refs/tags/package-alpha.3.0.0-alpha.1" },
-				{ ref: "refs/tags/channel-alpha-latest" },
-				{ ref: "refs/tags/Release-v2.6.2" },
-				{ ref: "refs/tags/package.latest" },
+				{ ref: "refs/tags/package.1.0.119", object: { type: "commit", sha: "d".repeat(40) } },
+				{ ref: "refs/tags/package-alpha.3.0.0-alpha.1", object: { type: "commit", sha: "e".repeat(40) } },
+				{ ref: "refs/tags/channel-alpha-latest", object: { type: "commit", sha: "f".repeat(40) } },
+				{ ref: "refs/tags/Release-v2.6.2", object: { type: "commit", sha: "1".repeat(40) } },
+				{ ref: "refs/tags/package.latest", object: { type: "commit", sha: "2".repeat(40) } },
 			];
 			const sourceEvents = [];
 			const stableTagMarker = {
@@ -774,10 +774,10 @@ async function main() {
 				if (url === channels.GITHUB_RELEASES_URL) return new Response("[]", { status: 200 });
 				if (url === channels.GITHUB_LATEST_ALPHA_URL) return new Response(JSON.stringify(rollingAsset), { status: 200 });
 				if (url === channels.GITHUB_PACKAGE_TAGS_URL) return new Response(JSON.stringify(gitRefs), { status: 200 });
-				if (url === "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/package.1.0.119/.package-tag.json") {
+				if (url === "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/dddddddddddddddddddddddddddddddddddddddd/.package-tag.json") {
 					return new Response(JSON.stringify(stableTagMarker), { status: 200 });
 				}
-				if (url === "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/package-alpha.3.0.0-alpha.1/.package-tag.json") {
+				if (url === "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/.package-tag.json") {
 					return new Response(JSON.stringify(alphaTagMarker), { status: 200 });
 				}
 				throw new Error("Unexpected updater feed URL: " + url);
