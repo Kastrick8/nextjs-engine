@@ -7,6 +7,11 @@ test("EngineTheme resolves built-in root styles and named slots without overridi
 	await expect(box).toHaveCSS("background-color", "rgb(245, 243, 255)");
 	await expect(box).toHaveCSS("border-radius", "4px");
 	await expect(box).toHaveCSS("padding-top", "5px");
+	await expect(box).toHaveCSS("margin-top", "11px");
+	await expect(box).toHaveCSS("border-top-color", "rgb(170, 187, 204)");
+	await expect(box).toHaveCSS("border-top-width", "2px");
+	await expect(box).toHaveCSS("border-top-style", "dashed");
+	await expect(box).toHaveCSS("box-sizing", "border-box");
 
 	const stack = page.locator("#themed-stack");
 	await expect(stack).toHaveCSS("background-color", "rgb(236, 254, 255)");
