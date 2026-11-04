@@ -114,8 +114,9 @@ async function fetchJsonPages(url, label) {
 	return values;
 }
 
-async function fetchPackageTagMarker(tagName) {
-	const url = "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/" + encodeURIComponent(tagName) + "/.package-tag.json";
+async function fetchPackageTagMarker(tagName, tagCommit) {
+	const ref = /^[0-9a-f]{40}$/.test(tagCommit || "") ? tagCommit : tagName;
+	const url = "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/" + encodeURIComponent(ref) + "/.package-tag.json";
 	try {
 		const response = await fetch(url, {
 			headers: { Accept: "application/json", "User-Agent": "nextjs-engine-ne-cli" },
@@ -196,10 +197,8 @@ async function verifyPackageTagRecords(values, includeOtherTags) {
 				output[index] = includeOtherTags ? githubTagToRelease(value) : null;
 				continue;
 			}
-			const [marker, tagCommit] = await Promise.all([
-				fetchPackageTagMarker(parsed.tagName),
-				fetchPackageTagCommit(value),
-			]);
+			const tagCommit = await fetchPackageTagCommit(value);
+			const marker = tagCommit ? await fetchPackageTagMarker(parsed.tagName, tagCommit) : null;
 			output[index] = packageTagToRelease(value, marker, tagCommit);
 		}
 	};
