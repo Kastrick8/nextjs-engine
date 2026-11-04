@@ -324,7 +324,7 @@ const CSS_PASSTHROUGH: readonly string[] = [
 	"columnCount", "columnWidth", "mixBlendMode", "isolation",
 	"willChange", "contentVisibility", "contain", "containIntrinsicSize",
 	"appearance", "resize", "visibility", "pointerEvents", "userSelect",
-	"overflowX", "overflowY", "fontFamily", "fontStyle", "fontVariant", "fontStretch",
+	"overflowX", "overflowY", "fontFamily", "fontVariant", "fontStretch",
 	"fontFeatureSettings", "fontVariationSettings", "textTransform",
 	"textDecoration", "textDecorationColor", "textDecorationStyle", "textUnderlineOffset",
 	"textShadow", "textIndent", "textRendering", "textWrap",
