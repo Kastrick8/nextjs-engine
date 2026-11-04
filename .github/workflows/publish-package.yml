@@ -88,8 +88,6 @@ jobs:
       - name: Test content.include helper
         run: node tooling/.github/scripts/copy-content-includes.js --self-test
 
-      - name: Install npm CLI with OIDC support
-        run: npm install --global npm@^11.21.0
 
       - name: Validate source pin and prepare immutable snapshot
         id: prepare
@@ -955,6 +953,9 @@ jobs:
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
           NODE
+      - name: Install npm CLI with OIDC support
+        if: steps.snapshot.outputs.migration_only != 'true'
+        run: npm install --global npm@^11.21.0
       - name: Validate and pack the selected snapshot
         if: steps.snapshot.outputs.migration_only != 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
