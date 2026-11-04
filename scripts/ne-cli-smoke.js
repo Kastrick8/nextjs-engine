@@ -177,25 +177,27 @@ async function main() {
 		migrationOnly: true,
 		npmIntegrity: "sha512-" + "c".repeat(86) + "==",
 	};
-	const verifiedStableTag = channels.packageTagToRelease(tagFixtures[0], packageTagMarker);
+	const verifiedStableTag = channels.packageTagToRelease(tagFixtures[0], packageTagMarker, "dddddddddddddddddddddddddddddddddddddddd");
 	assert.equal(verifiedStableTag.installable, true);
-	assert.equal(verifiedStableTag.installSpec, "git+https://github.com/Kastrick8/nextjs-engine.git#package.2.7.0");
+	assert.equal(verifiedStableTag.installSpec, "git+https://github.com/Kastrick8/nextjs-engine.git#dddddddddddddddddddddddddddddddddddddddd");
 	assert.equal(verifiedStableTag.sourceCommit, "a".repeat(40));
 	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
 	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
 	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
 		...packageTagMarker, tag: "package.2.7.1",
-	}).installable, false, "a marker for a different tag cannot verify this ref");
+	}, "dddddddddddddddddddddddddddddddddddddddd").installable, false, "a marker for a different tag cannot verify this ref");
 	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
 		...packageTagMarker, packagePath: "version/2.7/version/2.7.0",
-	}).installable, false, "patch-zero releases must use the canonical shortened snapshot path");
+	}, "dddddddddddddddddddddddddddddddddddddddd").installable, false, "patch-zero releases must use the canonical shortened snapshot path");
 	const previousMarkerFetch = global.fetch;
 	try {
 		global.fetch = async (url) => {
-			assert.match(String(url), /^https:\/\/raw\.githubusercontent\.com\/Kastrick8\/nextjs-engine\/package\.2\.7\.0\/\.package-tag\.json$/);
+			assert.equal(String(url), "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/dddddddddddddddddddddddddddddddddddddddd/.package-tag.json");
 			return new Response(JSON.stringify(packageTagMarker), { status: 200 });
 		};
-		const verifiedRecords = await channels.verifyPackageTagRecords([tagFixtures[0]], false);
+		const verifiedRecords = await channels.verifyPackageTagRecords([{
+			...tagFixtures[0], object: { type: "commit", sha: "dddddddddddddddddddddddddddddddddddddddd" },
+		}], false);
 		assert.equal(verifiedRecords[0].installable, true, "the updater verifies the marker on the official raw tag ref");
 	} finally {
 		global.fetch = previousMarkerFetch;
