@@ -117,5 +117,6 @@ jobs:
             echo "- Mode: ${APPLY}"
             echo "- Apply requested: ${APPLY}"
             echo "- Operation: migrate existing tags and create missing version tags from their own archive snapshots"
-            echo "- Legacy rewrites are migration-only; already-package-root tags keep their original provenance"\n            echo "- The seeder never publishes to npm or changes npm dist-tags"
+            echo "- Legacy rewrites are migration-only; already-package-root tags keep their original provenance"
+            echo "- The seeder never publishes to npm or changes npm dist-tags"
           } >> "$GITHUB_STEP_SUMMARY"
