@@ -39,7 +39,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: npm-release-${{ inputs.version || github.ref_name }}
+  # One publisher per dist-tag track prevents overlapping releases from moving
+  # latest/alpha/beta backwards after a newer version has already promoted.
+  group: npm-release-${{ inputs.track || (startsWith(github.ref_name, 'package-alpha.') && 'alpha') || (startsWith(github.ref_name, 'package-beta.') && 'beta') || 'stable' }}
   cancel-in-progress: false
 
 jobs:
@@ -349,9 +351,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/current-dist-tags.json"
+          export CURRENT_DIST_TAGS="$RUNNER_TEMP/current-dist-tags.json"
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
           import path from "node:path";
+          const registryTags = JSON.parse(fs.readFileSync(process.env.CURRENT_DIST_TAGS, "utf8"));
           const stable=[], alpha=[], beta=[];
           function walk(dir){
             if(!fs.existsSync(dir)) return;
@@ -369,9 +374,19 @@ jobs:
           }
           walk("version"); walk("alpha"); walk("beta");
           const sortNums=(list, prerelease)=>list.sort((a,b)=>{
-            const rx=prerelease?new RegExp("^([0-9]+)\\.([0-9]+)\\.([0-9]+)-"+prerelease+"\\.([0-9]+)$"):null;
-            const A=rx?a.match(rx).slice(1).map(Number):a.split(".").map(Number);
-            const B=rx?b.match(rx).slice(1).map(Number):b.split(".").map(Number);
+            const parts=(value)=>{
+              const segments=value.split("-");
+              if(segments.length!==(prerelease?2:1))throw new Error("Invalid package version: "+value);
+              const nums=segments[0].split(".").map(Number);
+              if(nums.length!==3||nums.some(part=>!Number.isInteger(part)))throw new Error("Invalid package version: "+value);
+              if(prerelease){
+                const suffix=segments[1].split(".");
+                if(suffix.length!==2||suffix[0]!==prerelease||!/^[0-9]+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
+                nums.push(Number(suffix[1]));
+              }
+              return nums;
+            };
+            const A=parts(a),B=parts(b);
             for(let i=0;i<A.length;i++)if(A[i]!==B[i])return A[i]-B[i];
             return 0;
           });
@@ -382,7 +397,22 @@ jobs:
           const newest=list.at(-1);
           const versionTag=process.env.TRACK==="stable"?"package."+process.env.VERSION:
             process.env.TRACK==="alpha"?"package-alpha."+process.env.VERSION:"package-beta."+process.env.VERSION;
-          const channelTag=newest===process.env.VERSION?(process.env.TRACK==="stable"?"latest":process.env.TRACK):"";
+          const proposedChannel=process.env.TRACK==="stable"?"latest":process.env.TRACK;
+          function compareSemver(aText,bText){
+            const a=String(aText||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.(\d+))?$/);
+            const b=String(bText||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.(\d+))?$/);
+            if(!a)return -1;
+            if(!b)return 1;
+            for(let i=1;i<=3;i++){const d=Number(a[i])-Number(b[i]);if(d)return d;}
+            if(!a[4]&&!b[4])return 0;
+            if(!a[4])return 1;
+            if(!b[4])return -1;
+            if(a[4]!==b[4])return a[4]>b[4]?1:-1;
+            return Number(a[5])-Number(b[5]);
+          }
+          const channelTag=newest===process.env.VERSION
+            && compareSemver(process.env.VERSION,registryTags[proposedChannel])>=0
+            ?proposedChannel:"";
           console.log("value="+versionTag);
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
@@ -408,10 +438,11 @@ jobs:
           DIST_TAG: ${{ steps.dist-tag.outputs.value }}
         run: npm publish --access public --tag "$DIST_TAG"
 
-      - name: Apply npm dist-tags
+      - name: Apply and verify npm dist-tags
         working-directory: archive
         env:
           VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
           VERSION_TAG: ${{ steps.dist-tag.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.dist-tag.outputs.channel_tag }}
         shell: bash
@@ -422,6 +453,8 @@ jobs:
           if [[ -n "$CHANNEL_TAG" ]]; then
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
+          node .github/scripts/verify-npm-dist-tags.mjs "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" .
 
       - name: Release summary
         if: always()
@@ -639,10 +672,11 @@ jobs:
           VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
         run: npm publish --access public --tag "$VERSION_TAG"
 
-      - name: Apply npm dist-tags
+      - name: Apply and verify npm dist-tags
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
           VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.channel.outputs.channel_tag }}
         shell: bash
@@ -653,6 +687,8 @@ jobs:
           if [[ -n "$CHANNEL_TAG" ]]; then
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
+          node "$GITHUB_WORKSPACE/.github/scripts/verify-npm-dist-tags.mjs" "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE"
 
       - name: Release summary
         if: always()
@@ -727,11 +763,13 @@ jobs:
             echo "Unsupported release tag: $TAG_NAME" >&2; exit 1
           fi
           test -f "$DIR/package.json" && test -f "$DIR/index.ts" && test -d "$DIR/engine"
-          export DIR VERSION TRACK
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/current-dist-tags.json"
+          export DIR VERSION TRACK CURRENT_DIST_TAGS="$RUNNER_TEMP/current-dist-tags.json"
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
           import path from "node:path";
           const {DIR,VERSION,TRACK}=process.env;
+          const registryTags=JSON.parse(fs.readFileSync(process.env.CURRENT_DIST_TAGS,"utf8"));
           const p=JSON.parse(fs.readFileSync(path.join(DIR,"package.json"),"utf8"));
           if(p.name!=="@kastrick/nextjs-engine"||p.version!==VERSION) throw new Error("Manifest mismatch: "+p.name+"@"+p.version);
           if(!fs.existsSync(path.join(DIR,"engine/index.ts"))) throw new Error("engine/index.ts is missing");
@@ -752,9 +790,19 @@ jobs:
           }
           walk("version");walk("alpha");walk("beta");
           const sortNums=(list, prerelease)=>list.sort((a,b)=>{
-            const rx=prerelease?new RegExp("^([0-9]+)\\.([0-9]+)\\.([0-9]+)-"+prerelease+"\\.([0-9]+)$"):null;
-            const A=rx?a.match(rx).slice(1).map(Number):a.split(".").map(Number);
-            const B=rx?b.match(rx).slice(1).map(Number):b.split(".").map(Number);
+            const parts=(value)=>{
+              const segments=value.split("-");
+              if(segments.length!==(prerelease?2:1))throw new Error("Invalid package version: "+value);
+              const nums=segments[0].split(".").map(Number);
+              if(nums.length!==3||nums.some(part=>!Number.isInteger(part)))throw new Error("Invalid package version: "+value);
+              if(prerelease){
+                const suffix=segments[1].split(".");
+                if(suffix.length!==2||suffix[0]!==prerelease||!/^[0-9]+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
+                nums.push(Number(suffix[1]));
+              }
+              return nums;
+            };
+            const A=parts(a),B=parts(b);
             for(let i=0;i<A.length;i++)if(A[i]!==B[i])return A[i]-B[i];
             return 0;
           });
@@ -764,7 +812,20 @@ jobs:
           if(!list.length)throw new Error("No "+TRACK+" releases are archived.");
           const newest=list.at(-1);
           const versionTag=TRACK==="stable"?"package."+VERSION:TRACK==="alpha"?"package-alpha."+VERSION:"package-beta."+VERSION;
-          const channelTag=newest===VERSION?(TRACK==="stable"?"latest":TRACK):"";
+          const proposedChannel=TRACK==="stable"?"latest":TRACK;
+          function compareSemver(aText,bText){
+            const a=String(aText||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.(\d+))?$/);
+            const b=String(bText||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.(\d+))?$/);
+            if(!a)return -1;
+            if(!b)return 1;
+            for(let i=1;i<=3;i++){const d=Number(a[i])-Number(b[i]);if(d)return d;}
+            if(!a[4]&&!b[4])return 0;
+            if(!a[4])return 1;
+            if(!b[4])return -1;
+            if(a[4]!==b[4])return a[4]>b[4]?1:-1;
+            return Number(a[5])-Number(b[5]);
+          }
+          const channelTag=newest===VERSION&&compareSemver(VERSION,registryTags[proposedChannel])>=0?proposedChannel:"";
           console.log("version="+VERSION);
           console.log("directory="+DIR);
           console.log("version_tag="+versionTag);
@@ -796,14 +857,18 @@ jobs:
         env:
           DIST_TAG: ${{ steps.snapshot.outputs.version_tag }}
         run: npm publish --access public --tag "$DIST_TAG"
-      - name: Apply npm dist-tags
+      - name: Apply and verify npm dist-tags
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
           VERSION_TAG: ${{ steps.snapshot.outputs.version_tag }}
           CHANNEL_TAG: ${{ steps.snapshot.outputs.channel_tag }}
+        shell: bash
         run: |
           set -euo pipefail
           PACKAGE="@kastrick/nextjs-engine@$VERSION"
           npm dist-tag add "$PACKAGE" "$VERSION_TAG"
           if [[ -n "$CHANNEL_TAG" ]]; then npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"; fi
+          npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
+          node "$GITHUB_WORKSPACE/.github/scripts/verify-npm-dist-tags.mjs" "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE"
