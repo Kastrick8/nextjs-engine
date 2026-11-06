@@ -111,7 +111,7 @@ function applicableHotfix(root, manifest) {
 	const state = localState(root);
 	const installedCommit = typeof state.installedCommit === "string" ? state.installedCommit.toLowerCase() : null;
 	const candidates = manifest.hotfixes.filter((entry) =>
-		entry.compatibleVersions.includes(version) &&
+		entry.version === version && entry.compatibleVersions.includes(version) &&
 		(!installedCommit || entry.fromCommit.toLowerCase() === installedCommit)
 	);
 	if (!candidates.length) return null;
