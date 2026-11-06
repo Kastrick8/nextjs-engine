@@ -60,6 +60,13 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
     fs.cpSync(path.join(alphaStaging, "package"), alphaTarget, { recursive: true });
     fs.rmSync(alphaStaging, { recursive: true, force: true });
     fs.writeFileSync(path.join(alphaTarget, "UPSTREAM.md"), "- Preserved distributable-branch commit: " + "b".repeat(40) + "\n");
+    const betaStaging = path.join(repo, "staging-beta");
+    writePackage(betaStaging, "3.0.0-beta.1");
+    const betaTarget = path.join(repo, "beta/version/3.beta/version/3.0.0-beta.1");
+    fs.mkdirSync(path.dirname(betaTarget), { recursive: true });
+    fs.cpSync(path.join(betaStaging, "package"), betaTarget, { recursive: true });
+    fs.rmSync(betaStaging, { recursive: true, force: true });
+    fs.writeFileSync(path.join(betaTarget, "UPSTREAM.md"), "- Requested and resolved source commit: " + "c".repeat(40) + "\n");
     fs.mkdirSync(path.join(repo, ".github/workflows"), { recursive: true });
     fs.writeFileSync(path.join(repo, ".github/workflows/noise.yml"), "not package content\n");
     fs.mkdirSync(path.join(repo, "alpha"), { recursive: true });
@@ -71,6 +78,7 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
     git(repo, ["tag", "-a", "package.2.6.1", "-m", "old archive tag"]);
     git(repo, ["tag", "-a", "package.2.6.2", "-m", "old archive tag"]);
     git(repo, ["tag", "-a", "package-alpha.3.0.0-alpha.1", "-m", "old alpha archive tag"]);
+    git(repo, ["tag", "-a", "package-beta.3.0.0-beta.1", "-m", "old beta archive tag"]);
     git(repo, ["tag", "-a", "package.latest", "-m", "old latest tag"]);
 
     const dry = runMigration(repo, []);
@@ -79,6 +87,8 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
     for (const tag of ["package.1.0.0", "package.2.6.1", "package.2.6.2", "package-alpha.3.0.0-alpha.1"]) {
       assert.equal(git(repo, ["rev-parse", tag + "^{commit}"]), previous, "dry-run must not move " + tag);
     }
+    const plannedBeta = dry.parsed.results.find((item) => item.tag === "package-beta.3.0.0-beta.1");
+    assert.equal(plannedBeta.sourceCommit, "c".repeat(40), "legacy Beta provenance is retained");
     const plannedAlpha = dry.parsed.results.find((item) => item.tag === "package-alpha.3.0.0-alpha.1");
     assert.equal(plannedAlpha.sourceCommit, "b".repeat(40), "legacy Alpha provenance wording is retained");
     const plannedLatest = dry.parsed.results.find((item) => item.tag === "package.latest");
@@ -93,11 +103,13 @@ test("migration converts a legacy full-repository version tag into an npm-pack-o
       ["package.1.0.0", "1.0.0"],
       ["package.2.6.1", "2.6.1"],
       ["package-alpha.3.0.0-alpha.1", "3.0.0-alpha.1"],
+      ["package-beta.3.0.0-beta.1", "3.0.0-beta.1"],
     ]) {
       const tagCommit = git(repo, ["rev-parse", tag + "^{commit}"]);
       const tagMarker = JSON.parse(git(repo, ["show", tagCommit + ":.package-tag.json"]));
       assert.equal(tagMarker.version, version, "each tag resolves its own snapshot from the shared legacy archive commit");
       if (version === "3.0.0-alpha.1") assert.equal(tagMarker.sourceCommit, "b".repeat(40));
+      if (version === "3.0.0-beta.1") assert.equal(tagMarker.sourceCommit, "c".repeat(40));
       assert.deepEqual(git(repo, ["ls-tree", "--name-only", tagCommit]).split("\n").sort(),
         [".package-tag.json", "README.md", "engine", "index.ts", "package.json"]);
     }
@@ -199,6 +211,7 @@ test("seed migrates existing tags and creates missing versions as package-only r
     for (const [version, relative] of [
       ["2.6.2", "version/2.6/version/2.6.2"],
       ["2.7.0", "version/2.7/version/2.7"],
+      ["3.0.0-beta.1", "beta/version/3.beta/version/3.0.0-beta.1"],
     ]) {
       const staging = path.join(repo, "staging-" + version);
       writePackage(staging, version);
@@ -219,11 +232,13 @@ test("seed migrates existing tags and creates missing versions as package-only r
     assert.equal(dry.parsed.operation, "seed-and-migrate");
     assert.ok(dry.parsed.results.some((item) => item.tag === "package.2.6.2" && item.status === "would-migrate"));
     assert.ok(dry.parsed.results.some((item) => item.tag === "package.2.7.0" && item.status === "would-create"));
+    assert.ok(dry.parsed.results.some((item) => item.tag === "package-beta.3.0.0-beta.1" && item.status === "would-create"));
     assert.equal(git(repo, ["tag", "--list", "package.2.7.0"]), "", "dry-run must not create missing tags");
+    assert.equal(git(repo, ["tag", "--list", "package-beta.3.0.0-beta.1"]), "", "dry-run must not create missing prerelease tags");
 
     const apply = runMigration(repo, ["--seed", "--apply", "--no-push"]);
     assert.equal(apply.status, 0, apply.stderr);
-    for (const [tag, version] of [["package.2.6.2", "2.6.2"], ["package.2.7.0", "2.7.0"]]) {
+    for (const [tag, version] of [["package.2.6.2", "2.6.2"], ["package.2.7.0", "2.7.0"], ["package-beta.3.0.0-beta.1", "3.0.0-beta.1"]]) {
       const commit = git(repo, ["rev-parse", tag + "^{commit}"]);
       const marker = JSON.parse(git(repo, ["show", commit + ":.package-tag.json"]));
       const pkg = JSON.parse(git(repo, ["show", commit + ":package.json"]));
@@ -231,7 +246,7 @@ test("seed migrates existing tags and creates missing versions as package-only r
       assert.equal(marker.migrationOnly, true, "seeded refs never initiate npm publication");
       assert.deepEqual(git(repo, ["ls-tree", "--name-only", commit]).split("\n").sort(),
         [".package-tag.json", "README.md", "engine", "index.ts", "package.json"]);
-      if (version === "2.7.0") assert.equal(marker.archiveCommit, archiveHead);
+      if (version === "2.7.0" || version === "3.0.0-beta.1") assert.equal(marker.archiveCommit, archiveHead);
     }
     assert.equal(git(repo, ["rev-parse", "package.latest^{commit}"]), git(repo, ["rev-parse", "package.2.7.0^{commit}"]));
   } finally {
