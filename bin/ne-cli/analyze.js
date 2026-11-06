@@ -39,7 +39,7 @@ async function runDependencyAudit(project, root, options) {
 	process.stdout.write("[NE ANALYZE] " + (canFix ? "Applying package-manager security fixes: " : "Auditing dependencies: ") + command + "\n");
 	let result;
 	try {
-		result = await project.runProcess(manager, args, {
+		result = await project.runProcess(manager, selectedArgs, {
 			cwd: root,
 			captureOutput: true,
 			quietNpmNotices: true,
