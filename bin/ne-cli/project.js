@@ -10,20 +10,6 @@ const { createPrivateTempDirectory, writeFileAtomically } = require("./file-syst
 function taskRuntime() {
 	return require("./tasks");
 }
-function loadGen3MigrationDiagnostics() {
-	for (const candidate of [
-		path.resolve(__dirname, "../../src/engine/plugins/gen3MigrationDiagnostics.js"),
-		path.resolve(__dirname, "../../engine/plugins/gen3MigrationDiagnostics.js"),
-	]) {
-		try {
-			const loaded = require(candidate);
-			if (loaded && typeof loaded.runGen3MigrationDiagnostics === "function") {
-				return loaded.runGen3MigrationDiagnostics;
-			}
-		} catch {}
-	}
-	return null;
-}
 
 const PACKAGE_NAME = "@kastrick/nextjs-engine";
 const STATE_RELATIVE_PATH = path.join(".nextjs-engine", "config", "ne.config.json");
@@ -912,53 +898,6 @@ async function runCheck(root, options) {
 			tree.skip("check-type-check", "No TypeScript project detected");
 		}
 
-		const runGen3MigrationDiagnostics = loadGen3MigrationDiagnostics();
-		if (typeof runGen3MigrationDiagnostics === "function") {
-			try {
-				await runTrackedTask(tree, "check-migration", "Gen 3 migration diagnostics (NE main thread)", parentId, async () => {
-					const pkg = readJson(path.join(root, "package.json"), {});
-					const isEngineSource = pkg.name === "nextjs-engine" &&
-						fs.existsSync(path.join(root, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"));
-					if (isEngineSource) {
-						tree.update("check-migration", "Self-scan skipped for the engine source repository");
-						return;
-					}
-
-					const warnings = [];
-					const errorsFound = [];
-					const originalWarn = console.warn;
-					const originalError = console.error;
-					let diagnostics = [];
-					console.warn = (...args) => warnings.push(args.join(" "));
-					console.error = (...args) => errorsFound.push(args.join(" "));
-					try {
-						diagnostics = runGen3MigrationDiagnostics({ rootDir: root, development: true }) || [];
-					} finally {
-						console.warn = originalWarn;
-						console.error = originalError;
-					}
-
-					const fatal = diagnostics.filter((item) => item && item.severity === "error");
-					tree.update("check-migration", diagnostics.length
-						? diagnostics.length + " diagnostic(s), " + fatal.length + " error(s)"
-						: "No migration diagnostics found");
-					if (fatal.length) {
-						const failure = new Error(fatal.length + " migration error(s) must be fixed.");
-						failure.output = [...warnings, ...errorsFound, ...fatal.map((item) =>
-							[item.code, item.message, item.file, item.line].filter(Boolean).join(" · ")
-						)].filter(Boolean).join("\n");
-						throw failure;
-					}
-					return diagnostics;
-				});
-			} catch (error) {
-				errors.push(error);
-			}
-		} else {
-			tree.add("check-migration", "Gen 3 migration diagnostics", parentId);
-			tree.skip("check-migration", "Diagnostics module is not included in this package");
-		}
-
 		if (errors.length) {
 			if (checkTaskId) tree.setStatus(checkTaskId, "failed", errors.length + " subtask(s) failed");
 			const failure = errors[0];
@@ -998,7 +937,9 @@ function buildOutputObserver(tree, taskId) {
 	};
 }
 
-async function runBuild(root) {
+async function runBuild(root, plugins, options) {
+	await require("./plugins").runHooks(plugins, "beforeBuild", { root, generation: 3 });
+	await require("./maintenance").warnBeforeBuild(root, options);
 	const { TaskTree } = taskRuntime();
 	const tree = new TaskTree("ne build");
 	try {
@@ -1058,6 +999,7 @@ async function runBuild(root) {
 			tree.succeed("build-nenc", "NENC output completed");
 		}
 		tree.complete();
+		await require("./plugins").runHooks(plugins, "afterBuild", { root, generation: 3 });
 		return { ok: true };
 	} catch (error) {
 		tree.fail(error && error.neTaskId || "root", error);
