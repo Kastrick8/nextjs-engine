@@ -161,9 +161,47 @@ async function main() {
 	];
 	const parsedTags = tagFixtures.map(channels.packageTagToRelease);
 	assert.deepEqual(parsedTags.slice(0, 3).map((item) => item.version), ["2.7.0", "3.0.0-alpha.2", "3.0.0-beta.1"]);
-	assert.equal(parsedTags[0].installable, false);
+	assert.equal(parsedTags[0].installable, false, "a legacy tag without a root marker remains TAG ONLY");
 	assert.equal(parsedTags[3], null);
 	assert.equal(parsedTags[4], null);
+	const packageTagMarker = {
+		schemaVersion: 1,
+		packageName: "@kastrick/nextjs-engine",
+		version: "2.7.0",
+		track: "stable",
+		tag: "package.2.7.0",
+		layout: "npm-pack-root",
+		archiveCommit: "b".repeat(40),
+		packagePath: "version/2.7/version/2.7",
+		sourceCommit: "a".repeat(40),
+		migrationOnly: true,
+		npmIntegrity: "sha512-" + "c".repeat(86) + "==",
+	};
+	const verifiedStableTag = channels.packageTagToRelease(tagFixtures[0], packageTagMarker, "dddddddddddddddddddddddddddddddddddddddd");
+	assert.equal(verifiedStableTag.installable, true);
+	assert.equal(verifiedStableTag.installSpec, "git+https://github.com/Kastrick8/nextjs-engine.git#dddddddddddddddddddddddddddddddddddddddd");
+	assert.equal(verifiedStableTag.sourceCommit, "a".repeat(40));
+	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
+	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
+	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
+		...packageTagMarker, tag: "package.2.7.1",
+	}, "dddddddddddddddddddddddddddddddddddddddd").installable, false, "a marker for a different tag cannot verify this ref");
+	assert.equal(channels.packageTagToRelease(tagFixtures[0], {
+		...packageTagMarker, packagePath: "version/2.7/version/2.7.0",
+	}, "dddddddddddddddddddddddddddddddddddddddd").installable, false, "patch-zero releases must use the canonical shortened snapshot path");
+	const previousMarkerFetch = global.fetch;
+	try {
+		global.fetch = async (url) => {
+			assert.equal(String(url), "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/dddddddddddddddddddddddddddddddddddddddd/.package-tag.json");
+			return new Response(JSON.stringify(packageTagMarker), { status: 200 });
+		};
+		const verifiedRecords = await channels.verifyPackageTagRecords([{
+			...tagFixtures[0], object: { type: "commit", sha: "dddddddddddddddddddddddddddddddddddddddd" },
+		}], false);
+		assert.equal(verifiedRecords[0].installable, true, "the updater verifies the marker on the official raw tag ref");
+	} finally {
+		global.fetch = previousMarkerFetch;
+	}
 
 	const freeformGitHubRelease = channels.catalogOnlyGitHubRelease({
 		tag_name: "historical-engine-prerelease",
@@ -183,7 +221,7 @@ async function main() {
 
 	const mergedCatalog = channels.normaliseCatalog([
 		...npmCatalog,
-		parsedTags[0],
+		verifiedStableTag,
 		{
 			version: "3.0.0-alpha.2",
 			track: "alpha",
@@ -211,7 +249,9 @@ async function main() {
 	assert.deepEqual(mergedAlpha.sources.sort(), ["github", "npm"]);
 	assert.equal(channels.resolveRelease(mergedCatalog, { version: "3.0.0-alpha.2" }).source, "github");
 	assert.equal(channels.resolveRelease({ releases: [parsedTags[0]] }, { version: "2.7.0" }), null);
+	assert.equal(channels.resolveRelease({ releases: [verifiedStableTag] }, { version: "2.7.0" }).source, "git-tag");
 	assert.equal(channels.channelLabel(parsedTags[0]), "TAG ONLY");
+	assert.equal(channels.channelLabel(verifiedStableTag), "GIT PACKAGE");
 
 	const manifest = {
 		schemaVersion: 1,
@@ -625,6 +665,74 @@ async function main() {
 			const normalizedPnpm = fs.readFileSync(path.join(textRoot, "pnpm-lock.yaml"), "utf8");
 			assert.equal(normalizedPnpm.includes(remoteUrl), true);
 			assert.equal(normalizedPnpm.includes(fileSpec), false);
+
+			const gitTagProject = path.join(temp, "git-tag-project");
+			fs.mkdirSync(gitTagProject, { recursive: true });
+			const gitTagCommit = "f".repeat(40);
+			const gitTagSpec = "git+https://github.com/Kastrick8/nextjs-engine.git#" + gitTagCommit;
+			fs.writeFileSync(path.join(gitTagProject, "package.json"), JSON.stringify({
+				name: "git-tag-fixture",
+				version: "1.0.0",
+				packageManager: "npm@10.9.0",
+				dependencies: { "@kastrick/nextjs-engine": gitTagSpec },
+			}, null, 2) + "\n");
+			fs.writeFileSync(path.join(gitTagProject, "package-lock.json"), JSON.stringify({
+				name: "git-tag-fixture",
+				version: "1.0.0",
+				lockfileVersion: 3,
+				packages: {
+					"": { name: "git-tag-fixture", version: "1.0.0", dependencies: { "@kastrick/nextjs-engine": gitTagSpec } },
+					"node_modules/@kastrick/nextjs-engine": { version: "2.7.0", resolved: gitTagSpec },
+				},
+			}, null, 2) + "\n");
+			assert.equal(project.verifyGitTagResolution(gitTagProject, { tagCommit: gitTagCommit, installSpec: gitTagSpec }), true,
+				"npm lockfile must preserve the exact verified tag commit");
+			const wrongGitLock = JSON.parse(fs.readFileSync(path.join(gitTagProject, "package-lock.json"), "utf8"));
+			wrongGitLock.packages["node_modules/@kastrick/nextjs-engine"].resolved =
+				"git+https://github.com/Kastrick8/nextjs-engine.git#" + "a".repeat(40);
+			fs.writeFileSync(path.join(gitTagProject, "package-lock.json"), JSON.stringify(wrongGitLock, null, 2) + "\n");
+			assert.throws(() => project.verifyGitTagResolution(gitTagProject, { tagCommit: gitTagCommit, installSpec: gitTagSpec }),
+				/npm lockfile did not pin/);
+
+			const pnpmGitRoot = path.join(temp, "pnpm-git-tag-project");
+			fs.mkdirSync(pnpmGitRoot, { recursive: true });
+			fs.writeFileSync(path.join(pnpmGitRoot, "package.json"), JSON.stringify({
+				name: "pnpm-git-tag-fixture",
+				version: "1.0.0",
+				packageManager: "pnpm@10.0.0",
+				dependencies: { "@kastrick/nextjs-engine": gitTagSpec },
+			}, null, 2) + "\n");
+			fs.writeFileSync(path.join(pnpmGitRoot, "pnpm-lock.yaml"), [
+				"lockfileVersion: '9.0'",
+				"importers:",
+				"  .:",
+				"    dependencies:",
+				"      '@kastrick/nextjs-engine':",
+				"        specifier: " + gitTagSpec,
+				"        version: 2.7.0",
+				"packages:",
+				"  '@kastrick/nextjs-engine@git+https://github.com/Kastrick8/nextjs-engine.git#" + gitTagCommit + "':",
+				"    resolution: {commit: " + gitTagCommit + ", repo: https://github.com/Kastrick8/nextjs-engine.git}",
+			].join("\n") + "\n");
+			assert.equal(project.verifyGitTagResolution(pnpmGitRoot, { tagCommit: gitTagCommit, installSpec: gitTagSpec }), true,
+				"pnpm lockfile must preserve the exact verified tag commit");
+
+			const yarnGitRoot = path.join(temp, "yarn-git-tag-project");
+			fs.mkdirSync(yarnGitRoot, { recursive: true });
+			fs.writeFileSync(path.join(yarnGitRoot, "package.json"), JSON.stringify({
+				name: "yarn-git-tag-fixture",
+				version: "1.0.0",
+				packageManager: "yarn@1.22.0",
+				dependencies: { "@kastrick/nextjs-engine": gitTagSpec },
+			}, null, 2) + "\n");
+			fs.writeFileSync(path.join(yarnGitRoot, "yarn.lock"), [
+				'"@kastrick/nextjs-engine@' + gitTagSpec + '":',
+				'  version "2.7.0"',
+				'  resolved "' + gitTagSpec + '"',
+			].join("\n") + "\n");
+			assert.equal(project.verifyGitTagResolution(yarnGitRoot, { tagCommit: gitTagCommit, installSpec: gitTagSpec }), true,
+				"Yarn lockfile must preserve the exact verified tag commit");
+
 
 		} finally {
 			global.fetch = previousFetch;
