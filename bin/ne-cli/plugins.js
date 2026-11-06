@@ -5,7 +5,7 @@ const path = require("node:path");
 
 const API_VERSION = 1;
 const PLUGIN_DIRECTORY = path.join(".nextjs-engine", "plugins");
-const CONFIG_PATH = path.join(".nextjs-engine", "config", "ne.config.json");
+const CONFIG_PATH = path.join(".nextjs-engine", "config", "ne-cli.json");
 const BUILTIN_COMMANDS = new Set([
 	"analyze", "build", "check", "clean", "dev", "help", "info", "plugins",
 	"rollback", "start", "update", "updater",
