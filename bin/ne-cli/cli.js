@@ -322,6 +322,13 @@ function getCommandHelp(command) {
 		: null;
 }
 
+function loadPluginCommandHelp(command) {
+	const root = findProjectRoot(process.cwd());
+	const host = require("./plugins").loadPlugins(root);
+	const definition = host.commands.get(command);
+	return definition && definition.help ? String(definition.help).replace(/\n?$/, "\n") : null;
+}
+
 function listChannels(catalog, state) {
 	const lines = [
 		"NE release channels" + (catalog.cached ? " (cached feed)" : ""),
@@ -646,8 +653,8 @@ async function executeCommand(root, command, subArgs, options, showWarning, plug
 	if (command === "info") return require("./info").runInfo(root, require("./project"), pluginHost);
 	if (command === "plugins") {
 		const list = require("./plugins").listPlugins(pluginHost);
-		if (!list.length) process.stdout.write("[NE] No NE CLI plugins are enabled.\\n");
-		else for (const item of list) process.stdout.write(item.name + "@" + item.version + " · " + item.file + "\\n");
+		if (!list.length) process.stdout.write("[NE] No NE CLI plugins are enabled.\n");
+		else for (const item of list) process.stdout.write(item.name + "@" + item.version + " · " + item.file + "\n");
 		return;
 	}
 	const pluginCommand = pluginHost && pluginHost.commands.get(command);
@@ -667,7 +674,7 @@ async function main(argv) {
 		const target = subArgs[0];
 		if (!target) process.stdout.write(getHelp());
 		else {
-			const help = getCommandHelp(target);
+			const help = getCommandHelp(target) || loadPluginCommandHelp(target);
 			if (!help) throw diagnostics.unknownCommand(target, [
 				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help",
 			]);
@@ -678,7 +685,7 @@ async function main(argv) {
 	if (args.options.help) {
 		if (!command) process.stdout.write(getHelp());
 		else {
-			const help = getCommandHelp(command);
+			const help = getCommandHelp(command) || (command ? loadPluginCommandHelp(command) : null);
 			if (!help) throw diagnostics.unknownCommand(command, [
 				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help",
 			]);
