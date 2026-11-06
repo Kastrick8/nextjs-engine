@@ -666,7 +666,9 @@ async function runCheck(root) {
 	process.stdout.write("[NE-CHECK] Checks passed.\n");
 }
 
-async function runBuild(root) {
+async function runBuild(root, plugins, options) {
+	await require("./plugins").runHooks(plugins, "beforeBuild", { root, generation: 2 });
+	await require("./maintenance").warnBeforeBuild(root, options);
 	if (packageScript(root, "prepare:production")) {
 		process.stdout.write("[NE] Preparing production artifacts...\n");
 		await runPackageScript(root, "prepare:production");
@@ -674,6 +676,7 @@ async function runBuild(root) {
 	await runCheck(root);
 	process.stdout.write("[NE] Running the Next.js production build...\n");
 	await runNext(root, ["build"]);
+	await require("./plugins").runHooks(plugins, "afterBuild", { root, generation: 2 });
 }
 
 module.exports = {
