@@ -17,7 +17,10 @@ The NE CLI was introduced to the Generation 2 package in v2.7.0. It provides pro
 | `ne dev` | Start the development server. |
 | `ne build` | Run the project's production build flow. |
 | `ne start` | Start the production server. |
-| `ne check` | Run the available project checks. |
+| `ne check` | Run the configured basic project checks (including TypeScript when configured). |
+| `ne analyze` | Audit dependencies, apply native safe dependency fixes, inspect project configuration, and report Gen 3 migration findings. |
+| `ne info` | Show local and remote Engine/package information. |
+| `ne plugins` | List enabled local NE CLI plugins. |
 | `ne clean` | Clean supported generated build/cache targets. |
 | `ne updater` | Open the release catalog. |
 | `ne update` | List or install a selected channel/version. |
@@ -111,7 +114,7 @@ ne --verison
 
 Suggestions never execute commands automatically. Coded failures include a code-specific `Help:` link to the [NE CLI Error Book](./ne-cli-error-book.md).
 
-For the separate Generation 3 compiler/runtime migration diagnostics, see [Migrating from Generation 2 to Generation 3](./migrating-to-3.md). Gen 2 CLI codes and Gen 3 migration diagnostic codes are different namespaces; do not treat them as interchangeable.
+Generation 3 migration diagnostics run from the **Gen 2 NE-CLI**, not the Gen 3 runtime. Run `ne analyze` to find migration blockers and warnings before upgrading; the report includes source file and line locations plus recommended actions. `ne check` remains a basic TypeScript/project check, and `ne build` does not run the migration scanner or EngineCompiler/NENC.
 
 
 ## Experimental updater safety preflight
@@ -135,3 +138,41 @@ ne update --channel stable --yes --allow-generation-change --acknowledge-compati
 - `--acknowledge-compatibility` acknowledges static migration warnings.
 
 This scanner is deliberately limited and does not provide complete npm dependency-tree, TypeScript, peer-dependency, API, or runtime compatibility analysis. It does not run `npm audit`, `npm ls`, or a production build before changing dependencies. It checks only known source patterns in a bounded number of project files. After installation NE verifies the exact package name, version, and generation; a mismatch or installation failure enters the existing dependency-file restoration path.
+
+
+## Analyze, migration preparation, and info
+
+\`ne analyze\` checks project configuration, dependency security advisories, outdated packages, and configured project checks. In Generation 2 it also runs the Gen 3 migration scanner so projects can prepare before switching generations.
+
+\`\`\`sh
+ne analyze
+ne analyze --check
+ne info
+\`\`\`
+
+By default NE uses the detected package manager's native safe audit-fix command where supported. \`--check\` makes the analysis read-only. npm uses \`npm audit fix\`; pnpm uses \`pnpm audit --fix\`; Bun uses \`bun audit fix\`. Yarn's built-in audit is report-only, so NE does not install a third-party fixer or silently rewrite dependency declarations for Yarn. It reports the affected packages and lets you apply targeted \`yarn up\` updates.
+
+The migration scan includes \`E3M001\`, \`E3M002\`, and the known \`W3M001\`–\`W3M003\` warnings. These findings describe possible Generation 3 migration work; they do not mean the current Gen 2 project is broken. The scan is bounded and rule-based, not a guarantee of complete compatibility.
+
+NE may report malformed supported JSON configuration and compiler/type-check errors with their source locations. It never attempts to rewrite application files to repair syntax, missing imports, incorrect code, or application logic. Dependency remediation is a separate package-manager operation and is limited to the package manager's native non-major fix behavior.
+
+\`ne info\` separates local information from remote GitHub information. It reports the detected Engine version/generation, Node runtime, package manager, source branch/commit, remote branch head, and whether an applicable GitHub maintenance artifact exists.
+
+## GitHub source maintenance updates
+
+A source maintenance update lets a maintainer rebuild a package-only GitHub artifact for an already-published version without republishing or changing its npm version. At build time NE checks the generation-specific \`.github/ne-cli-hotfixes.json\` manifest and displays a terminal warning when a compatible hotfix exists:
+
+\`\`\`text
+NE SOURCE UPDATE AVAILABLE
+Version: 2.6.2
+Source: <commit-X> => <commit-Y>
+Run: ne update --source
+\`\`\`
+
+\`ne update --source\` downloads the exact official GitHub Release asset, verifies its SHA-256 digest and package identity, and installs the same Engine version from that maintenance artifact. It updates the Engine dependency/lockfile only; it does not patch application source. The updater snapshots dependency files and retains its automatic restore path if verification or installation fails.
+
+This feature cannot be retroactively added to an old npm package that never shipped the NE maintenance check. Older versions need a CLI/build entry point that understands the hotfix manifest, or a newer globally invoked NE CLI. The manifest only advertises explicitly published, version-specific artifacts; ordinary commits on \`main-2\` are never treated as hotfixes.
+
+## Local NE-CLI plugins
+
+NE-CLI plugins are separate from Engine runtime plugins. See [NE-CLI Plugin API](./ne-cli-plugins.md) for the local plugin contract, enablement, hooks, and examples.
