@@ -31,7 +31,7 @@ function packageVersion() {
 	}
 }
 
-const BUILTIN_COMMANDS = new Set(["updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help", "analyze", "info", "plugins"]);
+const BUILTIN_COMMANDS = new Set(["updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help", "analyze", "info", "plugins"]);
 
 function parseArgs(argv) {
 	const positional = [];
@@ -81,6 +81,9 @@ function parseArgs(argv) {
 					"acknowledge-compatibility": "acknowledgeCompatibility"
 				};
 				options[optionNames[name] || name] = true;
+			} else if (positional.length && !BUILTIN_COMMANDS.has(positional[0])) {
+				(options.pluginOptions ||= []).push(argument);
+				if (value === undefined && argv[index + 1] && !argv[index + 1].startsWith("-")) options.pluginOptions.push(argv[++index]);
 			} else {
 				throw diagnostics().unknownOption(argument, [
 					"--channel", "--version", "--and", "--and-terminal",
@@ -196,6 +199,7 @@ function getCommandHelp(command) {
 			"",
 			"Options",
 			"  --check              Refresh and list releases without installing",
+			"  --source             Install a verified GitHub maintenance artifact for this exact version",
 			"  --dry-run            Show the selected release; do not install",
 			"  --json               Print the release catalog as JSON",
 			"  --force              Ignore the cached catalog and refresh feeds",
@@ -643,11 +647,11 @@ async function executeCommand(root, command, subArgs, options, showWarning, plug
 		return;
 	}
 	const pluginCommand = pluginHost && pluginHost.commands.get(command);
-	if (pluginCommand) return pluginCommand.run({ root, args: subArgs, options, project: project() });
+	if (pluginCommand) return pluginCommand.run({ root, args: subArgs, options, pluginOptions: options.pluginOptions || [], project: project() });
 	if (command === "clean") return project().runClean(root, Boolean(options.dryRun));
 	if (command === "rollback") return project().rollback(root);
 	throw diagnostics().unknownCommand(command, [
-		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help",
 	]);
 }
 
@@ -665,7 +669,7 @@ async function main(argv) {
 		else {
 			const help = getCommandHelp(target);
 			if (!help) throw diagnostics().unknownCommand(target, [
-				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help",
 			]);
 			process.stdout.write(help);
 		}
@@ -676,16 +680,11 @@ async function main(argv) {
 		else {
 			const help = getCommandHelp(command);
 			if (!help) throw diagnostics().unknownCommand(command, [
-				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help",
 			]);
 			process.stdout.write(help);
 		}
 		return;
-	}
-	if (command && !["updater", "update", "dev", "build", "start", "check", "clean", "rollback"].includes(command)) {
-		throw diagnostics().unknownCommand(command, [
-			"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
-		]);
 	}
 	const usesTui = !command || command === "updater";
 	if (!usesTui) experimentalWarning(args.options);
