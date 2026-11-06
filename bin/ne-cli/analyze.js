@@ -30,15 +30,13 @@ async function runDependencyAudit(project, root, options) {
 	const manager = project.detectPackageManager(root);
 	const fix = settings.fix !== false;
 	const args = packageManagerAudit(root, manager, fix);
-	if (!args) {
-		const message = manager === "yarn"
-			? "Yarn has no built-in audit-fix command. NE ran the read-only audit and will list affected packages for targeted yarn up updates; it will not install a third-party fixer."
-			: "No safe native audit command is available for package manager: " + manager;
-		return { manager, fixed: false, skipped: true, message };
+	const selectedArgs = args || packageManagerAudit(root, manager, false);
+	if (!selectedArgs) {
+		return { manager, fixed: false, skipped: true, message: "No native dependency audit command is available for package manager: " + manager };
 	}
-
-	const command = formatCommand(manager, args);
-	process.stdout.write("[NE ANALYZE] " + (fix ? "Applying package-manager security fixes: " : "Auditing dependencies: ") + command + "\n");
+	const canFix = fix && args !== null;
+	const command = formatCommand(manager, selectedArgs);
+	process.stdout.write("[NE ANALYZE] " + (canFix ? "Applying package-manager security fixes: " : "Auditing dependencies: ") + command + "\n");
 	let result;
 	try {
 		result = await project.runProcess(manager, args, {
@@ -61,7 +59,16 @@ async function runDependencyAudit(project, root, options) {
 	}
 	const output = [result && result.stdout, result && result.stderr].filter(Boolean).join("\n");
 	if (output) process.stdout.write(output.replace(/\s+$/, "") + "\n");
-	return { manager, fixed: fix, failed: false, exitCode: 0, output };
+	return {
+		manager,
+		fixed: canFix,
+		failed: false,
+		exitCode: 0,
+		output,
+		message: manager === "yarn" && fix
+			? "Yarn's native audit command is report-only. NE did not install a third-party fixer or edit your dependency declarations; use the package-specific yarn up commands shown by your audit results."
+			: undefined,
+	};
 }
 
 async function runOutdatedCheck(project, root) {
@@ -123,6 +130,16 @@ function parseJsonConfigDiagnostics(root) {
 	return findings;
 }
 
+function generationForAnalysis(root) {
+	const pkg = readJson(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"));
+	const version = pkg && pkg.version || "";
+	const major = Number(String(version).split(".")[0]);
+	if (major === 2) return 2;
+	if (major === 3) return 3;
+	const project = readJson(path.join(root, "package.json"));
+	return project.name === "nextjs-engine" && Number(String(project.version || "").split(".")[0]) === 2 ? 2 : null;
+}
+
 async function runAnalyze(project, root, options, plugins) {
 	const settings = options || {};
 	const pluginHost = plugins || null;
@@ -143,6 +160,12 @@ async function runAnalyze(project, root, options, plugins) {
 			(result.error ? "FAILED · " + result.error : "DONE") + "\n");
 	}
 
+	let migrationFindings = [];
+	if (generationForAnalysis(root) === 2) {
+		migrationFindings = require("./migration").scanGen3Migration(root);
+		process.stdout.write("\\n" + require("./migration").formatMigrationDiagnostics(migrationFindings) + "\\n");
+	}
+
 	let checksError = null;
 	try {
 		await project.runCheck(root);
@@ -160,7 +183,7 @@ async function runAnalyze(project, root, options, plugins) {
 	if (audit.message) process.stdout.write("[NE ANALYZE] " + audit.message + "\n");
 	process.stdout.write("[NE ANALYZE] " + (errors ? "Completed with " + errors + " project error(s)." : "Analysis complete.") + "\n");
 	if (errors) throw new Error("ne analyze found project issues. Review the diagnostics above; application source files were not modified.");
-	return { findings, audit, outdated, pluginResults };
+	return { findings, audit, outdated, pluginResults, migrationFindings };
 }
 
 module.exports = {
