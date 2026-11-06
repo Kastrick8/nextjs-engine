@@ -76,11 +76,26 @@ jobs:
             const commit=git("rev-parse",tag+"^{commit}");
             const marker=JSON.parse(git("show",commit+":.package-tag.json"));
             const pkg=JSON.parse(git("show",commit+":package.json"));
-            if(marker.layout!=="npm-pack-root"||marker.tag!==tag||marker.version!==pkg.version
-              ||marker.packageName!=="@kastrick/nextjs-engine"||marker.migrationOnly!==true
-              ||pkg.name!=="@kastrick/nextjs-engine") {
-              throw new Error("Tag is not a valid migration-only package-root snapshot: "+tag);
+            const track=tag.startsWith("package-alpha.")?"alpha"
+              :tag.startsWith("package-beta.")?"beta":"stable";
+            const archiveCommit=marker.archiveCommit;
+            const versionParts=String(pkg.version||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.\d+)?$/);
+            if(!versionParts) throw new Error("Invalid package version in "+tag);
+            const [,major,minor,patch,pre]=versionParts;
+            const expectedPath=track==="stable"&&!pre
+              ?"version/"+major+"."+minor+"/version/"+(Number(patch)===0?major+"."+minor:pkg.version)
+              :track+"/version/"+major+"."+track+"/version/"+pkg.version;
+            if(marker.schemaVersion!==1||marker.layout!=="npm-pack-root"||marker.tag!==tag
+              ||marker.track!==track||marker.version!==pkg.version||marker.packagePath!==expectedPath
+              ||marker.packageName!=="@kastrick/nextjs-engine"
+              ||typeof marker.migrationOnly!=="boolean"
+              ||!/^([0-9a-f]{40})$/.test(archiveCommit||"")
+              ||git("rev-parse",commit+"^")!==archiveCommit
+              ||pkg.name!=="@kastrick/nextjs-engine"||pkg.private===true
+              ||git("show",commit+":index.ts").trim()!=='export * from "./engine";') {
+              throw new Error("Tag is not a valid package-root snapshot with verified provenance: "+tag);
             }
+            git("cat-file","-e",commit+":engine/index.ts");
             const roots=git("ls-tree","--name-only",commit).split("\n");
             if(roots.includes("version")||roots.includes("alpha")||roots.includes("beta")||roots.includes(".github")) {
               throw new Error("Archive repository directories leaked into package tag "+tag);
