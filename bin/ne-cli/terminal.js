@@ -161,7 +161,7 @@ function renderReleaseList(selected, catalog, context) {
 	}
 	rows.push("");
 	rows.push("Move: arrows / W S    Inspect: Enter / E    Back/Quit: Esc / Q");
-	return frame("ne › updater  [PLAY STORE]", rows);
+	return frame("ne › updater  [RELEASE CATALOG]", rows);
 }
 
 function renderReleaseDetails(release, context, safetyReport) {
