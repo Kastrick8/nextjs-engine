@@ -646,7 +646,7 @@ jobs:
           const marker=JSON.parse(fs.readFileSync(file,"utf8"));
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"||marker.packagePath!==TARGET||marker.sourceCommit!==sourceCommit
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==process.env.TARGET||marker.sourceCommit!==sourceCommit
             ||marker.archiveCommit!==archiveCommit||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Generated package-root marker does not match this release.");
           }
@@ -667,7 +667,7 @@ jobs:
           const marker=JSON.parse(fs.readFileSync(file,"utf8"));
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"||marker.packagePath!==DIRECTORY||marker.sourceCommit!==sourceCommit
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==process.env.DIRECTORY||marker.sourceCommit!==sourceCommit
             ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
             ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Existing immutable package tag has different or unverified provenance.");
@@ -1158,7 +1158,7 @@ jobs:
           const marker=JSON.parse(fs.readFileSync(file,"utf8"));
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
-            ||marker.layout!=="npm-pack-root"||marker.packagePath!==DIRECTORY||marker.sourceCommit!==sourceCommit
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==process.env.DIRECTORY||marker.sourceCommit!==sourceCommit
             ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
             ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Existing immutable prerelease tag has different or unverified provenance.");
@@ -1417,7 +1417,7 @@ jobs:
         run: node scripts/gen3-assert-green-commit.js
 
       - name: Note preserved prerelease without asserted source provenance
-        if: \${{ (steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta') && (steps.snapshot.outputs.source_commit == '' || steps.snapshot.outputs.source_branch == '') }}
+        if: ${{ (steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta') && (steps.snapshot.outputs.source_commit == '' || steps.snapshot.outputs.source_branch == '') }}
         run: |
           echo "This historical prerelease tag has no verified source branch/commit. Its package-only tag is retained, but no new GitHub Release artifact is created and no current CI status is inferred." >> "$GITHUB_STEP_SUMMARY"
 
