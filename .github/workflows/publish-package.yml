@@ -1155,6 +1155,21 @@ jobs:
             throw new Error("Existing immutable prerelease tag has different or unverified provenance.");
           }
           NODE
+              for file in package.json index.ts engine/index.ts; do
+                git cat-file -e "$EXISTING_COMMIT:$file" || { echo "Existing package-root tag is missing $file." >&2; exit 1; }
+              done
+              git show "$EXISTING_COMMIT:package.json" > "$RUNNER_TEMP/existing-package.json"
+              git show "$EXISTING_COMMIT:index.ts" > "$RUNNER_TEMP/existing-index.ts"
+              node - "$RUNNER_TEMP/existing-package.json" "$RUNNER_TEMP/existing-index.ts" "$VERSION" <<'NODE'
+          const fs=require("node:fs");
+          const [manifestPath,indexPath,version]=process.argv.slice(2);
+          const pkg=JSON.parse(fs.readFileSync(manifestPath,"utf8"));
+          const index=fs.readFileSync(indexPath,"utf8").trim();
+          if(pkg.name!=="@kastrick/nextjs-engine"||pkg.version!==version||pkg.private===true
+            ||index!=='export * from "./engine";') {
+            throw new Error("Existing package-root tag does not contain the expected installable package.");
+          }
+          NODE
               EXISTING_ARCHIVE_COMMIT="$(node - "$RUNNER_TEMP/existing-package-tag.json" <<'NODE'
           const fs=require("node:fs");
           process.stdout.write(JSON.parse(fs.readFileSync(process.argv[2],"utf8")).archiveCommit);
