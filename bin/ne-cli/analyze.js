@@ -130,13 +130,73 @@ function parseJsonConfigDiagnostics(root) {
 	return findings;
 }
 
+function scanJavaScriptSyntax(root, options) {
+	const settings = options || {};
+	const roots = ["app", "src/app", "pages", "src/pages", "components", "src/components", "lib", "src/lib"];
+	const skipped = new Set([".git", ".next", "dist", "node_modules", ".nextjs-engine", "coverage"]);
+	const files = [];
+	const maxFiles = Number.isInteger(settings.maxFiles) ? Math.max(1, Math.min(settings.maxFiles, 1000)) : 500;
+
+	for (const relative of roots) {
+		const directory = path.resolve(root, relative);
+		const inside = path.relative(root, directory);
+		if (!inside || inside.startsWith("..") || path.isAbsolute(inside)) continue;
+		let stat;
+		try { stat = fs.statSync(directory); } catch { continue; }
+		if (!stat.isDirectory()) continue;
+		const pending = [directory];
+		while (pending.length && files.length < maxFiles) {
+			const current = pending.pop();
+			let entries;
+			try { entries = fs.readdirSync(current, { withFileTypes: true }); } catch { continue; }
+			for (const entry of entries) {
+				const file = path.join(current, entry.name);
+				if (entry.isDirectory()) {
+					if (!skipped.has(entry.name)) pending.push(file);
+					continue;
+				}
+				if (!entry.isFile() || !/\.(?:js|cjs|mjs)$/i.test(entry.name)) continue;
+				try {
+					if (fs.statSync(file).size <= 1024 * 1024) files.push(file);
+				} catch {}
+				if (files.length >= maxFiles) break;
+			}
+		}
+	}
+
+	const { spawnSync } = require("node:child_process");
+	const findings = [];
+	for (const file of [...new Set(files)]) {
+		const result = spawnSync(process.execPath, ["--check", file], {
+			cwd: root,
+			encoding: "utf8",
+			timeout: 5000,
+			maxBuffer: 128 * 1024,
+			windowsHide: true,
+		});
+		if (!result.error && result.status === 0) continue;
+		const output = [result.stderr, result.stdout, result.error && result.error.message].filter(Boolean).join("\n").trim();
+		const location = output.match(/:(\d+)(?::\d+)?(?:\r?\n|:)/);
+		findings.push({
+			file: path.relative(root, file).split(path.sep).join("/"),
+			line: location ? Number(location[1]) : null,
+			column: null,
+			code: "NEA2001",
+			severity: "error",
+			message: output || "Node.js could not complete the syntax check.",
+			recommendation: "Fix the reported JavaScript syntax in this file. NE reports the error but never rewrites application source code.",
+		});
+	}
+	return findings;
+}
+
 async function runAnalyze(project, root, options, plugins) {
 	const settings = options || {};
 	const pluginHost = plugins || null;
 	process.stdout.write("[NE ANALYZE] Inspecting project configuration, dependencies, and available checks.\n");
 
 	await require("./plugins").runHooks(pluginHost, "beforeAnalyze", { root, options: settings });
-	const findings = parseJsonConfigDiagnostics(root);
+	const findings = [...parseJsonConfigDiagnostics(root), ...scanJavaScriptSyntax(root)];
 	for (const finding of findings) {
 		const location = finding.file + (finding.line ? ":" + finding.line + ":" + finding.column : "");
 		process.stderr.write("[NE ANALYZE] ERROR " + finding.code + " " + location + "\n  " + finding.message + "\n  " + finding.recommendation + "\n");
@@ -161,7 +221,7 @@ async function runAnalyze(project, root, options, plugins) {
 	await require("./plugins").runHooks(pluginHost, "afterAnalyze", {
 		root, options: settings, audit, outdated, findings, pluginResults, checksError,
 	});
-	const errors = findings.filter((item) => item.severity === "error").length +
+	const errors = findings.filter((item) => item.severity === "error").length + (audit.failed ? 1 : 0) +
 		(pluginResults.filter((item) => item.error).length) + (checksError ? 1 : 0);
 	if (audit.failed) process.stdout.write("[NE ANALYZE] Dependency audit reported vulnerabilities or could not complete; review the audit output above.\n");
 	if (audit.message) process.stdout.write("[NE ANALYZE] " + audit.message + "\n");
@@ -175,5 +235,6 @@ module.exports = {
 	runDependencyAudit,
 	runOutdatedCheck,
 	parseJsonConfigDiagnostics,
+	scanJavaScriptSyntax,
 	runAnalyze,
 };
