@@ -367,15 +367,27 @@ jobs:
           const fs=require("node:fs");
           const [file,version,track,tag,sourceCommit]=process.argv.slice(2);
           const marker=JSON.parse(fs.readFileSync(file,"utf8"));
+          const expectedPath=process.env.TARGET;
           if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
             ||marker.version!==version||marker.track!==track||marker.tag!==tag
             ||marker.layout!=="npm-pack-root"||marker.sourceCommit!==sourceCommit
-            ||marker.packagePath!==DIR
+            ||marker.packagePath!==expectedPath
             ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
             ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
             throw new Error("Existing immutable package tag has different or unverified provenance; refusing to move it.");
           }
           NODE
+              EXISTING_ARCHIVE_COMMIT="$(node - "$RUNNER_TEMP/existing-package-tag.json" <<'NODE'
+          const fs=require("node:fs");
+          process.stdout.write(JSON.parse(fs.readFileSync(process.argv[2],"utf8")).archiveCommit);
+          NODE
+          )"
+              [[ "$(git rev-parse "$EXISTING_COMMIT^")" == "$EXISTING_ARCHIVE_COMMIT" ]] || {
+                echo "Existing package-root tag is not parented by its recorded archive snapshot." >&2; exit 1;
+              }
+              git merge-base --is-ancestor "$EXISTING_ARCHIVE_COMMIT" refs/remotes/origin/package/main || {
+                echo "Existing package-root tag provenance is not part of package/main." >&2; exit 1;
+              }
               PACKAGE_ROOT_SHA="$EXISTING_COMMIT"
             else
               git cat-file -e "$EXISTING_COMMIT:$TARGET/package.json" || {
