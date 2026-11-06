@@ -30,18 +30,16 @@ async function runDependencyAudit(project, root, options) {
 	const manager = project.detectPackageManager(root);
 	const fix = settings.fix !== false;
 	const args = packageManagerAudit(root, manager, fix);
-	if (!args) {
-		const message = manager === "yarn"
-			? "Yarn has no built-in audit-fix command. NE ran the read-only audit and will list affected packages for targeted yarn up updates; it will not install a third-party fixer."
-			: "No safe native audit command is available for package manager: " + manager;
-		return { manager, fixed: false, skipped: true, message };
+	const selectedArgs = args || packageManagerAudit(root, manager, false);
+	if (!selectedArgs) {
+		return { manager, fixed: false, skipped: true, message: "No native dependency audit command is available for package manager: " + manager };
 	}
-
-	const command = formatCommand(manager, args);
+	const canFix = fix && args !== null;
+	const command = formatCommand(manager, selectedArgs);
 	process.stdout.write("[NE ANALYZE] " + (fix ? "Applying package-manager security fixes: " : "Auditing dependencies: ") + command + "\n");
 	let result;
 	try {
-		result = await project.runProcess(manager, args, {
+		result = await project.runProcess(manager, selectedArgs, {
 			cwd: root,
 			captureOutput: true,
 			quietNpmNotices: true,
@@ -61,7 +59,16 @@ async function runDependencyAudit(project, root, options) {
 	}
 	const output = [result && result.stdout, result && result.stderr].filter(Boolean).join("\n");
 	if (output) process.stdout.write(output.replace(/\s+$/, "") + "\n");
-	return { manager, fixed: fix, failed: false, exitCode: 0, output };
+	return {
+		manager,
+		fixed: canFix,
+		failed: false,
+		exitCode: 0,
+		output,
+		message: manager === "yarn" && fix
+			? "Yarn's built-in audit is report-only. NE did not install a third-party fixer or silently rewrite package declarations; use the package-specific yarn up command after reviewing the report."
+			: undefined,
+	};
 }
 
 async function runOutdatedCheck(project, root) {
