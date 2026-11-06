@@ -1100,13 +1100,13 @@ jobs:
           fi
 
       - name: Create or verify immutable package-root prerelease tag
-        if: ${ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
+        if: ${{ steps.snapshot.outputs.track == 'alpha' || steps.snapshot.outputs.track == 'beta' }}
         env:
-          TAG_NAME: ${ steps.snapshot.outputs.version_tag }}
-          VERSION: ${ steps.snapshot.outputs.version }}
-          TRACK: ${ steps.snapshot.outputs.track }}
-          DIRECTORY: ${ steps.snapshot.outputs.directory }}
-          SOURCE_SHA: ${ steps.snapshot.outputs.source_commit }}
+          TAG_NAME: ${{ steps.snapshot.outputs.version_tag }}
+          VERSION: ${{ steps.snapshot.outputs.version }}
+          TRACK: ${{ steps.snapshot.outputs.track }}
+          DIRECTORY: ${{ steps.snapshot.outputs.directory }}
+          SOURCE_SHA: ${{ steps.snapshot.outputs.source_commit }}
         shell: bash
         run: |
           set -euo pipefail
