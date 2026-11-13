@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const diagnostics = require("./diagnostics");
+const { readRegularFileNoFollow } = require("./file-system");
 const presentation = require("./presentation");
 const readline = require("node:readline/promises");
 const {
@@ -465,9 +466,12 @@ function readInstalledVersion(root) {
 		const installed = JSON.parse(require("node:fs").readFileSync(installedPath, "utf8"));
 		if (installed.name === PACKAGE_NAME) return installed.version || "unknown";
 	} catch {}
-	const pkg = require("node:fs").existsSync(path.join(root, "package.json"))
-		? require("node:fs").readFileSync(path.join(root, "package.json"), "utf8")
-		: "{}";
+	let pkg = "{}";
+	try {
+		pkg = readRegularFileNoFollow(path.join(root, "package.json")).content.toString("utf8");
+	} catch (error) {
+		if (!error || error.code !== "ENOENT") return "unknown";
+	}
 	try {
 		const parsed = JSON.parse(pkg);
 		return parsed.name === "nextjs-engine" ? (parsed.version || "unknown") : "not installed";
