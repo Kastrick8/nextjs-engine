@@ -36,7 +36,7 @@ async function runDependencyAudit(project, root, options) {
 	}
 	const canFix = fix && args !== null;
 	const command = formatCommand(manager, selectedArgs);
-	process.stdout.write("[NE ANALYZE] " + (fix ? "Applying package-manager security fixes: " : "Auditing dependencies: ") + command + "\n");
+	process.stdout.write("[NE ANALYZE] " + (canFix ? "Applying package-manager security fixes: " : "Auditing dependencies: ") + command + "\n");
 	let result;
 	try {
 		result = await project.runProcess(manager, selectedArgs, {
