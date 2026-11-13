@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { compareVersions, parseVersion } = require("./channels");
+const { readRegularFileNoFollow } = require("./file-system");
 
 const SOURCE_ROOTS = ["app", "src/app", "pages", "src/pages", "components", "src/components", "lib", "src/lib"];
 const SKIP_DIRS = new Set([".git", ".next", "dist", "node_modules", ".nextjs-engine", "coverage", ".turbo"]);
@@ -42,9 +43,8 @@ function generationForRelease(release) {
 
 function readJson(file) {
 	try {
-		const stats = fs.lstatSync(file);
-		if (!stats.isFile() || stats.isSymbolicLink() || stats.size > MAX_FILE_BYTES) return null;
-		return JSON.parse(fs.readFileSync(file, "utf8"));
+		const opened = readRegularFileNoFollow(file, { maxBytes: MAX_FILE_BYTES });
+		return JSON.parse(opened.content.toString("utf8"));
 	} catch {
 		return null;
 	}
