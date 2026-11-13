@@ -137,10 +137,7 @@ function sourceFiles(root) {
 					continue;
 				}
 				if (!entry.isFile() || !/\.(?:cjs|mjs|js|jsx|ts|tsx)$/i.test(entry.name)) continue;
-				try {
-					const stats = fs.lstatSync(file);
-					if (stats.isFile() && !stats.isSymbolicLink() && stats.size <= MAX_FILE_BYTES) found.push(file);
-				} catch {}
+				found.push(file);
 				if (found.length >= MAX_FILES) break;
 			}
 		}
@@ -169,7 +166,9 @@ function inspectSources(root, targetGeneration) {
 	const files = sourceFiles(root);
 	for (const file of files) {
 		let raw;
-		try { raw = fs.readFileSync(file, "utf8"); } catch { continue; }
+		try {
+			raw = readRegularFileNoFollow(file, { maxBytes: MAX_FILE_BYTES }).content.toString("utf8");
+		} catch { continue; }
 		const source = maskComments(raw);
 		const code = maskStrings(source);
 		const relative = path.relative(root, file).split(path.sep).join("/");
