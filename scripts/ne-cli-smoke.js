@@ -80,6 +80,8 @@ async function main() {
 			assert.throws(() => pluginApi.loadPlugins(root), /cannot replace built-in command 'build'/i);
 
 			assert.deepEqual(analysis.packageManagerAudit(root, "npm", true), ["audit", "fix"]);
+			assert.deepEqual(analysis.pluginCheckStatus({ result: { status: "warning", message: "Review this finding" } }), { status: "warning", message: "Review this finding" });
+			assert.deepEqual(analysis.pluginCheckStatus({ result: { status: "error", message: "Fix this finding" } }), { status: "error", message: "Fix this finding" });
 			assert.deepEqual(analysis.packageManagerAudit(root, "npm", false), ["audit"]);
 			assert.deepEqual(analysis.packageManagerAudit(root, "pnpm", true), ["audit", "--fix", "--audit-level", "low"]);
 			assert.deepEqual(analysis.packageManagerAudit(root, "bun", true), ["audit", "fix"]);
