@@ -2,6 +2,8 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const Module = require("node:module");
+const { readRegularFileNoFollow } = require("./file-system");
 
 const API_VERSION = 1;
 const PLUGIN_DIRECTORY = path.join(".nextjs-engine", "plugins");
@@ -52,23 +54,28 @@ function loadPlugins(root) {
 			throw new Error("Invalid NE CLI plugin identifier in neCliPlugins: " + String(entry));
 		}
 		const pluginFile = path.join(pluginRoot, entry + ".cjs");
-		let stat;
-		try { stat = fs.lstatSync(pluginFile); }
-		catch { throw new Error("Enabled NE CLI plugin '" + entry + "' was not found at " + path.relative(root, pluginFile) + "."); }
-		if (!stat.isFile() || stat.isSymbolicLink()) {
-			throw new Error("NE CLI plugin '" + entry + "' must be a regular .cjs file; symbolic links are not accepted.");
-		}
-		const actualPath = fs.realpathSync(pluginFile);
-		if (path.dirname(actualPath) !== fs.realpathSync(pluginRoot)) {
-			throw new Error("NE CLI plugin '" + entry + "' resolves outside " + PLUGIN_DIRECTORY + ".");
-		}
-
 		let plugin;
 		try {
-			delete require.cache[require.resolve(actualPath)];
-			plugin = require(actualPath);
+			// Compile the bytes read from one no-follow descriptor. Do not validate a
+			// pathname and then ask require() to reopen potentially replaced content.
+			const source = readRegularFileNoFollow(pluginFile).content.toString("utf8");
+			const pluginModule = new Module(pluginFile, module);
+			pluginModule.filename = pluginFile;
+			pluginModule.paths = Module._nodeModulePaths(path.dirname(pluginFile));
+			require.cache[pluginFile] = pluginModule;
+			try {
+				pluginModule._compile(source, pluginFile);
+				pluginModule.loaded = true;
+				plugin = pluginModule.exports;
+			} catch (error) {
+				delete require.cache[pluginFile];
+				throw error;
+			}
 		} catch (error) {
-			throw new Error("Could not load NE CLI plugin '" + entry + "': " + error.message);
+			if (error && error.code === "ENOENT") {
+				throw new Error("Enabled NE CLI plugin '" + entry + "' was not found at " + path.relative(root, pluginFile) + ".");
+			}
+			throw new Error("Could not load safe NE CLI plugin '" + entry + "': " + error.message);
 		}
 		if (!plugin || typeof plugin !== "object" || plugin.apiVersion !== API_VERSION ||
 			typeof plugin.register !== "function") {
@@ -121,7 +128,7 @@ function loadPlugins(root) {
 
 		try { plugin.register(api); }
 		catch (error) { throw new Error("NE CLI plugin '" + pluginName + "' failed during registration: " + error.message); }
-		host.plugins.push({ name: pluginName, version: String(plugin.version || "unknown"), file: path.relative(root, actualPath) });
+		host.plugins.push({ name: pluginName, version: String(plugin.version || "unknown"), file: path.relative(root, pluginFile) });
 	}
 	return host;
 }
