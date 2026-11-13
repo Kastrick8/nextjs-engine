@@ -130,6 +130,16 @@ function parseJsonConfigDiagnostics(root) {
 	return findings;
 }
 
+function pluginCheckStatus(item) {
+	if (item && item.error) return { status: "error", message: item.error };
+	const result = item && item.result;
+	const status = result && ["ok", "warning", "error"].includes(result.status) ? result.status : "ok";
+	const message = result && typeof result.message === "string"
+		? result.message
+		: status === "ok" ? "passed" : "Plugin check returned " + status + ".";
+	return { status, message };
+}
+
 async function runAnalyze(project, root, options, plugins) {
 	const settings = options || {};
 	const pluginHost = plugins || null;
@@ -146,8 +156,9 @@ async function runAnalyze(project, root, options, plugins) {
 	const outdated = await runOutdatedCheck(project, root);
 	const pluginResults = await require("./plugins").runAnalyzeChecks(pluginHost, { root, options: settings, project });
 	for (const result of pluginResults) {
+		const status = pluginCheckStatus(result);
 		process.stdout.write("[NE ANALYZE] Plugin check " + result.plugin + "/" + result.id + ": " +
-			(result.error ? "FAILED · " + result.error : "DONE") + "\n");
+			status.status.toUpperCase() + " · " + status.message + "\n");
 	}
 
 	let checksError = null;
@@ -162,7 +173,7 @@ async function runAnalyze(project, root, options, plugins) {
 		root, options: settings, audit, outdated, findings, pluginResults, checksError,
 	});
 	const errors = findings.filter((item) => item.severity === "error").length + (audit.failed ? 1 : 0) +
-		(pluginResults.filter((item) => item.error).length) + (checksError ? 1 : 0);
+		(pluginResults.filter((item) => pluginCheckStatus(item).status === "error").length) + (checksError ? 1 : 0);
 	if (audit.failed) process.stdout.write("[NE ANALYZE] Dependency audit reported vulnerabilities or could not complete; review the audit output above.\n");
 	if (audit.message) process.stdout.write("[NE ANALYZE] " + audit.message + "\n");
 	process.stdout.write("[NE ANALYZE] " + (errors ? "Completed with " + errors + " project error(s)." : "Analysis complete.") + "\n");
@@ -172,6 +183,7 @@ async function runAnalyze(project, root, options, plugins) {
 
 module.exports = {
 	packageManagerAudit,
+	pluginCheckStatus,
 	runDependencyAudit,
 	runOutdatedCheck,
 	parseJsonConfigDiagnostics,
