@@ -406,9 +406,9 @@ function restoreDependencyFiles(root, backup) {
 		const info = details[relative] || { exists: false };
 		if (info.exists) {
 			const source = path.join(directory, relative);
-			if (!fs.existsSync(source)) throw new Error("Rollback backup is missing " + relative + ".");
+			const snapshot = readRegularFileNoFollow(source);
 			fs.mkdirSync(path.dirname(target), { recursive: true });
-			fs.copyFileSync(source, target);
+			writeFileAtomically(target, snapshot.content, { mode: snapshot.mode });
 		} else {
 			fs.rmSync(target, { force: true });
 		}
@@ -650,8 +650,13 @@ function normalizeArtifactDependency(root, release, artifact) {
 	let lockCount = 0;
 	for (const name of lockFilesByManager[manager] || []) {
 		const file = path.join(root, name);
-		if (!fs.existsSync(file)) continue;
-		const text = fs.readFileSync(file, "utf8");
+		let text;
+		try {
+			text = readRegularFileNoFollow(file).content.toString("utf8");
+		} catch (error) {
+			if (error && error.code === "ENOENT") continue;
+			throw error;
+		}
 		let updated;
 		if (name === "package-lock.json" || name === "npm-shrinkwrap.json") {
 			const lock = JSON.parse(text);
