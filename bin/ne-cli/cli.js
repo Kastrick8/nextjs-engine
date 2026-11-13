@@ -31,7 +31,7 @@ function packageVersion() {
 	}
 }
 
-const BUILTIN_COMMANDS = new Set(["updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help", "analyze", "info", "plugins"]);
+const BUILTIN_COMMANDS = new Set(["updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help"]);
 
 function parseArgs(argv) {
 	const positional = [];
@@ -82,8 +82,9 @@ function parseArgs(argv) {
 				};
 				options[optionNames[name] || name] = true;
 			} else if (positional.length && !BUILTIN_COMMANDS.has(positional[0])) {
+				// Plugin option schemas belong to the plugin; preserve unknown options
+				// without consuming the next positional argument.
 				(options.pluginOptions ||= []).push(argument);
-				if (value === undefined && argv[index + 1] && !argv[index + 1].startsWith("-")) options.pluginOptions.push(argv[++index]);
 			} else {
 				throw diagnostics().unknownOption(argument, [
 					"--channel", "--version", "--and", "--and-terminal",
