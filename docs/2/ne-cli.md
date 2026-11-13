@@ -191,3 +191,17 @@ To make the normal project build script use the NE build flow (including the Git
 ```
 
 Then `npm run build`, `pnpm build`, `yarn build`, or `bun run build` invokes NE, which runs the configured checks and the local Next.js production build. NE does not silently rewrite a consuming project's `package.json`; choose this integration explicitly. The repository's own `build` script already delegates to `node ./bin/ne.js build`.
+
+
+### Publishing a maintenance artifact (maintainers)
+
+The consumer/update path is implemented, but publishing is currently a maintainer-driven operation; the manifest is intentionally empty until a real artifact is released.
+
+1. Check out the exact \`main-2\` commit containing the fix. Prepare a package-only archive from that source, with the package manifest version set to the already-published target version (for example, \`2.6.2\`). Do not publish it to npm.
+2. Run \`npm pack --ignore-scripts\` and name the resulting asset \`nextjs-engine-2.6.2.tgz\`.
+3. Compute its SHA-256 digest.
+4. Create an official GitHub Release with tag \`ne-hotfix-2-<id>\` and upload that exact asset.
+5. Append an entry to \`.github/ne-cli-hotfixes.json\` on \`main-2\`, including the target version, \`fromCommit\`, fixed \`toCommit\`, SHA-256, exact release asset URL, and a short summary. Set \`compatibleVersions\` to include the exact \`version\`.
+6. Review and merge the manifest change. Do not add an entry until the release asset exists and its digest has been independently checked.
+
+The Gen 3 procedure is the same on \`main-3\`, using generation \`3\` and a \`ne-hotfix-3-<id>\` release tag. Keep each manifest generation-specific. The updater rejects non-official asset URLs, malformed commit/digest values, mismatched package identity, and a package whose version differs from the installed version.
