@@ -324,7 +324,8 @@ function getCommandHelp(command) {
 }
 
 function loadPluginCommandHelp(command) {
-	const root = findProjectRoot(process.cwd());
+	let root;
+	try { root = findProjectRoot(process.cwd()); } catch { return null; }
 	const host = require("./plugins").loadPlugins(root);
 	const definition = host.commands.get(command);
 	return definition && definition.help ? String(definition.help).replace(/\n?$/, "\n") : null;
