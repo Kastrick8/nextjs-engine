@@ -168,8 +168,7 @@ function scanGen3Migration(root, options) {
 	return diagnostics;
 }
 
-function formatMigrationDiagnostics(diagnostics, options) {
-	const settings = options || {};
+function formatMigrationDiagnostics(diagnostics) {
 	const lines = ["GEN 2 → GEN 3 MIGRATION ANALYSIS", ""];
 	const items = Array.isArray(diagnostics) ? diagnostics : [];
 	if (!items.length) {
