@@ -164,18 +164,19 @@ function cleanTargets(root) {
 		path.join(".nextjs-engine", ".cache")]);
 	for (const configName of ["next.config.js", "next.config.cjs", "next.config.mjs", "next.config.ts"]) {
 		const configPath = path.join(root, configName);
-		if (!fs.existsSync(configPath)) continue;
 		try {
-			const text = fs.readFileSync(configPath, "utf8");
+			const text = readRegularFileNoFollow(configPath, { maxBytes: 1024 * 1024 }).content.toString("utf8");
 			const match = text.match(/\bdistDir\s*:\s*["']([^"']+)["']/);
 			if (match) {
 				if (path.isAbsolute(match[1])) throw new Error("next.config distDir must be relative before ne clean can remove it safely.");
 				targets.add(match[1]);
 			}
+			break;
 		} catch (error) {
+			if (error && error.code === "ENOENT") continue;
 			if (error && /distDir/.test(error.message || "")) throw error;
+			break;
 		}
-		break;
 	}
 	return Array.from(targets);
 }
