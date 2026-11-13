@@ -29,6 +29,8 @@ function createTempDirectory(prefix) {
 async function main() {
 	await require("./ne-cli-update-safety-smoke").run();
 
+	assert.deepEqual(cli.parseArgs(["project-report", "--verbose", "target"]).positional, ["project-report", "target"]);
+	assert.deepEqual(cli.parseArgs(["project-report", "--verbose", "target"]).options.pluginOptions, ["--verbose"]);
 	// The NE-CLI extension API is local to .nextjs-engine and independent from Engine runtime plugins.
 	{
 		const pluginApi = require("../bin/ne-cli/plugins");
