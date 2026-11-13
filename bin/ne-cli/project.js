@@ -373,9 +373,18 @@ function captureDependencyFiles(root) {
 	try {
 		for (const relative of DEPENDENCY_FILES) {
 			const source = path.join(root, relative);
-			const exists = fs.existsSync(source);
-			files[relative] = { exists };
-			if (exists) fs.copyFileSync(source, path.join(directory, relative));
+			let snapshot;
+			try {
+				snapshot = readRegularFileNoFollow(source);
+			} catch (error) {
+				if (error && error.code === "ENOENT") {
+					files[relative] = { exists: false };
+					continue;
+				}
+				throw error;
+			}
+			files[relative] = { exists: true };
+			writeFileAtomically(path.join(directory, relative), snapshot.content, { mode: snapshot.mode });
 		}
 		writeFileAtomically(path.join(directory, "backup.json"), JSON.stringify({ files }, null, 2) + "\n", { mode: 0o600 });
 		// Successful rollback snapshots are intentionally kept until `ne clean`/rotation removes them.
@@ -569,10 +578,17 @@ function verifyInstalledVersion(root, release, artifact, expectedGeneration) {
 		}
 	}
 	if (artifact) {
-		const lockPath = ["npm-shrinkwrap.json", "package-lock.json"].map((name) => path.join(root, name))
-			.find((file) => fs.existsSync(file));
-		if (lockPath) {
-			const lock = readJson(lockPath, {});
+		let lock = null;
+		for (const name of ["npm-shrinkwrap.json", "package-lock.json"]) {
+			try {
+				lock = JSON.parse(readRegularFileNoFollow(path.join(root, name)).content.toString("utf8"));
+				break;
+			} catch (error) {
+				if (error && error.code === "ENOENT") continue;
+				throw error;
+			}
+		}
+		if (lock) {
 			const entry = (lock.packages && lock.packages["node_modules/" + PACKAGE_NAME]) ||
 				(lock.dependencies && lock.dependencies[PACKAGE_NAME]);
 			if (!entry || !entry.integrity || !entry.integrity.split(/\s+/).includes("sha512-" + artifact.sha512)) {
