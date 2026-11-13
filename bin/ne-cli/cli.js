@@ -696,7 +696,12 @@ async function main(argv) {
 	}
 	const usesTui = !command || command === "updater";
 	if (!usesTui) experimentalWarning(args.options);
-	const root = project().findProjectRoot(process.cwd());
+	let root;
+	try { root = project().findProjectRoot(process.cwd()); }
+	catch (error) {
+		if (command && !BUILTIN_COMMANDS.has(command)) throw diagnostics().unknownCommand(command, [...BUILTIN_COMMANDS]);
+		throw error;
+	}
 	const pluginHost = require("./plugins").loadPlugins(root);
 	const knownCommand = BUILTIN_COMMANDS.has(command);
 	if (command && !knownCommand && !pluginHost.commands.has(command)) throw diagnostics().unknownCommand(command, [...BUILTIN_COMMANDS, ...pluginHost.commands.keys()]);
