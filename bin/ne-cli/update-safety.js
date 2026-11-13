@@ -122,9 +122,8 @@ function sourceFiles(root) {
 		const directory = path.resolve(root, relative);
 		const rel = path.relative(root, directory);
 		if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) continue;
-		let directoryStats;
-		try { directoryStats = fs.lstatSync(directory); } catch { continue; }
-		if (!directoryStats.isDirectory() || directoryStats.isSymbolicLink()) continue;
+		// readdirSync is the single path-based operation here; avoid a separate
+		// lstat-then-reopen check that can race with a directory replacement.
 		const pending = [directory];
 		while (pending.length && found.length < MAX_FILES) {
 			const current = pending.pop();
@@ -221,11 +220,8 @@ function inspectSources(root, targetGeneration) {
 		const legacyDirectory = path.join(root, ".EngineAPIConfig");
 		let legacyInputs = false;
 		try {
-			const stats = fs.lstatSync(legacyDirectory);
-			if (stats.isDirectory() && !stats.isSymbolicLink()) {
-				legacyInputs = fs.readdirSync(legacyDirectory, { withFileTypes: true })
-					.some((entry) => entry.isFile() && entry.name.endsWith(".api"));
-			}
+			legacyInputs = fs.readdirSync(legacyDirectory, { withFileTypes: true })
+				.some((entry) => entry.isFile() && entry.name.endsWith(".api"));
 		} catch {}
 		const legacyOutput = isRegularFileNoFollow(path.join(root, ".engine-api-compiled.json"));
 		if (legacyInputs || legacyOutput) addFinding(warnings, {
