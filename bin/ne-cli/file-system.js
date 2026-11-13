@@ -94,7 +94,7 @@ function writeFileAtomically(filename, contents, options) {
 	let mode = settings.mode;
 	if (mode === undefined) {
 		try {
-			mode = fs.statSync(destination).mode & 0o777;
+			mode = withRegularFileDescriptor(destination, (_descriptor, stats) => stats.mode & 0o777);
 		} catch (error) {
 			if (!error || error.code !== "ENOENT") throw error;
 			mode = 0o600;
