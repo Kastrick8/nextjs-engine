@@ -92,3 +92,66 @@ Research Companion skills guided the audit and note format. This host session di
 - Source-backed limits recorded in the guide: Engine3D uses unlit MeshBasicMaterial/LineBasicMaterial; surface strokes and strokeWidth are not applied; only rim shading adds a back-face shell; custom environment currently sets a solid background color; there is no public light/shadow/HDRI/sky/floor/texture asset API in this renderer; SVG-like paths support M/L/H/V/C/Q/Z with curves flattened to segments.
 - Factory-created mesh metric methods close over the vertex/index arrays supplied at creation. The guide recommends creating a fresh mesh from a factory when replacing geometry rather than mutating the typed-array fields on an existing factory-created mesh.
 - Connector edits only; no local clone, type-check, build or documentation-site preview was available because the container still cannot resolve GitHub DNS.
+
+
+## NE-CLI updater safety and PR audit — 2026-11-04
+
+### Scope and branches
+- Repository: `kastrick8/nextjs-engine`.
+- Generation 3 updater safety: PR [#93](https://github.com/kastrick8/nextjs-engine/pull/93), branch `fix/ne-cli-update-safety-main3-ready`, target `main-3`.
+- Generation 2 updater safety: PR [#94](https://github.com/kastrick8/nextjs-engine/pull/94), branch `fix/ne-cli-update-safety-main2-ready`, target `main-2`.
+- The safety branches contain the respective CLI help/runtime fixes from PRs #88 and #89 as ancestors. Compare result: #88 → #93 is 19 commits ahead / 0 behind; #89 → #94 is 19 ahead / 0 behind. Merge the help PR first, then the safety PR after refreshing its CI.
+
+### Safety behavior verified in source
+- Installed generation is read from the installed package manifest, with managed NE state used only when it matches that installed version; generation falls back to SemVer major when needed.
+- Selected generation prefers the release source branch (`main-2` / `main-3`) and falls back to version metadata.
+- SemVer downgrade, generation change, static compatibility findings, and explicit non-interactive acknowledgement flags are enforced before dependency changes.
+- Known Gen 3 incompatibilities `RawComponentRenderer` and schema `type: "raw"` block installation. The schema scan checks every `type:` key and reports remediation guidance.
+- Unknown target/installed generation is fail-closed. After the package-manager install, NE verifies exact package name/version and expected generation; mismatch triggers the existing restore path.
+- TUI review requires a separate acknowledgement; `--yes` alone does not bypass risk flags or hard blockers.
+
+### Scope limitation
+- Preflight is a bounded static source scan (up to 500 files / 1 MiB each in configured app/pages/components/lib roots). It is not a full dependency-tree, npm audit, TypeScript, peer-dependency, or runtime compatibility proof. No such checks are claimed as part of this PR.
+- Local repository checkout and package execution were not available: previous shell attempt could not resolve GitHub DNS. Verification must rely on GitHub Actions here; do not claim a local `npm run test:cli`, build, or type-check.
+
+### Open PR audit snapshot
+- #77 and #83: independent Gen 3 EngineTheme changes; last observed workflows green, but both were behind `main-3` and need branch refresh/current-head checks. They overlap in `scripts/gen3-theme-compiler-smoke.js`; merge/retest sequentially.
+- #80: security/Code Quality remediation; keep absolutely last per maintainer instruction. Its PR description records one Code Quality annotation and CodeQL alert #70 as explicit review items.
+- #84: rolling Alpha package-root/release workflow on `main-3`; draft, downstream of package migration work.
+- #85 then #90: package dist-tag correctness, then package-only Git tag snapshots on `package/main`; #90 depends on #85. Both package archive validator workflows have passed on the audited heads.
+- #88 then #93: Generation 3 CLI runtime/help, then updater safety.
+- #89 then #94: Generation 2 CLI runtime/help, then updater safety.
+- #91/#92: closed unmerged and superseded; do not merge them. Their clean replacements are #97 (Gen 3) and #98 (Gen 2).
+- #95: default-branch package-root publish workflow; depends on #84 and the package/main helper delivered by #90. Its head was 19 commits behind its #84 base in the audit; refresh/rebase and rerun CI before considering it.
+- #55 is a stale draft with superseded EngineOverlay theme contract; #77 is the discrete replacement. Do not merge #55.
+- #96: Gen 2 manual tag seeder; base `main-2`; its runtime/browser/CodeQL checks passed. It depends on #90's shared package-root helper being merged to `package/main`.
+- #97/#98: clean Gen 3/Gen 2 package-only Git-tag installers; both are based directly on their respective main branches and their full CI matrices passed. Existing old refs still remain TAG ONLY until migration.
+- #91/#92 are closed unmerged and superseded by #97/#98.
+- Previously merged: #78, #79 and #81.
+
+### Merge order and safety
+1. Refresh #88 and #89 against current `main-3` / `main-2`; merge those CLI help/runtime fixes once their latest checks pass.
+2. Then merge #93 and #94 against their respective main branches. #94's latest checks passed 4/4. #93's latest CLI smoke, font-provider, cross-browser and CodeQL checks passed; Engine runtime CI was still running at the last poll.
+3. Refresh #77 and #83 against current `main-3`; merge them sequentially because both touch `scripts/gen3-theme-compiler-smoke.js`, rerunning the second PR's checks after the first lands.
+4. On `package/main`, merge #85 then #90. The latest validator checks for both passed; ensure #90 is refreshed against #85 before merge.
+5. After #90 is present, merge #84 (Gen 3 tag seeder/release contract) and #96 (Gen 2 tag seeder) after refreshing their bases and checks. #84 also has the rolling Alpha workflow changes; #96 has 3/3 passing checks.
+6. Merge #97 and #98 (verified package-tag installers) after their main-branch checks are current; they are currently clean-based and all checks passed. Existing whole-repo tags remain TAG ONLY until the seeder workflow is reviewed and applied.
+7. Refresh #95 from the updated #84 base after #84/#90 land, then rerun its checks before merge. It was 19 commits behind its base at the audit.
+8. Inspect both package tag seeders with `apply=false`; review the exact planned tag refs. Do not run `apply=true` without explicit maintainer approval. No live tag refs were rewritten in this audit.
+9. Merge #80 absolutely last, after all other intended main-3 changes, refreshing it and reviewing its outstanding Code Quality annotation / alert #70 first.
+
+No PR was merged, no npm publication was made, and no live Git tag was changed during this work.
+
+
+## PR audit correction and latest check state — 2026-11-04
+
+This addendum supersedes the initial #91/#92 and package-validator status references above.
+
+- #91 and #92 are closed, unmerged, and explicitly superseded by #97 and #98.
+- #96 is the Gen 2 manual tag-seeding workflow; #97 and #98 are the new clean-based Gen 3/Gen 2 tag installers.
+- #85 and #90 package archive validator runs both completed successfully.
+- #94 latest head `6da0fd738de4e339331b844d16f28aa78c719df9`: CLI smoke, runtime, browser compatibility and CodeQL all passed (4/4).
+- #93 latest head `36e2221dae91c56411af861cbf4a6c3981149410`: CLI smoke, live font provider, cross-browser compatibility and CodeQL passed; Engine runtime CI was still in progress at last poll.
+- #96 (3/3), #97 (5/5), and #98 (4/4) had green workflows on the audited heads.
+- #80 remains absolutely last. Its checks pass, but one Code Quality annotation and CodeQL alert #70 remain explicit review items in its PR description.
+- Do not merge stale branches just because historical run results are green; update each target/base branch and require fresh head checks after the update.

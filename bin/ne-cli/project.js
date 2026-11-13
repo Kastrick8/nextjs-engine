@@ -4,24 +4,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { createPrivateTempDirectory, writeFileAtomically } = require("./file-system");
+const { inspectUpdateSafety, formatUpdateSafety, confirmUpdateSafety, generationFromManifest } = require("./update-safety");
+const { createPrivateTempDirectory, readRegularFileNoFollow, writeFileAtomically } = require("./file-system");
 
 function taskRuntime() {
 	return require("./tasks");
-}
-function loadGen3MigrationDiagnostics() {
-	for (const candidate of [
-		path.resolve(__dirname, "../../src/engine/plugins/gen3MigrationDiagnostics.js"),
-		path.resolve(__dirname, "../../engine/plugins/gen3MigrationDiagnostics.js"),
-	]) {
-		try {
-			const loaded = require(candidate);
-			if (loaded && typeof loaded.runGen3MigrationDiagnostics === "function") {
-				return loaded.runGen3MigrationDiagnostics;
-			}
-		} catch {}
-	}
-	return null;
 }
 
 const PACKAGE_NAME = "@kastrick/nextjs-engine";
@@ -345,18 +332,19 @@ function cleanTargets(root) {
 		path.join(".nextjs-engine", ".cache")]);
 	for (const configName of ["next.config.js", "next.config.cjs", "next.config.mjs", "next.config.ts"]) {
 		const configPath = path.join(root, configName);
-		if (!fs.existsSync(configPath)) continue;
 		try {
-			const text = fs.readFileSync(configPath, "utf8");
+			const text = readRegularFileNoFollow(configPath, { maxBytes: 1024 * 1024 }).content.toString("utf8");
 			const match = text.match(/\bdistDir\s*:\s*["']([^"']+)["']/);
 			if (match) {
 				if (path.isAbsolute(match[1])) throw new Error("next.config distDir must be relative before ne clean can remove it safely.");
 				targets.add(match[1]);
 			}
+			break;
 		} catch (error) {
+			if (error && error.code === "ENOENT") continue;
 			if (error && /distDir/.test(error.message || "")) throw error;
+			break;
 		}
-		break;
 	}
 	return Array.from(targets);
 }
@@ -385,9 +373,18 @@ function captureDependencyFiles(root) {
 	try {
 		for (const relative of DEPENDENCY_FILES) {
 			const source = path.join(root, relative);
-			const exists = fs.existsSync(source);
-			files[relative] = { exists };
-			if (exists) fs.copyFileSync(source, path.join(directory, relative));
+			let snapshot;
+			try {
+				snapshot = readRegularFileNoFollow(source);
+			} catch (error) {
+				if (error && error.code === "ENOENT") {
+					files[relative] = { exists: false };
+					continue;
+				}
+				throw error;
+			}
+			files[relative] = { exists: true };
+			writeFileAtomically(path.join(directory, relative), snapshot.content, { mode: snapshot.mode });
 		}
 		writeFileAtomically(path.join(directory, "backup.json"), JSON.stringify({ files }, null, 2) + "\n", { mode: 0o600 });
 		// Successful rollback snapshots are intentionally kept until `ne clean`/rotation removes them.
@@ -409,9 +406,9 @@ function restoreDependencyFiles(root, backup) {
 		const info = details[relative] || { exists: false };
 		if (info.exists) {
 			const source = path.join(directory, relative);
-			if (!fs.existsSync(source)) throw new Error("Rollback backup is missing " + relative + ".");
+			const snapshot = readRegularFileNoFollow(source);
 			fs.mkdirSync(path.dirname(target), { recursive: true });
-			fs.copyFileSync(source, target);
+			writeFileAtomically(target, snapshot.content, { mode: snapshot.mode });
 		} else {
 			fs.rmSync(target, { force: true });
 		}
@@ -566,16 +563,32 @@ async function downloadVerifiedArtifact(root, release) {
 	}
 }
 
-function verifyInstalledVersion(root, release, artifact) {
+function verifyInstalledVersion(root, release, artifact, expectedGeneration) {
 	const installed = readInstalledPackage(root);
 	if (!installed || installed.name !== PACKAGE_NAME || installed.version !== release.version) {
 		throw new Error("Installed package identity did not match " + PACKAGE_NAME + "@" + release.version + ".");
 	}
+	if (expectedGeneration) {
+		const installedGeneration = generationFromManifest(installed, installed.version);
+		if (installedGeneration !== expectedGeneration) {
+			throw new Error(
+				"Installed package generation did not match the selected release (expected Gen " +
+				expectedGeneration + ", received " + (installedGeneration || "unknown") + ")."
+			);
+		}
+	}
 	if (artifact) {
-		const lockPath = ["npm-shrinkwrap.json", "package-lock.json"].map((name) => path.join(root, name))
-			.find((file) => fs.existsSync(file));
-		if (lockPath) {
-			const lock = readJson(lockPath, {});
+		let lock = null;
+		for (const name of ["npm-shrinkwrap.json", "package-lock.json"]) {
+			try {
+				lock = JSON.parse(readRegularFileNoFollow(path.join(root, name)).content.toString("utf8"));
+				break;
+			} catch (error) {
+				if (error && error.code === "ENOENT") continue;
+				throw error;
+			}
+		}
+		if (lock) {
 			const entry = (lock.packages && lock.packages["node_modules/" + PACKAGE_NAME]) ||
 				(lock.dependencies && lock.dependencies[PACKAGE_NAME]);
 			if (!entry || !entry.integrity || !entry.integrity.split(/\s+/).includes("sha512-" + artifact.sha512)) {
@@ -637,8 +650,13 @@ function normalizeArtifactDependency(root, release, artifact) {
 	let lockCount = 0;
 	for (const name of lockFilesByManager[manager] || []) {
 		const file = path.join(root, name);
-		if (!fs.existsSync(file)) continue;
-		const text = fs.readFileSync(file, "utf8");
+		let text;
+		try {
+			text = readRegularFileNoFollow(file).content.toString("utf8");
+		} catch (error) {
+			if (error && error.code === "ENOENT") continue;
+			throw error;
+		}
 		let updated;
 		if (name === "package-lock.json" || name === "npm-shrinkwrap.json") {
 			const lock = JSON.parse(text);
@@ -679,8 +697,10 @@ function normalizeArtifactDependency(root, release, artifact) {
 	return { manager, lockFilesUpdated: lockCount, dependencyUrl: remoteUrl };
 }
 
-async function installRelease(root, release, requestedChannel) {
+async function installRelease(root, release, requestedChannel, options) {
 	if (!release || !release.version) throw new Error("No installable release was selected.");
+	const safetyReport = inspectUpdateSafety(root, release);
+	await confirmUpdateSafety(safetyReport, options);
 	const current = loadState(root);
 	let backup = null;
 	let artifact = null;
@@ -697,13 +717,15 @@ async function installRelease(root, release, requestedChannel) {
 		managerInstallStarted = true;
 		await installWithManager(root, installTarget);
 		if (artifact) normalizeArtifactDependency(root, release, artifact);
-		const installed = verifyInstalledVersion(root, release, artifact);
+		const installed = verifyInstalledVersion(root, release, artifact, safetyReport.targetGeneration);
 		const resolvedChannel = requestedChannel || (release.track === "beta" ? "latest-green" : release.track);
 		saveState(root, {
 			schemaVersion: 1,
 			controlScheme: current.controlScheme || "hybrid",
 			activeChannel: resolvedChannel,
 			installedVersion: installed.version,
+			engineGeneration: safetyReport.targetGeneration || null,
+			sourceBranch: release.sourceBranch || null,
 			installedCommit: release.sourceCommit || null,
 			sha256: release.sha256 || null,
 			source: release.source,
@@ -712,6 +734,8 @@ async function installRelease(root, release, requestedChannel) {
 			previous: {
 				activeChannel: current.activeChannel || null,
 				installedVersion: current.installedVersion || null,
+				engineGeneration: current.engineGeneration || null,
+				sourceBranch: current.sourceBranch || null,
 				installedCommit: current.installedCommit || null,
 				source: current.source || null,
 				backup: backup.relative,
@@ -770,11 +794,15 @@ async function rollback(root) {
 			...state,
 			activeChannel: state.previous.activeChannel || "unknown",
 			installedVersion: state.previous.installedVersion || null,
+			engineGeneration: state.previous.engineGeneration || null,
+			sourceBranch: state.previous.sourceBranch || null,
 			installedCommit: state.previous.installedCommit || null,
 			source: state.previous.source || null,
 			previous: {
 				activeChannel: state.activeChannel || null,
 				installedVersion: state.installedVersion || null,
+				engineGeneration: state.engineGeneration || null,
+				sourceBranch: state.sourceBranch || null,
 				installedCommit: state.installedCommit || null,
 				source: state.source || null,
 				backup: currentBackup.relative,
@@ -892,53 +920,6 @@ async function runCheck(root, options) {
 			tree.skip("check-type-check", "No TypeScript project detected");
 		}
 
-		const runGen3MigrationDiagnostics = loadGen3MigrationDiagnostics();
-		if (typeof runGen3MigrationDiagnostics === "function") {
-			try {
-				await runTrackedTask(tree, "check-migration", "Gen 3 migration diagnostics (NE main thread)", parentId, async () => {
-					const pkg = readJson(path.join(root, "package.json"), {});
-					const isEngineSource = pkg.name === "nextjs-engine" &&
-						fs.existsSync(path.join(root, "src", "engine", "plugins", "gen3MigrationDiagnostics.js"));
-					if (isEngineSource) {
-						tree.update("check-migration", "Self-scan skipped for the engine source repository");
-						return;
-					}
-
-					const warnings = [];
-					const errorsFound = [];
-					const originalWarn = console.warn;
-					const originalError = console.error;
-					let diagnostics = [];
-					console.warn = (...args) => warnings.push(args.join(" "));
-					console.error = (...args) => errorsFound.push(args.join(" "));
-					try {
-						diagnostics = runGen3MigrationDiagnostics({ rootDir: root, development: true }) || [];
-					} finally {
-						console.warn = originalWarn;
-						console.error = originalError;
-					}
-
-					const fatal = diagnostics.filter((item) => item && item.severity === "error");
-					tree.update("check-migration", diagnostics.length
-						? diagnostics.length + " diagnostic(s), " + fatal.length + " error(s)"
-						: "No migration diagnostics found");
-					if (fatal.length) {
-						const failure = new Error(fatal.length + " migration error(s) must be fixed.");
-						failure.output = [...warnings, ...errorsFound, ...fatal.map((item) =>
-							[item.code, item.message, item.file, item.line].filter(Boolean).join(" · ")
-						)].filter(Boolean).join("\n");
-						throw failure;
-					}
-					return diagnostics;
-				});
-			} catch (error) {
-				errors.push(error);
-			}
-		} else {
-			tree.add("check-migration", "Gen 3 migration diagnostics", parentId);
-			tree.skip("check-migration", "Diagnostics module is not included in this package");
-		}
-
 		if (errors.length) {
 			if (checkTaskId) tree.setStatus(checkTaskId, "failed", errors.length + " subtask(s) failed");
 			const failure = errors[0];
@@ -978,7 +959,9 @@ function buildOutputObserver(tree, taskId) {
 	};
 }
 
-async function runBuild(root) {
+async function runBuild(root, plugins, options) {
+	await require("./plugins").runHooks(plugins, "beforeBuild", { root, generation: 3 });
+	await require("./maintenance").warnBeforeBuild(root, options);
 	const { TaskTree } = taskRuntime();
 	const tree = new TaskTree("ne build");
 	try {
@@ -1038,6 +1021,7 @@ async function runBuild(root) {
 			tree.succeed("build-nenc", "NENC output completed");
 		}
 		tree.complete();
+		await require("./plugins").runHooks(plugins, "afterBuild", { root, generation: 3 });
 		return { ok: true };
 	} catch (error) {
 		tree.fail(error && error.neTaskId || "root", error);
@@ -1047,6 +1031,8 @@ async function runBuild(root) {
 
 module.exports = {
 	PACKAGE_NAME,
+	inspectUpdateSafety,
+	formatUpdateSafety,
 	findProjectRoot,
 	resolveProcessInvocation,
 	readJson,
