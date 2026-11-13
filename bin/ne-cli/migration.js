@@ -40,9 +40,8 @@ function walkSourceFiles(root, maxFiles = 500) {
 		const directory = path.resolve(root, relative);
 		const relativeToRoot = path.relative(root, directory);
 		if (!relativeToRoot || relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) continue;
-		let stat;
-		try { stat = fs.lstatSync(directory); } catch { continue; }
-		if (!stat.isDirectory() || stat.isSymbolicLink()) continue;
+		// Let readdirSync be the single path operation instead of checking and
+		// reopening the same directory through separate filesystem calls.
 		const pending = [directory];
 		while (pending.length && files.length < maxFiles) {
 			const current = pending.pop();
