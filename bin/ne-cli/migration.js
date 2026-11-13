@@ -2,9 +2,11 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { readRegularFileNoFollow } = require("./file-system");
 
 const ROOTS = ["app", "src/app", "pages", "src/pages", "components", "src/components", "lib", "src/lib"];
 const SKIP = new Set([".git", ".next", "dist", "node_modules", ".nextjs-engine", "coverage"]);
+const MAX_FILE_BYTES = 1024 * 1024;
 const RULES = [
 	{
 		code: "E3M001",
@@ -39,8 +41,8 @@ function walkSourceFiles(root, maxFiles = 500) {
 		const relativeToRoot = path.relative(root, directory);
 		if (!relativeToRoot || relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) continue;
 		let stat;
-		try { stat = fs.statSync(directory); } catch { continue; }
-		if (!stat.isDirectory()) continue;
+		try { stat = fs.lstatSync(directory); } catch { continue; }
+		if (!stat.isDirectory() || stat.isSymbolicLink()) continue;
 		const pending = [directory];
 		while (pending.length && files.length < maxFiles) {
 			const current = pending.pop();
@@ -53,9 +55,7 @@ function walkSourceFiles(root, maxFiles = 500) {
 					continue;
 				}
 				if (!entry.isFile() || !/\.(?:cjs|mjs|js|jsx|ts|tsx)$/i.test(entry.name)) continue;
-				try {
-					if (fs.statSync(file).size <= 1024 * 1024) files.push(file);
-				} catch {}
+				files.push(file);
 				if (files.length >= maxFiles) break;
 			}
 		}
@@ -122,7 +122,7 @@ function scanGen3Migration(root, options) {
 	}
 	for (const file of walkSourceFiles(root, settings.maxFiles || 500)) {
 		let raw;
-		try { raw = fs.readFileSync(file, "utf8"); } catch { continue; }
+		try { raw = readRegularFileNoFollow(file, { maxBytes: MAX_FILE_BYTES }).content.toString("utf8"); } catch { continue; }
 		const source = maskComments(raw);
 		const code = maskStrings(source);
 		const relative = path.relative(root, file).split(path.sep).join("/");
