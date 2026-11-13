@@ -150,11 +150,11 @@ ne analyze --check
 ne info
 \`\`\`
 
-By default NE uses the detected package manager's native safe audit-fix command where supported. \`--check\` makes the analysis read-only. npm uses \`npm audit fix\`; pnpm uses \`pnpm audit --fix\`; Bun uses \`bun audit fix\`. Yarn's built-in audit is report-only, so NE does not install a third-party fixer or silently rewrite dependency declarations for Yarn. It reports the affected packages and lets you apply targeted \`yarn up\` updates.
+By default NE uses the detected package manager's native audit-fix command where supported. \`--check\` makes the analysis read-only. npm uses \`npm audit fix\`; pnpm uses \`pnpm audit --fix\`; Bun uses \`bun audit fix\`. Yarn's built-in audit is report-only, so NE does not install a third-party fixer or silently rewrite dependency declarations for Yarn. It reports the affected packages and lets you apply targeted \`yarn up\` updates.
 
 The migration scan includes \`E3M001\`, \`E3M002\`, and the known \`W3M001\`–\`W3M003\` warnings. These findings describe possible Generation 3 migration work; they do not mean the current Gen 2 project is broken. The scan is bounded and rule-based, not a guarantee of complete compatibility.
 
-NE may report malformed supported JSON configuration and compiler/type-check errors with their source locations. It never attempts to rewrite application files to repair syntax, missing imports, incorrect code, or application logic. Dependency remediation is a separate package-manager operation and is limited to the package manager's native non-major fix behavior.
+NE may report malformed supported JSON configuration and compiler/type-check errors with their source locations. It never attempts to rewrite application files to repair syntax, missing imports, incorrect code, or application logic. Dependency remediation is delegated to the package manager. It may update lockfiles or dependency metadata (for example, pnpm audit overrides or Bun's exact dependency pins) as part of that operation; it never rewrites application source files. NE does not pass force/latest-major flags.
 
 \`ne info\` separates local information from remote GitHub information. It reports the detected Engine version/generation, Node runtime, package manager, source branch/commit, remote branch head, and whether an applicable GitHub maintenance artifact exists.
 
@@ -176,3 +176,18 @@ This feature cannot be retroactively added to an old npm package that never ship
 ## Local NE-CLI plugins
 
 NE-CLI plugins are separate from Engine runtime plugins. See [NE-CLI Plugin API](./ne-cli-plugins.md) for the local plugin contract, enablement, hooks, and examples.
+
+
+## `npm run build` integration
+
+To make the normal project build script use the NE build flow (including the GitHub maintenance warning), set the project's build script to `ne build`:
+
+```json
+{
+  "scripts": {
+    "build": "ne build"
+  }
+}
+```
+
+Then `npm run build`, `pnpm build`, `yarn build`, or `bun run build` invokes NE, which runs the configured checks and the local Next.js production build. NE does not silently rewrite a consuming project's `package.json`; choose this integration explicitly. The repository's own `build` script already delegates to `node ./bin/ne.js build`.
