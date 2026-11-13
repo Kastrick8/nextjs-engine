@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { readRegularFileNoFollow } = require("./file-system");
 
 function packageManagerAudit(root, manager, fix) {
 	const pkg = readJson(path.join(root, "package.json"));
@@ -102,16 +103,31 @@ function parseJsonConfigDiagnostics(root) {
 		".nextjs-engine/config/.apiconfig.json",
 	];
 	const findings = [];
+	const maxConfigBytes = 1024 * 1024;
 	for (const relative of candidates) {
 		const file = path.join(root, relative);
-		if (!fs.existsSync(file)) continue;
+		let source;
 		try {
-			JSON.parse(fs.readFileSync(file, "utf8"));
+			source = readRegularFileNoFollow(file, { maxBytes: maxConfigBytes }).content.toString("utf8");
+		} catch (error) {
+			if (error && error.code === "ENOENT") continue;
+			findings.push({
+				file: relative,
+				line: null,
+				column: null,
+				code: "NEA1002",
+				severity: "error",
+				message: "Could not safely read this configuration file: " + error.message,
+				recommendation: "Ensure the configuration is a regular, readable file no larger than 1 MiB. NE does not follow symlinks or rewrite user-owned project configuration.",
+			});
+			continue;
+		}
+		try {
+			JSON.parse(source);
 		} catch (error) {
 			const match = String(error.message || "").match(/position\s+(\d+)/i);
 			let line = null, column = null;
 			if (match) {
-				const source = fs.readFileSync(file, "utf8");
 				const before = source.slice(0, Number(match[1]));
 				line = before.split(/\r?\n/).length;
 				column = Number(match[1]) - before.lastIndexOf("\n");
