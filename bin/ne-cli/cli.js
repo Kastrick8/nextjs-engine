@@ -77,8 +77,9 @@ function parseArgs(argv) {
 				};
 				options[optionNames[name] || name] = true;
 			} else if (positional.length && !BUILTIN_COMMANDS.has(positional[0])) {
+				// Plugin option schemas belong to the plugin; preserve unknown options
+				// without consuming the next positional argument.
 				(options.pluginOptions ||= []).push(argument);
-				if (value === undefined && argv[index + 1] && !argv[index + 1].startsWith("-")) options.pluginOptions.push(argv[++index]);
 			} else {
 				throw diagnostics.unknownOption(argument, [
 					"--channel", "--version", "--and", "--and-terminal",
