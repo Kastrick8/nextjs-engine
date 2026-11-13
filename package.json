@@ -3,7 +3,7 @@
 	"version": "2.7.0",
 	"private": false,
 	"scripts": {
-		"build": "npm run type-check && next build",
+		"build": "node ./bin/ne.js build",
 		"dev": "next dev",
 		"start": "next start",
 		"type-check": "tsc --noEmit",
@@ -18,8 +18,7 @@
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
 		"three": "^0.184.0",
-		"two.js": "^0.8.23",
-		"tmp": "0.2.7"
+		"two.js": "^0.8.23"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.55.0",

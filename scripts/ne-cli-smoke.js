@@ -13,10 +13,114 @@ const project = require("../bin/ne-cli/project");
 const presentation = require("../bin/ne-cli/presentation");
 const diagnostics = require("../bin/ne-cli/diagnostics");
 const { EventEmitter } = require("node:events");
-const tmp = require("tmp");
 const fileSystem = require("../bin/ne-cli/file-system");
 
+function createTempDirectory(prefix) {
+	const name = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+	if (process.platform !== "win32") fs.chmodSync(name, 0o700);
+	return {
+		name,
+		removeCallback() {
+			fs.rmSync(name, { recursive: true, force: true });
+		},
+	};
+}
+
 async function main() {
+	await require("./ne-cli-update-safety-smoke").run();
+
+	assert.deepEqual(cli.parseArgs(["project-report", "--verbose", "target"]).positional, ["project-report", "target"]);
+	assert.deepEqual(cli.parseArgs(["project-report", "--verbose", "target"]).options.pluginOptions, ["--verbose"]);
+	// The NE-CLI extension API is local to .nextjs-engine and independent from Engine runtime plugins.
+	{
+		const pluginApi = require("../bin/ne-cli/plugins");
+		const analysis = require("../bin/ne-cli/analyze");
+		const maintenance = require("../bin/ne-cli/maintenance");
+		const fixture = createTempDirectory("ne-cli-extension-contract-");
+		try {
+			const root = fixture.name;
+			const configDirectory = path.join(root, ".nextjs-engine", "config");
+			const pluginDirectory = path.join(root, ".nextjs-engine", "plugins");
+			fs.mkdirSync(configDirectory, { recursive: true });
+			fs.mkdirSync(pluginDirectory, { recursive: true });
+			fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
+				name: "fixture",
+				version: "1.0.0",
+				packageManager: "npm@10.0.0"
+			}, null, 2));
+			fs.writeFileSync(path.join(configDirectory, "ne-cli.json"), JSON.stringify({
+				neCliPlugins: ["project-tools"]
+			}, null, 2));
+			fs.writeFileSync(path.join(pluginDirectory, "project-tools.cjs"), [
+				"module.exports = {",
+				"  apiVersion: 1, name: 'project-tools', version: '1.0.0',",
+				"  register(api) {",
+				"    api.command({ name: 'project-report', run: (context) => context.pluginOptions });",
+				"    api.analyzeCheck({ id: 'fixture-check', label: 'Fixture check', run: () => ({ ok: true }) });",
+				"    api.infoProvider({ id: 'fixture-info', label: 'Fixture info', run: () => ({ local: true }) });",
+				"    api.on('beforeBuild', (context) => ({ generation: context.generation }));",
+				"  }",
+				"};"
+			].join("\n"));
+			const host = pluginApi.loadPlugins(root);
+			assert.deepEqual(pluginApi.listPlugins(host).map((item) => item.name), ["project-tools"]);
+			assert.equal(host.commands.has("project-report"), true);
+			assert.deepEqual(await host.commands.get("project-report").run({ pluginOptions: ["--verbose"] }), ["--verbose"]);
+			assert.deepEqual((await pluginApi.runAnalyzeChecks(host, {}))[0].result, { ok: true });
+			assert.deepEqual((await pluginApi.runInfoProviders(host, {}))[0].result, { local: true });
+			assert.deepEqual(await pluginApi.runHooks(host, "beforeBuild", { generation: 2 }), [{ generation: 2 }]);
+
+			const config = { neCliPlugins: ["bad-plugin"] };
+			fs.writeFileSync(path.join(configDirectory, "ne-cli.json"), JSON.stringify(config));
+			fs.writeFileSync(path.join(pluginDirectory, "bad-plugin.cjs"), [
+				"module.exports = { apiVersion: 1, name: 'bad-plugin',",
+				"  register(api) { api.command({ name: 'build', run() {} }); }",
+				"};"
+			].join("\n"));
+			assert.throws(() => pluginApi.loadPlugins(root), /cannot replace built-in command 'build'/i);
+
+			assert.deepEqual(analysis.packageManagerAudit(root, "npm", true), ["audit", "fix"]);
+			assert.deepEqual(analysis.pluginCheckStatus({ result: { status: "warning", message: "Review this finding" } }), { status: "warning", message: "Review this finding" });
+			assert.deepEqual(analysis.pluginCheckStatus({ result: { status: "error", message: "Fix this finding" } }), { status: "error", message: "Fix this finding" });
+			assert.deepEqual(analysis.packageManagerAudit(root, "npm", false), ["audit"]);
+			assert.deepEqual(analysis.packageManagerAudit(root, "pnpm", true), ["audit", "--fix", "--audit-level", "low"]);
+			assert.deepEqual(analysis.packageManagerAudit(root, "bun", true), ["audit", "fix"]);
+			fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
+				name: "fixture", version: "1.0.0", packageManager: "yarn@4.2.0"
+			}));
+			assert.equal(analysis.packageManagerAudit(root, "yarn", true), null);
+			assert.deepEqual(analysis.packageManagerAudit(root, "yarn", false), ["npm", "audit", "--all", "--recursive"]);
+
+			const manifest = {
+				schemaVersion: 1,
+				packageName: "@kastrick/nextjs-engine",
+				generation: 2,
+				updatedAt: "2026-11-06T00:00:00.000Z",
+				latestHotfixCommit: "b".repeat(40),
+				hotfixes: [{
+					id: "test-hotfix-1",
+					version: "2.6.2",
+					generation: 2,
+					compatibleVersions: ["2.6.2"],
+					fromCommit: "a".repeat(40),
+					toCommit: "b".repeat(40),
+					sha256: "c".repeat(64),
+					artifactName: "nextjs-engine-2.6.2.tgz",
+					artifactUrl: "https://github.com/Kastrick8/nextjs-engine/releases/download/ne-hotfix-2-test-hotfix-1/nextjs-engine-2.6.2.tgz",
+					summary: "Fixture maintenance update"
+				}]
+			};
+			assert.equal(maintenance.validateManifest(manifest, 2).hotfixes.length, 1);
+			assert.throws(() => maintenance.validateManifest({ ...manifest, generation: 3 }, 2), /unsupported schema or generation/);
+			assert.throws(() => maintenance.validateManifest({
+				...manifest,
+				hotfixes: [{ ...manifest.hotfixes[0], artifactUrl: "https://evil.invalid/file.tgz" }]
+			}, 2), /outside its expected official GitHub release asset/);
+		} finally {
+			fixture.removeCallback();
+		}
+	}
+
 	const { spawnSync } = require("node:child_process");
 	const executable = path.resolve(__dirname, "../bin/ne.js");
 	const repoRoot = path.resolve(__dirname, "..");
@@ -394,10 +498,34 @@ async function main() {
 	assert.throws(() => cli.tokenizeCommand("node -e 'unterminated"), /unterminated quoted argument/);
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
-	assert.match(cli.getHelp(), /ne update --channel/);
-	assert.match(cli.getHelp(), /npx ne --help/);
-	assert.match(cli.getHelp(), /Shell operators are rejected/);
-	const dashboardDirectory = tmp.dirSync({ prefix: "ne-dashboard-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	assert.match(cli.getHelp(), /ne update\s+List or install a release/);
+	assert.doesNotMatch(cli.getHelp(), /--channel/, "the overview keeps release flags in command-specific help");
+	assert.match(cli.getHelp(), /ne --help/);
+	assert.match(cli.getHelp(), /npx --yes --package=@kastrick.*nextjs-engine ne updater/);
+	assert.match(cli.getHelp(), /without a shell/);
+	const rootHelpResult = spawnSync(process.execPath, [executable, "--help"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(rootHelpResult.status, 0, "Gen 2 ne --help works without a project directory");
+	assert.match(rootHelpResult.stdout, /Next\.js Engine CLI — Generation 2/);
+	assert.match(rootHelpResult.stdout, /Introduced in v2\.7\.0/);
+	const updateHelpResult = spawnSync(process.execPath, [executable, "update", "-h"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(updateHelpResult.status, 0, "Gen 2 ne update -h works without a project directory");
+	assert.match(updateHelpResult.stdout, /Usage\n  ne update/);
+	assert.match(updateHelpResult.stdout, /--channel <channel>/);
+	assert.match(updateHelpResult.stdout, /--force/);
+	assert.match(updateHelpResult.stdout, /--dry-run/);
+	assert.doesNotMatch(updateHelpResult.stdout, /Commands\n/);
+	const updateHelpAlias = spawnSync(process.execPath, [executable, "help", "update"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(updateHelpAlias.status, 0);
+	assert.equal(updateHelpAlias.stdout, updateHelpResult.stdout, "Gen 2 help alias matches ne update -h");
+	assert.equal(JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).dependencies.tmp, undefined,
+		"the Gen 2 CLI no longer needs an external tmp package");
+	const dashboardDirectory = createTempDirectory("ne-dashboard-smoke-");
 	let dashboardInstall = null;
 	const fixtureRelease = { version: "3.0.0-alpha.2", track: "alpha" };
 	try {
@@ -436,7 +564,7 @@ async function main() {
 	assert.ok(Number(pageIndicator[1]) >= 4, "release list can navigate past the first 24 entries");
 	assert.match(laterPage, /of 40/, "release list reports the full release inventory size");
 
-	const tempDirectory = tmp.dirSync({ prefix: "ne-cli-smoke-", mode: 0o700, keep: true, unsafeCleanup: true });
+	const tempDirectory = createTempDirectory("ne-cli-smoke-");
 	const temp = tempDirectory.name;
 	try {
 		const atomicFile = path.join(temp, "atomic-state.json");
