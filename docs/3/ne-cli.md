@@ -225,3 +225,18 @@ The artifact is version-specific and SHA-256-verified. NE updates only the Engin
 ## Local NE-CLI plugins
 
 The NE-CLI plugin system is local to the CLI and separate from Engine runtime plugins. See [NE-CLI Plugin API](./ne-cli-plugins.md).
+
+
+## `npm run build` integration
+
+For the regular package-manager build command to invoke the NE build flow (including the GitHub maintenance warning), configure the consuming project's build script as `ne build`:
+
+```json
+{
+  "scripts": {
+    "build": "ne build"
+  }
+}
+```
+
+Then `npm run build`, `pnpm build`, `yarn build`, or `bun run build` invokes NE, which runs the configured checks and the local Next.js production build. NE does not silently rewrite a consuming project's `package.json`; choose this integration explicitly.
