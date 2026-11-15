@@ -149,7 +149,11 @@ async function runTrustedOriginSelectionRegression() {
 		const cssPath = path.join(root, "public", "nextjs-engine", "fonts", id + ".css");
 		assert.ok(fs.existsSync(cssPath), "the trusted font face must be emitted");
 		const emittedCss = fs.readFileSync(cssPath, "utf8");
-		assert.ok(!emittedCss.includes("cdn.jsdelivr.net"), "emitted CSS must not retain the untrusted candidate");
+		const emittedFontUrls = [...emittedCss.matchAll(/url\(\s*(?:"([^"]+)"|'([^']+)'|([^)\s]+))\s*\)/gi)]
+			.map((match) => match[1] || match[2] || match[3]);
+		assert.ok(emittedFontUrls.length > 0, "the emitted stylesheet must contain a local font URL");
+		assert.ok(emittedFontUrls.every((value) => /^\/nextjs-engine\/fonts\/[A-Za-z0-9._-]+$/.test(value)),
+			"every emitted font URL must be a local content-addressed asset path");
 		console.log("[EngineTheme font origin selection] PASS (preferred allowlisted Bunny WOFF over an untrusted WOFF2 candidate)");
 	} finally {
 		fs.rmSync(root, { recursive: true, force: true });
