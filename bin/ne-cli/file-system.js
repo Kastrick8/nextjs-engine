@@ -61,11 +61,18 @@ function withRegularFileDescriptor(filename, callback) {
 	}
 }
 
-function readRegularFileNoFollow(filename) {
-	const opened = withRegularFileDescriptor(filename, (descriptor) => fs.readFileSync(descriptor));
+function readRegularFileNoFollow(filename, options) {
+	const settings = options || {};
+	const opened = withRegularFileDescriptor(filename, (descriptor, stats) => {
+		if (Number.isFinite(settings.maxBytes) && stats.size > settings.maxBytes) {
+			throw new Error("File exceeds the maximum safe read size of " + settings.maxBytes + " bytes: " + filename);
+		}
+		return fs.readFileSync(descriptor);
+	});
 	return {
 		content: opened.result,
 		mode: opened.stats.mode & 0o777,
+		size: opened.stats.size,
 	};
 }
 
@@ -87,7 +94,7 @@ function writeFileAtomically(filename, contents, options) {
 	let mode = settings.mode;
 	if (mode === undefined) {
 		try {
-			mode = fs.statSync(destination).mode & 0o777;
+			mode = withRegularFileDescriptor(destination, (_descriptor, stats) => stats.mode & 0o777).result;
 		} catch (error) {
 			if (!error || error.code !== "ENOENT") throw error;
 			mode = 0o600;
