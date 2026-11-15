@@ -34,7 +34,9 @@ const PROVIDERS = {
 	bunny: {
 		cssUrl: "https://fonts.bunny.net/css?family=Roboto:400&text=EngineTheme",
 		cssOrigins: "https://fonts.bunny.net",
-		fileOrigins: "https://fonts.bunny.net",
+		// Bunny's current stylesheet serves its font payload from jsDelivr.
+		// Keep this as an exact host allowlist; never broaden it to a wildcard.
+		fileOrigins: "https://fonts.bunny.net,https://cdn.jsdelivr.net",
 	},
 };
 
