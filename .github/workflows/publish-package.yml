@@ -39,8 +39,8 @@ permissions:
   id-token: write
 
 concurrency:
-  # One publisher per dist-tag track prevents overlapping releases from moving
-  # latest/alpha/beta backwards after a newer version has already promoted.
+  # Serialize publishers for each moving npm channel; different version tags on
+  # the same track must not race and move latest/alpha/beta backwards.
   group: npm-release-${{ inputs.track || (startsWith(github.ref_name, 'package-alpha.') && 'alpha') || (startsWith(github.ref_name, 'package-beta.') && 'beta') || 'stable' }}
   cancel-in-progress: false
 
@@ -90,6 +90,7 @@ jobs:
 
       - name: Install npm CLI with OIDC support
         run: npm install --global npm@^11.21.0
+
 
       - name: Validate source pin and prepare immutable snapshot
         id: prepare
@@ -268,6 +269,7 @@ jobs:
           rm -rf node_modules
 
       - name: Commit the snapshot to package/main
+        id: commit-snapshot
         working-directory: archive
         env:
           TARGET: ${{ steps.prepare.outputs.target }}
@@ -283,9 +285,10 @@ jobs:
             git commit -m "Release @kastrick/nextjs-engine $VERSION from $PINNED_SHA"
             git push origin HEAD:refs/heads/package/main
           fi
+          echo "archive_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Create and push the version tag
-        id: create-tag
+      - name: Build installable package-root Git tag commit
+        id: package-root
         working-directory: archive
         env:
           VERSION: ${{ inputs.version }}
@@ -301,27 +304,120 @@ jobs:
             beta) TAG="package-beta.$VERSION" ;;
             *) echo "Unsupported track: $TRACK" >&2; exit 1 ;;
           esac
-          git fetch --tags origin
+          ARCHIVE_COMMIT="$(git rev-parse HEAD)"
+          git fetch --no-tags origin refs/heads/package/main:refs/remotes/origin/package/main
+          test "$(git rev-parse refs/remotes/origin/package/main)" = "$ARCHIVE_COMMIT"
+          RESULT="$(node .github/scripts/package-root-git-tags.mjs create "$GITHUB_WORKSPACE/archive" "$TARGET" "$ARCHIVE_COMMIT" "$VERSION" "$TRACK" "$PINNED_SHA" "$TAG")"
+          PACKAGE_ROOT_SHA="$(printf '%s' "$RESULT" | node -e 'const fs=require("node:fs");const x=JSON.parse(fs.readFileSync(0,"utf8"));if(!/^[0-9a-f]{40}$/.test(x.commitSha||""))throw new Error("Invalid package-root commit SHA");process.stdout.write(x.commitSha)')"
+          test -n "$PACKAGE_ROOT_SHA"
+          echo "archive_commit=$ARCHIVE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$PACKAGE_ROOT_SHA" >> "$GITHUB_OUTPUT"
+          echo "Created package-root commit $PACKAGE_ROOT_SHA from $ARCHIVE_COMMIT"
+
+      - name: Create or repair the package-only version tag
+        id: create-tag
+        working-directory: archive
+        env:
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
+          PINNED_SHA: ${{ steps.prepare.outputs.pinned_sha }}
+          TARGET: ${{ steps.prepare.outputs.target }}
+          PACKAGE_ROOT_SHA: ${{ steps.package-root.outputs.commit_sha }}
+          ARCHIVE_COMMIT: ${{ steps.package-root.outputs.archive_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$TRACK" in
+            stable) TAG="package.$VERSION" ;;
+            alpha) TAG="package-alpha.$VERSION" ;;
+            beta) TAG="package-beta.$VERSION" ;;
+            *) echo "Unsupported track: $TRACK" >&2; exit 1 ;;
+          esac
+
+          git fetch --no-tags origin refs/heads/package/main:refs/remotes/origin/package/main
+          if [[ "$(git rev-parse refs/remotes/origin/package/main)" != "$ARCHIVE_COMMIT" ]]; then
+            echo "package/main advanced after this release snapshot was committed; refusing to tag a stale package." >&2
+            exit 1
+          fi
+          git merge-base --is-ancestor "$ARCHIVE_COMMIT" refs/remotes/origin/package/main
+
+          git cat-file -e "$PACKAGE_ROOT_SHA:package.json"
+          git cat-file -e "$PACKAGE_ROOT_SHA:index.ts"
+          git cat-file -e "$PACKAGE_ROOT_SHA:engine/index.ts"
+          git cat-file -e "$PACKAGE_ROOT_SHA:.package-tag.json"
+          git show "$PACKAGE_ROOT_SHA:.package-tag.json" > "$RUNNER_TEMP/package-tag-marker.json"
+          node - "$RUNNER_TEMP/package-tag-marker.json" "$VERSION" "$TRACK" "$TAG" "$PINNED_SHA" "$ARCHIVE_COMMIT" <<'NODE'
+          const fs=require("node:fs");
+          const [file,version,track,tag,sourceCommit,archiveCommit]=process.argv.slice(2);
+          const marker=JSON.parse(fs.readFileSync(file,"utf8"));
+          if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
+            ||marker.version!==version||marker.track!==track||marker.tag!==tag
+            ||marker.layout!=="npm-pack-root"||marker.sourceCommit!==sourceCommit
+            ||marker.archiveCommit!==archiveCommit) {
+            throw new Error("Generated package-root marker does not match this release.");
+          }
+          NODE
+
+          PUSH_FORCE=false
           if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
-            git cat-file -e "$TAG:$TARGET/package.json"
-            git show "$TAG:$TARGET/package.json" > "$RUNNER_TEMP/tag-package.json"
-            git show "$TAG:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/tag-upstream.md"
-            node - "$RUNNER_TEMP/tag-package.json" "$VERSION" <<'NODE'
+            EXISTING_COMMIT="$(git rev-parse "$TAG^{commit}")"
+            if git cat-file -e "$EXISTING_COMMIT:.package-tag.json" 2>/dev/null; then
+              git show "$EXISTING_COMMIT:.package-tag.json" > "$RUNNER_TEMP/existing-package-tag.json"
+              node - "$RUNNER_TEMP/existing-package-tag.json" "$VERSION" "$TRACK" "$TAG" "$PINNED_SHA" <<'NODE'
+          const fs=require("node:fs");
+          const [file,version,track,tag,sourceCommit]=process.argv.slice(2);
+          const marker=JSON.parse(fs.readFileSync(file,"utf8"));
+          const expectedPath=process.env.TARGET;
+          if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
+            ||marker.version!==version||marker.track!==track||marker.tag!==tag
+            ||marker.layout!=="npm-pack-root"||marker.sourceCommit!==sourceCommit
+            ||marker.packagePath!==expectedPath
+            ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
+            ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
+            throw new Error("Existing immutable package tag has different or unverified provenance; refusing to move it.");
+          }
+          NODE
+              EXISTING_ARCHIVE_COMMIT="$(node - "$RUNNER_TEMP/existing-package-tag.json" <<'NODE'
+          const fs=require("node:fs");
+          process.stdout.write(JSON.parse(fs.readFileSync(process.argv[2],"utf8")).archiveCommit);
+          NODE
+          )"
+              [[ "$(git rev-parse "$EXISTING_COMMIT^")" == "$EXISTING_ARCHIVE_COMMIT" ]] || {
+                echo "Existing package-root tag is not parented by its recorded archive snapshot." >&2; exit 1;
+              }
+              git merge-base --is-ancestor "$EXISTING_ARCHIVE_COMMIT" refs/remotes/origin/package/main || {
+                echo "Existing package-root tag provenance is not part of package/main." >&2; exit 1;
+              }
+              PACKAGE_ROOT_SHA="$EXISTING_COMMIT"
+            else
+              git cat-file -e "$EXISTING_COMMIT:$TARGET/package.json" || {
+                echo "Existing tag is neither a verified package-root tag nor a recognized legacy archive tag." >&2; exit 1;
+              }
+              git show "$EXISTING_COMMIT:$TARGET/package.json" > "$RUNNER_TEMP/legacy-tag-package.json"
+              git show "$EXISTING_COMMIT:$TARGET/UPSTREAM.md" > "$RUNNER_TEMP/legacy-tag-upstream.md"
+              node - "$RUNNER_TEMP/legacy-tag-package.json" "$VERSION" <<'NODE'
           const fs=require("node:fs");
           const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          if(p.name!=="@kastrick/nextjs-engine"||p.version!==process.argv[3]) throw new Error("Existing tag points to a different package version.");
+          if(p.name!=="@kastrick/nextjs-engine"||p.version!==process.argv[3]) {
+            throw new Error("Legacy tag points to a different package version.");
+          }
           NODE
-            grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/tag-upstream.md" || {
-              echo "Tag $TAG exists but does not match source pin $PINNED_SHA." >&2; exit 1;
-            }
-            git merge-base --is-ancestor "$TAG^{commit}" refs/remotes/origin/package/main || {
-              echo "Tag $TAG exists but is not reachable from package/main." >&2; exit 1;
-            }
-          else
-            git tag -a "$TAG" -m "@kastrick/nextjs-engine $VERSION from $PINNED_SHA"
+              grep -Fq -- "- Requested and resolved source commit: $PINNED_SHA" "$RUNNER_TEMP/legacy-tag-upstream.md" || {
+                echo "Legacy tag $TAG does not prove the requested source commit; refusing to retag." >&2; exit 1;
+              }
+              PUSH_FORCE=true
+            fi
+          fi
+
+          if [[ "$PUSH_FORCE" == "true" ]]; then
+            git tag --force --annotate "$TAG" --message "@kastrick/nextjs-engine $VERSION package-root snapshot" "$PACKAGE_ROOT_SHA"
+            git push --force origin "refs/tags/$TAG"
+          elif ! git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
+            git tag --annotate "$TAG" --message "@kastrick/nextjs-engine $VERSION package-root snapshot" "$PACKAGE_ROOT_SHA"
             git push origin "refs/tags/$TAG"
           fi
 
+          PACKAGE_ROOT_SHA="$(git rev-parse "$TAG^{commit}")"
           if [[ "$TRACK" == "stable" ]]; then
             LATEST_STABLE="$(node --input-type=module <<'NODE'
           import fs from "node:fs";
@@ -336,12 +432,18 @@ jobs:
           NODE
           )"
             if [[ "$VERSION" == "$LATEST_STABLE" ]]; then
-              git tag -f -a package.latest -m "Latest stable @kastrick/nextjs-engine is $VERSION" "$TAG^{commit}"
-              git push --force origin refs/tags/package.latest
+              CURRENT_LATEST=""
+              if git rev-parse -q --verify refs/tags/package.latest^{commit} >/dev/null; then
+                CURRENT_LATEST="$(git rev-parse refs/tags/package.latest^{commit})"
+              fi
+              if [[ "$CURRENT_LATEST" != "$PACKAGE_ROOT_SHA" ]]; then
+                git tag --force --annotate package.latest --message "Latest stable @kastrick/nextjs-engine is $VERSION" "$PACKAGE_ROOT_SHA"
+                git push --force origin refs/tags/package.latest
+              fi
             fi
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
+          echo "package_root_commit=$PACKAGE_ROOT_SHA" >> "$GITHUB_OUTPUT"
       - name: Select npm dist-tags
         id: dist-tag
         working-directory: archive
@@ -418,6 +520,7 @@ jobs:
           console.log("channel_tag="+channelTag);
           NODE
       - name: Skip an already-published immutable npm version
+        if: steps.snapshot.outputs.migration_only != 'true'
         id: registry-version
         env:
           VERSION: ${{ inputs.version }}
@@ -652,6 +755,7 @@ jobs:
           NODE
 
       - name: Skip an already-published immutable npm version
+        if: steps.snapshot.outputs.migration_only != 'true'
         id: registry-version
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
@@ -673,6 +777,7 @@ jobs:
         run: npm publish --access public --tag "$VERSION_TAG"
 
       - name: Apply and verify npm dist-tags
+        if: steps.snapshot.outputs.migration_only != 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
@@ -688,7 +793,7 @@ jobs:
             npm dist-tag add "$PACKAGE" "$CHANNEL_TAG"
           fi
           npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/npm-dist-tags.json"
-          node "$GITHUB_WORKSPACE/.github/scripts/verify-npm-dist-tags.mjs" "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE"
+          node "$GITHUB_WORKSPACE/archive/.github/scripts/verify-npm-dist-tags.mjs" "$RUNNER_TEMP/npm-dist-tags.json" "$VERSION" "$TRACK" "$VERSION_TAG" "$CHANNEL_TAG" "$GITHUB_WORKSPACE/archive"
 
       - name: Release summary
         if: always()
@@ -717,11 +822,18 @@ jobs:
     environment: npm-publish
     timeout-minutes: 45
     steps:
-      - name: Checkout tagged archive commit
+      - name: Checkout tagged package-root commit
         uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
+      - name: Checkout package archive for version catalog and release tools
+        uses: actions/checkout@v6
+        with:
+          ref: package/main
+          path: archive
+          fetch-depth: 0
+          persist-credentials: false
       - name: Set up Node.js for npm Trusted Publishing and dist-tags
         uses: actions/setup-node@v6
         with:
@@ -732,106 +844,135 @@ jobs:
 
       - name: Install npm CLI with OIDC support
         run: npm install --global npm@^11.21.0
-      - name: Verify tag and resolve selected snapshot
+      - name: Verify package-root tag and resolve registry channel
         id: snapshot
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin refs/heads/package/main:refs/remotes/origin/package/main
-          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/package/main || {
-            echo "Tag is not part of package/main history." >&2; exit 1;
-          }
           TAG_NAME="$GITHUB_REF_NAME"
-          if [[ "$TAG_NAME" =~ ^package-alpha\.([0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+)$ ]]; then
-            VERSION="${BASH_REMATCH[1]}"
-            TRACK="alpha"
-            MAJOR="${VERSION%%.*}"
-            DIR="alpha/version/$MAJOR.alpha/version/$VERSION"
-          elif [[ "$TAG_NAME" =~ ^package-beta\.([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)$ ]]; then
-            VERSION="${BASH_REMATCH[1]}"
-            TRACK="beta"
-            MAJOR="${VERSION%%.*}"
-            DIR="beta/version/$MAJOR.beta/version/$VERSION"
-          elif [[ "$TAG_NAME" =~ ^package\.([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            VERSION="${BASH_REMATCH[1]}"
-            TRACK="stable"
-            IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
-            SNAPSHOT="$VERSION"
-            if [[ "$PATCH" == "0" ]]; then SNAPSHOT="$MAJOR.$MINOR"; fi
-            DIR="version/$MAJOR.$MINOR/version/$SNAPSHOT"
-          else
-            echo "Unsupported release tag: $TAG_NAME" >&2; exit 1
+          test -f package.json && test -f index.ts && test -d engine
+          test -f .package-tag.json
+          node - "$TAG_NAME" "$GITHUB_SHA" > "$RUNNER_TEMP/tag-metadata.env" <<'NODE'
+          const fs=require("node:fs");
+          const [tag,commit]=process.argv.slice(2);
+          const marker=JSON.parse(fs.readFileSync(".package-tag.json","utf8"));
+          const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));
+          const match=tag.match(/^package\.(\d+\.\d+\.\d+)$/)
+            ||tag.match(/^package-alpha\.(\d+\.\d+\.\d+-alpha\.\d+)$/)
+            ||tag.match(/^package-beta\.(\d+\.\d+\.\d+-beta\.\d+)$/);
+          if(!match) throw new Error("Unsupported release tag: "+tag);
+          const version=match[1];
+          const track=tag.startsWith("package-alpha.")?"alpha":tag.startsWith("package-beta.")?"beta":"stable";
+          const versionParts=version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.\d+)?$/);
+          if(!versionParts) throw new Error("Invalid package SemVer: "+version);
+          const [,major,minor,patch,prerelease]=versionParts;
+          const expectedPath=track==="stable"&&!prerelease
+            ? "version/"+major+"."+minor+"/version/"+(Number(patch)===0?major+"."+minor:version)
+            : track+"/version/"+major+"."+track+"/version/"+version;
+          if(marker.schemaVersion!==1||marker.packageName!=="@kastrick/nextjs-engine"
+            ||marker.version!==version||marker.track!==track||marker.tag!==tag
+            ||marker.layout!=="npm-pack-root"||marker.packagePath!==expectedPath
+            ||!/^([0-9a-f]{40})$/.test(marker.archiveCommit||"")
+            ||!(marker.sourceCommit===null||/^[0-9a-f]{40}$/.test(marker.sourceCommit||""))
+            ||typeof marker.migrationOnly!=="boolean"
+            ||!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity||"")) {
+            throw new Error("Tag is not a verified package-root snapshot.");
+          }
+          if(pkg.name!=="@kastrick/nextjs-engine"||pkg.version!==version||pkg.private===true) {
+            throw new Error("Package manifest does not match its Git tag.");
+          }
+          for(const file of ["index.ts","engine/index.ts"]) {
+            if(!fs.existsSync(file)) throw new Error("Missing package file: "+file);
+          }
+          if(fs.readFileSync("index.ts","utf8").trim()!=='export * from "./engine";') {
+            throw new Error("Package root index.ts does not re-export ./engine.");
+          }
+          console.log("version="+version);
+          console.log("track="+track);
+          console.log("archive_commit="+marker.archiveCommit);
+          console.log("migration_only="+(marker.migrationOnly===true));
+          NODE
+          cat "$RUNNER_TEMP/tag-metadata.env" >> "$GITHUB_OUTPUT"
+          VERSION="$(sed -n 's/^version=//p' "$RUNNER_TEMP/tag-metadata.env")"
+          TRACK="$(sed -n 's/^track=//p' "$RUNNER_TEMP/tag-metadata.env")"
+          ARCHIVE_COMMIT="$(sed -n 's/^archive_commit=//p' "$RUNNER_TEMP/tag-metadata.env")"
+          MIGRATION_ONLY="$(sed -n 's/^migration_only=//p' "$RUNNER_TEMP/tag-metadata.env")"
+          test -n "$VERSION" && test -n "$TRACK" && test -n "$ARCHIVE_COMMIT"
+          test "$(git rev-parse "$GITHUB_SHA^")" = "$ARCHIVE_COMMIT" || {
+            echo "Package-root tag commit does not have its recorded archive commit as its parent." >&2; exit 1;
+          }
+          if [[ "$MIGRATION_ONLY" == "true" ]]; then
+            VERSION_TAG="package.$VERSION"
+            if [[ "$TRACK" != "stable" ]]; then VERSION_TAG="package-$TRACK.$VERSION"; fi
+            {
+              echo "directory=."
+              echo "version_tag=$VERSION_TAG"
+              echo "channel_tag="
+              echo "migration_only=true"
+            } >> "$GITHUB_OUTPUT"
+            echo "Legacy package tag was repaired only; npm publication and dist-tag changes are intentionally skipped."
+            exit 0
           fi
-          test -f "$DIR/package.json" && test -f "$DIR/index.ts" && test -d "$DIR/engine"
+          git merge-base --is-ancestor "$ARCHIVE_COMMIT" refs/remotes/origin/package/main || {
+            echo "The package-root tag's archive provenance is not part of package/main history." >&2; exit 1;
+          }
           npm view @kastrick/nextjs-engine dist-tags --json > "$RUNNER_TEMP/current-dist-tags.json"
-          export DIR VERSION TRACK CURRENT_DIST_TAGS="$RUNNER_TEMP/current-dist-tags.json"
+          export VERSION TRACK CURRENT_DIST_TAGS="$RUNNER_TEMP/current-dist-tags.json" ARCHIVE_ROOT="$GITHUB_WORKSPACE/archive"
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import fs from "node:fs";
           import path from "node:path";
-          const {DIR,VERSION,TRACK}=process.env;
+          const {VERSION,TRACK,ARCHIVE_ROOT}=process.env;
           const registryTags=JSON.parse(fs.readFileSync(process.env.CURRENT_DIST_TAGS,"utf8"));
-          const p=JSON.parse(fs.readFileSync(path.join(DIR,"package.json"),"utf8"));
-          if(p.name!=="@kastrick/nextjs-engine"||p.version!==VERSION) throw new Error("Manifest mismatch: "+p.name+"@"+p.version);
-          if(!fs.existsSync(path.join(DIR,"engine/index.ts"))) throw new Error("engine/index.ts is missing");
           const stable=[], alpha=[], beta=[];
-          function walk(root){
-            if(!fs.existsSync(root))return;
-            for(const e of fs.readdirSync(root,{withFileTypes:true})){
-              const full=path.join(root,e.name);
+          function walk(dir){
+            if(!fs.existsSync(dir))return;
+            for(const e of fs.readdirSync(dir,{withFileTypes:true})){
+              const full=path.join(dir,e.name);
               if(e.isDirectory())walk(full);
               else if(e.name==="package.json"){
-                const x=JSON.parse(fs.readFileSync(full,"utf8"));
-                if(x.name!=="@kastrick/nextjs-engine")continue;
-                if(/^\d+\.\d+\.\d+$/.test(x.version||""))stable.push(x.version);
-                else if(/^\d+\.\d+\.\d+-alpha\.\d+$/.test(x.version||""))alpha.push(x.version);
-                else if(/^\d+\.\d+\.\d+-beta\.\d+$/.test(x.version||""))beta.push(x.version);
+                const p=JSON.parse(fs.readFileSync(full,"utf8"));
+                if(p.name!=="@kastrick/nextjs-engine")continue;
+                if(/^\d+\.\d+\.\d+$/.test(p.version||""))stable.push(p.version);
+                else if(/^\d+\.\d+\.\d+-alpha\.\d+$/.test(p.version||""))alpha.push(p.version);
+                else if(/^\d+\.\d+\.\d+-beta\.\d+$/.test(p.version||""))beta.push(p.version);
               }
             }
           }
-          walk("version");walk("alpha");walk("beta");
-          const sortNums=(list, prerelease)=>list.sort((a,b)=>{
-            const parts=(value)=>{
-              const segments=value.split("-");
-              if(segments.length!==(prerelease?2:1))throw new Error("Invalid package version: "+value);
-              const nums=segments[0].split(".").map(Number);
-              if(nums.length!==3||nums.some(part=>!Number.isInteger(part)))throw new Error("Invalid package version: "+value);
-              if(prerelease){
-                const suffix=segments[1].split(".");
-                if(suffix.length!==2||suffix[0]!==prerelease||!/^[0-9]+$/.test(suffix[1]))throw new Error("Invalid "+prerelease+" package version: "+value);
-                nums.push(Number(suffix[1]));
-              }
-              return nums;
-            };
-            const A=parts(a),B=parts(b);
-            for(let i=0;i<A.length;i++)if(A[i]!==B[i])return A[i]-B[i];
+          walk(path.join(ARCHIVE_ROOT,"version"));
+          walk(path.join(ARCHIVE_ROOT,"alpha","version"));
+          walk(path.join(ARCHIVE_ROOT,"beta","version"));
+          function compare(a,b){
+            const parse=(v)=>v.split(/[-.]/).map((x)=>/^\d+$/.test(x)?Number(x):x);
+            const aa=parse(a),bb=parse(b);
+            for(let i=0;i<Math.max(aa.length,bb.length);i++){
+              if(aa[i]===undefined)return -1;
+              if(bb[i]===undefined)return 1;
+              if(aa[i]===bb[i])continue;
+              if(typeof aa[i]==="number"&&typeof bb[i]==="number")return aa[i]-bb[i];
+              return String(aa[i]).localeCompare(String(bb[i]));
+            }
             return 0;
-          });
-          sortNums(stable,null);sortNums(alpha,"alpha");sortNums(beta,"beta");
-          const byTrack={stable,alpha,beta};
-          const list=byTrack[TRACK];
-          if(!list.length)throw new Error("No "+TRACK+" releases are archived.");
-          const newest=list.at(-1);
-          const versionTag=TRACK==="stable"?"package."+VERSION:TRACK==="alpha"?"package-alpha."+VERSION:"package-beta."+VERSION;
-          const proposedChannel=TRACK==="stable"?"latest":TRACK;
-          function compareSemver(aText,bText){
-            const a=String(aText||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.(\d+))?$/);
-            const b=String(bText||"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.(\d+))?$/);
-            if(!a)return -1;
-            if(!b)return 1;
-            for(let i=1;i<=3;i++){const d=Number(a[i])-Number(b[i]);if(d)return d;}
-            if(!a[4]&&!b[4])return 0;
-            if(!a[4])return 1;
-            if(!b[4])return -1;
-            if(a[4]!==b[4])return a[4]>b[4]?1:-1;
-            return Number(a[5])-Number(b[5]);
           }
-          const channelTag=newest===VERSION&&compareSemver(VERSION,registryTags[proposedChannel])>=0?proposedChannel:"";
-          console.log("version="+VERSION);
-          console.log("directory="+DIR);
+          stable.sort(compare);alpha.sort(compare);beta.sort(compare);
+          const list={stable,alpha,beta}[TRACK];
+          if(!list||!list.includes(VERSION))throw new Error("Tagged version is not present in package/main.");
+          const versionTag=TRACK==="stable"?"package."+VERSION:"package-"+TRACK+"."+VERSION;
+          const proposedChannel=TRACK==="stable"?"latest":TRACK;
+          const newest=list.at(-1);
+          const compareVersion=(a,b)=>compare(a||"0.0.0",b||"0.0.0");
+          const channelTag=newest===VERSION
+            &&compareVersion(VERSION,registryTags[proposedChannel])>=0
+            ?proposedChannel:"";
+          console.log("directory=.");
           console.log("version_tag="+versionTag);
           console.log("channel_tag="+channelTag);
           NODE
+      - name: Install npm CLI with OIDC support
+        if: steps.snapshot.outputs.migration_only != 'true'
+        run: npm install --global npm@^11.21.0
       - name: Validate and pack the selected snapshot
+        if: steps.snapshot.outputs.migration_only != 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         run: |
           set -euo pipefail
@@ -840,6 +981,7 @@ jobs:
           npm run pack:check
       - name: Skip an already-published immutable npm version
         id: registry-version
+        if: steps.snapshot.outputs.migration_only != 'true'
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}
         shell: bash
@@ -852,12 +994,13 @@ jobs:
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Publish the selected snapshot
-        if: steps.registry-version.outputs.should_publish == 'true'
+        if: steps.snapshot.outputs.migration_only != 'true' && steps.registry-version.outputs.should_publish == 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           DIST_TAG: ${{ steps.snapshot.outputs.version_tag }}
         run: npm publish --access public --tag "$DIST_TAG"
       - name: Apply and verify npm dist-tags
+        if: steps.snapshot.outputs.migration_only != 'true'
         working-directory: ${{ steps.snapshot.outputs.directory }}
         env:
           VERSION: ${{ steps.snapshot.outputs.version }}

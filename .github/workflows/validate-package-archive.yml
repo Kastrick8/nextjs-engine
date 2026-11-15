@@ -25,6 +25,8 @@ jobs:
           package-manager-cache: false
       - name: Test npm dist-tag channel selection and verification
         run: node --test .github/scripts/verify-npm-dist-tags.test.mjs
+      - name: Test package-root Git tag creation and migration
+        run: node --test .github/scripts/package-root-git-tags.test.mjs
       - id: packages
         shell: bash
         run: |
