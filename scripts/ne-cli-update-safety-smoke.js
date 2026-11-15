@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const safety = require("../bin/ne-cli/update-safety");
 const project = require("../bin/ne-cli/project");
+const fileSystem = require("../bin/ne-cli/file-system");
 
 async function run() {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "ne-update-safety-"));
@@ -34,6 +35,30 @@ async function run() {
 		fs.mkdirSync(path.join(root, ".nextjs-engine", "config"), { recursive: true });
 		fs.writeFileSync(path.join(root, ".nextjs-engine", "config", "ne.config.json"),
 			JSON.stringify({ installedVersion: "3.0.0-alpha.3", engineGeneration: 3, sourceBranch: "main-3" }));
+		const installedManifestPath = path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json");
+		const outsideManifestPath = path.join(root, "outside-package.json");
+		fs.writeFileSync(outsideManifestPath, JSON.stringify({
+			name: "@kastrick/nextjs-engine", version: "99.0.0"
+		}));
+		assert.throws(() => fileSystem.readRegularFileNoFollow(outsideManifestPath, { maxBytes: 1 }),
+			/maximum safe read size/i, "file reads enforce their size limit before reading");
+		let symlinkCreated = false;
+		fs.rmSync(installedManifestPath, { force: true });
+		try {
+			fs.symlinkSync(outsideManifestPath, installedManifestPath, "file");
+			symlinkCreated = true;
+		} catch (error) {
+			if (process.platform !== "win32") throw error;
+		} finally {
+			if (symlinkCreated) {
+				assert.equal(safety.readInstalled(root).version, "3.0.0-alpha.3",
+					"update preflight must not follow a package manifest symlink outside the project");
+			}
+			fs.rmSync(installedManifestPath, { force: true });
+			fs.rmSync(outsideManifestPath, { force: true });
+			fs.writeFileSync(installedManifestPath,
+				JSON.stringify({ name: "@kastrick/nextjs-engine", version: "3.0.0-alpha.3" }));
+		}
 		assert.equal(safety.readInstalled(root).version, "3.0.0-alpha.3");
 		fs.writeFileSync(path.join(root, "node_modules", "@kastrick", "nextjs-engine", "package.json"),
 			JSON.stringify({ name: "@kastrick/nextjs-engine", version: "2.7.0" }));
