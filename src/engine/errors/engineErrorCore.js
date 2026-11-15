@@ -138,6 +138,13 @@ function isBrowser() {
 	return typeof window !== "undefined" && typeof window.dispatchEvent === "function";
 }
 
+function resolveEngineErrorHelpUrl(code) {
+	const normalized = cleanText(code || "NECORE4000", 40).toUpperCase();
+	if (!/^[A-Z]+\\d{4}$/.test(normalized)) return ERROR_BOOK_URL;
+	const page = ERROR_BOOK_PAGE_BY_CODE[normalized];
+	return page ? ERROR_BOOK_URL + "/" + page + "#" + normalized.toLowerCase() : ERROR_BOOK_URL;
+}
+
 function cleanText(value, maxLength = MAX_DETAIL_LENGTH) {
 	let text = String(value == null ? "" : value)
 		.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
