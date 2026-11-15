@@ -187,7 +187,7 @@ function instrumentationSource(nodeReporterImportPath, clientReporterImportPath)
 		"\t});",
 		"};",
 		"",
-	].join("\\n");
+	].join("\n");
 }
 
 function appDirectory(rootDirectory) {
