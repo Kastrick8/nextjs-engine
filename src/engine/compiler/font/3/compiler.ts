@@ -165,7 +165,8 @@ function normalizeSourceUrl(input, allowedOrigins, label) {
 	let url;
 	try { url = new URL(input); } catch { throw new TypeError("[EngineTheme fonts] " + label + " must be an absolute HTTPS URL."); }
 	if (url.protocol !== "https:" || url.username || url.password || url.hash || !allowedOrigins.has(url.origin)) {
-		throw new Error("[EngineTheme fonts] " + label + " must use an allowlisted HTTPS origin.");
+		const rejectedOrigin = url.origin === "null" ? url.protocol : url.origin;
+		throw new Error("[EngineTheme fonts] " + label + " must use an allowlisted HTTPS origin; received " + rejectedOrigin + ".");
 	}
 	return url;
 }
