@@ -32,9 +32,11 @@ const PROVIDERS = {
 		fileOrigins: "https://fonts.gstatic.com",
 	},
 	bunny: {
-		cssUrl: "https://fonts.bunny.net/css?family=Roboto:400&text=EngineTheme",
+		// Use a family served directly by Bunny Fonts. Do not broaden the trusted
+		// font origins to unrelated third-party CDNs just to satisfy this smoke test.
+		cssUrl: "https://fonts.bunny.net/css?family=Lato:400&text=EngineTheme",
 		cssOrigins: "https://fonts.bunny.net",
-		fileOrigins: "https://fonts.bunny.net,https://bunnyfonts.b-cdn.net",
+		fileOrigins: "https://fonts.bunny.net",
 	},
 };
 
