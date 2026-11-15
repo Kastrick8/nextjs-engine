@@ -12,9 +12,17 @@ This folder is a portable repository research snapshot prepared using the Resear
 
 The checked-in website docs are under `docs/3/`; these research notes are not a website navigation section.
 
+## Latest task continuation
+
+- [Workspace](./workspace.md) now includes the 2026-11-04 NE-CLI updater safety implementation, branch verification, current open-PR audit, and maintainer-constrained merge sequence (#80 last).
+
 ## Authority
 
 Current source on `main-3` is authoritative. These notes are a navigation/cache layer, not a substitute for re-reading source after the branch changes.
 
 
 Latest audit update (2026-11-03): the Engine3D scene-model, camera/material contract and current renderer limits are documented in the versioned module reference and recorded in the workspace/evidence ledger.
+
+## Latest task continuation — 2026-11-15
+
+- [Workspace](./workspace.md) now records the rebuilt NE-CLI parent/feature PRs (#93/#94/#100/#101), package-tag/release dependencies (#84/#97/#98), completed merged prerequisites (#77/#85/#99), pre-rebase archive refs, current CI state and required merge order. PR #80 remains last; old draft #55 stays parked for separate review.
