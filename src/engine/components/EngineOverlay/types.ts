@@ -7,7 +7,7 @@ export type EngineOverlayActionVariant = "primary" | "secondary" | "danger" | "g
 
 export type EngineOverlayThemeSlot =
 	| "trigger" | "backdrop" | "panel" | "header" | "title" | "description"
-	| "content" | "actions" | "actionPrimary" | "actionSecondary" | "actionDanger"
+	| "content" | "actions" | "actionPrimary" | "actionSecondary" | "actionDanger" | "actionGhost"
 	| "closeButton";
 
 export interface EngineOverlayThemeDefaults {
