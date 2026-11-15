@@ -31,13 +31,15 @@ function packageVersion() {
 	}
 }
 
+const BUILTIN_COMMANDS = new Set(["updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help"]);
+
 function parseArgs(argv) {
 	const positional = [];
 	const options = {};
 	const takesValue = new Set(["channel", "version", "and", "and-terminal"]);
 	for (let index = 0; index < argv.length; index += 1) {
 		const argument = argv[index];
-		if (argument === "-v" || argument === "--version") {
+		if (argument === "-v") {
 			options.version = true;
 			continue;
 		}
@@ -69,13 +71,25 @@ function parseArgs(argv) {
 				if (value !== undefined) options[name] = value;
 				else if (argv[index + 1] && !argv[index + 1].startsWith("-")) options[name] = argv[++index];
 				else throw diagnostics().missingOptionValue("--" + name, "a value");
-			} else if (["yes", "check", "json", "dry-run", "force", "no-color"].includes(name)) {
-				options[name === "dry-run" ? "dryRun" : name === "no-color" ? "noColor" : name] = true;
+			} else if (["yes", "check", "json", "dry-run", "force", "no-color", "allow-downgrade", "allow-generation-change", "acknowledge-compatibility", "source", "fix", "no-fix"].includes(name)) {
+				const optionNames = {
+					"dry-run": "dryRun",
+					"no-color": "noColor",
+					"no-fix": "noFix",
+					"allow-downgrade": "allowDowngrade",
+					"allow-generation-change": "allowGenerationChange",
+					"acknowledge-compatibility": "acknowledgeCompatibility"
+				};
+				options[optionNames[name] || name] = true;
+			} else if (positional.length && !BUILTIN_COMMANDS.has(positional[0])) {
+				// Plugin option schemas belong to the plugin; preserve unknown options
+				// without consuming the next positional argument.
+				(options.pluginOptions ||= []).push(argument);
 			} else {
 				throw diagnostics().unknownOption(argument, [
 					"--channel", "--version", "--and", "--and-terminal",
 					"--yes", "--check", "--json", "--dry-run", "--force",
-					"--quiet", "--no-color",
+					"--quiet", "--no-color", "--allow-downgrade", "--allow-generation-change", "--acknowledge-compatibility",
 				]);
 			}
 			continue;
@@ -139,6 +153,9 @@ function getHelp() {
 		"  ne build           Run NE checks and the production build",
 		"  ne start           Start the production server",
 		"  ne check           Run TypeScript and Gen 3 migration checks",
+		"  ne analyze         Analyze dependencies and project diagnostics",
+		"  ne info            Show local and remote Engine information",
+		"  ne plugins         List enabled local NE CLI plugins",
 		"  ne clean           Remove generated build files and caches",
 		"  ne updater         Browse releases in the terminal",
 		"  ne update          List or install a release",
@@ -183,10 +200,14 @@ function getCommandHelp(command) {
 			"",
 			"Options",
 			"  --check              Refresh and list releases without installing",
+			"  --source             Install a verified GitHub maintenance artifact for this exact version",
 			"  --dry-run            Show the selected release; do not install",
 			"  --json               Print the release catalog as JSON",
 			"  --force              Ignore the cached catalog and refresh feeds",
 			"  --yes                Skip the interactive install confirmation",
+			"  --allow-downgrade   Explicitly allow an older version",
+			"  --allow-generation-change  Explicitly allow switching Gen 2 / Gen 3",
+			"  --acknowledge-compatibility  Acknowledge migration warnings",
 			"  -q, --quiet          Hide the experimental notice",
 			"  --no-color           Disable ANSI colors",
 			"  -h, --help           Show this command help",
@@ -202,6 +223,38 @@ function getCommandHelp(command) {
 			"  latest-green chooses the newest stable or beta release, never alpha.",
 			"  Alpha and beta installs require a verified GitHub release artifact.",
 			"  Use --json without a selector for a read-only JSON catalog."
+		],
+		analyze: [
+			"ne analyze — Project and dependency analysis",
+			"",
+			"Usage",
+			"  ne analyze",
+			"  ne analyze --check",
+			"",
+			"Runs the package manager audit, checks outdated dependencies, validates",
+			"supported configuration files, and runs project checks.",
+			"By default it applies native safe dependency fixes where supported.",
+			"--check performs a read-only analysis.",
+			"Generation 3 does not run Gen 2-to-Gen 3 migration diagnostics.",
+			"NE reports source problems but never rewrites application source files."
+		],
+		info: [
+			"ne info — Local and remote project information",
+			"",
+			"Usage",
+			"  ne info",
+			"",
+			"Shows the installed package, generation, package manager, runtime,",
+			"source commit, remote branch head, and any compatible GitHub hotfix."
+		],
+		plugins: [
+			"ne plugins — Local NE CLI plugins",
+			"",
+			"Usage",
+			"  ne plugins",
+			"",
+			"Lists the plugins explicitly enabled in .nextjs-engine/config/ne-cli.json.",
+			"Plugin files live in .nextjs-engine/plugins/*.cjs."
 		],
 		updater: [
 			"ne updater — Interactive release browser",
@@ -276,6 +329,14 @@ function getCommandHelp(command) {
 		: null;
 }
 
+function loadPluginCommandHelp(command) {
+	let root;
+	try { root = project().findProjectRoot(process.cwd()); } catch { return null; }
+	const host = require("./plugins").loadPlugins(root);
+	const definition = host.commands.get(command);
+	return definition && definition.help ? String(definition.help).replace(/\n?$/, "\n") : null;
+}
+
 function listChannels(catalog, state) {
 	const lines = [
 		"NE release channels" + (catalog.cached ? " (cached feed)" : ""),
@@ -344,6 +405,7 @@ async function askToInstall(release, options) {
 }
 
 async function commandUpdate(root, options) {
+	if (options.source) return require("./maintenance").installAvailableHotfix(project(), root, options);
 	const state = project().loadState(root);
 	if (!options.json) process.stdout.write("[NE-UPDATER] Refreshing npm versions, GitHub releases and repository tags...\n");
 	const catalog = await channels().loadChannelCatalog(root, {
@@ -375,15 +437,19 @@ async function commandUpdate(root, options) {
 		throw new Error("No verified installable release was found for " + (options.version || options.channel) + ". The catalog may list npm prereleases or Git tags without a verified installation artifact.");
 	}
 	if (options.check || options.dryRun) {
+		const safetyReport = project().inspectUpdateSafety(root, release);
 		process.stdout.write("[NE] Selected " + release.version + " [" + channels().channelLabel(release) + "] from " + release.sourceLabel + ".\n");
+		process.stdout.write(project().formatUpdateSafety(safetyReport) + "\n");
+		if (safetyReport.blockers.length) process.stdout.write("[NE] This selection is BLOCKED by compatibility errors.\n");
 		if (options.dryRun) process.stdout.write("[NE] Dry run only; the project was not modified.\n");
 		return;
 	}
+
 	if (!(await askToInstall(release, options))) {
 		process.stdout.write("[NE] Installation cancelled.\n");
 		return;
 	}
-	await project().installRelease(root, release, options.channel || release.track);
+	await project().installRelease(root, release, options.channel || release.track, options);
 }
 
 async function commandUpdater(root, showWarning) {
@@ -408,6 +474,7 @@ async function commandUpdater(root, showWarning) {
 		showWarning: Boolean(showWarning),
 		catalog: cached,
 		loadCatalog: (onSourceStatus) => channels().loadChannelCatalog(root, { onSourceStatus }),
+		inspectRelease: (release) => project().inspectUpdateSafety(root, release),
 		context: {
 			projectName: projectTitle,
 			version: installedVersion,
@@ -420,7 +487,7 @@ async function commandUpdater(root, showWarning) {
 		},
 	});
 	if (result.action === "install" && result.release) {
-		await project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+		await project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track, { safetyAcknowledged: Boolean(result.safetyAcknowledged) });
 	}
 }
 
@@ -457,15 +524,17 @@ async function runDashboard(root, showWarning) {
 	return result;
 }
 
-async function runDashboardAction(root, result) {
+async function runDashboardAction(root, result, pluginHost) {
 	const action = typeof result === "string" ? result : result && result.action;
 	if (action === "install" && result && result.release) {
-		return project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+		return project().installRelease(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track, { safetyAcknowledged: Boolean(result.safetyAcknowledged) });
 	}
 	if (action === "dev") return project().runNext(root, ["dev"]);
-	if (action === "build") return project().runBuild(root);
+	if (action === "build") return project().runBuild(root, pluginHost);
 	if (action === "start") return project().runNext(root, ["start"]);
 	if (action === "check") return project().runCheck(root);
+	if (action === "analyze") return require("./analyze").runAnalyze(project(), root, { checkOnly: true }, pluginHost);
+	if (action === "info") return require("./info").runInfo(root, project(), pluginHost);
 	if (action === "clean") return project().runClean(root, false);
 	if (action === "rollback") return project().rollback(root);
 	if (action === "help") return process.stdout.write(getHelp());
@@ -562,26 +631,36 @@ async function runChainedCommands(root, options) {
 	}
 }
 
-async function executeCommand(root, command, subArgs, options, showWarning) {
+async function executeCommand(root, command, subArgs, options, showWarning, pluginHost) {
 	if (!command) {
 		if (!process.stdin.isTTY || !process.stdout.isTTY) {
 			process.stdout.write(getHelp());
 			return;
 		}
 		const result = await runDashboard(root, showWarning);
-		await runDashboardAction(root, result);
+		await runDashboardAction(root, result, pluginHost);
 		return;
 	}
 	if (command === "updater") return commandUpdater(root, showWarning);
 	if (command === "update") return commandUpdate(root, options);
 	if (command === "dev") return project().runNext(root, ["dev", ...subArgs]);
-	if (command === "build") return project().runBuild(root);
+	if (command === "build") return project().runBuild(root, pluginHost, options);
 	if (command === "start") return project().runNext(root, ["start", ...subArgs]);
 	if (command === "check") return project().runCheck(root);
+	if (command === "analyze") return require("./analyze").runAnalyze(project(), root, { checkOnly: Boolean(options.check || options.noFix) }, pluginHost);
+	if (command === "info") return require("./info").runInfo(root, project(), pluginHost);
+	if (command === "plugins") {
+		const list = require("./plugins").listPlugins(pluginHost);
+		if (!list.length) process.stdout.write("[NE] No NE CLI plugins are enabled.\n");
+		else for (const item of list) process.stdout.write(item.name + "@" + item.version + " · " + item.file + "\n");
+		return;
+	}
+	const pluginCommand = pluginHost && pluginHost.commands.get(command);
+	if (pluginCommand) return pluginCommand.run({ root, args: subArgs, options, pluginOptions: options.pluginOptions || [], project: project() });
 	if (command === "clean") return project().runClean(root, Boolean(options.dryRun));
 	if (command === "rollback") return project().rollback(root);
 	throw diagnostics().unknownCommand(command, [
-		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+		"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help",
 	]);
 }
 
@@ -589,7 +668,7 @@ async function main(argv) {
 	const args = parseArgs(argv || process.argv.slice(2));
 	const command = args.positional[0];
 	const subArgs = args.positional.slice(1);
-	if (args.options.version) {
+	if (args.options.version === true && !command) {
 		process.stdout.write(packageVersion() + "\n");
 		return;
 	}
@@ -597,9 +676,9 @@ async function main(argv) {
 		const target = subArgs[0];
 		if (!target) process.stdout.write(getHelp());
 		else {
-			const help = getCommandHelp(target);
+			const help = getCommandHelp(target) || loadPluginCommandHelp(target);
 			if (!help) throw diagnostics().unknownCommand(target, [
-				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help",
 			]);
 			process.stdout.write(help);
 		}
@@ -608,23 +687,29 @@ async function main(argv) {
 	if (args.options.help) {
 		if (!command) process.stdout.write(getHelp());
 		else {
-			const help = getCommandHelp(command);
+			const help = getCommandHelp(command) || (command ? loadPluginCommandHelp(command) : null);
 			if (!help) throw diagnostics().unknownCommand(command, [
-				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "analyze", "info", "plugins", "help",
 			]);
 			process.stdout.write(help);
 		}
 		return;
 	}
-	if (command && !["updater", "update", "dev", "build", "start", "check", "clean", "rollback"].includes(command)) {
-		throw diagnostics().unknownCommand(command, [
-			"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
-		]);
-	}
 	const usesTui = !command || command === "updater";
 	if (!usesTui) experimentalWarning(args.options);
-	const root = project().findProjectRoot(process.cwd());
-	await executeCommand(root, command, subArgs, args.options, shouldShowExperimentalWarning());
+	let root;
+	try { root = project().findProjectRoot(process.cwd()); }
+	catch (error) {
+		if (command && !BUILTIN_COMMANDS.has(command)) throw diagnostics().unknownCommand(command, [...BUILTIN_COMMANDS]);
+		throw error;
+	}
+	const pluginHost = require("./plugins").loadPlugins(root);
+	const knownCommand = BUILTIN_COMMANDS.has(command);
+	if (command && !knownCommand && !pluginHost.commands.has(command)) throw diagnostics().unknownCommand(command, [...BUILTIN_COMMANDS, ...pluginHost.commands.keys()]);
+	const context = { root, command, args: subArgs, options: args.options, project: project() };
+	await require("./plugins").runHooks(pluginHost, "beforeCommand", context);
+	await executeCommand(root, command, subArgs, args.options, shouldShowExperimentalWarning(), pluginHost);
+	await require("./plugins").runHooks(pluginHost, "afterCommand", context);
 	await runChainedCommands(root, args.options);
 }
 
