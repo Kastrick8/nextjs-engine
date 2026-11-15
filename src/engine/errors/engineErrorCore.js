@@ -269,6 +269,10 @@ function createEngineErrorReport(error, context = {}) {
 }
 
 module.exports = {
+	ERROR_BOOK_URL,
+	PROJECT_URL,
+	MAX_MESSAGE_LENGTH,
+	MAX_DETAIL_LENGTH,
 	createEngineErrorReport,
 	resolveEngineErrorHelpUrl,
 	cleanText,
