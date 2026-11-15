@@ -1,0 +1,659 @@
+{
+  "schemaVersion": 1,
+  "description": "Machine-readable index for the authoritative Generation 3 Nextjs Engine Error Code Book. Subsystem pages contain the meaning, likely cause and recommended action.",
+  "publicBaseUrl": "https://kastrick.vercel.app/project/nextjs-engine/doc/error-codes",
+  "codeFormat": "PREFIX1234",
+  "numericRanges": {
+    "1xxx": "input/source/parse/validation",
+    "2xxx": "semantic/configuration/policy/authorization",
+    "3xxx": "compile/lowering/artifact preparation",
+    "4xxx": "runtime/lifecycle",
+    "5xxx": "workers/process/package/build/bootstrap",
+    "8xxx": "external dependencies/platform",
+    "9xxx": "internal invariants"
+  },
+  "prefixes": {
+    "NECORE": "Structured reports, route/global boundaries, request instrumentation and Node fatal exceptions",
+    "NENC": "Gen 3 source discovery, static analysis, compilation, client islands, artifacts and worker output",
+    "NECFG": "Config parsing, generated error files, plugin lifecycle and file ownership",
+    "NEBLD": "Build integration, deterministic artifacts, cache validation, budgets, measurements and output writes",
+    "NECMP": "Schema validation, custom component registration, props, accessibility and node identity",
+    "NETH": "Theme IDs/scopes, tokens, .etr artifacts, fonts and remote loading",
+    "NEMD": "Markdown parsing, GFM, server rendering, highlighting and link decoration",
+    "NEIMG": "Image source, sizing/optimization, fallback loading and remote host rules",
+    "NEAPI": "Provider config, route declarations, request validation and handler execution",
+    "NESCHED": "Scheduling policies, target lifecycle, observers, callbacks, EngineScroll point metadata and frame budgets",
+    "NEDEBUG": "Dev route discovery, preview navigation, source mapping and production isolation",
+    "NESEO": "Metadata normalization, canonical URLs, JSON-LD and sitemaps",
+    "NENET": "Command transport, session/CSRF checks, replay controls, backend requests and Web Crypto",
+    "NEMIG": "Legacy configuration, renderer compatibility and source migration",
+    "NEVIS": "Visual rendering, shaders, animation, scroll state and transition lifecycle",
+    "NESEC": "Origin checks, identity/device proof, unsafe values and secret-safe reporting"
+  },
+  "entries": [
+    {
+      "code": "NECORE4000",
+      "status": "emitted",
+      "title": "Unclassified Engine error",
+      "doc": "core.md#necore4000"
+    },
+    {
+      "code": "NECORE4001",
+      "status": "emitted",
+      "title": "Route boundary caught an error",
+      "doc": "core.md#necore4001"
+    },
+    {
+      "code": "NECORE4002",
+      "status": "emitted",
+      "title": "Root global boundary caught an error",
+      "doc": "core.md#necore4002"
+    },
+    {
+      "code": "NECORE4003",
+      "status": "emitted",
+      "title": "Next.js server request failed",
+      "doc": "core.md#necore4003"
+    },
+    {
+      "code": "NECORE5001",
+      "status": "emitted",
+      "title": "Node will terminate after uncaught exception",
+      "doc": "core.md#necore5001"
+    },
+    {
+      "code": "NECORE9001",
+      "status": "reserved",
+      "title": "Reporter invariant violated",
+      "doc": "core.md#necore9001"
+    },
+    {
+      "code": "NENC1000",
+      "status": "assigned",
+      "title": "Compiler source discovery failed",
+      "doc": "nenc.md#nenc1000"
+    },
+    {
+      "code": "NENC1001",
+      "status": "assigned",
+      "title": "Compiler input could not be parsed",
+      "doc": "nenc.md#nenc1001"
+    },
+    {
+      "code": "NENC1002",
+      "status": "assigned",
+      "title": "Schema expression is not statically analyzable",
+      "doc": "nenc.md#nenc1002"
+    },
+    {
+      "code": "NENC2001",
+      "status": "assigned",
+      "title": "Unknown schema node type",
+      "doc": "nenc.md#nenc2001"
+    },
+    {
+      "code": "NENC2002",
+      "status": "assigned",
+      "title": "Unsupported schema property value",
+      "doc": "nenc.md#nenc2002"
+    },
+    {
+      "code": "NENC3001",
+      "status": "assigned",
+      "title": "Client-island boundary could not be planned",
+      "doc": "nenc.md#nenc3001"
+    },
+    {
+      "code": "NENC3002",
+      "status": "assigned",
+      "title": "Compiled artifact graph is incomplete",
+      "doc": "nenc.md#nenc3002"
+    },
+    {
+      "code": "NENC4000",
+      "status": "emitted",
+      "title": "Unclassified NENC terminal failure",
+      "doc": "nenc.md#nenc4000"
+    },
+    {
+      "code": "NENC4001",
+      "status": "assigned",
+      "title": "Route compilation failed",
+      "doc": "nenc.md#nenc4001"
+    },
+    {
+      "code": "NENC5001",
+      "status": "assigned",
+      "title": "Compiler worker exited unexpectedly",
+      "doc": "nenc.md#nenc5001"
+    },
+    {
+      "code": "NENC5002",
+      "status": "assigned",
+      "title": "Compiler worker response was invalid",
+      "doc": "nenc.md#nenc5002"
+    },
+    {
+      "code": "NENC8001",
+      "status": "assigned",
+      "title": "TypeScript compiler dependency unavailable",
+      "doc": "nenc.md#nenc8001"
+    },
+    {
+      "code": "NECFG1001",
+      "status": "assigned",
+      "title": "Engine configuration is malformed",
+      "doc": "config.md#necfg1001"
+    },
+    {
+      "code": "NECFG1002",
+      "status": "assigned",
+      "title": "Compiled EngineAPI config is invalid",
+      "doc": "config.md#necfg1002"
+    },
+    {
+      "code": "NECFG2001",
+      "status": "emitted",
+      "title": "User-owned route boundary preserved",
+      "doc": "config.md#necfg2001"
+    },
+    {
+      "code": "NECFG2002",
+      "status": "emitted",
+      "title": "User-owned global boundary preserved",
+      "doc": "config.md#necfg2002"
+    },
+    {
+      "code": "NECFG2003",
+      "status": "emitted",
+      "title": "User-owned instrumentation preserved",
+      "doc": "config.md#necfg2003"
+    },
+    {
+      "code": "NECFG5001",
+      "status": "emitted",
+      "title": "Generated integration file could not be written",
+      "doc": "config.md#necfg5001"
+    },
+    {
+      "code": "NECFG8001",
+      "status": "assigned",
+      "title": "Reporter module could not be resolved",
+      "doc": "config.md#necfg8001"
+    },
+    {
+      "code": "NECFG9001",
+      "status": "reserved",
+      "title": "Plugin ownership invariant violated",
+      "doc": "config.md#necfg9001"
+    },
+    {
+      "code": "NEBLD1001",
+      "status": "assigned",
+      "title": "Build source file could not be read",
+      "doc": "build.md#nebld1001"
+    },
+    {
+      "code": "NEBLD1002",
+      "status": "assigned",
+      "title": "Engine cache metadata is invalid",
+      "doc": "build.md#nebld1002"
+    },
+    {
+      "code": "NEBLD2001",
+      "status": "emitted",
+      "title": "Build budget configuration is invalid",
+      "doc": "build.md#nebld2001"
+    },
+    {
+      "code": "NEBLD2002",
+      "status": "emitted",
+      "title": "Build measurement is missing or invalid",
+      "doc": "build.md#nebld2002"
+    },
+    {
+      "code": "NEBLD3001",
+      "status": "assigned",
+      "title": "Artifact graph is incomplete",
+      "doc": "build.md#nebld3001"
+    },
+    {
+      "code": "NEBLD3002",
+      "status": "emitted",
+      "title": "Bundle/runtime budget exceeded",
+      "doc": "build.md#nebld3002"
+    },
+    {
+      "code": "NEBLD5001",
+      "status": "assigned",
+      "title": "Next.js/Engine build integration failed",
+      "doc": "build.md#nebld5001"
+    },
+    {
+      "code": "NEBLD8001",
+      "status": "assigned",
+      "title": "Build artifact could not be written",
+      "doc": "build.md#nebld8001"
+    },
+    {
+      "code": "NECMP1001",
+      "status": "emitted",
+      "title": "Unknown component/schema node type",
+      "doc": "components.md#necmp1001"
+    },
+    {
+      "code": "NECMP1002",
+      "status": "emitted",
+      "title": "Required component property missing",
+      "doc": "components.md#necmp1002"
+    },
+    {
+      "code": "NECMP1003",
+      "status": "assigned",
+      "title": "Component property has an invalid value",
+      "doc": "components.md#necmp1003"
+    },
+    {
+      "code": "NECMP1004",
+      "status": "emitted",
+      "title": "Malformed schema node",
+      "doc": "components.md#necmp1004"
+    },
+    {
+      "code": "NECMP1005",
+      "status": "emitted",
+      "title": "Page schema is missing its root node",
+      "doc": "components.md#necmp1005"
+    },
+    {
+      "code": "NECMP1006",
+      "status": "emitted",
+      "title": "Accessibility label or association is missing",
+      "doc": "components.md#necmp1006"
+    },
+    {
+      "code": "NECMP1007",
+      "status": "emitted",
+      "title": "Component does not accept schema child nodes",
+      "doc": "components.md#necmp1007"
+    },
+    {
+      "code": "NECMP1008",
+      "status": "emitted",
+      "title": "Schema tree exceeds complexity guidance",
+      "doc": "components.md#necmp1008"
+    },
+    {
+      "code": "NECMP2001",
+      "status": "emitted",
+      "title": "Duplicate schema identity",
+      "doc": "components.md#necmp2001"
+    },
+    {
+      "code": "NECMP2002",
+      "status": "emitted",
+      "title": "Circular schema reference",
+      "doc": "components.md#necmp2002"
+    },
+    {
+      "code": "NECMP2003",
+      "status": "emitted",
+      "title": "Duplicate schema component name",
+      "doc": "components.md#necmp2003"
+    },
+    {
+      "code": "NETH1001",
+      "status": "emitted",
+      "title": "Theme definition malformed",
+      "doc": "theme.md#neth1001"
+    },
+    {
+      "code": "NETH1002",
+      "status": "emitted",
+      "title": "Theme ID/scope invalid",
+      "doc": "theme.md#neth1002"
+    },
+    {
+      "code": "NETH2001",
+      "status": "emitted",
+      "title": "Theme ID collides in scope",
+      "doc": "theme.md#neth2001"
+    },
+    {
+      "code": "NETH2002",
+      "status": "emitted",
+      "title": "Theme token value invalid",
+      "doc": "theme.md#neth2002"
+    },
+    {
+      "code": "NETH3001",
+      "status": "emitted",
+      "title": "Theme artifact compilation failed",
+      "doc": "theme.md#neth3001"
+    },
+    {
+      "code": "NETH8001",
+      "status": "emitted",
+      "title": "Remote theme could not be fetched/decoded",
+      "doc": "theme.md#neth8001"
+    },
+    {
+      "code": "NETH8002",
+      "status": "emitted",
+      "title": "Theme font provider failed",
+      "doc": "theme.md#neth8002"
+    },
+    {
+      "code": "NEMD1001",
+      "status": "assigned",
+      "title": "Markdown input/options invalid",
+      "doc": "markdown.md#nemd1001"
+    },
+    {
+      "code": "NEMD1002",
+      "status": "assigned",
+      "title": "Custom Markdown block malformed",
+      "doc": "markdown.md#nemd1002"
+    },
+    {
+      "code": "NEMD2001",
+      "status": "assigned",
+      "title": "Markdown option unsupported in this path",
+      "doc": "markdown.md#nemd2001"
+    },
+    {
+      "code": "NEMD3001",
+      "status": "assigned",
+      "title": "Server Markdown rendering failed",
+      "doc": "markdown.md#nemd3001"
+    },
+    {
+      "code": "NEMD8001",
+      "status": "assigned",
+      "title": "Syntax highlighter unavailable",
+      "doc": "markdown.md#nemd8001"
+    },
+    {
+      "code": "NEMD8002",
+      "status": "assigned",
+      "title": "Markdown link icon unavailable",
+      "doc": "markdown.md#nemd8002"
+    },
+    {
+      "code": "NEIMG1001",
+      "status": "assigned",
+      "title": "Image source missing/invalid",
+      "doc": "images.md#neimg1001"
+    },
+    {
+      "code": "NEIMG1002",
+      "status": "emitted",
+      "title": "Meaningful image has no alt text",
+      "doc": "images.md#neimg1002"
+    },
+    {
+      "code": "NEIMG2001",
+      "status": "assigned",
+      "title": "Remote image host not allowed",
+      "doc": "images.md#neimg2001"
+    },
+    {
+      "code": "NEIMG3001",
+      "status": "assigned",
+      "title": "Image sizing/optimization plan failed",
+      "doc": "images.md#neimg3001"
+    },
+    {
+      "code": "NEIMG4001",
+      "status": "assigned",
+      "title": "Image failed to load/decode",
+      "doc": "images.md#neimg4001"
+    },
+    {
+      "code": "NEAPI1001",
+      "status": "emitted",
+      "title": "API declaration malformed",
+      "doc": "api.md#neapi1001"
+    },
+    {
+      "code": "NEAPI1002",
+      "status": "emitted",
+      "title": "APIStatic route ID invalid",
+      "doc": "api.md#neapi1002"
+    },
+    {
+      "code": "NEAPI2001",
+      "status": "assigned",
+      "title": "API provider could not be resolved",
+      "doc": "api.md#neapi2001"
+    },
+    {
+      "code": "NEAPI2002",
+      "status": "emitted",
+      "title": "Request input failed validation",
+      "doc": "api.md#neapi2002"
+    },
+    {
+      "code": "NEAPI4001",
+      "status": "emitted",
+      "title": "API handler execution failed",
+      "doc": "api.md#neapi4001"
+    },
+    {
+      "code": "NEAPI8001",
+      "status": "emitted",
+      "title": "APIStatic TypeScript compiler unavailable",
+      "doc": "api.md#neapi8001"
+    },
+    {
+      "code": "NESCHED1001",
+      "status": "assigned",
+      "title": "Scheduling policy invalid",
+      "doc": "scheduler.md#nesched1001"
+    },
+    {
+      "code": "NESCHED1002",
+      "status": "emitted",
+      "title": "EngineScroll point metadata has no target",
+      "doc": "scheduler.md#nesched1002"
+    },
+    {
+      "code": "NESCHED2001",
+      "status": "assigned",
+      "title": "Scheduled target unavailable",
+      "doc": "scheduler.md#nesched2001"
+    },
+    {
+      "code": "NESCHED4001",
+      "status": "assigned",
+      "title": "Scheduled callback threw",
+      "doc": "scheduler.md#nesched4001"
+    },
+    {
+      "code": "NESCHED4002",
+      "status": "assigned",
+      "title": "Browser observer unavailable",
+      "doc": "scheduler.md#nesched4002"
+    },
+    {
+      "code": "NESCHED5001",
+      "status": "assigned",
+      "title": "Scheduler exceeded expected work budget",
+      "doc": "scheduler.md#nesched5001"
+    },
+    {
+      "code": "NEDEBUG1001",
+      "status": "assigned",
+      "title": "EngineDebug route absent",
+      "doc": "engine-debug.md#nedebug1001"
+    },
+    {
+      "code": "NEDEBUG2001",
+      "status": "assigned",
+      "title": "Diagnostic payload invalid",
+      "doc": "engine-debug.md#nedebug2001"
+    },
+    {
+      "code": "NEDEBUG4001",
+      "status": "assigned",
+      "title": "Preview navigation failed",
+      "doc": "engine-debug.md#nedebug4001"
+    },
+    {
+      "code": "NEDEBUG4002",
+      "status": "assigned",
+      "title": "Source location could not be mapped",
+      "doc": "engine-debug.md#nedebug4002"
+    },
+    {
+      "code": "NEDEBUG5001",
+      "status": "assigned",
+      "title": "Development debugger present in production output",
+      "doc": "engine-debug.md#nedebug5001"
+    },
+    {
+      "code": "NESEO1001",
+      "status": "emitted",
+      "title": "SEO schema invalid",
+      "doc": "seo.md#neseo1001"
+    },
+    {
+      "code": "NESEO2001",
+      "status": "emitted",
+      "title": "Canonical URL invalid",
+      "doc": "seo.md#neseo2001"
+    },
+    {
+      "code": "NESEO3001",
+      "status": "emitted",
+      "title": "JSON-LD serialization failed",
+      "doc": "seo.md#neseo3001"
+    },
+    {
+      "code": "NESEO4001",
+      "status": "emitted",
+      "title": "Sitemap route discovery failed",
+      "doc": "seo.md#neseo4001"
+    },
+    {
+      "code": "NENET1001",
+      "status": "assigned",
+      "title": "NENC command payload malformed",
+      "doc": "networking.md#nenet1001"
+    },
+    {
+      "code": "NENET2001",
+      "status": "assigned",
+      "title": "Session/origin validation failed",
+      "doc": "networking.md#nenet2001"
+    },
+    {
+      "code": "NENET2002",
+      "status": "assigned",
+      "title": "Command rejected by replay/rate policy",
+      "doc": "networking.md#nenet2002"
+    },
+    {
+      "code": "NENET4001",
+      "status": "assigned",
+      "title": "Private command execution failed",
+      "doc": "networking.md#nenet4001"
+    },
+    {
+      "code": "NENET8001",
+      "status": "assigned",
+      "title": "Private backend request failed",
+      "doc": "networking.md#nenet8001"
+    },
+    {
+      "code": "NENET8002",
+      "status": "assigned",
+      "title": "Web Crypto unavailable",
+      "doc": "networking.md#nenet8002"
+    },
+    {
+      "code": "NEMIG1001",
+      "status": "assigned",
+      "title": "Legacy EngineAPI config detected",
+      "doc": "migration.md#nemig1001"
+    },
+    {
+      "code": "NEMIG1002",
+      "status": "assigned",
+      "title": "Legacy API source could not migrate",
+      "doc": "migration.md#nemig1002"
+    },
+    {
+      "code": "NEMIG2001",
+      "status": "assigned",
+      "title": "Gen 2 renderer compatibility enabled",
+      "doc": "migration.md#nemig2001"
+    },
+    {
+      "code": "NEMIG2002",
+      "status": "assigned",
+      "title": "Legacy authoring pattern remains",
+      "doc": "migration.md#nemig2002"
+    },
+    {
+      "code": "NEVIS1001",
+      "status": "assigned",
+      "title": "Visual node configuration invalid",
+      "doc": "visual.md#nevis1001"
+    },
+    {
+      "code": "NEVIS2001",
+      "status": "assigned",
+      "title": "Shader uniform/input invalid",
+      "doc": "visual.md#nevis2001"
+    },
+    {
+      "code": "NEVIS3001",
+      "status": "assigned",
+      "title": "Visual artifact compilation failed",
+      "doc": "visual.md#nevis3001"
+    },
+    {
+      "code": "NEVIS4001",
+      "status": "assigned",
+      "title": "Animation/transition callback failed",
+      "doc": "visual.md#nevis4001"
+    },
+    {
+      "code": "NEVIS4002",
+      "status": "assigned",
+      "title": "Scroll target/point unresolved",
+      "doc": "visual.md#nevis4002"
+    },
+    {
+      "code": "NEVIS8001",
+      "status": "assigned",
+      "title": "Browser graphics capability unavailable",
+      "doc": "visual.md#nevis8001"
+    },
+    {
+      "code": "NESEC2001",
+      "status": "emitted",
+      "title": "Request origin not allowed",
+      "doc": "security.md#nesec2001"
+    },
+    {
+      "code": "NESEC2002",
+      "status": "assigned",
+      "title": "Identity/device proof rejected",
+      "doc": "security.md#nesec2002"
+    },
+    {
+      "code": "NESEC4001",
+      "status": "emitted",
+      "title": "Untrusted value rejected",
+      "doc": "security.md#nesec4001"
+    },
+    {
+      "code": "NESEC8001",
+      "status": "emitted",
+      "title": "Required crypto primitive unavailable",
+      "doc": "security.md#nesec8001"
+    }
+  ]
+}

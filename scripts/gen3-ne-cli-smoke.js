@@ -14,6 +14,19 @@ const tasks = require("../bin/ne-cli/tasks");
 const presentation = require("../bin/ne-cli/presentation");
 const diagnostics = require("../bin/ne-cli/diagnostics");
 const { evaluateGreenRuns } = require("./gen3-assert-green-commit");
+const { EventEmitter } = require("node:events");
+const fileSystem = require("../bin/ne-cli/file-system");
+
+function createTempDirectory(prefix) {
+	const name = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+	if (process.platform !== "win32") fs.chmodSync(name, 0o700);
+	return {
+		name,
+		removeCallback() {
+			fs.rmSync(name, { recursive: true, force: true });
+		},
+	};
+}
 
 async function main() {
 	assert.equal(tasks.MAX_WORKERS, 3, "NE command workers are capped at three concurrent worker threads");
@@ -132,6 +145,28 @@ async function main() {
 	assert.equal(helpResult.status, 0, "ne --help does not require a project package.json");
 	assert.match(helpResult.stdout, /Open the interactive dashboard/);
 	assert.equal(helpResult.stderr, "");
+	assert.match(helpResult.stdout, /Next\.js Engine CLI — Generation 3/);
+	assert.match(helpResult.stdout, /ne <command> -h/);
+	const updateHelpResult = spawnSync(process.execPath, [executable, "update", "-h"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(updateHelpResult.status, 0, "ne update -h works without a project directory");
+	assert.match(updateHelpResult.stdout, /Usage\n  ne update/);
+	assert.match(updateHelpResult.stdout, /--channel <channel>/);
+	assert.match(updateHelpResult.stdout, /--force/);
+	assert.match(updateHelpResult.stdout, /--dry-run/);
+	assert.doesNotMatch(updateHelpResult.stdout, /Commands\n/);
+	const updateHelpAlias = spawnSync(process.execPath, [executable, "help", "update"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(updateHelpAlias.status, 0);
+	assert.equal(updateHelpAlias.stdout, updateHelpResult.stdout, "ne help update matches ne update -h");
+	const devHelpResult = spawnSync(process.execPath, [executable, "dev", "--help"], {
+		cwd: os.tmpdir(), encoding: "utf8", timeout: 5000,
+	});
+	assert.equal(devHelpResult.status, 0);
+	assert.match(devHelpResult.stdout, /ne dev — Development server/);
+	assert.equal(startupPackageManifest.dependencies.tmp, undefined, "the CLI no longer needs an external tmp package");
 
 	const cliModulePath = path.resolve(__dirname, "../bin/ne-cli/cli.js");
 	const lazyProbe = [
@@ -166,6 +201,42 @@ async function main() {
 	assert.throws(() => project.resolveProcessInvocation("npm.cmd", ["install"], {
 		platform: "win32",
 	}), /does not execute \.cmd\/.bat wrappers through a shell/);
+	const idleInput = new EventEmitter();
+	const inputCalls = [];
+	idleInput.setRawMode = (value) => inputCalls.push("raw:" + value);
+	idleInput.pause = () => inputCalls.push("pause");
+	idleInput.resume = () => inputCalls.push("resume");
+	idleInput.ref = () => inputCalls.push("ref");
+	idleInput.unref = () => inputCalls.push("unref");
+	const tuiInputListener = () => {};
+	idleInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(idleInput, false, false, tuiInputListener);
+	assert.deepEqual(inputCalls, ["raw:false", "pause", "unref"], "idle TUI input is released after closing");
+	assert.equal(idleInput.listenerCount("data"), 0);
+	const sharedInput = new EventEmitter();
+	const sharedCalls = [];
+	sharedInput.setRawMode = (value) => sharedCalls.push("raw:" + value);
+	sharedInput.pause = () => sharedCalls.push("pause");
+	sharedInput.resume = () => sharedCalls.push("resume");
+	sharedInput.ref = () => sharedCalls.push("ref");
+	sharedInput.unref = () => sharedCalls.push("unref");
+	const otherReader = () => {};
+	sharedInput.on("data", otherReader);
+	sharedInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(sharedInput, false, false, tuiInputListener);
+	assert.deepEqual(sharedCalls, ["raw:false", "ref", "resume"], "other stdin readers remain active");
+	assert.equal(sharedInput.listenerCount("data"), 1);
+	const pausedInput = new EventEmitter();
+	const pausedCalls = [];
+	pausedInput.setRawMode = (value) => pausedCalls.push("raw:" + value);
+	pausedInput.pause = () => pausedCalls.push("pause");
+	pausedInput.resume = () => pausedCalls.push("resume");
+	pausedInput.ref = () => pausedCalls.push("ref");
+	pausedInput.unref = () => pausedCalls.push("unref");
+	pausedInput.on("data", otherReader);
+	pausedInput.on("data", tuiInputListener);
+	terminal.restoreTerminalInput(pausedInput, true, true, tuiInputListener);
+	assert.deepEqual(pausedCalls, ["raw:true", "pause", "unref"], "a previously paused input stream remains paused and unreferenced");
 	const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 	const stderrDescriptor = Object.getOwnPropertyDescriptor(process.stderr, "isTTY");
 	const noColor = process.env.NO_COLOR;
@@ -196,6 +267,23 @@ async function main() {
 			"the currently running child branch is cyan");
 		assert.match(coloredRows[5].text, /\x1b\[33;1m└─> \x1b\[0m/,
 			"pending child branches are yellow");
+		const panelLines = treeFixture.buildPanelLines(80, 12);
+		assert.doesNotMatch(panelLines[0], /\x1b\[/, "task-tree top frame has no ANSI color painting");
+		assert.doesNotMatch(panelLines[panelLines.length - 1], /\x1b\[/, "task-tree bottom frame has no ANSI color painting");
+		assert.match(panelLines[4], /\x1b\[32;1m├─>/, "completed progress is green inside the task tree");
+		const originalWrite = process.stdout.write;
+		const drawOutput = [];
+		process.stdout.write = function (chunk) { drawOutput.push(String(chunk)); return true; };
+		try {
+			treeFixture.interactive = true;
+			treeFixture.panelHeight = 0;
+			treeFixture.scrollRegionActive = false;
+			treeFixture.draw();
+		} finally {
+			process.stdout.write = originalWrite;
+		}
+		assert.doesNotMatch(drawOutput.join(""), /\x1b\[2J/, "task-tree updates do not clear the whole terminal");
+		assert.match(drawOutput.join(""), /\x1b\[1;\d+r/, "task-tree reserves a sticky scrolling region");
 	} finally {
 		if (stdoutDescriptor) Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
 		else delete process.stdout.isTTY;
@@ -470,9 +558,33 @@ async function main() {
 	assert.equal(args.options.yes, true);
 	assert.deepEqual(args.options.andCommands, ["git status", "npm test"]);
 	assert.equal(args.options.andTerminal, 10);
+	assert.deepEqual(cli.parseChainedCommand('npm run "type check" -- --pretty false'),
+		["npm", "run", "type check", "--", "--pretty", "false"]);
+	assert.throws(() => cli.parseChainedCommand("npm test && curl https://invalid.example"),
+		/shell operators or expansions/, "NE --and rejects shell operators before spawning");
+	assert.throws(() => cli.parseChainedCommand("npm test $(whoami)"),
+		/shell operators or expansions/, "NE --and rejects command substitutions");
+	assert.throws(() => cli.parseChainedCommand("npm test | cat"),
+		/shell operators or expansions/, "NE --and rejects shell pipelines");
 	assert.match(cli.getHelp(), /ne build/);
 	assert.match(cli.getHelp(), /ne updater/);
-	assert.match(cli.getHelp(), /ne update --channel/);
+	assert.match(cli.getHelp(), /ne update\s+List or install a release/);
+	assert.doesNotMatch(cli.getHelp(), /--channel/, "the overview keeps release flags in command-specific help");
+	assert.match(cli.getHelp(), /ne --help/);
+	assert.match(cli.getHelp(), /npx --yes --package=@kastrick.*nextjs-engine ne updater/);
+	const originalInstallRelease = project.installRelease;
+	const dashboardDirectory = createTempDirectory("ne-dashboard-smoke-");
+	let dashboardInstall = null;
+	project.installRelease = async (...args) => { dashboardInstall = args; };
+	try {
+		const fixtureRelease = { version: "3.0.0-alpha.2", track: "alpha" };
+		await cli.runDashboardAction(dashboardDirectory.name, { action: "install", release: fixtureRelease });
+		assert.equal(dashboardInstall[1], fixtureRelease, "dashboard forwards selected release to installer");
+		assert.equal(dashboardInstall[2], "alpha");
+	} finally {
+		project.installRelease = originalInstallRelease;
+		dashboardDirectory.removeCallback();
+	}
 
 	const dashboard = terminal.renderDashboard(2, {
 		projectName: "demo",
@@ -485,6 +597,8 @@ async function main() {
 		sourceStatus: { npm: { status: "loading" }, github: { status: "loading" }, alpha: { status: "loading" }, tags: { status: "loading" } },
 	});
 	assert.match(dashboard, /Production Build/);
+	assert.match(terminal.renderDashboard(0, { rollbackAvailable: false }), /Rollback unavailable: install a channel first/,
+		"rollback is visibly unavailable before a snapshot exists");
 	assert.match(dashboard, /Channel Updater/);
 	assert.match(dashboard, /Activity.*Fetching release inventory/);
 	assert.match(dashboard, /npm: loading.*github: loading/);
@@ -511,8 +625,17 @@ async function main() {
 	assert.ok(Number(pageIndicator[1]) >= 4, "release list can navigate past the first 24 entries");
 	assert.match(laterPage, /of 40/, "release list reports the full release inventory size");
 
-	const temp = fs.mkdtempSync(path.join(os.tmpdir(), "ne-cli-smoke-"));
+	const tempDirectory = createTempDirectory("ne-cli-smoke-");
+	const temp = tempDirectory.name;
 	try {
+		const atomicFile = path.join(temp, "atomic-state.json");
+		fileSystem.writeFileAtomically(atomicFile, "{\"revision\":1}\n", { mode: 0o600 });
+		fileSystem.writeFileAtomically(atomicFile, "{\"revision\":2}\n", { mode: 0o600 });
+		assert.equal(fs.readFileSync(atomicFile, "utf8"), "{\"revision\":2}\n", "atomic writer replaces existing files");
+		assert.deepEqual(fs.readdirSync(temp), ["atomic-state.json"], "atomic writer removes its private staging directory");
+		const privateDirectory = fileSystem.createPrivateTempDirectory(temp, "backup-test-");
+		if (process.platform !== "win32") assert.equal(fs.statSync(privateDirectory.name).mode & 0o777, 0o700, "rollback temp directories are private");
+		privateDirectory.removeCallback();
 		fs.writeFileSync(path.join(temp, "package.json"), JSON.stringify({
 			name: "fixture",
 			version: "1.0.0",
@@ -660,11 +783,34 @@ async function main() {
 			const bytes = Buffer.from([0x1f, 0x8b, 0x08, 0x00]);
 			const release = {
 				version: "3.0.0-alpha.2",
-				artifactUrl: "https://example.invalid/ne-test.tgz",
+				artifactName: "nextjs-engine-3.0.0-alpha.2.tgz",
+				artifactUrl: "https://github.com/Kastrick8/nextjs-engine/releases/download/package-alpha.3.0.0-alpha.2/nextjs-engine-3.0.0-alpha.2.tgz",
 				sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
 			};
-			global.fetch = async () => new Response(bytes, { status: 200 });
+			let rejectedExternalFetch = false;
+			global.fetch = async () => { rejectedExternalFetch = true; return new Response(bytes, { status: 200 }); };
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, { ...release, artifactUrl: "https://evil.invalid/ne-test.tgz" }),
+				/official Nextjs Engine GitHub releases/
+			);
+			assert.equal(rejectedExternalFetch, false, "untrusted artifact URLs are rejected before making an HTTP request");
+
+			const requests = [];
+			global.fetch = async (url, options = {}) => {
+				requests.push({ url: String(url), redirect: options.redirect });
+				if (requests.length === 1) {
+					return new Response(null, {
+						status: 302,
+						headers: { location: "https://release-assets.githubusercontent.com/github-production-release-asset/fixture" },
+					});
+				}
+				return new Response(bytes, { status: 200 });
+			};
 			const downloaded = await project.downloadVerifiedArtifact(temp, release);
+			assert.deepEqual(requests, [
+				{ url: release.artifactUrl, redirect: "manual" },
+				{ url: "https://release-assets.githubusercontent.com/github-production-release-asset/fixture", redirect: "error" },
+			], "artifact downloads only follow a validated GitHub release-assets redirect");
 			assert.deepEqual(fs.readFileSync(downloaded.file), bytes);
 			assert.equal(downloaded.sha512, crypto.createHash("sha512").update(bytes).digest("base64"));
 
@@ -675,6 +821,15 @@ async function main() {
 			await assert.rejects(
 				() => project.downloadVerifiedArtifact(temp, { ...release, sha256: "a".repeat(64) }),
 				/larger than 100 MiB/
+			);
+
+			global.fetch = async () => new Response(null, {
+				status: 302,
+				headers: { location: "https://evil.invalid/redirected.tgz" },
+			});
+			await assert.rejects(
+				() => project.downloadVerifiedArtifact(temp, release),
+				/redirect outside GitHub's release asset hosts/
 			);
 
 			global.fetch = async () => new Response(bytes, { status: 200 });
@@ -760,7 +915,7 @@ async function main() {
 			global.fetch = previousFetch;
 		}
 	} finally {
-		fs.rmSync(temp, { recursive: true, force: true });
+		tempDirectory.removeCallback();
 	}
 	process.stdout.write("Gen 3 NE CLI smoke assertions passed.\n");
 }

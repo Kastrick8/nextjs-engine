@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { createPrivateTempDirectory, writeFileAtomically } = require("./file-system");
 
 function taskRuntime() {
 	return require("./tasks");
@@ -53,10 +54,7 @@ function loadState(root) {
 
 function saveState(root, value) {
 	const file = path.join(root, STATE_RELATIVE_PATH);
-	fs.mkdirSync(path.dirname(file), { recursive: true });
-	const temporary = file + ".tmp";
-	fs.writeFileSync(temporary, JSON.stringify(value, null, 2) + "\n", "utf8");
-	fs.renameSync(temporary, file);
+	writeFileAtomically(file, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
 }
 
 function detectPackageManager(root) {
@@ -381,19 +379,23 @@ async function runClean(root, dryRun) {
 
 function captureDependencyFiles(root) {
 	const backupRoot = path.join(root, BACKUP_RELATIVE_PATH);
-	fs.mkdirSync(backupRoot, { recursive: true });
-	const name = new Date().toISOString().replace(/[:.]/g, "-") + "-" + crypto.randomBytes(3).toString("hex");
-	const directory = path.join(backupRoot, name);
-	fs.mkdirSync(directory, { recursive: true });
+	const backupDirectory = createPrivateTempDirectory(backupRoot, "backup-");
+	const directory = backupDirectory.name;
 	const files = {};
-	for (const relative of DEPENDENCY_FILES) {
-		const source = path.join(root, relative);
-		const exists = fs.existsSync(source);
-		files[relative] = { exists };
-		if (exists) fs.copyFileSync(source, path.join(directory, relative));
+	try {
+		for (const relative of DEPENDENCY_FILES) {
+			const source = path.join(root, relative);
+			const exists = fs.existsSync(source);
+			files[relative] = { exists };
+			if (exists) fs.copyFileSync(source, path.join(directory, relative));
+		}
+		writeFileAtomically(path.join(directory, "backup.json"), JSON.stringify({ files }, null, 2) + "\n", { mode: 0o600 });
+		// Successful rollback snapshots are intentionally kept until `ne clean`/rotation removes them.
+		return { directory, relative: path.relative(root, directory), files };
+	} catch (error) {
+		backupDirectory.removeCallback();
+		throw error;
 	}
-	fs.writeFileSync(path.join(directory, "backup.json"), JSON.stringify({ files }, null, 2) + "\n", "utf8");
-	return { directory, relative: path.relative(root, directory), files };
 }
 
 function restoreDependencyFiles(root, backup) {
@@ -439,11 +441,65 @@ function readInstalledPackage(root) {
 }
 
 async function downloadVerifiedArtifact(root, release) {
-	if (!release.artifactUrl || !release.sha256) throw new Error("This channel has no verified GitHub package artifact.");
-	const response = await fetch(release.artifactUrl, {
+	const version = typeof release?.version === "string" ? release.version : "";
+	const expectedSha256 = typeof release?.sha256 === "string" ? release.sha256.toLowerCase() : "";
+	const assetName = typeof release?.artifactName === "string" ? release.artifactName : "";
+	if (!/^\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?$/.test(version)
+		|| !/^[a-f0-9]{64}$/.test(expectedSha256)
+		|| assetName !== "nextjs-engine-" + version + ".tgz"
+		|| typeof release.artifactUrl !== "string") {
+		throw new Error("This channel has no verified GitHub package artifact.");
+	}
+	let artifactUrl;
+	try { artifactUrl = new URL(release.artifactUrl); }
+	catch { throw new Error("The channel artifact URL is invalid."); }
+	const segments = artifactUrl.pathname.split("/");
+	const isOfficialReleasePath = segments.length === 7 && segments[1] === "Kastrick8"
+		&& segments[2] === "nextjs-engine" && segments[3] === "releases"
+		&& segments[4] === "download" && /^[A-Za-z0-9._+-]{1,128}$/.test(segments[5])
+		&& segments[6] === assetName;
+	if (artifactUrl.protocol !== "https:" || artifactUrl.hostname !== "github.com"
+		|| artifactUrl.username || artifactUrl.password || artifactUrl.port
+		|| artifactUrl.search || artifactUrl.hash || !isOfficialReleasePath) {
+		throw new Error("Refusing an artifact URL outside the official Nextjs Engine GitHub releases.");
+	}
+	const requestOptions = {
 		headers: { "User-Agent": "nextjs-engine-ne-cli", Accept: "application/octet-stream" },
 		signal: AbortSignal.timeout(30000),
-	});
+		redirect: "manual",
+	};
+	let response = await fetch(artifactUrl.href, requestOptions);
+	if (response.status >= 300 && response.status < 400) {
+		const location = response.headers.get("location");
+		let assetUrl;
+		try { assetUrl = new URL(location, artifactUrl); }
+		catch {
+			try { await response.body?.cancel(); } catch {}
+			throw new Error("GitHub returned an invalid artifact redirect.");
+		}
+		if (assetUrl.protocol !== "https:"
+			|| !["release-assets.githubusercontent.com", "objects.githubusercontent.com"].includes(assetUrl.hostname)
+			|| assetUrl.username || assetUrl.password || assetUrl.port) {
+			try { await response.body?.cancel(); } catch {}
+			throw new Error("Refusing a redirect outside GitHub's release asset hosts.");
+		}
+		try { await response.body?.cancel(); } catch {}
+		response = await fetch(assetUrl.href, { ...requestOptions, redirect: "error" });
+	}
+	if (response.url) {
+		let finalUrl;
+		try { finalUrl = new URL(response.url); }
+		catch {
+			try { await response.body?.cancel(); } catch {}
+			throw new Error("GitHub returned an invalid artifact response URL.");
+		}
+		if (finalUrl.protocol !== "https:"
+			|| !["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].includes(finalUrl.hostname)
+			|| finalUrl.username || finalUrl.password || finalUrl.port) {
+			try { await response.body?.cancel(); } catch {}
+			throw new Error("Refusing an artifact response from an untrusted host.");
+		}
+	}
 	if (!response.ok) {
 		try { await response.body?.cancel(); } catch {}
 		throw new Error("GitHub artifact download returned HTTP " + response.status + ".");
@@ -458,14 +514,14 @@ async function downloadVerifiedArtifact(root, release) {
 
 	const directory = path.join(root, ".nextjs-engine", "cache", "ne-downloads");
 	fs.mkdirSync(directory, { recursive: true });
-	const file = path.join(directory, "nextjs-engine-" + release.version + "-" + release.sha256.slice(0, 12) + ".tgz");
+	const file = path.join(directory, "nextjs-engine-" + version + "-" + expectedSha256.slice(0, 12) + ".tgz");
 	const temporary = file + ".tmp-" + crypto.randomBytes(6).toString("hex");
 	const sha256 = crypto.createHash("sha256");
 	const sha512 = crypto.createHash("sha512");
 	let totalBytes = 0;
 	let header = Buffer.alloc(0);
 	const { Transform } = require("node:stream");
-	const { pipeline } = require("node:stream/promises");
+	const { pipeline } = require("node:stream");
 
 	try {
 		const boundedHash = new Transform({
@@ -485,12 +541,17 @@ async function downloadVerifiedArtifact(root, release) {
 				callback(null, bytes);
 			},
 		});
-		await pipeline(response.body, boundedHash, fs.createWriteStream(temporary, { flags: "wx" }));
+		await new Promise((resolve, reject) => {
+			pipeline(response.body, boundedHash, fs.createWriteStream(temporary, { flags: "wx" }), (error) => {
+				if (error) reject(error);
+				else resolve();
+			});
+		});
 		if (header.length < 2 || header[0] !== 0x1f || header[1] !== 0x8b) {
 			throw new Error("The channel artifact is not a gzip package archive.");
 		}
 		const digest = sha256.digest("hex");
-		if (digest !== release.sha256) {
+		if (digest !== expectedSha256) {
 			throw new Error("SHA-256 mismatch for " + release.version + ". No dependency manifest or lockfile was changed.");
 		}
 		const integrity = sha512.digest("base64");
@@ -544,7 +605,7 @@ function normalizeArtifactDependency(root, release, artifact) {
 		throw new Error("The package manager did not save " + PACKAGE_NAME + " to package.json; refusing to leave an untracked install.");
 	}
 	const indent = (pkgText.match(/\n([ \t]+)"/) || [null, "\t"])[1];
-	fs.writeFileSync(packageFile, JSON.stringify(pkg, null, indent) + "\n", "utf8");
+	writeFileAtomically(packageFile, JSON.stringify(pkg, null, indent) + "\n");
 
 	const manager = detectPackageManager(root);
 	const lockFilesByManager = {
@@ -609,7 +670,7 @@ function normalizeArtifactDependency(root, release, artifact) {
 		if (!updated.includes(artifact.sha512) && !(name === "yarn.lock" && /^\s*checksum:\s*\S+/m.test(updated))) {
 			throw new Error(name + " did not preserve integrity metadata for the verified artifact.");
 		}
-		fs.writeFileSync(file, updated, "utf8");
+		writeFileAtomically(file, updated);
 		lockCount += 1;
 	}
 	if (lockCount === 0) {

@@ -9,6 +9,7 @@ on:
       - "bin/ne.js"
       - "scripts/gen3-ne-cli-smoke.js"
       - "scripts/gen3-assert-green-commit.js"
+      - "package.json"
       - ".github/workflows/ne-cli-smoke.yml"
   workflow_dispatch:
 
@@ -28,6 +29,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Install CLI dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Test updater catalog, worker pool, command tree and failure output
         run: node scripts/gen3-ne-cli-smoke.js
