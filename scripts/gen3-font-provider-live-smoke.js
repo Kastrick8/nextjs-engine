@@ -34,7 +34,7 @@ const PROVIDERS = {
 	bunny: {
 		// Bunny documents the Google-compatible CSS v1 endpoint. Keep both
 		// stylesheet and font-file downloads on Bunny's own HTTPS origin.
-		cssUrl: "https://fonts.bunny.net/css?family=Rubik:400&display=swap",
+		cssUrl: "https://fonts.bunny.net/css2?family=Rubik:wght@300;400;500;600;700&display=swap",
 		cssOrigins: "https://fonts.bunny.net",
 		fileOrigins: "https://fonts.bunny.net",
 	},
