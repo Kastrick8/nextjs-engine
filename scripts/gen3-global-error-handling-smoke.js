@@ -49,11 +49,19 @@ try {
 	assert.match(instrumentation, /onRequestError/);
 	assert.match(instrumentation, /NECORE4003/, "the request hook uses the stable Error Book code");
 	assert.match(instrumentation, /installEngineUncaughtExceptionMonitor/);
-	assert.match(errorSource, /\.\.\/\.\.\/\.\.\/.*src\/engine\/errors\/engineErrorReporter/,
-		"consumer projects without a local src tree import the reporter beside the installed Engine plugin");
+	assert.match(instrumentation, /NEXT_RUNTIME === "nodejs"/, "Node-only monitoring is gated by the active Next.js runtime");
+	assert.match(instrumentation, /import\(["'].*engineErrorReporter/, "the Node reporter is loaded only through a runtime-specific dynamic import");
+	assert.match(instrumentation, /import\(["'].*engineErrorClientReporter/, "the Edge reporter is browser-safe");
+	assert.match(errorSource, /\.\.\/\.\.\/\.\.\/.*src\/engine\/errors\/engineErrorClientReporter/,
+		"client error boundaries import the browser-safe reporter beside the Engine plugin");
+	assert.doesNotMatch(errorSource, /engineErrorReporter\.js/, "client error boundaries must not import the Node-only reporter");
+	assert.match(globalSource, /engineErrorClientReporter/,
+		"global error UI uses the browser-safe reporter");
 	compile(errorSource, true, "generated app/error.tsx");
 	compile(globalSource, true, "generated app/global-error.tsx");
 	compile(instrumentation, false, "generated instrumentation.ts");
+	const clientReporterSource = fs.readFileSync(path.join(__dirname, "../src/engine/errors/engineErrorClientReporter.js"), "utf8");
+	assert.doesNotMatch(clientReporterSource, /\\bprocess\\.(?:on|off|stdout|stderr|versions)\\b/, "the browser reporter contains no Node-only process APIs");
 	const second = prepareEngineErrorHandling({ rootDir: root, development: true });
 	assert.equal(second.generated.length, 3, "re-running setup is idempotent");
 } finally {
