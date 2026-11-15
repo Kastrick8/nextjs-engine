@@ -114,6 +114,98 @@ async function fetchJsonPages(url, label) {
 	return values;
 }
 
+async function fetchPackageTagMarker(tagName, tagCommit) {
+	const ref = /^[0-9a-f]{40}$/.test(tagCommit || "") ? tagCommit : tagName;
+	const url = "https://raw.githubusercontent.com/Kastrick8/nextjs-engine/" + encodeURIComponent(ref) + "/.package-tag.json";
+	try {
+		const response = await fetch(url, {
+			headers: { Accept: "application/json", "User-Agent": "nextjs-engine-ne-cli" },
+			signal: AbortSignal.timeout(10000),
+		});
+		if (!response.ok) return null;
+		return await response.json();
+	} catch {
+		return null;
+	}
+}
+
+async function fetchPackageTagCommit(tagRef) {
+	const object = tagRef && tagRef.object;
+	if (!object || !/^[0-9a-f]{40}$/.test(object.sha || "")) return null;
+	if (object.type === "commit") return object.sha;
+	if (object.type !== "tag") return null;
+	let tagSha = object.sha;
+	for (let depth = 0; depth < 4; depth += 1) {
+		try {
+			const response = await fetch("https://api.github.com/repos/Kastrick8/nextjs-engine/git/tags/" + tagSha, {
+				headers: {
+					Accept: "application/vnd.github+json",
+					"User-Agent": "nextjs-engine-ne-cli",
+					"X-GitHub-Api-Version": "2022-11-28",
+				},
+				signal: AbortSignal.timeout(10000),
+			});
+			if (!response.ok) return null;
+			const payload = await response.json();
+			const target = payload && payload.object;
+			if (!target || !/^[0-9a-f]{40}$/.test(target.sha || "")) return null;
+			if (target.type === "commit") return target.sha;
+			if (target.type !== "tag") return null;
+			tagSha = target.sha;
+		} catch {
+			return null;
+		}
+	}
+	return null;
+}
+
+function validPackageTagMarker(marker, version, track, tagName) {
+	if (!marker || typeof marker !== "object") return false;
+	const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta)\.\d+)?$/);
+	if (!match) return false;
+	const [, major, minor, patch, prerelease] = match;
+	let expectedPath = null;
+	if (track === "stable" && !prerelease) {
+		const snapshot = Number(patch) === 0 ? major + "." + minor : version;
+		expectedPath = "version/" + major + "." + minor + "/version/" + snapshot;
+	} else if ((track === "alpha" || track === "beta") && prerelease === track) {
+		expectedPath = track + "/version/" + major + "." + track + "/version/" + version;
+	}
+	return Boolean(expectedPath)
+		&& marker.schemaVersion === 1
+		&& marker.packageName === PACKAGE_NAME
+		&& marker.version === version
+		&& marker.track === track
+		&& marker.tag === tagName
+		&& marker.layout === "npm-pack-root"
+		&& marker.packagePath === expectedPath
+		&& typeof marker.migrationOnly === "boolean"
+		&& /^[0-9a-f]{40}$/.test(marker.archiveCommit || "")
+		&& (marker.sourceCommit === null || /^[0-9a-f]{40}$/.test(marker.sourceCommit || ""))
+		&& /^sha512-[A-Za-z0-9+/]+={0,2}$/.test(marker.npmIntegrity || "");
+}
+
+async function verifyPackageTagRecords(values, includeOtherTags) {
+	const output = new Array(values.length);
+	let next = 0;
+	const worker = async () => {
+		while (next < values.length) {
+			const index = next++;
+			const value = values[index];
+			const parsed = packageTagToRelease(value);
+			if (!parsed) {
+				output[index] = includeOtherTags ? githubTagToRelease(value) : null;
+				continue;
+			}
+			const tagCommit = await fetchPackageTagCommit(value);
+			const marker = tagCommit ? await fetchPackageTagMarker(parsed.tagName, tagCommit) : null;
+			output[index] = packageTagToRelease(value, marker, tagCommit);
+		}
+	};
+	await Promise.all(Array.from({ length: Math.min(6, values.length) }, worker));
+	return output.filter(Boolean);
+}
+
 function trackForVersion(version) {
 	const parsed = parseVersion(version);
 	if (!parsed) return null;
@@ -170,7 +262,7 @@ function npmReleasesFromPackument(metadata) {
 	return releases;
 }
 
-function packageTagToRelease(value) {
+function packageTagToRelease(value, marker, tagCommit) {
 	const rawName = typeof value === "string"
 		? value
 		: value && typeof value.name === "string"
@@ -199,6 +291,8 @@ function packageTagToRelease(value) {
 	}
 	if (!version || trackForVersion(version) !== track) return null;
 	const tagUrl = "https://github.com/Kastrick8/nextjs-engine/tree/" + encodeURIComponent(rawName);
+	const verified = validPackageTagMarker(marker, version, track, rawName)
+		&& /^[0-9a-f]{40}$/.test(tagCommit || "");
 	return {
 		version,
 		track,
@@ -206,7 +300,11 @@ function packageTagToRelease(value) {
 		source: "git-tag",
 		sourceLabel: SOURCE_LABELS["git-tag"],
 		sourceBranch: "package/main",
-		sourceCommit: null,
+		sourceCommit: verified ? marker.sourceCommit : null,
+		tagCommit: verified ? tagCommit : null,
+		archiveCommit: verified ? marker.archiveCommit : null,
+		packagePath: verified ? marker.packagePath : null,
+		npmIntegrity: verified ? marker.npmIntegrity : null,
 		sha256: null,
 		artifactName: null,
 		artifactUrl: null,
@@ -216,12 +314,13 @@ function packageTagToRelease(value) {
 		tagUrl,
 		gitTags: [rawName],
 		npmDistTags: [],
-		installSpec: null,
-		installable: false,
-		description: "Versioned package archive Git tag. Listed for discovery; NE needs a published npm package or verified GitHub Release artifact to install it.",
+		installSpec: verified ? "git+https://github.com/Kastrick8/nextjs-engine.git#" + tagCommit : null,
+		installable: verified,
+		description: verified
+			? "Verified package-only Git tag. NE installs the exact tagged package root and the package manager locks the resolved Git commit."
+			: "Versioned package Git tag without a verified package-root marker; it is visible but cannot be installed directly.",
 	};
 }
-
 function githubTagToRelease(value) {
 	const rawName = typeof value === "string"
 		? value.replace(/^refs\/tags\//, "")
@@ -276,7 +375,7 @@ function sourcePriority(release) {
 	if (release.source === "npm" && release.track === "stable" && release.installSpec) return 3;
 	if (release.source === "npm" && release.installSpec) return 2;
 	if (release.source === "github") return 1.5;
-	if (release.source === "git-tag") return 1;
+	if (release.source === "git-tag") return release.installable ? 2.5 : 1;
 	return 0;
 }
 
@@ -628,7 +727,7 @@ async function loadChannelCatalog(rootDir, options) {
 	if (results[3].status === "fulfilled" && Array.isArray(results[3].value)) {
 		tagsSucceeded = true;
 		packageLatestTag = results[3].value.some((tag) => tag && (tag.ref === "refs/tags/package.latest" || tag.name === "package.latest"));
-		tags = results[3].value.map(githubTagToRelease).filter(Boolean);
+		tags = await verifyPackageTagRecords(results[3].value, true);
 		setStatus("tags", "ready", "Loaded " + tags.length + " Git tags");
 	} else {
 		const error = results[3].reason || new Error("GitHub tags returned an unexpected response.");
@@ -707,6 +806,7 @@ function channelLabel(release) {
 		if (release && release.source === "git-tag") return "TAG ONLY";
 		return "CATALOG ONLY";
 	}
+	if (release.source === "git-tag") return "GIT PACKAGE";
 	if (release.floating) return "ALPHA / LATEST COMMIT";
 	if (release.track === "alpha") return "ALPHA";
 	if (release.track === "beta") return "LATEST GREEN / BETA";
@@ -727,6 +827,10 @@ module.exports = {
 	trackForVersion,
 	npmReleasesFromPackument,
 	packageTagToRelease,
+	validPackageTagMarker,
+	fetchPackageTagMarker,
+	fetchPackageTagCommit,
+	verifyPackageTagRecords,
 	githubTagToRelease,
 	readCachedCatalog,
 	parseManifestFromBody,
