@@ -1,7 +1,7 @@
 "use strict";
 
 const PROCESS_MONITOR_KEY = Symbol.for("nextjs-engine.uncaught-exception-monitor");
-const { createEngineErrorReport, resolveEngineErrorHelpUrl, cleanText, isBrowser } = require("./engineErrorCore");
+const { ERROR_BOOK_URL, PROJECT_URL, MAX_MESSAGE_LENGTH, MAX_DETAIL_LENGTH, createEngineErrorReport, resolveEngineErrorHelpUrl, cleanText, isBrowser } = require("./engineErrorCore");
 
 const ANSI = {
 	reset: "\u001b[0m",
@@ -146,7 +146,7 @@ function installEngineUncaughtExceptionMonitor() {
 }
 
 module.exports = {
-	ERROR_BOOK_URL: require('./engineErrorCore').ERROR_BOOK_URL,
+	ERROR_BOOK_URL,
 	createEngineErrorReport,
 	formatEngineErrorReport,
 	reportEngineError,
