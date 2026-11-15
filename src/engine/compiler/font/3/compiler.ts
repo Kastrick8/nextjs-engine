@@ -165,7 +165,12 @@ function normalizeSourceUrl(input, allowedOrigins, label) {
 	let url;
 	try { url = new URL(input); } catch { throw new TypeError("[EngineTheme fonts] " + label + " must be an absolute HTTPS URL."); }
 	if (url.protocol !== "https:" || url.username || url.password || url.hash || !allowedOrigins.has(url.origin)) {
-		throw new Error("[EngineTheme fonts] " + label + " must use an allowlisted HTTPS origin.");
+		// Report only the origin, never the URL path, query, or credentials. This
+		// keeps strict-origin failures actionable without leaking font request data.
+		const rejectedOrigin = url.origin === "null" ? url.protocol : url.origin;
+		const allowed = [...allowedOrigins].sort().join(", ");
+		throw new Error("[EngineTheme fonts] " + label + " origin '" + rejectedOrigin
+			+ "' must use an allowlisted HTTPS origin. Allowed origins: " + allowed + ".");
 	}
 	return url;
 }
@@ -309,16 +314,21 @@ function extractUrlCandidates(src) {
 	return results;
 }
 
-function chooseFontUrl(src, baseUrl) {
+function chooseFontUrl(src, baseUrl, allowedOrigins) {
 	const candidates = extractUrlCandidates(src).map((value) => {
 		try { return new URL(value, baseUrl); } catch { return null; }
 	}).filter(Boolean);
+	const trustedCandidates = candidates.filter((url) => allowedOrigins.has(url.origin));
+	if (candidates.length > 0 && trustedCandidates.length === 0) {
+		const rejectedOrigins = Array.from(new Set(candidates.map((url) => url.origin))).sort().join(", ");
+		throw new Error("[EngineTheme fonts] Font face has no source URL on an allowlisted HTTPS origin. Candidate origins: " + rejectedOrigins + ".");
+	}
 	const rank = (url) => {
 		const ext = extensionFromUrl(url);
 		return ext === "woff2" ? 0 : ext === "woff" ? 1 : ext === "ttf" ? 2 : ext === "otf" ? 3 : 4;
 	};
-	candidates.sort((a, b) => rank(a) - rank(b));
-	return candidates[0] || null;
+	trustedCandidates.sort((a, b) => rank(a) - rank(b));
+	return trustedCandidates[0] || null;
 }
 
 function fontFamilyNamesFromUrl(value) {
@@ -548,7 +558,7 @@ async function compileOneTheme(root, theme, sourceUrls, manifest, options, stats
 			const css = new TextDecoder("utf-8", { fatal: true }).decode(fetched.bytes);
 			for (const face of parseFontFaces(css)) {
 				const src = face.declarations.src;
-				const selected = chooseFontUrl(src, stylesheetUrl);
+				const selected = chooseFontUrl(src, stylesheetUrl, fontOrigins);
 				if (!selected) continue;
 				face.sourceUrl = selected.href;
 				face.stylesheetUrl = stylesheetUrl.href;

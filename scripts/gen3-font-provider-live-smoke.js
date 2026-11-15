@@ -32,7 +32,9 @@ const PROVIDERS = {
 		fileOrigins: "https://fonts.gstatic.com",
 	},
 	bunny: {
-		cssUrl: "https://fonts.bunny.net/css?family=Roboto:400&text=EngineTheme",
+		// Bunny documents the Google-compatible CSS v1 endpoint. Keep both
+		// stylesheet and font-file downloads on Bunny's own HTTPS origin.
+		cssUrl: "https://fonts.bunny.net/css2?family=Rubik:wght@300;400;500;600;700&display=swap",
 		cssOrigins: "https://fonts.bunny.net",
 		fileOrigins: "https://fonts.bunny.net",
 	},
@@ -99,7 +101,77 @@ async function runProvider(name) {
 	}
 }
 
+async function runTrustedOriginSelectionRegression() {
+	const previousEnv = {
+		nodeEnv: process.env.NODE_ENV,
+		cssOrigins: process.env.ENGINE_THEME_FONT_CSS_ORIGINS,
+		fileOrigins: process.env.ENGINE_THEME_FONT_FILE_ORIGINS,
+		failurePolicy: process.env.ENGINE_THEME_FONT_FAILURE_POLICY,
+		ttl: process.env.ENGINE_THEME_FONT_CACHE_TTL_MS,
+	};
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), "nextjs-engine-font-origin-selection-"));
+	const id = "trusted-origin-selection";
+	const cssUrl = "https://fonts.bunny.net/css?family=Fixture:400";
+	const trustedFontUrl = "https://fonts.bunny.net/fixture/files/fixture-latin-400-normal.woff";
+	const untrustedFontUrl = "https://cdn.jsdelivr.net/npm/@fontsource/fixture/files/fixture-latin-400-normal.woff2";
+	const css = '@font-face{font-family:"Fixture";font-style:normal;font-weight:400;font-display:swap;src:url("' +
+		untrustedFontUrl + '") format("woff2"),url("' + trustedFontUrl + '") format("woff");}';
+	const requests = [];
+	try {
+		process.env.NODE_ENV = "production";
+		process.env.ENGINE_THEME_FONT_CSS_ORIGINS = "https://fonts.bunny.net";
+		process.env.ENGINE_THEME_FONT_FILE_ORIGINS = "https://fonts.bunny.net";
+		process.env.ENGINE_THEME_FONT_FAILURE_POLICY = "error";
+		process.env.ENGINE_THEME_FONT_CACHE_TTL_MS = "0";
+		const themeDir = path.join(root, ".nextjs-engine", "gen3", "theme");
+		fs.mkdirSync(themeDir, { recursive: true });
+		fs.writeFileSync(path.join(themeDir, id + ".etr"), JSON.stringify({
+			id,
+			content: { id, scope: "local", fonts: [cssUrl] },
+		}));
+		const fontBytes = Buffer.from([0x77, 0x4f, 0x46, 0x46, 0, 0, 0, 0]);
+		const result = await compileEngineThemeFonts(root, [{ id, fileName: id + ".etr" }], {
+			production: true,
+			failurePolicy: "error",
+			forceRefresh: true,
+			timeoutMs: 10000,
+			fetchImpl: async (input) => {
+				const url = String(input);
+				requests.push(url);
+				if (url === cssUrl) return new Response(css, { status: 200, headers: { "content-type": "text/css" } });
+				if (url === trustedFontUrl) return new Response(fontBytes, { status: 200, headers: { "content-type": "font/woff" } });
+				throw new Error("Unexpected font download request origin: " + new URL(url).origin);
+			},
+		});
+		assert.equal(result.fallbackThemes, 0);
+		assert.equal(result.downloadedFonts, 1);
+		assert.deepEqual(requests, [cssUrl, trustedFontUrl], "the allowlisted Bunny candidate must be chosen and the untrusted jsDelivr candidate must never be requested");
+		const cssPath = path.join(root, "public", "nextjs-engine", "fonts", id + ".css");
+		assert.ok(fs.existsSync(cssPath), "the trusted font face must be emitted");
+		const emittedCss = fs.readFileSync(cssPath, "utf8");
+		const emittedFontUrls = [...emittedCss.matchAll(/url\(\s*(?:"([^"]+)"|'([^']+)'|([^)\s]+))\s*\)/gi)]
+			.map((match) => match[1] || match[2] || match[3]);
+		assert.ok(emittedFontUrls.length > 0, "the emitted stylesheet must contain a local font URL");
+		assert.ok(emittedFontUrls.every((value) => /^\/nextjs-engine\/fonts\/[A-Za-z0-9._-]+$/.test(value)),
+			"every emitted font URL must be a local content-addressed asset path");
+		console.log("[EngineTheme font origin selection] PASS (preferred allowlisted Bunny WOFF over an untrusted WOFF2 candidate)");
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+		if (previousEnv.nodeEnv === undefined) delete process.env.NODE_ENV;
+		else process.env.NODE_ENV = previousEnv.nodeEnv;
+		if (previousEnv.cssOrigins === undefined) delete process.env.ENGINE_THEME_FONT_CSS_ORIGINS;
+		else process.env.ENGINE_THEME_FONT_CSS_ORIGINS = previousEnv.cssOrigins;
+		if (previousEnv.fileOrigins === undefined) delete process.env.ENGINE_THEME_FONT_FILE_ORIGINS;
+		else process.env.ENGINE_THEME_FONT_FILE_ORIGINS = previousEnv.fileOrigins;
+		if (previousEnv.failurePolicy === undefined) delete process.env.ENGINE_THEME_FONT_FAILURE_POLICY;
+		else process.env.ENGINE_THEME_FONT_FAILURE_POLICY = previousEnv.failurePolicy;
+		if (previousEnv.ttl === undefined) delete process.env.ENGINE_THEME_FONT_CACHE_TTL_MS;
+		else process.env.ENGINE_THEME_FONT_CACHE_TTL_MS = previousEnv.ttl;
+	}
+}
+
 async function main() {
+	await runTrustedOriginSelectionRegression();
 	const selected = process.argv.slice(2);
 	for (const name of selected.length ? selected : Object.keys(PROVIDERS)) await runProvider(name);
 }
