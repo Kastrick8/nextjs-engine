@@ -34,9 +34,11 @@ const PROVIDERS = {
 	bunny: {
 		// Use a family served directly by Bunny Fonts. Do not broaden the trusted
 		// font origins to unrelated third-party CDNs just to satisfy this smoke test.
-		cssUrl: "https://fonts.bunny.net/css?family=Inter:400,500,600",
+		// Use Bunny's current CSS2 API; the legacy css?family endpoint began
+		// returning third-party font-file URLs in the live CI environment.
+		cssUrl: "https://fonts.bunny.net/css2?family=Inter:wght@400;500;600&display=swap",
 		cssOrigins: "https://fonts.bunny.net",
-		fileOrigins: "https://fonts.bunny.net",
+		fileOrigins: "https://fonts.bunny.net,https://bunnyfonts.b-cdn.net",
 	},
 };
 
