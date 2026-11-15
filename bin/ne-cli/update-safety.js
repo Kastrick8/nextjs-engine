@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { compareVersions, parseVersion } = require("./channels");
+const { readRegularFileNoFollow } = require("./file-system");
 
 const SOURCE_ROOTS = ["app", "src/app", "pages", "src/pages", "components", "src/components", "lib", "src/lib"];
 const SKIP_DIRS = new Set([".git", ".next", "dist", "node_modules", ".nextjs-engine", "coverage", ".turbo"]);
@@ -42,9 +43,8 @@ function generationForRelease(release) {
 
 function readJson(file) {
 	try {
-		const stats = fs.lstatSync(file);
-		if (!stats.isFile() || stats.isSymbolicLink() || stats.size > MAX_FILE_BYTES) return null;
-		return JSON.parse(fs.readFileSync(file, "utf8"));
+		const opened = readRegularFileNoFollow(file, { maxBytes: MAX_FILE_BYTES });
+		return JSON.parse(opened.content.toString("utf8"));
 	} catch {
 		return null;
 	}
@@ -122,9 +122,7 @@ function sourceFiles(root) {
 		const directory = path.resolve(root, relative);
 		const rel = path.relative(root, directory);
 		if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) continue;
-		let directoryStats;
-		try { directoryStats = fs.lstatSync(directory); } catch { continue; }
-		if (!directoryStats.isDirectory() || directoryStats.isSymbolicLink()) continue;
+		// Do not lstat and then reopen the same directory through readdirSync.
 		const pending = [directory];
 		while (pending.length && found.length < MAX_FILES) {
 			const current = pending.pop();
@@ -137,10 +135,7 @@ function sourceFiles(root) {
 					continue;
 				}
 				if (!entry.isFile() || !/\.(?:cjs|mjs|js|jsx|ts|tsx)$/i.test(entry.name)) continue;
-				try {
-					const stats = fs.lstatSync(file);
-					if (stats.isFile() && !stats.isSymbolicLink() && stats.size <= MAX_FILE_BYTES) found.push(file);
-				} catch {}
+				found.push(file);
 				if (found.length >= MAX_FILES) break;
 			}
 		}
@@ -169,7 +164,9 @@ function inspectSources(root, targetGeneration) {
 	const files = sourceFiles(root);
 	for (const file of files) {
 		let raw;
-		try { raw = fs.readFileSync(file, "utf8"); } catch { continue; }
+		try {
+			raw = readRegularFileNoFollow(file, { maxBytes: MAX_FILE_BYTES }).content.toString("utf8");
+		} catch { continue; }
 		const source = maskComments(raw);
 		const code = maskStrings(source);
 		const relative = path.relative(root, file).split(path.sep).join("/");
@@ -222,11 +219,8 @@ function inspectSources(root, targetGeneration) {
 		const legacyDirectory = path.join(root, ".EngineAPIConfig");
 		let legacyInputs = false;
 		try {
-			const stats = fs.lstatSync(legacyDirectory);
-			if (stats.isDirectory() && !stats.isSymbolicLink()) {
-				legacyInputs = fs.readdirSync(legacyDirectory, { withFileTypes: true })
-					.some((entry) => entry.isFile() && entry.name.endsWith(".api"));
-			}
+			legacyInputs = fs.readdirSync(legacyDirectory, { withFileTypes: true })
+				.some((entry) => entry.isFile() && entry.name.endsWith(".api"));
 		} catch {}
 		const legacyOutput = isRegularFileNoFollow(path.join(root, ".engine-api-compiled.json"));
 		if (legacyInputs || legacyOutput) addFinding(warnings, {
