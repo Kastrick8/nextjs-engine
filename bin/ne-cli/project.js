@@ -164,18 +164,19 @@ function cleanTargets(root) {
 		path.join(".nextjs-engine", ".cache")]);
 	for (const configName of ["next.config.js", "next.config.cjs", "next.config.mjs", "next.config.ts"]) {
 		const configPath = path.join(root, configName);
-		if (!fs.existsSync(configPath)) continue;
 		try {
-			const text = fs.readFileSync(configPath, "utf8");
+			const text = readRegularFileNoFollow(configPath, { maxBytes: 1024 * 1024 }).content.toString("utf8");
 			const match = text.match(/\bdistDir\s*:\s*["']([^"']+)["']/);
 			if (match) {
 				if (path.isAbsolute(match[1])) throw new Error("next.config distDir must be relative before ne clean can remove it safely.");
 				targets.add(match[1]);
 			}
+			break;
 		} catch (error) {
+			if (error && error.code === "ENOENT") continue;
 			if (error && /distDir/.test(error.message || "")) throw error;
+			break;
 		}
-		break;
 	}
 	return Array.from(targets);
 }
@@ -203,9 +204,18 @@ function captureDependencyFiles(root) {
 	try {
 		for (const relative of DEPENDENCY_FILES) {
 			const source = path.join(root, relative);
-			const exists = fs.existsSync(source);
-			files[relative] = { exists };
-			if (exists) fs.copyFileSync(source, path.join(directory, relative));
+			let snapshot;
+			try {
+				snapshot = readRegularFileNoFollow(source);
+			} catch (error) {
+				if (error && error.code === "ENOENT") {
+					files[relative] = { exists: false };
+					continue;
+				}
+				throw error;
+			}
+			files[relative] = { exists: true };
+			writeFileAtomically(path.join(directory, relative), snapshot.content, { mode: snapshot.mode });
 		}
 		writeFileAtomically(path.join(directory, "backup.json"), JSON.stringify({ files }, null, 2) + "\n", { mode: 0o600 });
 		// Successful rollback snapshots are intentionally kept until `ne clean`/rotation removes them.
@@ -418,10 +428,17 @@ function verifyInstalledVersion(root, release, artifact, expectedGeneration) {
 		}
 	}
 	if (artifact) {
-		const lockPath = ["npm-shrinkwrap.json", "package-lock.json"].map((name) => path.join(root, name))
-			.find((file) => fs.existsSync(file));
-		if (lockPath) {
-			const lock = readJson(lockPath, {});
+		let lock = null;
+		for (const name of ["npm-shrinkwrap.json", "package-lock.json"]) {
+			try {
+				lock = JSON.parse(readRegularFileNoFollow(path.join(root, name)).content.toString("utf8"));
+				break;
+			} catch (error) {
+				if (error && error.code === "ENOENT") continue;
+				throw error;
+			}
+		}
+		if (lock) {
 			const entry = (lock.packages && lock.packages["node_modules/" + PACKAGE_NAME]) ||
 				(lock.dependencies && lock.dependencies[PACKAGE_NAME]);
 			if (!entry || !entry.integrity || !entry.integrity.split(/\s+/).includes("sha512-" + artifact.sha512)) {
@@ -666,7 +683,9 @@ async function runCheck(root) {
 	process.stdout.write("[NE-CHECK] Checks passed.\n");
 }
 
-async function runBuild(root) {
+async function runBuild(root, plugins, options) {
+	await require("./plugins").runHooks(plugins, "beforeBuild", { root, generation: 2 });
+	await require("./maintenance").warnBeforeBuild(root, options);
 	if (packageScript(root, "prepare:production")) {
 		process.stdout.write("[NE] Preparing production artifacts...\n");
 		await runPackageScript(root, "prepare:production");
@@ -674,6 +693,7 @@ async function runBuild(root) {
 	await runCheck(root);
 	process.stdout.write("[NE] Running the Next.js production build...\n");
 	await runNext(root, ["build"]);
+	await require("./plugins").runHooks(plugins, "afterBuild", { root, generation: 2 });
 }
 
 module.exports = {
