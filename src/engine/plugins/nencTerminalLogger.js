@@ -797,7 +797,21 @@ function dispatchNextBuildEvent(event) {
 }
 
 function splitLogSegments(raw) {
-	return raw.match(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$/g) || [raw];
+	const segments = [];
+	let start = 0;
+	for (let index = 0; index < raw.length; index += 1) {
+		const character = raw[index];
+		if (character !== "\r" && character !== "\n") continue;
+		let end = index + 1;
+		if (character === "\r" && raw[index + 1] === "\n") {
+			end += 1;
+			index += 1;
+		}
+		segments.push(raw.slice(start, end));
+		start = end;
+	}
+	if (start < raw.length) segments.push(raw.slice(start));
+	return segments.length ? segments : [raw];
 }
 
 function installNextBuildOutputBridge(options = {}) {
@@ -821,7 +835,7 @@ function installNextBuildOutputBridge(options = {}) {
 			let changed = false;
 			for (const segment of splitLogSegments(raw)) {
 				const hasTerminator = /(?:\r\n|\r|\n)$/.test(segment);
-				const event = hasTerminator ? classifyNextBuildLine(segment.replace(/(?:\r\n|\r|\n)+$/, "")) : null;
+				const event = hasTerminator ? classifyNextBuildLine(segment.replace(/[\r\n]+$/, "")) : null;
 				if (!event) {
 					output += segment;
 					continue;
@@ -892,6 +906,7 @@ module.exports = {
 	failWorkerTask,
 	clearStatus,
 	classifyNextBuildLine,
+	splitLogSegments,
 	dispatchCompilerLine,
 	done,
 	failed,

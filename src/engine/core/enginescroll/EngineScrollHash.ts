@@ -15,7 +15,7 @@ export class EngineScrollHash {
 		const rawId = hash.startsWith("#") ? hash.slice(1) : hash;
 		if (!rawId) return false;
 
-		let elementId = rawId;
+		let elementId: string;
 		try {
 			elementId = decodeURIComponent(rawId);
 		} catch {

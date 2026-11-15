@@ -249,7 +249,6 @@ export function highlightEngineLite(code: string, language: string): EngineHighl
 	while (index < code.length) {
 		const start = index;
 		const char = code[index];
-		const next = code[index + 1];
 
 		if (isWhitespace(char)) {
 			index += 1;

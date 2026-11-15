@@ -177,6 +177,8 @@ Raw HTML is intentionally skipped for safety. The following should not create an
 This article also applies responsive font family and body sizing, heading scales and id prefix, independent H1/H2 scroll-point flags, article and staggered block animations, code and inline-code theme colors, code-language labels, all semantic markdownStyles slots, ANSI palette overrides, and opt-in external-link favicons.
 `;
 
+void markdownShowcaseTheme;
+
 export default createPage({
 	compiler: { pageId: "engine-markdown-test" },
 	schema: {

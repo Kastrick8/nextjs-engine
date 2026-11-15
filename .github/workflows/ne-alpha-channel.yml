@@ -99,13 +99,25 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout exact tested source commit
+      - name: Checkout protected main-3 source branch
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: main-3
           path: source
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify checked-out source matches the tested commit
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          CHECKED_OUT_SHA="$(git -C source rev-parse HEAD)"
+          if [[ "$CHECKED_OUT_SHA" != "$SOURCE_SHA" ]]; then
+            echo "::error::main-3 advanced after the passing CI run; refusing to publish a different source commit."
+            exit 1
+          fi
 
       - name: Checkout package archive templates
         uses: actions/checkout@v6

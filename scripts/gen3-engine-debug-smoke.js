@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { readRegularFile } = require("../src/engine/plugins/safeFileSystem.js");
 
 const {
 	GENERATED_MARKER,
@@ -103,7 +104,7 @@ try {
 		"production cleanup must never delete an application-owned route",
 	);
 
-	const debugPage = fs.readFileSync(modulePath, "utf8");
+	const debugPage = readRegularFile(modulePath, "utf8");
 	for (const requirement of [
 		"Page explorer",
 		"Pick node",

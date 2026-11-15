@@ -6,6 +6,16 @@ const os = require("node:os");
 const path = require("node:path");
 const assert = require("node:assert/strict");
 
+function readRegularFile(filename) {
+  const descriptor = fs.openSync(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+  try {
+    if (!fs.fstatSync(descriptor).isFile()) fail("root content.include must be a regular file.");
+    return fs.readFileSync(descriptor, "utf8");
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
 const RESERVED_ROOTS = new Set([
   ".github", ".git", ".gitignore", "content.include",
   "engine", "docs", "README.md", "DOCUMENT.md", "package.json",
@@ -76,19 +86,29 @@ function validateIncludedTree(sourceRoot, relative, lineNumber) {
 
 function parseEntries(sourceRoot, legacyBin) {
   const configPath = path.join(sourceRoot, "content.include");
-  if (!fs.existsSync(configPath)) {
-    if (legacyBin && fs.existsSync(path.join(sourceRoot, "bin")) &&
-        fs.lstatSync(path.join(sourceRoot, "bin")).isDirectory()) {
-      return ["bin"];
+  let configText;
+  try {
+    configText = readRegularFile(configPath);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      if (legacyBin) {
+        try {
+          const binStat = fs.lstatSync(path.join(sourceRoot, "bin"));
+          if (binStat.isDirectory() && !binStat.isSymbolicLink()) return ["bin"];
+        } catch (statError) {
+          if (!statError || statError.code !== "ENOENT") throw statError;
+        }
+      }
+      return [];
     }
-    return [];
-  }
-  if (!fs.lstatSync(configPath).isFile()) {
-    fail("root content.include must be a regular file.");
+    if (error && (error.code === "ELOOP" || error.code === "ERR_NOT_REGULAR_FILE")) {
+      fail("root content.include must be a regular, non-symlink file.");
+    }
+    throw error;
   }
 
   const entries = [];
-  const lines = fs.readFileSync(configPath, "utf8").split(/\r?\n/);
+  const lines = configText.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].trim();
     if (!line || line.startsWith("#")) continue;
