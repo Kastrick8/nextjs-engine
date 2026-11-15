@@ -34,7 +34,7 @@ const PROVIDERS = {
 	bunny: {
 		// Use a family served directly by Bunny Fonts. Do not broaden the trusted
 		// font origins to unrelated third-party CDNs just to satisfy this smoke test.
-		cssUrl: "https://fonts.bunny.net/css?family=Lato:400&text=EngineTheme",
+		cssUrl: "https://fonts.bunny.net/css?family=Lato:400",
 		cssOrigins: "https://fonts.bunny.net",
 		fileOrigins: "https://fonts.bunny.net",
 	},
