@@ -12,6 +12,10 @@ This folder is a portable repository research snapshot prepared using the Resear
 
 The checked-in website docs are under `docs/3/`; these research notes are not a website navigation section.
 
+## Latest task continuation
+
+- [Workspace](./workspace.md) now includes the 2026-11-04 NE-CLI updater safety implementation, branch verification, current open-PR audit, and maintainer-constrained merge sequence (#80 last).
+
 ## Authority
 
 Current source on `main-3` is authoritative. These notes are a navigation/cache layer, not a substitute for re-reading source after the branch changes.
