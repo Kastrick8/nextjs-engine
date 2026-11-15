@@ -155,3 +155,33 @@ This addendum supersedes the initial #91/#92 and package-validator status refere
 - #96 (3/3), #97 (5/5), and #98 (4/4) had green workflows on the audited heads.
 - #80 remains absolutely last. Its checks pass, but one Code Quality annotation and CodeQL alert #70 remain explicit review items in its PR description.
 - Do not merge stale branches just because historical run results are green; update each target/base branch and require fresh head checks after the update.
+
+
+## PR dependency continuation — 2026-11-15 evening (Asia/Kolkata)
+
+### Current repository queue
+
+- **Merged:** PR #77 (EngineTheme ghost-action styling on `main-3`), PR #85 (package dist-tag verification on `package/main`), and PR #99 (package-only Git tag builder on `package/main`).
+- **#84 — Gen 3 rolling Alpha package snapshot:** current head `a672abfa5654e27d25989f0204776f673a84edac`; GitHub reports mergeable and all four checks pass (runtime, cross-browser, CodeQL, live font providers). The Bunny smoke now uses the CSS2 Rubik endpoint and restricts font files to `https://fonts.bunny.net`. The compiler filters candidates against the configured origin allowlist before preferring WOFF2/WOFF, so an untrusted WOFF2 candidate cannot beat an allowed WOFF candidate. No production origin allowlist was widened.
+- **#93 — Gen 3 updater safety:** rebuilt directly on current `main-3`; head `e49360f7e341483be4ef81ba973c58d5db5840a1`; mergeable. CLI smoke, runtime, browser compatibility and CodeQL pass. Bunny failed against the old base implementation; refresh/rerun after #84 merges.
+- **#94 — Gen 2 updater safety:** rebuilt directly on current `main-2`; head `c013c7d0c98c77116f18313903e28f60382bc9e9`; mergeable; Gen 2 CLI smoke, runtime, browser compatibility and CodeQL all pass.
+- **#100 — Gen 2 NE-CLI feature layer:** rebuilt directly on current `main-2`; head `d20594a1682d0ed56286e2a595c3587ccccd9d95`; mergeable; CLI smoke, runtime, browser compatibility and CodeQL all pass. It keeps the Gen 2 build path basic and hosts the Gen 3 migration scanner on the Gen 2 side only.
+- **#101 — Gen 3 NE-CLI feature layer:** rebuilt directly on current `main-3`; head `09937a6167414fcc9e8b4f794e5c4a238cd78c0a`; mergeable. CLI smoke, runtime, browser compatibility and CodeQL pass. Bunny failed against the old base; refresh/rerun after #84 merges.
+- **#97 — Gen 3 package-only tag installer:** mergeable; CLI smoke, runtime, browser compatibility and CodeQL pass; live Bunny check failed on the pre-#84 base. Refresh/rerun after #84 merges.
+- **#98 — Gen 2 package-only tag installer:** mergeable; CLI smoke, runtime, browser compatibility and CodeQL all pass. One base commit behind but no GitHub merge conflict.
+- **#80 — security remediation:** keep absolutely last. Automated checks pass and GitHub reports mergeable, but CodeQL alert #70 and one Code Quality annotation remain explicit maintainer-review items; do not claim they are dismissed or cleared.
+- **#55 — old EngineTheme/EngineOverlay draft:** not ready. It is 38 commits behind and 71 ahead, contains additional Overlay runtime/theme work (Dialog/Drawer/Popover and shared runtime behavior), and lacks complete validation. Do not close or merge it merely because #77 merged; review/split/rebase it separately.
+
+### Merge dependency order
+
+1. #99 is already merged; #85 is already merged.
+2. Merge #84 before Gen 3 consumers so the trusted-origin font selection fix is in `main-3`.
+3. Refresh and re-run #93, #97 and #101 on the updated `main-3`; merge #93 before #101. #97 follows #84.
+4. Merge #94 before #100 on `main-2`. #98 can follow #99 independently.
+5. **PR #80 remains last**, after the other intended merges and explicit maintainer review of its remaining annotations.
+
+### Branch preservation and verification notes
+
+The pre-rebase branch tips are preserved at `archive/ne-cli-pr93-before-rebase-20261115`, `archive/ne-cli-pr94-before-rebase-20261115`, `archive/ne-cli-pr100-before-rebase-20261115`, and `archive/ne-cli-pr101-before-rebase-20261115`. The live PR branches were rebuilt on the exact current base commits and reopened; all four now compare as ahead with zero commits behind and GitHub reports them mergeable. Temporary reverse-sync PR #102 was closed without merging after GitHub reported conflicts. No target branch was merged by this continuation.
+
+Research Companion/GitHub connector is the available repository path for this session. No local clone, local npm install, or local test run is claimed; verification above is from the referenced GitHub Actions runs. Recheck current heads and rerun CI after each dependency merges before advancing the queue.
