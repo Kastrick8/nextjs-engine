@@ -50,6 +50,7 @@ assert.equal(catalog.codeFormat, "PREFIX1234");
 assert.equal(catalog.publicBaseUrl, reporter.ERROR_BOOK_URL);
 const source = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const reporterSource = source("src/engine/errors/engineErrorReporter.js");
+const coreSource = source("src/engine/errors/engineErrorCore.js");
 const integrationSource = source("src/engine/plugins/engineErrorHandling.js");
 const loggerSource = source("src/engine/plugins/nencTerminalLogger.js");
 const remoteThemeSource = source("src/engine/component/engineTheme/remoteTheme.ts");
@@ -141,7 +142,7 @@ assert.equal(codedBudgetReport.code, "NEBLD3002");
 assert.ok(codedBudgetReport.reason && codedBudgetReport.action);
 assert.ok(reporter.formatEngineErrorReport(codedBudgetReport, { color: false }).includes(catalog.publicBaseUrl + "/build#nebld3002"));
 const emittedChecks = {
-  NECORE4000: reporterSource.includes('context.code || attachedCode || "NECORE4000"') && reporterSource.includes('codeCandidate : "NECORE4000"'),
+  NECORE4000: coreSource.includes('context.code || attachedCode || "NECORE4000"') && coreSource.includes('codeCandidate : "NECORE4000"'),
   NECORE4001: integrationSource.includes('code: "NECORE4001"'),
   NECORE4002: integrationSource.includes('code: "NECORE4002"'),
   NECORE4003: integrationSource.includes('code: "NECORE4003"'),
