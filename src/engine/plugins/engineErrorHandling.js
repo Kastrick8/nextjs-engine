@@ -13,11 +13,19 @@ function normalizeImportPath(value) {
 }
 
 function reporterSpecifier(rootDirectory, fromDirectory) {
+	return reporterModuleSpecifier(rootDirectory, fromDirectory, "engineErrorReporter.js");
+}
+
+function clientReporterSpecifier(rootDirectory, fromDirectory) {
+	return reporterModuleSpecifier(rootDirectory, fromDirectory, "engineErrorClientReporter.js");
+}
+
+function reporterModuleSpecifier(rootDirectory, fromDirectory, filename) {
 	const candidates = [
-		path.join(rootDirectory, "src", "engine", "errors", "engineErrorReporter.js"),
+		path.join(rootDirectory, "src", "engine", "errors", filename),
 		// When this plugin runs from node_modules, resolve the sibling reporter from
 		// the installed package instead of assuming its package root is exported.
-		path.resolve(__dirname, "../errors/engineErrorReporter.js"),
+		path.resolve(__dirname, "../errors/" + filename),
 	];
 	for (const sourceFile of candidates) {
 		try {
@@ -148,21 +156,26 @@ function globalErrorRouteSource(importPath) {
 	].join("\n");
 }
 
-function instrumentationSource(importPath) {
+function instrumentationSource(nodeReporterImportPath, clientReporterImportPath) {
 	return [
 		GENERATED_MARKER,
 		'import type { Instrumentation } from "next";',
-		'import { installEngineUncaughtExceptionMonitor, reportEngineError } from ' + JSON.stringify(importPath) + ';',
 		"",
-		"export function register(): void {",
-		"\tinstallEngineUncaughtExceptionMonitor();",
+		"export async function register(): Promise<void> {",
+		'\tif (process.env.NEXT_RUNTIME === "nodejs") {',
+		'\t\tconst { installEngineUncaughtExceptionMonitor } = await import(' + JSON.stringify(nodeReporterImportPath) + ');',
+		"\t\tinstallEngineUncaughtExceptionMonitor();",
+		"\t}",
 		"}",
 		"",
 		"export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {",
+		'\tconst reporter = process.env.NEXT_RUNTIME === "nodejs"',
+		'\t\t? await import(' + JSON.stringify(nodeReporterImportPath) + ')',
+		'\t\t: await import(' + JSON.stringify(clientReporterImportPath) + ');',
 		"\tconst errorValue = error as (Error & { digest?: unknown }) | null | undefined;",
 		"\tconst diagnosticError = error instanceof Error ? error : new Error(String(error));",
 		'\tconst digest = typeof errorValue?.digest === "string" ? errorValue.digest : undefined;',
-		"\treportEngineError(diagnosticError, {",
+		"\treporter.reportEngineError(diagnosticError, {",
 		'\t\tcode: "NECORE4003",',
 		'\t\tsource: "next-request",',
 		"\t\troute: context && context.routePath,",
@@ -174,7 +187,7 @@ function instrumentationSource(importPath) {
 		"\t});",
 		"};",
 		"",
-	].join("\n");
+	].join("\\n");
 }
 
 function appDirectory(rootDirectory) {
@@ -195,7 +208,7 @@ function prepareEngineErrorHandling(options = {}) {
 	const preserved = [];
 
 	if (appDir) {
-		const routeImport = reporterSpecifier(rootDirectory, appDir);
+		const routeImport = clientReporterSpecifier(rootDirectory, appDir);
 		const routeFiles = [
 			{ name: "error.tsx", contents: errorRouteSource(routeImport), warningCode: "NECFG2001" },
 			{ name: "global-error.tsx", contents: globalErrorRouteSource(routeImport), warningCode: "NECFG2002" },
@@ -223,11 +236,12 @@ function prepareEngineErrorHandling(options = {}) {
 			: rootDirectory;
 		instrumentationFile = path.join(sourceRoot, "instrumentation.ts");
 	}
-	const instrumentationImport = reporterSpecifier(rootDirectory, path.dirname(instrumentationFile));
+	const instrumentationNodeImport = reporterSpecifier(rootDirectory, path.dirname(instrumentationFile));
+	const instrumentationClientImport = clientReporterSpecifier(rootDirectory, path.dirname(instrumentationFile));
 	const instrumentationResult = writeGeneratedFile(
 		rootDirectory,
 		instrumentationFile,
-		instrumentationSource(instrumentationImport),
+		instrumentationSource(instrumentationNodeImport, instrumentationClientImport),
 		{ development, warningCode: "NECFG2003" },
 	);
 	if (instrumentationResult.status === "preserved") preserved.push(instrumentationResult.path);
@@ -243,4 +257,5 @@ module.exports = {
 	globalErrorRouteSource,
 	instrumentationSource,
 	reporterSpecifier,
+	clientReporterSpecifier,
 };
