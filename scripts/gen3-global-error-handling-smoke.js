@@ -61,7 +61,8 @@ try {
 	compile(globalSource, true, "generated app/global-error.tsx");
 	compile(instrumentation, false, "generated instrumentation.ts");
 	const clientReporterSource = fs.readFileSync(path.join(__dirname, "../src/engine/errors/engineErrorClientReporter.js"), "utf8");
-	assert.doesNotMatch(clientReporterSource, /\bprocess\.(?:on|off|stdout|stderr|versions)\b/, "the browser reporter contains no Node-only process APIs");
+	const clientCoreSource = fs.readFileSync(path.join(__dirname, "../src/engine/errors/engineErrorCore.js"), "utf8");
+	assert.doesNotMatch(clientReporterSource + "\\n" + clientCoreSource, /\bprocess\.(?:on|off|stdout|stderr|versions)\b/, "the complete browser reporter import graph contains no Node-only process APIs");
 	const second = prepareEngineErrorHandling({ rootDir: root, development: true });
 	assert.equal(second.generated.length, 3, "re-running setup is idempotent");
 } finally {
