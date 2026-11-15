@@ -14,9 +14,12 @@ The NE CLI gives projects one command interface for development, production buil
 | **ne dev** | Start the local Next.js development server, including the project's Engine/NENC integration. |
 | **ne build** | Run prepare:production when defined, run ne check, then invoke the local Next.js production build. |
 | **ne start** | Start the production Next.js server. |
-| **ne check** | Run TypeScript checking and the available Gen 3 migration diagnostics. |
+| **ne check** | Run the configured basic project checks, including TypeScript when configured. |
+| **ne analyze** | Audit dependencies, inspect project configuration, and report detailed diagnostics. |
+| **ne info** | Show local and remote Engine information. |
+| **ne plugins** | List enabled local NE-CLI plugins. |
 | **ne clean** | Remove generated build/cache targets from a bounded list. Rollback backups are preserved. |
-| **ne updater** | Open the Play Store-style interactive release catalog directly. |
+| **ne updater** | Open the terminal release catalog directly. |
 | **ne update** | Print channel releases in CLI form; flags can select and install a channel without opening the TUI. |
 | **ne rollback** | Restore the previous package manifest and lockfiles, then reinstall dependencies. |
 | **ne help** | Print command help. |
@@ -159,9 +162,9 @@ Before switching a dependency, the updater snapshots package.json and package-ma
 
 **ne clean** only removes known generated paths under the project root, including the configured Next.js distDir, common build output directories, TypeScript build metadata, downloaded channel artifacts, and the channel cache. It does not delete rollback backup history.
 
-## Error Book and migration checks
+## Error Book and project analysis
 
-**ne check** runs the project's TypeScript check when available and invokes the existing Gen 3 migration diagnostics when packaged with the CLI. Diagnostics retain their established code, severity, source location, and recommended action. The scanner intentionally reports only patterns represented by explicit rules; unknown props or names are not guessed to be deprecated.
+**ne check** runs the configured basic project checks, including TypeScript when available. **ne analyze** audits dependencies, checks supported configuration files, reviews outdated packages, and runs any local CLI-plugin analysis checks. Gen 3 does not run the Gen 2-to-Gen 3 migration diagnostics; that scanner is shipped with the Gen 2 CLI so developers can prepare before upgrading.
 
 ## Experimental notice and controls
 
@@ -203,3 +206,51 @@ ne update --version 3.0.0-alpha.2 --yes --allow-generation-change --acknowledge-
 `--allow-downgrade` explicitly permits an older version, `--allow-generation-change` explicitly permits crossing between Gen 2 and Gen 3, and `--acknowledge-compatibility` acknowledges preflight warnings. These flags do not bypass fatal findings.
 
 This is a focused static migration preflight, not a complete API, npm dependency-tree, TypeScript, peer-dependency, or runtime-compatibility proof. It does not run `npm audit`, `npm ls`, or a production build before changing dependencies. Clean results mean no currently encoded rules matched in the bounded set of scanned files; they do not guarantee that every third-party package or application behavior is compatible. After installation NE verifies the exact installed package name/version and Engine generation; a mismatch or installation failure enters the existing dependency-file restoration path.
+
+
+## Analyze, information, and source maintenance
+
+\`ne analyze\` checks dependency advisories, package freshness, supported configuration syntax, TypeScript/project checks, and enabled plugin checks. It uses the active package manager's native fix command when one is available; \`ne analyze --check\` runs read-only. It never edits application source code. Generation 3 does not run Gen 2-to-Gen 3 migration diagnostics.
+
+\`ne info\` prints a Local section and a Remote section, including installed Engine details, the detected generation, Node/package-manager information, source commit, GitHub branch head, and any compatible maintenance update.
+
+The build command checks the generation-specific hotfix manifest and prints a terminal warning when an official same-version GitHub maintenance artifact is available. Apply it explicitly with:
+
+\`\`\`sh
+ne update --source
+\`\`\`
+
+The artifact is version-specific and SHA-256-verified. NE updates only the Engine package dependency and lockfile; it does not rewrite the application's source files. An ordinary newer commit on \`main-3\` is not automatically treated as a compatible hotfix.
+
+## Local NE-CLI plugins
+
+The NE-CLI plugin system is local to the CLI and separate from Engine runtime plugins. See [NE-CLI Plugin API](./ne-cli-plugins.md).
+
+
+## `npm run build` integration
+
+For the regular package-manager build command to invoke the NE build flow (including the GitHub maintenance warning), configure the consuming project's build script as `ne build`:
+
+```json
+{
+  "scripts": {
+    "build": "ne build"
+  }
+}
+```
+
+Then `npm run build`, `pnpm build`, `yarn build`, or `bun run build` invokes NE, which runs the configured checks and the local Next.js production build. NE does not silently rewrite a consuming project's `package.json`; choose this integration explicitly.
+
+
+### Publishing a maintenance artifact (maintainers)
+
+The consumer/update path is implemented, but publishing is currently a maintainer-driven operation; the manifest is intentionally empty until a real artifact is released.
+
+1. Check out the exact \`main-3\` commit containing the fix. Prepare a package-only archive from that source, with the package manifest version set to the already-published target version (for example, \`3.0.0-alpha.2\`). Do not publish it to npm.
+2. Run \`npm pack --ignore-scripts\` and name the resulting asset \`nextjs-engine-3.0.0-alpha.2.tgz\`.
+3. Compute its SHA-256 digest.
+4. Create an official GitHub Release with tag \`ne-hotfix-3-<id>\` and upload that exact asset.
+5. Append an entry to \`.github/ne-cli-hotfixes.json\` on \`main-3\`, including the target version, \`fromCommit\`, fixed \`toCommit\`, SHA-256, exact release asset URL, and a short summary. Set \`compatibleVersions\` to include the exact \`version\`.
+6. Review and merge the manifest change. Do not add an entry until the release asset exists and its digest has been independently checked.
+
+The Gen 2 procedure is the same on \`main-2\`, using generation \`2\` and a \`ne-hotfix-2-<id>\` release tag. Keep each manifest generation-specific. The updater rejects non-official asset URLs, malformed commit/digest values, mismatched package identity, and a package whose version differs from the installed version.

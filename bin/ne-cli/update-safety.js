@@ -122,7 +122,8 @@ function sourceFiles(root) {
 		const directory = path.resolve(root, relative);
 		const rel = path.relative(root, directory);
 		if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) continue;
-		// Do not lstat and then reopen the same directory through readdirSync.
+		// readdirSync is the single path-based operation here; avoid a separate
+		// lstat-then-reopen check that can race with a directory replacement.
 		const pending = [directory];
 		while (pending.length && found.length < MAX_FILES) {
 			const current = pending.pop();

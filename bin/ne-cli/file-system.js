@@ -31,9 +31,9 @@ function createPrivateTempDirectory(parentDirectory, prefix) {
  * avoids cross-filesystem rename failures.
  */
 /**
- * Run a file operation against one opened regular-file descriptor.
- * The descriptor pins file identity so validation and reading cannot switch
- * to a different path target between separate filesystem calls.
+ * Read one regular file through an opened descriptor. This pins the file
+ * identity across validation and reading, rejects symlinks, and detects
+ * concurrent in-place changes.
  */
 function withRegularFileDescriptor(filename, callback) {
 	const noFollow = Number.isInteger(fs.constants.O_NOFOLLOW) ? fs.constants.O_NOFOLLOW : 0;
