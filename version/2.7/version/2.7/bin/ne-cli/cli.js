@@ -25,6 +25,7 @@ const {
 	rollback,
 	runCheck,
 	runBuild,
+	hasManagedRollbackSnapshot,
 } = require("./project");
 
 function parseArgs(argv) {
@@ -120,41 +121,151 @@ function experimentalWarning(options) {
 
 function getHelp() {
 	return [
-		"Nextjs Engine (NE) CLI",
+		"Next.js Engine CLI — Generation 2",
+		"Introduced in v2.7.0 · Experimental; commands may change or be removed.",
 		"",
-		"  ne                    Open the interactive dashboard",
-		"  ne dev                Start the Next.js development server",
-		"  ne build              Run NE checks and the production Next.js build",
-		"  ne start              Start the production Next.js server",
-		"  ne check              Run type-checking and available Engine diagnostics",
-		"  ne clean              Safely clean generated build caches",
-		"  ne updater            Open the Play Store-style release UI",
-		"  ne update             List channel releases from the command line",
-		"  ne update --channel alpha",
-		"  ne update --channel latest-green",
-		"  ne update --version 3.0.0-alpha.2",
-		"  ne rollback           Restore the previous dependency and lockfiles",
-		"  --and=<command>       Run one executable and its arguments after NE completes",
-		"                        Shell operators are rejected; repeat --and for multiple commands",
-		"  ne help               Show this help",
+		"Usage",
+		"  ne [command] [options]",
 		"",
-		"Channels:",
-		"  stable        The latest published stable npm package",
-		"  alpha         The newest verified Alpha artifact from GitHub Releases",
-		"  latest-green  The newest version among stable and Beta; never Alpha",
+		"Commands",
+		"  ne                 Open the interactive dashboard",
+		"  ne dev             Start the Next.js development server",
+		"  ne build           Run project checks and the production build",
+		"  ne start           Start the production server",
+		"  ne check           Run the available project checks",
+		"  ne clean           Remove generated build files and caches",
+		"  ne updater         Browse available releases",
+		"  ne update          List or install a release",
+		"  ne rollback        Restore the previous managed install",
 		"",
-		"Safety flags:",
-		"  --yes         Skip the interactive installation confirmation",
-		"  --dry-run     Show a selection without changing the project",
-		"  --check       Refresh and list channel availability without installing",
-		"  --json        Print the channel catalog as JSON",
-		"  -q, --quiet   Suppress the NE CLI introduction notice",
-		"  --no-color    Disable ANSI colors in CLI output",
+		"Help",
+		"  ne --help          Show this overview",
+		"  ne <command> -h    Show help for a command",
+		"  ne help update     Show update options",
 		"",
-		"One-shot invocation before a local installation:",
+		"Install",
+		"  npm install -g @kastrick/nextjs-engine",
+		"  npm link           Use this checkout from your shell",
+		"",
+		"Run once",
 		"  npx --yes --package=@kastrick/nextjs-engine ne updater",
 		"",
-	].join("\n");
+		"Common options",
+		"  -q, --quiet        Hide the v2.7.0 introduction notice",
+		"  --no-color         Disable ANSI colors",
+		"  --and <command>    Run a command after NE completes (without a shell)",
+		"  --and-terminal <n> Show the last 1–100 output lines",
+		"",
+		"Run ne update --help for release options."
+	].join("\n") + "\n";
+}
+
+function getCommandHelp(command) {
+	const help = {
+		update: [
+			"ne update — Release manager",
+			"",
+			"Usage",
+			"  ne update",
+			"  ne update --channel <channel> [options]",
+			"  ne update --version <version> [options]",
+			"",
+			"Release selection",
+			"  --channel <channel>  stable, alpha, beta, or latest-green",
+			"  --version <version>  Select one verified version",
+			"",
+			"Options",
+			"  --check              Refresh and list releases without installing",
+			"  --dry-run            Show the selected release; do not install",
+			"  --json               Print the release catalog as JSON",
+			"  --force              Ignore the cached catalog and refresh feeds",
+			"  --yes                Skip the interactive install confirmation",
+			"  -q, --quiet          Hide the v2.7.0 introduction notice",
+			"  --no-color           Disable ANSI colors",
+			"  -h, --help           Show this command help",
+			"",
+			"Examples",
+			"  ne update",
+			"  ne update --channel alpha --check",
+			"  ne update --channel latest-green --dry-run",
+			"  ne update --version 3.0.0-alpha.2",
+			"  ne update --channel alpha --yes",
+			"",
+			"Notes",
+			"  latest-green chooses the newest stable or beta release, never alpha.",
+			"  Alpha and beta installs require a verified GitHub release artifact.",
+			"  Use --json without a selector for a read-only JSON catalog."
+		],
+		updater: [
+			"ne updater — Interactive release browser",
+			"",
+			"Usage",
+			"  ne updater",
+			"",
+			"Browse releases, inspect their source and verification details, and select",
+			"an installable version. Use Esc or Q to go back or quit.",
+			"",
+			"For a non-interactive install, use ne update --help."
+		],
+		dev: [
+			"ne dev — Development server",
+			"",
+			"Usage",
+			"  ne dev",
+			"",
+			"Starts the project's Next.js development server."
+		],
+		build: [
+			"ne build — Production build",
+			"",
+			"Usage",
+			"  ne build",
+			"",
+			"Runs the Gen 2 project checks and the project's Next.js production build.",
+			"The command stops when a required step fails."
+		],
+		start: [
+			"ne start — Production server",
+			"",
+			"Usage",
+			"  ne start",
+			"",
+			"Starts the project's production Next.js server. Run ne build first."
+		],
+		check: [
+			"ne check — Project checks",
+			"",
+			"Usage",
+			"  ne check",
+			"",
+			"Runs the project checks supported by this Generation 2 package."
+		],
+		clean: [
+			"ne clean — Clean generated files",
+			"",
+			"Usage",
+			"  ne clean [--dry-run]",
+			"",
+			"Removes supported build output and generated caches. Rollback backups",
+			"are kept.",
+			"",
+			"Options",
+			"  --dry-run   Show what would be removed without deleting anything",
+			"  -h, --help  Show this command help"
+		],
+		rollback: [
+			"ne rollback — Restore the previous install",
+			"",
+			"Usage",
+			"  ne rollback",
+			"",
+			"Restores the previous managed package.json and lockfiles, then reinstalls",
+			"dependencies. Rollback is available only after NE has made a backup."
+		]
+	};
+	return Object.prototype.hasOwnProperty.call(help, command)
+		? help[command].join("\n") + "\n"
+		: null;
 }
 
 function listChannels(catalog, state) {
@@ -309,13 +420,21 @@ async function runDashboard(root, showWarning) {
 			version: readInstalledVersion(root),
 			installedVersion: state.installedVersion || readInstalledVersion(root),
 			channel: state.activeChannel || "not selected",
+			rollbackAvailable: hasManagedRollbackSnapshot(root, state.previous && state.previous.backup),
 			cacheStatus: catalog.cached ? "cached" : "ready",
 		},
 	});
 	return result;
 }
 
-async function runDashboardAction(root, action) {
+async function runDashboardAction(root, result, dependencies) {
+	const action = typeof result === "string" ? result : result && result.action;
+	const install = dependencies && typeof dependencies.installRelease === "function"
+		? dependencies.installRelease
+		: installRelease;
+	if (action === "install" && result && result.release) {
+		return install(root, result.release, result.release.track === "beta" ? "latest-green" : result.release.track);
+	}
 	if (action === "dev") return runNext(root, ["dev"]);
 	if (action === "build") return runBuild(root);
 	if (action === "start") return runNext(root, ["start"]);
@@ -325,7 +444,7 @@ async function runDashboardAction(root, action) {
 	if (action === "help") return process.stdout.write(getHelp());
 	if (action === "updater") return commandUpdater(root, false);
 	if (action === "quit") return;
-	throw new Error("Unknown dashboard action: " + action);
+	throw new Error("Unknown dashboard action: " + (action || "none"));
 }
 
 function tokenizeCommand(command) {
@@ -451,7 +570,7 @@ async function executeCommand(root, command, subArgs, options, showWarning) {
 			return;
 		}
 		const result = await runDashboard(root, showWarning);
-		await runDashboardAction(root, result.action);
+		await runDashboardAction(root, result);
 		return;
 	}
 	if (command === "updater") return commandUpdater(root, showWarning);
@@ -471,8 +590,27 @@ async function main(argv) {
 	const args = parseArgs(argv || process.argv.slice(2));
 	const command = args.positional[0];
 	const subArgs = args.positional.slice(1);
-	if (args.options.help || command === "help") {
-		process.stdout.write(getHelp());
+	if (command === "help") {
+		const target = subArgs[0];
+		if (!target) process.stdout.write(getHelp());
+		else {
+			const help = getCommandHelp(target);
+			if (!help) throw diagnostics.unknownCommand(target, [
+				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+			]);
+			process.stdout.write(help);
+		}
+		return;
+	}
+	if (args.options.help) {
+		if (!command) process.stdout.write(getHelp());
+		else {
+			const help = getCommandHelp(command);
+			if (!help) throw diagnostics.unknownCommand(command, [
+				"updater", "update", "dev", "build", "start", "check", "clean", "rollback", "help",
+			]);
+			process.stdout.write(help);
+		}
 		return;
 	}
 	const usesTui = !command || command === "updater";
@@ -485,9 +623,11 @@ async function main(argv) {
 module.exports = {
 	parseArgs,
 	getHelp,
+	getCommandHelp,
 	listChannels,
 	main,
 	runChainedCommands,
 	tokenizeCommand,
 	resolveChainedCommand,
+	runDashboardAction,
 };
