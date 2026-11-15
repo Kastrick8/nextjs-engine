@@ -152,7 +152,7 @@ function getHelp() {
 		"  ne dev             Start the Next.js development server",
 		"  ne build           Run NE checks and the production build",
 		"  ne start           Start the production server",
-		"  ne check           Run the configured project checks",
+		"  ne check           Run TypeScript and Gen 3 migration checks",
 		"  ne analyze         Analyze dependencies and project diagnostics",
 		"  ne info            Show local and remote Engine information",
 		"  ne plugins         List enabled local NE CLI plugins",
